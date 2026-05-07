@@ -88,10 +88,10 @@ export default function DashboardPage() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title={t('totalClients')} value={data?.total ?? 0} icon={<Users size={22} />} color="blue" />
-          <StatCard title={t('activeClients')} value={data?.active ?? 0} icon={<CheckCircle2 size={22} />} color="green" />
-          <StatCard title={t('inactiveClients')} value={data?.inactive ?? 0} icon={<XCircle size={22} />} color="red" />
-          <StatCard title={t('prospects')} value={data?.prospects ?? 0} icon={<Sparkles size={22} />} color="amber" />
+          <StatCard title={t('totalClients')} value={data?.total ?? 0} icon={<Users size={22} />} color="blue" href="/clients" />
+          <StatCard title={t('activeClients')} value={data?.active ?? 0} icon={<CheckCircle2 size={22} />} color="green" href="/clients?status=Activo" />
+          <StatCard title={t('inactiveClients')} value={data?.inactive ?? 0} icon={<XCircle size={22} />} color="red" href="/clients?status=Inactivo" />
+          <StatCard title={t('prospects')} value={data?.prospects ?? 0} icon={<Sparkles size={22} />} color="amber" href="/clients?is_prospect=true" />
         </div>
 
         {/* Charts */}

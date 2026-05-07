@@ -8,6 +8,8 @@ import { Search, Filter, Download, UserPlus, Phone, Mail, MapPin, ChevronRight, 
 import Link from 'next/link'
 import { useDebounce } from '@/hooks/useDebounce'
 
+import { useSearchParams } from 'next/navigation'
+
 const MEXICO_STATES = [
   'CDMX','Estado de México','Jalisco','Nuevo León','Puebla','Guanajuato',
   'Veracruz','Chihuahua','Sonora','Coahuila','Tamaulipas','Baja California',
@@ -20,15 +22,31 @@ const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
 export default function ClientsPage() {
   const { t } = useI18n()
+  const searchParams = useSearchParams()
   const [clients, setClients] = useState<Client[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [stateFilter, setStateFilter] = useState('')
+  const [isProspectFilter, setIsProspectFilter] = useState(false)
   const [page, setPage] = useState(1)
   const [showFilters, setShowFilters] = useState(false)
   const debouncedSearch = useDebounce(search, 350)
+
+  useEffect(() => {
+    const status = searchParams.get('status')
+    const isProspect = searchParams.get('is_prospect') === 'true'
+    if (status) {
+      setStatusFilter(status)
+      setShowFilters(true)
+    }
+    if (isProspect) {
+      setIsProspectFilter(true)
+      setStatusFilter('')
+      setShowFilters(true)
+    }
+  }, [searchParams])
 
   const fetchClients = useCallback(async () => {
     setLoading(true)
@@ -37,6 +55,7 @@ export default function ClientsPage() {
       ...(debouncedSearch && { search: debouncedSearch }),
       ...(statusFilter && { status: statusFilter }),
       ...(stateFilter && { state: stateFilter }),
+      ...(isProspectFilter && { is_prospect: 'true' }),
     })
     try {
       const res = await fetch(`/api/clients?${params}`)
@@ -44,10 +63,10 @@ export default function ClientsPage() {
       setClients(json.data || [])
       setTotal(json.count || 0)
     } finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, stateFilter, page])
+  }, [debouncedSearch, statusFilter, stateFilter, isProspectFilter, page])
 
   useEffect(() => { fetchClients() }, [fetchClients])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, isProspectFilter])
 
   const exportCsv = () => {
     const headers = ['Nombre','RFC','Teléfono','Email Contacto','Estados','Especialidades','Estatus']
@@ -89,9 +108,9 @@ export default function ClientsPage() {
             style={showFilters ? { color: '#0763a9', borderColor: '#0763a9' } : {}}
           >
             <Filter size={15} /> {t('filter')}
-            {(statusFilter || stateFilter) && (
+            {(statusFilter || stateFilter || isProspectFilter) && (
               <span className="ml-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center" style={{ background: '#0763a9' }}>
-                {[statusFilter, stateFilter].filter(Boolean).length}
+                {[statusFilter, stateFilter, isProspectFilter].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -102,8 +121,23 @@ export default function ClientsPage() {
           <div className="flex flex-wrap gap-3 p-4 rounded-xl animate-fade-in bg-white" style={CARD}>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium" style={{ color: '#5a5b5d' }}>{t('status')}</label>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="crm-input text-sm py-1.5" style={{ minWidth: 140 }}>
+              <select
+                value={isProspectFilter ? '__prospects__' : statusFilter}
+                onChange={e => {
+                  const val = e.target.value
+                  if (val === '__prospects__') {
+                    setIsProspectFilter(true)
+                    setStatusFilter('')
+                  } else {
+                    setIsProspectFilter(false)
+                    setStatusFilter(val)
+                  }
+                }}
+                className="crm-input text-sm py-1.5"
+                style={{ minWidth: 140 }}
+              >
                 <option value="">{t('all')}</option>
+                <option value="__prospects__">{t('prospects')}</option>
                 <option value="Activo">{t('activo')}</option>
                 <option value="Inactivo">{t('inactivo')}</option>
                 <option value="Nuevo Prospecto">{t('nuevoProspecto')}</option>
@@ -120,8 +154,8 @@ export default function ClientsPage() {
                 {MEXICO_STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            {(statusFilter || stateFilter) && (
-              <button onClick={() => { setStatusFilter(''); setStateFilter('') }} className="btn-ghost text-xs self-end mb-0.5">
+            {(statusFilter || stateFilter || isProspectFilter) && (
+              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setIsProspectFilter(false) }} className="btn-ghost text-xs self-end mb-0.5">
                 <X size={13} /> Limpiar
               </button>
             )}

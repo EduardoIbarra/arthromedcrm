@@ -1,6 +1,7 @@
 'use client'
 import { ReactNode } from 'react'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import Link from 'next/link'
 
 interface StatCardProps {
   title: string
@@ -9,6 +10,7 @@ interface StatCardProps {
   trend?: number
   color?: 'blue' | 'green' | 'red' | 'amber'
   subtitle?: string
+  href?: string
 }
 
 const colorMap = {
@@ -18,13 +20,11 @@ const colorMap = {
   amber: { iconBg: '#fef3c7', iconColor: '#b45309', border: '#fde68a', accent: '#b45309' },
 }
 
-export default function StatCard({ title, value, icon, trend, color = 'blue', subtitle }: StatCardProps) {
+export default function StatCard({ title, value, icon, trend, color = 'blue', subtitle, href }: StatCardProps) {
   const c = colorMap[color]
-  return (
-    <div
-      className="bg-white rounded-2xl p-5 flex flex-col gap-3 transition-all duration-150 hover:-translate-y-0.5"
-      style={{ border: `1px solid ${c.border}`, boxShadow: '0 1px 4px rgba(7,99,169,0.06)' }}
-    >
+  
+  const content = (
+    <>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium" style={{ color: '#5a5b5d' }}>{title}</p>
@@ -45,6 +45,25 @@ export default function StatCard({ title, value, icon, trend, color = 'blue', su
           <span>{trend > 0 ? '+' : ''}{trend}% este mes</span>
         </div>
       )}
+    </>
+  )
+
+  const commonProps = {
+    className: "bg-white rounded-2xl p-5 flex flex-col gap-3 transition-all duration-150 hover:-translate-y-0.5",
+    style: { border: `1px solid ${c.border}`, boxShadow: '0 1px 4px rgba(7,99,169,0.06)' }
+  }
+
+  if (href) {
+    return (
+      <Link href={href} {...commonProps}>
+        {content}
+      </Link>
+    )
+  }
+
+  return (
+    <div {...commonProps}>
+      {content}
     </div>
   )
 }

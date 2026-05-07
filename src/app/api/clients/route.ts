@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status') || ''
   const state = searchParams.get('state') || ''
   const specialty = searchParams.get('specialty') || ''
+  const isProspect = searchParams.get('is_prospect') === 'true'
   const page = parseInt(searchParams.get('page') || '1')
   const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
@@ -23,6 +24,8 @@ export async function GET(request: NextRequest) {
   }
   if (status) {
     query = query.eq('status', status)
+  } else if (isProspect) {
+    query = query.not('status', 'in', '("Activo","Inactivo")')
   }
   if (state) {
     query = query.contains('states', [state])
