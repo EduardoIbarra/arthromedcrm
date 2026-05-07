@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useDebounce } from '@/hooks/useDebounce'
 
 import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 
 const MEXICO_STATES = [
   'CDMX','Estado de México','Jalisco','Nuevo León','Puebla','Guanajuato',
@@ -20,7 +21,7 @@ const MEXICO_STATES = [
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
-export default function ClientsPage() {
+function ClientsContent() {
   const { t } = useI18n()
   const searchParams = useSearchParams()
   const [clients, setClients] = useState<Client[]>([])
@@ -251,5 +252,19 @@ export default function ClientsPage() {
         </div>
       </div>
     </AppShell>
+  )
+}
+
+export default function ClientsPage() {
+  return (
+    <Suspense fallback={
+      <AppShell>
+        <div className="max-w-7xl mx-auto py-16 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#0763a9', borderTopColor: 'transparent' }} />
+        </div>
+      </AppShell>
+    }>
+      <ClientsContent />
+    </Suspense>
   )
 }

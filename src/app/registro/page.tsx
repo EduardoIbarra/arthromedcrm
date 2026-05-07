@@ -316,7 +316,7 @@ export default function RegistroPage() {
               <button
                 id={step === 'confirm' ? 'btn-submit' : 'btn-next'}
                 className="flex-1 inline-flex items-center justify-center gap-2 bg-linear-to-br from-[#0763a9] to-[#054d85] text-white py-3.5 px-6 rounded-2xl font-bold text-lg shadow-lg shadow-[#0763a9]/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
-                onClick={step === 'confirm' ? submit : next}
+                onClick={step === 'confirm' ? submit : () => next()}
                 disabled={loading || !isStepValid()}
               >
                 {loading ? <Loader2 size={20} className="animate-spin" /> : step === 'confirm' ? <CheckCircle size={20} /> : null}
