@@ -1,0 +1,397 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import AppShell from '@/components/AppShell'
+import StatusBadge from '@/components/StatusBadge'
+import Modal from '@/components/Modal'
+import { useI18n } from '@/contexts/I18nContext'
+import { Client, ClientActivity } from '@/types/database'
+import {
+  Phone, Mail, MapPin, Building2, FileText, Edit3, Save, X,
+  MessageCircle, Bot, ChevronLeft, Trash2, Plus, Tag, Loader2, CheckCircle
+} from 'lucide-react'
+import { formatDistanceToNow, format } from 'date-fns'
+import { es, enUS, zhCN } from 'date-fns/locale'
+import { Locale } from '@/lib/i18n'
+import Link from 'next/link'
+
+const dfLocales: Record<Locale, typeof es> = { es, en: enUS, zh: zhCN }
+
+const ACTIVITY_ICON: Record<string, string> = {
+  whatsapp: '💬', llamada: '📞', email: '📧', nota: '📝', visita: '🤝', sistema: '⚙️'
+}
+const ACTIVITY_COLOR: Record<string, string> = {
+  whatsapp: '#15803d', llamada: '#0763a9', email: '#b45309',
+  nota: '#5a5b5d', visita: '#6d28d9', sistema: '#8a8b8d'
+}
+
+const WA_TEMPLATES = [
+  { id: 'lead_generic_followup', label: 'Seguimiento General' },
+  { id: 'lead_onboarding_distributor', label: 'Bienvenida Distribuidor' },
+  { id: 'lead_referral_doctor', label: 'Referido por Doctor' },
+]
+
+const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
+
+export default function ClientDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const { t, locale } = useI18n()
+  const dfLocale = dfLocales[locale] ?? es
+
+  const [client, setClient] = useState<Client | null>(null)
+  const [activities, setActivities] = useState<ClientActivity[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [editData, setEditData] = useState<Partial<Client>>({})
+  const [saving, setSaving] = useState(false)
+
+  const [showWA, setShowWA] = useState(false)
+  const [waTemplate, setWaTemplate] = useState(WA_TEMPLATES[0].id)
+  const [waSending, setWaSending] = useState(false)
+  const [waResult, setWaResult] = useState<'ok' | 'err' | null>(null)
+
+  const [showNote, setShowNote] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [noteType, setNoteType] = useState('nota')
+  const [addingNote, setAddingNote] = useState(false)
+
+  const [aiSummary, setAiSummary] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [showAI, setShowAI] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [cRes, aRes] = await Promise.all([
+          fetch(`/api/clients/${id}`),
+          fetch(`/api/clients/${id}/activities`),
+        ])
+        const cJson = await cRes.json()
+        const aJson = await aRes.json()
+        setClient(cJson.data)
+        setEditData(cJson.data)
+        setActivities(aJson.data || [])
+      } finally { setLoading(false) }
+    }
+    load()
+  }, [id])
+
+  const save = async () => {
+    setSaving(true)
+    const res = await fetch(`/api/clients/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editData) })
+    const json = await res.json()
+    setClient(json.data); setSaving(false); setEditing(false)
+  }
+
+  const sendWA = async () => {
+    if (!client?.phone) return
+    setWaSending(true)
+    try {
+      const res = await fetch('/api/whatsapp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: client.whatsapp_phone || client.phone, template: waTemplate }) })
+      setWaResult(res.ok ? 'ok' : 'err')
+      if (res.ok) {
+        await fetch(`/api/clients/${id}/activities`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'whatsapp', content: `Plantilla enviada: ${waTemplate}` }) })
+        const aRes = await fetch(`/api/clients/${id}/activities`)
+        setActivities((await aRes.json()).data || [])
+      }
+    } finally { setWaSending(false) }
+  }
+
+  const addNote = async () => {
+    if (!noteText.trim()) return
+    setAddingNote(true)
+    await fetch(`/api/clients/${id}/activities`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: noteType, content: noteText }) })
+    const aRes = await fetch(`/api/clients/${id}/activities`)
+    setActivities((await aRes.json()).data || [])
+    setNoteText(''); setShowNote(false); setAddingNote(false)
+  }
+
+  const getAI = async () => {
+    setAiLoading(true); setShowAI(true)
+    const res = await fetch('/api/ai/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: id }) })
+    const json = await res.json()
+    setAiSummary(json.summary || json.error); setAiLoading(false)
+  }
+
+  const deleteClient = async () => {
+    await fetch(`/api/clients/${id}`, { method: 'DELETE' })
+    router.push('/clients')
+  }
+
+  const field = (key: keyof Client) => editing
+    ? <input className="crm-input text-sm" value={(editData[key] as string) || ''} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value }))} />
+    : <p className="text-sm" style={{ color: '#37383a' }}>{(client?.[key] as string) || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+
+  const arrayField = (key: keyof Client) => {
+    const val = (client?.[key] as string[])?.join(', ') || ''
+    return editing
+      ? <input className="crm-input text-sm" value={(editData[key] as string[])?.join(', ') || val} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
+      : <p className="text-sm" style={{ color: '#37383a' }}>{val || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+  }
+
+  if (loading) return (
+    <AppShell>
+      <div className="flex items-center justify-center min-h-64">
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#0763a9', borderTopColor: 'transparent' }} />
+      </div>
+    </AppShell>
+  )
+
+  if (!client) return (
+    <AppShell>
+      <div className="text-center py-20" style={{ color: '#5a5b5d' }}>
+        <p>Cliente no encontrado</p>
+        <Link href="/clients" className="btn-secondary mt-4 inline-flex">{t('back')}</Link>
+      </div>
+    </AppShell>
+  )
+
+  return (
+    <AppShell>
+      <div className="max-w-5xl mx-auto space-y-5">
+        {/* Back + Actions */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <Link href="/clients" className="btn-ghost text-sm"><ChevronLeft size={16} /> {t('back')}</Link>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={getAI} className="btn-secondary text-sm"><Bot size={15} /> {t('aiSummary')}</button>
+            <button onClick={() => setShowWA(true)} className="btn-secondary text-sm"><MessageCircle size={15} /> {t('sendWhatsApp')}</button>
+            <button onClick={() => setShowNote(true)} className="btn-secondary text-sm"><Plus size={15} /> {t('addNote')}</button>
+            {editing ? (
+              <>
+                <button onClick={save} disabled={saving} className="btn-primary text-sm">
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {t('saveChanges')}
+                </button>
+                <button onClick={() => { setEditing(false); setEditData(client) }} className="btn-ghost text-sm"><X size={15} /> {t('cancel')}</button>
+              </>
+            ) : (
+              <button onClick={() => setEditing(true)} className="btn-primary text-sm"><Edit3 size={15} /> {t('editClient')}</button>
+            )}
+            <button onClick={() => setShowDelete(true)} className="btn-ghost text-sm" style={{ color: '#b91c1c' }}><Trash2 size={15} /></button>
+          </div>
+        </div>
+
+        {/* Hero */}
+        <div className="rounded-2xl p-5 bg-white" style={CARD}>
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0 shadow" style={{ background: '#0763a9' }}>
+              {client.name.charAt(0)}
+            </div>
+            <div className="flex-1 min-w-0">
+              {editing
+                ? <input className="crm-input text-lg font-bold mb-2" value={editData.name || ''} onChange={e => setEditData(p => ({ ...p, name: e.target.value }))} />
+                : <h1 className="text-xl font-bold mb-1" style={{ color: '#37383a' }}>{client.name}</h1>
+              }
+              <div className="flex flex-wrap items-center gap-3">
+                <StatusBadge status={editing ? (editData.status || client.status) : client.status} />
+                {editing && (
+                  <select value={editData.status || client.status} onChange={e => setEditData(p => ({ ...p, status: e.target.value as Client['status'] }))} className="crm-input text-sm py-1 w-auto">
+                    <option value="Activo">Activo</option>
+                    <option value="Inactivo">Inactivo</option>
+                    <option value="Nuevo Prospecto">Nuevo Prospecto</option>
+                    <option value="Contactado">Contactado</option>
+                    <option value="Calificado">Calificado</option>
+                    <option value="Negociación">Negociación</option>
+                    <option value="Perdido">Perdido</option>
+                  </select>
+                )}
+                {client.rfc && <span className="text-xs font-mono" style={{ color: '#8a8b8d' }}>{client.rfc}</span>}
+                {client.registered_at && (
+                  <span className="text-xs" style={{ color: '#c4c5c7' }}>
+                    Registrado {formatDistanceToNow(new Date(client.registered_at), { addSuffix: true, locale: dfLocale })}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Summary */}
+        {showAI && (
+          <div className="rounded-2xl p-4 animate-fade-in" style={{ background: '#e8f1f9', border: '1px solid #c5d9ee' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <Bot size={16} style={{ color: '#0763a9' }} />
+              <span className="text-sm font-semibold" style={{ color: '#0763a9' }}>{t('aiSummaryTitle')}</span>
+            </div>
+            {aiLoading
+              ? <p className="text-sm" style={{ color: '#5a5b5d' }}>{t('generatingSummary')}</p>
+              : <p className="text-sm leading-relaxed" style={{ color: '#37383a' }}>{aiSummary}</p>
+            }
+          </div>
+        )}
+
+        {/* Info grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <InfoCard icon={<Phone size={15} />} iconColor="#0763a9" title={t('contactInfo')}>
+            <InfoRow label={t('primaryPhone')}>{field('phone')}</InfoRow>
+            <InfoRow label={t('whatsappPhone')}>{field('whatsapp_phone')}</InfoRow>
+            <InfoRow label={t('primaryEmail')}>{field('email_primary')}</InfoRow>
+            <InfoRow label={t('contactEmail')}>{field('email_contact')}</InfoRow>
+            <InfoRow label={t('billingEmail')}>{field('email_billing')}</InfoRow>
+          </InfoCard>
+
+          <InfoCard icon={<FileText size={15} />} iconColor="#b45309" title={t('fiscalInfo')}>
+            <InfoRow label={t('taxId')}>{field('rfc')}</InfoRow>
+            <InfoRow label={t('taxRegime')}>{field('tax_regime')}</InfoRow>
+            <InfoRow label="Origen (Source)">{field('source' as any)}</InfoRow>
+            <InfoRow label={t('zipCode')}>{field('zip_code')}</InfoRow>
+            <InfoRow label={t('fiscalAddress')}>{field('fiscal_address')}</InfoRow>
+          </InfoCard>
+
+          <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
+            <div className="flex items-center gap-2">
+              <Building2 size={15} style={{ color: '#15803d' }} />
+              <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('commercialInfo')}</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <InfoRow label={t('operatingStates')}>{arrayField('states')}</InfoRow>
+              <InfoRow label={t('hospitalChains')}>{arrayField('hospitals')}</InfoRow>
+              <InfoRow label={t('medicalSpecialties')}>{arrayField('specialties')}</InfoRow>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <InfoRow label={t('assignedTo')}>{field('assigned_to')}</InfoRow>
+              <InfoRow label={t('tags')}>
+                {editing
+                  ? <input className="crm-input text-sm" value={(editData.tags || []).join(', ')} onChange={e => setEditData(p => ({ ...p, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
+                  : <div className="flex flex-wrap gap-1">
+                      {client.tags?.map(tag => (
+                        <span key={tag} className="px-2 py-0.5 rounded-full text-xs" style={{ background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }}>
+                          <Tag size={10} className="inline mr-1" />{tag}
+                        </span>
+                      )) || <span className="text-sm" style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
+                    </div>
+                }
+              </InfoRow>
+            </div>
+            <InfoRow label={t('notes')}>
+              {editing
+                ? <textarea className="crm-input text-sm" rows={3} value={editData.notes || ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} />
+                : <p className="text-sm whitespace-pre-wrap" style={{ color: '#37383a' }}>{client.notes || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+              }
+            </InfoRow>
+          </div>
+        </div>
+
+        {/* Timeline */}
+        <div className="rounded-2xl p-5 bg-white" style={CARD}>
+          <h2 className="text-sm font-semibold mb-4" style={{ color: '#37383a' }}>{t('timeline')}</h2>
+          {activities.length === 0
+            ? <p className="text-sm" style={{ color: '#c4c5c7', fontStyle: 'italic' }}>Sin actividad registrada</p>
+            : (
+              <div className="space-y-3">
+                {activities.map((act) => (
+                  <div key={act.id} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <span className="text-base">{ACTIVITY_ICON[act.type] || '📌'}</span>
+                      <div className="w-px flex-1 mt-1" style={{ background: '#e8f1f9' }} />
+                    </div>
+                    <div className="pb-3 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold uppercase" style={{ color: ACTIVITY_COLOR[act.type] || '#5a5b5d' }}>
+                          {t(act.type as Parameters<typeof t>[0])}
+                        </span>
+                        <span className="text-xs" style={{ color: '#c4c5c7' }}>
+                          {format(new Date(act.created_at), 'd MMM yyyy, HH:mm', { locale: dfLocale })}
+                        </span>
+                      </div>
+                      <p className="text-sm mt-0.5" style={{ color: '#37383a' }}>{act.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </div>
+      </div>
+
+      {/* WhatsApp modal */}
+      <Modal open={showWA} onClose={() => { setShowWA(false); setWaResult(null) }} title={t('sendWhatsApp')}>
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: '#5a5b5d' }}>Enviar a: <span style={{ color: '#37383a', fontWeight: 500 }}>{client.whatsapp_phone || client.phone}</span></p>
+          <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: '#5a5b5d' }}>{t('selectTemplate')}</label>
+            {WA_TEMPLATES.map(tmpl => (
+              <button key={tmpl.id} onClick={() => setWaTemplate(tmpl.id)}
+                className="w-full text-left px-3 py-2 rounded-lg mb-1.5 text-sm transition-colors"
+                style={waTemplate === tmpl.id
+                  ? { background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }
+                  : { color: '#37383a', border: '1px solid transparent' }}>
+                {tmpl.label}
+              </button>
+            ))}
+          </div>
+          {waResult === 'ok' && <p className="text-sm flex items-center gap-1" style={{ color: '#15803d' }}><CheckCircle size={14} /> Enviado correctamente</p>}
+          {waResult === 'err' && <p className="text-sm" style={{ color: '#b91c1c' }}>Error al enviar. Verifica el número.</p>}
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowWA(false)} className="btn-secondary text-sm">{t('cancel')}</button>
+            <button onClick={sendWA} disabled={waSending} className="btn-primary text-sm">
+              {waSending ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />} {t('sendMessage')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add note modal */}
+      <Modal open={showNote} onClose={() => setShowNote(false)} title={t('addNote')}>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: '#5a5b5d' }}>Tipo</label>
+            <div className="flex flex-wrap gap-1.5">
+              {(['nota','llamada','email','visita'] as const).map(type => (
+                <button key={type} onClick={() => setNoteType(type)}
+                  className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+                  style={noteType === type
+                    ? { background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }
+                    : { color: '#5a5b5d', border: '1px solid #d4e0ec' }}>
+                  {ACTIVITY_ICON[type]} {t(type)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <textarea className="crm-input text-sm" rows={4} value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe aquí..." />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowNote(false)} className="btn-secondary text-sm">{t('cancel')}</button>
+            <button onClick={addNote} disabled={addingNote || !noteText.trim()} className="btn-primary text-sm">
+              {addingNote ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Guardar
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete confirmation */}
+      <Modal open={showDelete} onClose={() => setShowDelete(false)} title="Eliminar cliente">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: '#37383a' }}>¿Estás seguro de que deseas eliminar <strong>{client.name}</strong>? Esta acción no se puede deshacer.</p>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowDelete(false)} className="btn-secondary text-sm">{t('cancel')}</button>
+            <button onClick={deleteClient} className="btn-primary text-sm" style={{ background: '#b91c1c', boxShadow: '0 2px 8px rgba(185,28,28,0.25)' }}>
+              <Trash2 size={14} /> {t('delete')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </AppShell>
+  )
+}
+
+function InfoCard({ icon, iconColor, title, children }: { icon: React.ReactNode; iconColor: string; title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl p-5 space-y-4 bg-white" style={{ border: '1px solid #d4e0ec' }}>
+      <div className="flex items-center gap-2">
+        <span style={{ color: iconColor }}>{icon}</span>
+        <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{title}</h2>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  )
+}
+
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-medium mb-1" style={{ color: '#8a8b8d' }}>{label}</p>
+      {children}
+    </div>
+  )
+}
