@@ -70,17 +70,20 @@ export default function RegistroPage() {
     }
   }, [step])
 
-  const isStepValid = () => {
-    if (step === 'name') return form.name.trim().length >= 3
-    if (step === 'specialty') return !!form.specialty
-    if (step === 'hospital') return form.hospital.trim().length >= 2
-    if (step === 'phone') return /^\d{10}$/.test(form.phone.replace(/\D/g, ''))
-    if (step === 'state') return !!form.state
+  const isStepValid = (f = form) => {
+    if (step === 'name') return f.name.trim().length >= 3
+    if (step === 'specialty') {
+      if (f.specialty === 'Otra especialidad') return f.customSpecialty.trim().length >= 2
+      return !!f.specialty
+    }
+    if (step === 'hospital') return f.hospital.trim().length >= 2
+    if (step === 'phone') return /^\d{10}$/.test(f.phone.replace(/\D/g, ''))
+    if (step === 'state') return !!f.state
     return true
   }
 
-  const next = () => {
-    if (!isStepValid()) return
+  const next = (f = form) => {
+    if (!isStepValid(f)) return
     const idx = STEPS.indexOf(step)
     if (idx < STEPS.length - 1) setStep(STEPS[idx + 1])
   }
@@ -201,7 +204,13 @@ export default function RegistroPage() {
                         ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-semibold' 
                         : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
                     }`}
-                    onClick={() => { setForm(p => ({ ...p, specialty: sp })); setTimeout(next, 180) }}
+                    onClick={() => { 
+                      const updated = { ...form, specialty: sp };
+                      setForm(updated); 
+                      if (sp !== 'Otra especialidad') {
+                        setTimeout(() => next(updated), 180) 
+                      }
+                    }}
                   >
                     {sp}
                   </button>
@@ -267,7 +276,11 @@ export default function RegistroPage() {
                         ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-semibold' 
                         : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
                     }`}
-                    onClick={() => { setForm(p => ({ ...p, state: st })); setTimeout(next, 180) }}
+                    onClick={() => { 
+                      const updated = { ...form, state: st };
+                      setForm(updated); 
+                      setTimeout(() => next(updated), 180) 
+                    }}
                   >
                     {st}
                   </button>
