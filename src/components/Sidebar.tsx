@@ -15,12 +15,31 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const navItems = [
-    { href: '/', icon: LayoutDashboard, label: t('dashboard') },
-    { href: '/clients', icon: Users, label: t('clients') },
-    { href: '/clients/new', icon: UserPlus, label: t('newClient') },
-    { href: '/import', icon: Upload, label: t('import') },
-    { href: '/settings', icon: Settings, label: t('settings') },
+  const navGroups = [
+    {
+      title: null,
+      items: [
+        { href: '/', icon: LayoutDashboard, label: t('dashboard') },
+      ],
+    },
+    {
+      title: t('distribuidores'),
+      items: [
+        { href: '/clients', icon: Users, label: t('clients') },
+        { href: '/clients/new', icon: UserPlus, label: t('newClient') },
+        { href: '/import', icon: Upload, label: t('import') },
+      ],
+    },
+    {
+      title: t('prices'),
+      items: [],
+    },
+    {
+      title: null,
+      items: [
+        { href: '/settings', icon: Settings, label: t('settings') },
+      ],
+    },
   ]
 
   const isActive = (href: string) =>
@@ -64,43 +83,57 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const active = isActive(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              title={collapsed ? item.label : undefined}
-              className={`
-                flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 group
-                ${active
-                  ? 'border'
-                  : 'border border-transparent hover:bg-blue-50'
-                }
-              `}
-              style={active ? {
-                background: '#e8f1f9',
-                borderColor: '#c5d9ee',
-                color: '#0763a9',
-              } : { color: '#5a5b5d' }}
-            >
-              <Icon
-                size={20}
-                className="flex-shrink-0"
-                style={{ color: active ? '#0763a9' : undefined }}
-              />
-              {!collapsed && (
-                <span className="text-sm font-medium truncate">{item.label}</span>
-              )}
-              {active && !collapsed && (
-                <div className="ml-auto w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#0763a9' }} />
-              )}
-            </Link>
-          )
-        })}
+      <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+        {navGroups.map((group, groupIndex) => (
+          <div key={groupIndex} className="space-y-1">
+            {group.title && !collapsed && (
+              <div className="px-3 py-1.5 text-xs font-semibold tracking-wider uppercase text-gray-500">
+                {group.title}
+              </div>
+            )}
+            {group.title && collapsed && (
+              <div className="px-3 py-1.5 text-center text-xs font-semibold tracking-wider uppercase text-gray-400">
+                —
+              </div>
+            )}
+            {group.items.map((item) => {
+              const Icon = item.icon
+              const active = isActive(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  title={collapsed ? item.label : undefined}
+                  className={`
+                    flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 group
+                    ${active
+                      ? 'border'
+                      : 'border border-transparent hover:bg-blue-50'
+                    }
+                  `}
+                  style={active ? {
+                    background: '#e8f1f9',
+                    borderColor: '#c5d9ee',
+                    color: '#0763a9',
+                  } : { color: '#5a5b5d' }}
+                >
+                  <Icon
+                    size={20}
+                    className="flex-shrink-0"
+                    style={{ color: active ? '#0763a9' : undefined }}
+                  />
+                  {!collapsed && (
+                    <span className="text-sm font-medium truncate">{item.label}</span>
+                  )}
+                  {active && !collapsed && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#0763a9' }} />
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Collapse button (desktop) */}

@@ -8,12 +8,13 @@ import { useI18n } from '@/contexts/I18nContext'
 import { Client, ClientActivity } from '@/types/database'
 import {
   Phone, Mail, MapPin, Building2, FileText, Edit3, Save, X,
-  MessageCircle, Bot, ChevronLeft, Trash2, Plus, Tag, Loader2, CheckCircle
+  MessageCircle, Bot, ChevronLeft, Trash2, Plus, Tag, Loader2, CheckCircle, Upload, Calendar
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { es, enUS, zhCN } from 'date-fns/locale'
 import { Locale } from '@/lib/i18n'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 const dfLocales: Record<Locale, typeof es> = { es, en: enUS, zh: zhCN }
 
@@ -45,6 +46,7 @@ export default function ClientDetailPage() {
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<Partial<Client>>({})
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const [showWA, setShowWA] = useState(false)
   const [waTemplate, setWaTemplate] = useState(WA_TEMPLATES[0].id)
@@ -129,6 +131,29 @@ export default function ClientDetailPage() {
     return editing
       ? <input className="erp-input text-sm" value={(editData[key] as string[])?.join(', ') || val} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
       : <p className="text-sm" style={{ color: '#37383a' }}>{val || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+  }
+
+  const dateField = (key: keyof Client) => editing
+    ? <input type="date" className="erp-input text-sm" value={(editData[key] as string)?.split('T')[0] || ''} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value }))} />
+    : <p className="text-sm" style={{ color: '#37383a' }}>{(client?.[key] as string) ? format(new Date(client[key] as string), 'd MMM yyyy', { locale: dfLocale }) : <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop() || 'pdf'
+      const fileName = `carta_${id}_${Date.now()}.${ext}`
+      const { data, error } = await supabase.storage.from('documents').upload(`distribuidores/${fileName}`, file)
+      if (error) throw error
+      const { data: publicUrlData } = supabase.storage.from('documents').getPublicUrl(data.path)
+      setEditData(p => ({ ...p, letter_url: publicUrlData.publicUrl }))
+    } catch (err) {
+      console.error(err)
+      alert('Error al subir el archivo. Asegúrate de que el bucket "documents" exista en Supabase y sea público.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   if (loading) return (
@@ -243,6 +268,43 @@ export default function ClientDetailPage() {
             <InfoRow label={t('zipCode')}>{field('zip_code')}</InfoRow>
             <InfoRow label={t('fiscalAddress')}>{field('fiscal_address')}</InfoRow>
           </InfoCard>
+
+          <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
+            <div className="flex items-center gap-2">
+              <Calendar size={15} style={{ color: '#0763a9' }} />
+              <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Carta de Distribución</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <InfoRow label="Fecha de Emisión">{dateField('letter_created_at')}</InfoRow>
+              <InfoRow label="Fecha de Vencimiento">{dateField('letter_expires_at')}</InfoRow>
+              <InfoRow label="Archivo Adjunto">
+                {editing ? (
+                  <div className="space-y-2">
+                    {editData.letter_url && (
+                      <a href={editData.letter_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block truncate">
+                        Ver archivo actual
+                      </a>
+                    )}
+                    <label className="btn-secondary text-sm w-full justify-center cursor-pointer">
+                      {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                      {uploading ? 'Subiendo...' : (editData.letter_url ? 'Reemplazar Carta' : 'Subir Carta')}
+                      <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                    </label>
+                  </div>
+                ) : (
+                  <p className="text-sm" style={{ color: '#37383a' }}>
+                    {client?.letter_url ? (
+                      <a href={client.letter_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
+                        <FileText size={14} /> Ver Documento
+                      </a>
+                    ) : (
+                      <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>
+                    )}
+                  </p>
+                )}
+              </InfoRow>
+            </div>
+          </div>
 
           <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
             <div className="flex items-center gap-2">

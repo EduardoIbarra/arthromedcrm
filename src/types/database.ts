@@ -25,6 +25,9 @@ export interface Client {
   assigned_to: string | null
   last_contact_at: string | null
   distributor_id: string | null
+  letter_created_at: string | null
+  letter_expires_at: string | null
+  letter_url: string | null
   updated_at: string
 }
 
