@@ -133,9 +133,12 @@ export default function ClientDetailPage() {
       : <p className="text-sm" style={{ color: '#37383a' }}>{val || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
   }
 
-  const dateField = (key: keyof Client) => editing
-    ? <input type="date" className="erp-input text-sm" value={(editData[key] as string)?.split('T')[0] || ''} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value }))} />
-    : <p className="text-sm" style={{ color: '#37383a' }}>{(client?.[key] as string) ? format(new Date(client[key] as string), 'd MMM yyyy', { locale: dfLocale }) : <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+  const dateField = (key: keyof Client) => {
+    const val = client?.[key] as string
+    return editing
+      ? <input type="date" className="erp-input text-sm" value={(editData[key] as string)?.split('T')[0] || ''} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value }))} />
+      : <p className="text-sm" style={{ color: '#37383a' }}>{val ? format(new Date(val), 'd MMM yyyy', { locale: dfLocale }) : <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+  }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
