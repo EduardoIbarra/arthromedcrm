@@ -121,13 +121,13 @@ export default function NewClientPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Section title="Información General">
             <Field label={t('companyName')} full>
-              <input required className="crm-input" value={form.name || ''} onChange={e => set('name', e.target.value)} />
+              <input required className="erp-input" value={form.name || ''} onChange={e => set('name', e.target.value)} />
             </Field>
             <Field label={t('taxId')}>
-              <input className="crm-input font-mono" value={form.rfc || ''} onChange={e => set('rfc', e.target.value.toUpperCase())} />
+              <input className="erp-input font-mono" value={form.rfc || ''} onChange={e => set('rfc', e.target.value.toUpperCase())} />
             </Field>
             <Field label={t('status')}>
-              <select className="crm-input" value={form.status} onChange={e => set('status', e.target.value)}>
+              <select className="erp-input" value={form.status} onChange={e => set('status', e.target.value)}>
                 <option value="Activo">Activo</option>
                 <option value="Inactivo">Inactivo</option>
                 <option value="Nuevo Prospecto">Nuevo Prospecto</option>
@@ -138,10 +138,10 @@ export default function NewClientPage() {
               </select>
             </Field>
             <Field label="Origen (Source)">
-              <input className="crm-input" value={form.source || ''} onChange={e => set('source', e.target.value)} placeholder="Ej: Simposio, WhatsApp" />
+              <input className="erp-input" value={form.source || ''} onChange={e => set('source', e.target.value)} placeholder="Ej: Simposio, WhatsApp" />
             </Field>
             <Field label={t('taxRegime')} full>
-              <select className="crm-input" value={form.tax_regime || ''} onChange={e => set('tax_regime', e.target.value)}>
+              <select className="erp-input" value={form.tax_regime || ''} onChange={e => set('tax_regime', e.target.value)}>
                 <option value="">Seleccionar...</option>
                 {TAX_REGIMES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
@@ -150,28 +150,28 @@ export default function NewClientPage() {
 
           <Section title={t('contactInfo')}>
             <Field label={t('primaryPhone')}>
-              <input type="tel" className="crm-input" value={form.phone || ''} onChange={e => set('phone', e.target.value)} />
+              <input type="tel" className="erp-input" value={form.phone || ''} onChange={e => set('phone', e.target.value)} />
             </Field>
             <Field label={t('whatsappPhone')}>
-              <input type="tel" className="crm-input" value={form.whatsapp_phone || ''} onChange={e => set('whatsapp_phone', e.target.value)} placeholder="Si es diferente al principal" />
+              <input type="tel" className="erp-input" value={form.whatsapp_phone || ''} onChange={e => set('whatsapp_phone', e.target.value)} placeholder="Si es diferente al principal" />
             </Field>
             <Field label={t('primaryEmail')}>
-              <input type="email" className="crm-input" value={form.email_primary || ''} onChange={e => set('email_primary', e.target.value)} />
+              <input type="email" className="erp-input" value={form.email_primary || ''} onChange={e => set('email_primary', e.target.value)} />
             </Field>
             <Field label={t('contactEmail')}>
-              <input type="email" className="crm-input" value={form.email_contact || ''} onChange={e => set('email_contact', e.target.value)} />
+              <input type="email" className="erp-input" value={form.email_contact || ''} onChange={e => set('email_contact', e.target.value)} />
             </Field>
             <Field label={t('billingEmail')}>
-              <input type="email" className="crm-input" value={form.email_billing || ''} onChange={e => set('email_billing', e.target.value)} />
+              <input type="email" className="erp-input" value={form.email_billing || ''} onChange={e => set('email_billing', e.target.value)} />
             </Field>
           </Section>
 
           <Section title={t('fiscalInfo')}>
             <Field label={t('zipCode')}>
-              <input className="crm-input" value={form.zip_code || ''} onChange={e => set('zip_code', e.target.value)} />
+              <input className="erp-input" value={form.zip_code || ''} onChange={e => set('zip_code', e.target.value)} />
             </Field>
             <Field label={t('fiscalAddress')} full>
-              <textarea className="crm-input" rows={2} value={form.fiscal_address || ''} onChange={e => set('fiscal_address', e.target.value)} />
+              <textarea className="erp-input" rows={2} value={form.fiscal_address || ''} onChange={e => set('fiscal_address', e.target.value)} />
             </Field>
           </Section>
 
@@ -200,13 +200,13 @@ export default function NewClientPage() {
 
           <Section title="Notas y Etiquetas">
             <Field label={t('notes')} full>
-              <textarea className="crm-input" rows={3} value={form.notes || ''} onChange={e => set('notes', e.target.value)} />
+              <textarea className="erp-input" rows={3} value={form.notes || ''} onChange={e => set('notes', e.target.value)} />
             </Field>
             <Field label={t('assignedTo')}>
-              <input className="crm-input" value={form.assigned_to || ''} onChange={e => set('assigned_to', e.target.value)} placeholder="Nombre del responsable" />
+              <input className="erp-input" value={form.assigned_to || ''} onChange={e => set('assigned_to', e.target.value)} placeholder="Nombre del responsable" />
             </Field>
             <Field label={`${t('tags')} (separadas por comas)`}>
-              <input className="crm-input" value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="vip, nuevo, seguimiento" />
+              <input className="erp-input" value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="vip, nuevo, seguimiento" />
             </Field>
           </Section>
 

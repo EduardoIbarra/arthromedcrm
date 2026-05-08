@@ -98,7 +98,7 @@ function ClientsContent() {
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#8a8b8d' }} />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search')} className="crm-input pl-9" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search')} className="erp-input pl-9" />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#8a8b8d' }}><X size={14} /></button>
             )}
@@ -134,7 +134,7 @@ function ClientsContent() {
                     setStatusFilter(val)
                   }
                 }}
-                className="crm-input text-sm py-1.5"
+                className="erp-input text-sm py-1.5"
                 style={{ minWidth: 140 }}
               >
                 <option value="">{t('all')}</option>
@@ -150,7 +150,7 @@ function ClientsContent() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium" style={{ color: '#5a5b5d' }}>{t('state')}</label>
-              <select value={stateFilter} onChange={e => setStateFilter(e.target.value)} className="crm-input text-sm py-1.5" style={{ minWidth: 160 }}>
+              <select value={stateFilter} onChange={e => setStateFilter(e.target.value)} className="erp-input text-sm py-1.5" style={{ minWidth: 160 }}>
                 <option value="">{t('all')}</option>
                 {MEXICO_STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>

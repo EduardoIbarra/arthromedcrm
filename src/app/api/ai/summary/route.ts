@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   const activitiesText = client.client_activities?.map((a: any) => `- [${a.type}] ${a.content}`).join('\n') || 'Sin actividad reciente'
   const customFieldsText = client.client_custom_fields?.map((f: any) => `- ${f.field_name}: ${f.field_value}`).join('\n') || 'Sin campos adicionales'
 
-  const prompt = `Eres un asistente de CRM para Arthromed, empresa mexicana de equipo médico.
+  const prompt = `Eres un asistente de ERP para Arthromed, empresa mexicana de equipo médico.
 Genera un resumen ejecutivo conciso (máximo 3 oraciones) del siguiente distribuidor médico:
 
 Nombre: ${client.name}

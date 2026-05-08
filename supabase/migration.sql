@@ -1,5 +1,5 @@
 -- ============================================================
--- Arthromed CRM — Supabase Migration
+-- Arthromed ERP — Supabase Migration
 -- Run this once in your Supabase SQL Editor
 -- ============================================================
 

@@ -3,7 +3,7 @@ export type Locale = 'es' | 'en' | 'zh'
 
 export const translations = {
   es: {
-    appName: 'Arthromed CRM',
+    appName: 'Arthromed ERP',
     tagline: 'Gestión de Distribuidores',
     // Nav
     dashboard: 'Panel Principal',
@@ -108,7 +108,7 @@ export const translations = {
     all: 'Todos',
   },
   en: {
-    appName: 'Arthromed CRM',
+    appName: 'Arthromed ERP',
     tagline: 'Distributor Management',
     dashboard: 'Dashboard',
     clients: 'Clients',
@@ -201,7 +201,7 @@ export const translations = {
     all: 'All',
   },
   zh: {
-    appName: 'Arthromed CRM',
+    appName: 'Arthromed ERP',
     tagline: '经销商管理系统',
     dashboard: '仪表板',
     clients: '客户',

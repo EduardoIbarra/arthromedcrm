@@ -121,13 +121,13 @@ export default function ClientDetailPage() {
   }
 
   const field = (key: keyof Client) => editing
-    ? <input className="crm-input text-sm" value={(editData[key] as string) || ''} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value }))} />
+    ? <input className="erp-input text-sm" value={(editData[key] as string) || ''} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value }))} />
     : <p className="text-sm" style={{ color: '#37383a' }}>{(client?.[key] as string) || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
 
   const arrayField = (key: keyof Client) => {
     const val = (client?.[key] as string[])?.join(', ') || ''
     return editing
-      ? <input className="crm-input text-sm" value={(editData[key] as string[])?.join(', ') || val} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
+      ? <input className="erp-input text-sm" value={(editData[key] as string[])?.join(', ') || val} onChange={e => setEditData(p => ({ ...p, [key]: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
       : <p className="text-sm" style={{ color: '#37383a' }}>{val || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
   }
 
@@ -180,13 +180,13 @@ export default function ClientDetailPage() {
             </div>
             <div className="flex-1 min-w-0">
               {editing
-                ? <input className="crm-input text-lg font-bold mb-2" value={editData.name || ''} onChange={e => setEditData(p => ({ ...p, name: e.target.value }))} />
+                ? <input className="erp-input text-lg font-bold mb-2" value={editData.name || ''} onChange={e => setEditData(p => ({ ...p, name: e.target.value }))} />
                 : <h1 className="text-xl font-bold mb-1" style={{ color: '#37383a' }}>{client.name}</h1>
               }
               <div className="flex flex-wrap items-center gap-3">
                 <StatusBadge status={editing ? (editData.status || client.status) : client.status} />
                 {editing && (
-                  <select value={editData.status || client.status} onChange={e => setEditData(p => ({ ...p, status: e.target.value as Client['status'] }))} className="crm-input text-sm py-1 w-auto">
+                  <select value={editData.status || client.status} onChange={e => setEditData(p => ({ ...p, status: e.target.value as Client['status'] }))} className="erp-input text-sm py-1 w-auto">
                     <option value="Activo">Activo</option>
                     <option value="Inactivo">Inactivo</option>
                     <option value="Nuevo Prospecto">Nuevo Prospecto</option>
@@ -253,7 +253,7 @@ export default function ClientDetailPage() {
               <InfoRow label={t('assignedTo')}>{field('assigned_to')}</InfoRow>
               <InfoRow label={t('tags')}>
                 {editing
-                  ? <input className="crm-input text-sm" value={(editData.tags || []).join(', ')} onChange={e => setEditData(p => ({ ...p, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
+                  ? <input className="erp-input text-sm" value={(editData.tags || []).join(', ')} onChange={e => setEditData(p => ({ ...p, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
                   : <div className="flex flex-wrap gap-1">
                       {client.tags?.map(tag => (
                         <span key={tag} className="px-2 py-0.5 rounded-full text-xs" style={{ background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }}>
@@ -266,7 +266,7 @@ export default function ClientDetailPage() {
             </div>
             <InfoRow label={t('notes')}>
               {editing
-                ? <textarea className="crm-input text-sm" rows={3} value={editData.notes || ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} />
+                ? <textarea className="erp-input text-sm" rows={3} value={editData.notes || ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} />
                 : <p className="text-sm whitespace-pre-wrap" style={{ color: '#37383a' }}>{client.notes || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
               }
             </InfoRow>
@@ -349,7 +349,7 @@ export default function ClientDetailPage() {
               ))}
             </div>
           </div>
-          <textarea className="crm-input text-sm" rows={4} value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe aquí..." />
+          <textarea className="erp-input text-sm" rows={4} value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe aquí..." />
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowNote(false)} className="btn-secondary text-sm">{t('cancel')}</button>
             <button onClick={addNote} disabled={addingNote || !noteText.trim()} className="btn-primary text-sm">

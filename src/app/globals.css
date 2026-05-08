@@ -124,7 +124,7 @@ body {
 }
 
 /* ── Input ─────────────────────────────────── */
-.crm-input {
+.erp-input {
   width: 100%;
   background: #ffffff;
   border: 1.5px solid #d4e0ec;
@@ -134,8 +134,8 @@ body {
   font-size: 0.9375rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.crm-input::placeholder { color: #8a8b8d; }
-.crm-input:focus {
+.erp-input::placeholder { color: #8a8b8d; }
+.erp-input:focus {
   outline: none;
   border-color: #0763a9;
   box-shadow: 0 0 0 3px rgba(7,99,169,0.12);

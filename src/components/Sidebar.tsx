@@ -43,11 +43,11 @@ export default function Sidebar() {
             />
           </div>
         ) : (
-          /* Expanded: logo + CRM badge */
+          /* Expanded: logo + ERP badge */
           <div className="flex items-center gap-2 min-w-0">
             <Image
               src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png"
-              alt="Arthromed CRM"
+              alt="Arthromed ERP"
               width={120}
               height={36}
               className="object-contain flex-shrink-0"
@@ -57,7 +57,7 @@ export default function Sidebar() {
               className="text-xs font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
               style={{ background: '#0763a9', color: '#ffffff', letterSpacing: '0.05em' }}
             >
-              CRM
+              ERP
             </span>
           </div>
         )}

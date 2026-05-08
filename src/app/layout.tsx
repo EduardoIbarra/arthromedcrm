@@ -9,9 +9,9 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Arthromed CRM',
+  title: 'Arthromed ERP',
   description: 'Sistema de gestión de distribuidores para Arthromed — equipo médico de alto rendimiento',
-  keywords: ['CRM', 'Arthromed', 'distribuidores', 'equipo médico', 'México'],
+  keywords: ['ERP', 'Arthromed', 'distribuidores', 'equipo médico', 'México'],
   authors: [{ name: 'Arthromed' }],
 }
 
