@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
-import { Search, ShieldCheck, MapPin, Building2, CheckCircle2, Info, Loader2, X } from 'lucide-react'
+import { Search, ShieldCheck, MapPin, Building2, CheckCircle2, Info, Loader2, X, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDebounce } from '@/hooks/useDebounce'
 
@@ -19,6 +19,7 @@ export default function DistributorsPage() {
   const [distributors, setDistributors] = useState<Distributor[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [downloading, setDownloading] = useState(false)
   const debouncedSearch = useDebounce(search, 300)
 
   const fetchDistributors = useCallback(async () => {
@@ -33,6 +34,27 @@ export default function DistributorsPage() {
       setLoading(false)
     }
   }, [debouncedSearch])
+
+  const handleDownloadCarta = async () => {
+    setDownloading(true)
+    try {
+      const res = await fetch('/api/public/distributors/carta')
+      if (!res.ok) throw new Error('Error generating PDF')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Distribuidores_Autorizados_${new Date().getFullYear()}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error downloading carta:', error)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   useEffect(() => {
     fetchDistributors()
@@ -74,10 +96,28 @@ export default function DistributorsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-lg text-[#64748b] leading-relaxed"
+            className="text-lg text-[#64748b] leading-relaxed mb-6"
           >
             Verifique la validez de los socios comerciales autorizados para distribuir productos Arthromed.
           </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <button
+              onClick={handleDownloadCarta}
+              disabled={downloading}
+              className="inline-flex items-center gap-2.5 px-6 py-3 bg-[#0763a9] text-white font-semibold rounded-xl shadow-md hover:bg-[#064d85] hover:shadow-lg active:scale-[0.97] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {downloading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Download size={18} />
+              )}
+              {downloading ? 'Generando...' : 'Descargar Carta'}
+            </button>
+          </motion.div>
         </div>
       </section>
 
