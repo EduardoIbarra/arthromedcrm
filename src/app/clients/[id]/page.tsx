@@ -196,6 +196,11 @@ export default function ClientDetailPage() {
                     <option value="Perdido">Perdido</option>
                   </select>
                 )}
+                {client.distributor_id && (
+                  <span className="text-xs font-bold font-mono px-2.5 py-1 rounded-lg" style={{ background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }}>
+                    {client.distributor_id}
+                  </span>
+                )}
                 {client.rfc && <span className="text-xs font-mono" style={{ color: '#8a8b8d' }}>{client.rfc}</span>}
                 {client.registered_at && (
                   <span className="text-xs" style={{ color: '#c4c5c7' }}>

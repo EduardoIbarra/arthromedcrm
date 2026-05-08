@@ -24,6 +24,7 @@ export interface Client {
   tags: string[] | null
   assigned_to: string | null
   last_contact_at: string | null
+  distributor_id: string | null
   updated_at: string
 }
 

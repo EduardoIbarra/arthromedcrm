@@ -181,7 +181,7 @@ function ClientsContent() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #e8f1f9' }}>
-                      {[t('name'), t('rfc'), t('phone'), t('state'), t('specialty'), t('status'), ''].map(h => (
+                      {['ID', t('name'), t('rfc'), t('phone'), t('state'), t('status'), ''].map(h => (
                         <th key={h} className="text-left text-xs font-semibold uppercase tracking-wide px-4 py-3" style={{ color: '#8a8b8d' }}>{h}</th>
                       ))}
                     </tr>
@@ -189,6 +189,7 @@ function ClientsContent() {
                   <tbody>
                     {clients.map((client) => (
                       <tr key={client.id} className="group hover:bg-blue-50/40 transition-colors" style={{ borderBottom: '1px solid #f0f5fa' }}>
+                        <td className="px-4 py-3 text-xs font-mono font-bold" style={{ color: client.distributor_id ? '#0763a9' : '#c4c5c7' }}>{client.distributor_id || '—'}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0" style={{ background: '#e8f1f9', color: '#0763a9' }}>
@@ -200,7 +201,6 @@ function ClientsContent() {
                         <td className="px-4 py-3 text-sm font-mono" style={{ color: '#5a5b5d' }}>{client.rfc || '—'}</td>
                         <td className="px-4 py-3 text-sm" style={{ color: '#5a5b5d' }}>{client.phone || '—'}</td>
                         <td className="px-4 py-3 text-sm max-w-[150px] truncate" style={{ color: '#5a5b5d' }}>{client.states?.slice(0, 2).join(', ') || '—'}</td>
-                        <td className="px-4 py-3 text-sm max-w-[140px] truncate" style={{ color: '#5a5b5d' }}>{client.specialties?.slice(0, 1).join(', ') || '—'}</td>
                         <td className="px-4 py-3"><StatusBadge status={client.status} size="sm" /></td>
                         <td className="px-4 py-3">
                           <Link href={`/clients/${client.id}`} className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100"><ChevronRight size={16} /></Link>
@@ -223,7 +223,7 @@ function ClientsContent() {
                         <p className="text-sm font-semibold truncate" style={{ color: '#37383a' }}>{client.name}</p>
                         <StatusBadge status={client.status} size="sm" />
                       </div>
-                      <p className="text-xs font-mono mt-0.5" style={{ color: '#8a8b8d' }}>{client.rfc || '—'}</p>
+                      <p className="text-xs font-mono mt-0.5" style={{ color: client.distributor_id ? '#0763a9' : '#8a8b8d' }}>{client.distributor_id || client.rfc || '—'}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
                         {client.phone && <span className="flex items-center gap-1 text-xs" style={{ color: '#5a5b5d' }}><Phone size={11} /> {client.phone}</span>}
                         {client.states && client.states.length > 0 && <span className="flex items-center gap-1 text-xs" style={{ color: '#5a5b5d' }}><MapPin size={11} /> {client.states[0]}</span>}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { ClientInsert } from '@/types/database'
+import { generateDistributorId } from '@/lib/distributor-id'
 
 // GET /api/clients — list with filters
 export async function GET(request: NextRequest) {
@@ -46,6 +47,11 @@ export async function GET(request: NextRequest) {
 // POST /api/clients — create client
 export async function POST(request: NextRequest) {
   const body: ClientInsert = await request.json()
+
+  // Auto-assign distributor ID for new active distributors
+  if (body.status === 'Activo' && !body.distributor_id) {
+    body.distributor_id = await generateDistributorId()
+  }
 
   const { data, error } = await supabase
     .from('clients')
