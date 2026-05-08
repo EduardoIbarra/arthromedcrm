@@ -12,11 +12,11 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 
 const MEXICO_STATES = [
-  'CDMX','Estado de México','Jalisco','Nuevo León','Puebla','Guanajuato',
-  'Veracruz','Chihuahua','Sonora','Coahuila','Tamaulipas','Baja California',
-  'Sinaloa','Yucatán','Quintana Roo','San Luis Potosí','Guerrero','Oaxaca',
-  'Morelos','Querétaro','Aguascalientes','Durango','Zacatecas','Colima',
-  'Nayarit','Hidalgo','Tlaxcala','Tabasco','Michoacán','Chiapas','Campeche',
+  'CDMX', 'Estado de México', 'Jalisco', 'Nuevo León', 'Puebla', 'Guanajuato',
+  'Veracruz', 'Chihuahua', 'Sonora', 'Coahuila', 'Tamaulipas', 'Baja California',
+  'Sinaloa', 'Yucatán', 'Quintana Roo', 'San Luis Potosí', 'Guerrero', 'Oaxaca',
+  'Morelos', 'Querétaro', 'Aguascalientes', 'Durango', 'Zacatecas', 'Colima',
+  'Nayarit', 'Hidalgo', 'Tlaxcala', 'Tabasco', 'Michoacán', 'Chiapas', 'Campeche',
 ]
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
@@ -70,7 +70,7 @@ function ClientsContent() {
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, isProspectFilter])
 
   const exportCsv = () => {
-    const headers = ['Nombre','RFC','Teléfono','Email Contacto','Estados','Especialidades','Estatus']
+    const headers = ['Nombre', 'RFC', 'Teléfono', 'Email Contacto', 'Estados', 'Especialidades', 'Estatus']
     const rows = clients.map(c => [c.name, c.rfc, c.phone, c.email_contact, c.states?.join('; '), c.specialties?.join('; '), c.status])
     const csv = [headers, ...rows].map(r => r?.map(v => `"${v || ''}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
