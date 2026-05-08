@@ -45,6 +45,17 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
+            # Load environment
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            # Check if npm exists
+            if ! command -v npm &> /dev/null; then
+              echo "Error: npm not found. Please ensure Node.js is installed on the server."
+              exit 1
+            fi
+
             cd /var/www/erp
             npm install --production
             
