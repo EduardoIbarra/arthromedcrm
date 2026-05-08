@@ -1,0 +1,27 @@
+const { createClient } = require('@supabase/supabase-js');
+const dotenv = require('dotenv');
+const path = require('path');
+
+dotenv.config({ path: path.join(__dirname, '../.env.local') });
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+async function verifyImport() {
+    const { data, error } = await supabase
+        .from('clients')
+        .select('name, rfc, letter_created_at, letter_expires_at')
+        .not('letter_created_at', 'is', null)
+        .limit(5);
+    
+    if (error) {
+        console.error('Error:', error.message);
+    } else {
+        console.log('Sample of imported data:');
+        console.table(data);
+    }
+}
+
+verifyImport();

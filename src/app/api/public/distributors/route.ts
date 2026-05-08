@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
   // Only fetch active clients and only select public fields
   let query = supabase
     .from('clients')
-    .select('id, name, rfc, states, status, distributor_id')
-    .eq('status', 'Activo')
+    .select('id, name, rfc, states, status, distributor_id, letter_created_at, letter_expires_at')
+    .in('status', ['Activo', 'Inactivo'])
     .order('name', { ascending: true })
 
   if (search) {

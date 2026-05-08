@@ -117,8 +117,9 @@ export async function GET() {
     const newPage = () => {
       page = pdf.addPage([PAGE_W, PAGE_H])
       page.drawImage(bg2, { x: 0, y: 0, width: PAGE_W, height: PAGE_H })
-      y = PAGE_H - 100
       pageNum++
+
+      let headerHeight = 60 // Minimum space
 
       // Logo and header on every page
       if (logoImage) {
@@ -126,13 +127,17 @@ export async function GET() {
         const lw = logoImage.width * logoScale
         const lh = logoImage.height * logoScale
         page.drawImage(logoImage, { x: LEFT - 15, y: PAGE_H - 20 - lh, width: lw, height: lh })
+        headerHeight = Math.max(headerHeight, 20 + lh + 10) // 20 margin + logo height + 10 padding
       }
+      
       const hdr = 'ARTHROMED'
       page.drawText(hdr, {
         x: RIGHT - bold.widthOfTextAtSize(hdr, 13),
         y: PAGE_H - 52,
         size: 13, font: bold, color: DARK,
       })
+      
+      y = PAGE_H - headerHeight - 20 // Start text below the header area
     }
 
     const ensureSpace = (needed: number) => {
@@ -140,11 +145,13 @@ export async function GET() {
     }
 
     // === PAGE 1 HEADER ===
+    let headerHeight = 60
     if (logoImage) {
       const logoScale = 0.35
       const lw = logoImage.width * logoScale
       const lh = logoImage.height * logoScale
       page.drawImage(logoImage, { x: LEFT - 15, y: PAGE_H - 20 - lh, width: lw, height: lh })
+      headerHeight = Math.max(headerHeight, 20 + lh + 10)
     }
 
     // "ARTHROMED" top right
@@ -158,7 +165,7 @@ export async function GET() {
     // Date right-aligned
     const now = new Date()
     const dateStr = `${now.getDate()} de ${MONTHS[now.getMonth()]} de ${now.getFullYear()}`
-    y = PAGE_H - 85
+    y = Math.min(PAGE_H - 85, PAGE_H - headerHeight)
     page.drawText(dateStr, {
       x: RIGHT - regular.widthOfTextAtSize(dateStr, 10),
       y, size: 10, font: regular, color: DARK,
@@ -281,7 +288,8 @@ export async function GET() {
 
     const pdfBytes = await pdf.save()
 
-    return new NextResponse(pdfBytes, {
+    const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
+    return new NextResponse(blob, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
