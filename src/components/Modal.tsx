@@ -1,5 +1,6 @@
 'use client'
-import { ReactNode, useEffect } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 interface ModalProps {
@@ -11,14 +12,20 @@ interface ModalProps {
 }
 
 export default function Modal({ open, onClose, title, children, maxWidth = '500px' }: ModalProps) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  if (!open) return null
+  if (!open || !mounted) return null
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/25 backdrop-blur-sm" onClick={onClose} />
       <div
@@ -32,11 +39,12 @@ export default function Modal({ open, onClose, title, children, maxWidth = '500p
         {title && (
           <div className="flex items-center justify-between px-5 py-4 border-b border-blue-100">
             <h2 className="text-base font-semibold" style={{ color: '#37383a' }}>{title}</h2>
-            <button onClick={onClose} className="btn-ghost p-1.5"><X size={16} /></button>
+            <button type="button" onClick={onClose} className="btn-ghost p-1.5"><X size={16} /></button>
           </div>
         )}
         <div className="p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
