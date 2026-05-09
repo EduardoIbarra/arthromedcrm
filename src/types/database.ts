@@ -60,5 +60,40 @@ export interface ClientCustomField {
   created_at: string
 }
 
+export interface Product {
+  id: string
+  description: string
+  model: string | null
+  order_code: string | null
+  invoice_concept: string | null
+  generic_description: string | null
+  new_alg_description: string | null
+  measurements: string | null
+  alg_description: string | null
+  sale_price: number | null
+  base_hospital_price: number | null
+  line: string | null
+  type: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Hospital {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HospitalPrice {
+  id: string
+  product_id: string
+  hospital_id: string
+  price: number
+  pending: boolean
+  created_at: string
+  updated_at: string
+}
+
 // No longer exporting Database type since we use untyped client
 export type Database = Record<string, unknown>

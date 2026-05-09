@@ -5,7 +5,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
-  ChevronLeft, ChevronRight, Menu, X,
+  ChevronLeft, ChevronRight, Menu, X, Package, Building
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 
@@ -32,7 +32,10 @@ export default function Sidebar() {
     },
     {
       title: t('prices'),
-      items: [],
+      items: [
+        { href: '/products', icon: Package, label: t('products') },
+        { href: '/hospitals', icon: Building, label: t('hospitals') },
+      ],
     },
     {
       title: null,
