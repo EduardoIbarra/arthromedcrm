@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; fileId: string } }
+  { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
   try {
-    const { fileId } = params
+    const { fileId } = await params
 
     const { error } = await supabase
       .from('congreso_files')
