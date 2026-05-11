@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import { 
@@ -11,7 +11,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 
-export default function EditCongresoPage({ params }: { params: { id: string } }) {
+export default function EditCongresoPage() {
+  const { id } = useParams<{ id: string }>()
   const { t } = useI18n()
   const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
@@ -55,7 +56,7 @@ export default function EditCongresoPage({ params }: { params: { id: string } })
 
   const fetchFiles = async () => {
     try {
-      const res = await fetch(`/api/congresos/${params.id}/files`)
+      const res = await fetch(`/api/congresos/${id}/files`)
       if (res.ok) {
         const { data } = await res.json()
         setFiles(data)
@@ -68,7 +69,7 @@ export default function EditCongresoPage({ params }: { params: { id: string } })
   useEffect(() => {
     const fetchCongreso = async () => {
       try {
-        const res = await fetch(`/api/congresos/${params.id}`)
+        const res = await fetch(`/api/congresos/${id}`)
         if (!res.ok) throw new Error('Failed to load')
         const { data } = await res.json()
         setFormData({
@@ -88,12 +89,12 @@ export default function EditCongresoPage({ params }: { params: { id: string } })
       }
     }
     fetchCongreso()
-  }, [params.id])
+  }, [id])
 
   const handleDeleteFile = async (fileId: string) => {
     if (!confirm(t('deleteFileDesc'))) return
     try {
-      const res = await fetch(`/api/congresos/${params.id}/files/${fileId}`, {
+      const res = await fetch(`/api/congresos/${id}/files/${fileId}`, {
         method: 'DELETE'
       })
       if (res.ok) {
@@ -133,7 +134,7 @@ export default function EditCongresoPage({ params }: { params: { id: string } })
         ...formData,
         specialty_id: finalSpecialtyId || null
       }
-      const res = await fetch(`/api/congresos/${params.id}`, {
+      const res = await fetch(`/api/congresos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -164,13 +165,13 @@ export default function EditCongresoPage({ params }: { params: { id: string } })
 
       const ext = file.name.split('.').pop() || ''
       const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
-      const { data, error: uploadError } = await supabase.storage.from('documents').upload(`congresos/${params.id}/${fileName}`, file)
+      const { data, error: uploadError } = await supabase.storage.from('documents').upload(`congresos/${id}/${fileName}`, file)
       if (uploadError) throw uploadError
       
       const { data: publicUrlData } = supabase.storage.from('documents').getPublicUrl(data.path)
       
       // Save metadata
-      const res = await fetch(`/api/congresos/${params.id}/files`, {
+      const res = await fetch(`/api/congresos/${id}/files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -203,7 +204,7 @@ export default function EditCongresoPage({ params }: { params: { id: string } })
       const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
       const ext = file.name.split('.').pop() || 'pdf'
-      const fileName = `flyer_${params.id}_${Date.now()}.${ext}`
+      const fileName = `flyer_${id}_${Date.now()}.${ext}`
       const { data, error: uploadError } = await supabase.storage.from('documents').upload(`congresos/${fileName}`, file)
       if (uploadError) throw uploadError
       
@@ -245,7 +246,7 @@ export default function EditCongresoPage({ params }: { params: { id: string } })
             </div>
           </div>
           <Link 
-            href={`/qr?congressId=${params.id}`} 
+            href={`/qr?congressId=${id}`} 
             className="btn-secondary bg-white text-blue-600 border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
           >
             <QrCode size={18} /> {t('generateQr')}

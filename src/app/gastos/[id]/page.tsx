@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import { ArrowLeft, Save, Receipt } from 'lucide-react'
 import Link from 'next/link'
 
-export default function EditGastoPage({ params }: { params: { id: string } }) {
+export default function EditGastoPage() {
+  const { id } = useParams<{ id: string }>()
   const { t } = useI18n()
   const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
@@ -49,7 +50,7 @@ export default function EditGastoPage({ params }: { params: { id: string } }) {
         if (catData) setCategories(catData)
 
         // Fetch gasto
-        const res = await fetch(`/api/gastos/${params.id}`)
+        const res = await fetch(`/api/gastos/${id}`)
         if (!res.ok) throw new Error('Failed to load gasto')
         const { data } = await res.json()
         setFormData({
@@ -70,7 +71,7 @@ export default function EditGastoPage({ params }: { params: { id: string } }) {
       }
     }
     fetchData()
-  }, [params.id])
+  }, [id])
 
   // Auto-calculate total
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function EditGastoPage({ params }: { params: { id: string } }) {
     setError(null)
     
     try {
-      const res = await fetch(`/api/gastos/${params.id}`, {
+      const res = await fetch(`/api/gastos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
