@@ -1,6 +1,7 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { CheckCircle, ChevronRight, Loader2, Stethoscope, Building2, Phone, MapPin, User, ArrowLeft } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 
@@ -38,6 +39,17 @@ const STEP_META: Record<Step, { icon: React.ReactNode; title: string; subtitle: 
 }
 
 export default function RegistroPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[100dvh] flex items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" /></div>}>
+      <RegistroContent />
+    </Suspense>
+  )
+}
+
+function RegistroContent() {
+  const searchParams = useSearchParams()
+  const congressId = searchParams.get('congressId')
+  const [congressName, setCongressName] = useState<string | null>(null)
   const [step, setStep] = useState<Step>('name')
   const [form, setForm] = useState<FormData>({ name: '', specialty: '', customSpecialty: '', hospital: '', phone: '', state: '' })
   const [specialties, setSpecialties] = useState<string[]>([])
@@ -63,6 +75,17 @@ export default function RegistroPage() {
     }
     loadSpecialties()
   }, [])
+
+  useEffect(() => {
+    if (congressId) {
+      fetch(`/api/congresos/${congressId}`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.data) setCongressName(res.data.name)
+        })
+        .catch(console.error)
+    }
+  }, [congressId])
 
   useEffect(() => {
     if (step !== 'confirm' && step !== 'specialty' && step !== 'state') {
@@ -115,8 +138,8 @@ export default function RegistroPage() {
           phone: form.phone.replace(/\D/g, ''),
           states: [form.state],
           status: 'Nuevo Prospecto',
-          source: 'Simposio Registro',
-          tags: ['simposio'],
+          source: congressName ? `Congreso: ${congressName}` : 'Simposio Registro',
+          tags: congressId ? ['simposio', `congreso:${congressId}`] : ['simposio'],
         }),
       })
       if (!res.ok) {

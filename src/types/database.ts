@@ -95,5 +95,60 @@ export interface HospitalPrice {
   updated_at: string
 }
 
+export interface Congreso {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+  location: string
+  description: string
+  flyer: string | null
+  specialty_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type CongresoInsert = Omit<Congreso, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string
+}
+
+export interface CongresoFile {
+  id: string
+  congreso_id: string
+  name: string
+  url: string
+  file_type: string | null
+  size_bytes: number | null
+  created_at: string
+}
+
+export interface Gasto {
+  id: string
+  name: string
+  description: string | null
+  amount: number
+  iva_percent: number
+  iva: number
+  total: number
+  comments: string | null
+  congress_id: string | null
+  category_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type GastoInsert = Omit<Gasto, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string
+}
+
+export interface UserProfile {
+  id: string
+  email: string
+  role: 'superadmin' | 'admin' | 'user'
+  permissions: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
 // No longer exporting Database type since we use untyped client
 export type Database = Record<string, unknown>

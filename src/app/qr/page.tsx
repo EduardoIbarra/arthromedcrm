@@ -1,19 +1,37 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { CheckCircle, Info, ExternalLink, Copy, Check } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 
-export default function QRPage() {
+function QRContent() {
+  const searchParams = useSearchParams()
+  const congressId = searchParams.get('congressId')
+  
   const [baseUrl, setBaseUrl] = useState('')
   const [copied, setCopied] = useState(false)
+  const [congressName, setCongressName] = useState<string | null>(null)
 
   useEffect(() => {
     setBaseUrl(window.location.origin)
   }, [])
 
-  const registrationUrl = baseUrl ? `${baseUrl}/registro` : ''
+  useEffect(() => {
+    if (congressId) {
+      fetch(`/api/congresos/${congressId}`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.data) setCongressName(res.data.name)
+        })
+        .catch(console.error)
+    }
+  }, [congressId])
+
+  const registrationUrl = baseUrl 
+    ? `${baseUrl}/registro${congressId ? `?congressId=${congressId}` : ''}` 
+    : ''
 
   const copyToClipboard = () => {
     if (!registrationUrl) return
@@ -56,6 +74,11 @@ export default function QRPage() {
             <h1 className="text-3xl md:text-4xl font-extrabold text-[#37383a] leading-tight tracking-tight mb-3">
               Registro de Médicos
             </h1>
+            {congressName && (
+              <h2 className="text-xl md:text-2xl font-bold text-[#0763a9] leading-tight tracking-tight mb-3">
+                {congressName}
+              </h2>
+            )}
             <p className="text-[#5a5b5d] text-lg max-w-md mx-auto leading-relaxed">
               Escanee el código QR para acceder al formulario de registro y recibir información especializada.
             </p>
@@ -128,7 +151,7 @@ export default function QRPage() {
                 {copied ? <Check size={18} /> : <Copy size={18} />}
               </button>
               <a 
-                href="/registro" 
+                href={`/registro${congressId ? `?congressId=${congressId}` : ''}`} 
                 className="p-2.5 bg-[#0763a9] text-white rounded-xl shadow-md shadow-[#0763a9]/20 hover:bg-[#054d85] transition-all flex-shrink-0"
                 title="Abrir página"
               >
@@ -152,5 +175,13 @@ export default function QRPage() {
         </motion.div>
       </div>
     </div>
+  )
+}
+
+export default function QRPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[100dvh] flex items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" /></div>}>
+      <QRContent />
+    </Suspense>
   )
 }

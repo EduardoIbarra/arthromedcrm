@@ -5,15 +5,37 @@ import { useState } from 'react'
 import Image from 'next/image'
 import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
-  ChevronLeft, ChevronRight, Menu, X, Package, Building
+  ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
+import { createClient } from '@/lib/supabase/client'
+import { useEffect } from 'react'
+import { ShieldCheck } from 'lucide-react'
 
 export default function Sidebar() {
   const { t } = useI18n()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [profile, setProfile] = useState<any>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function getProfile() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+        setProfile(data)
+      }
+    }
+    getProfile()
+  }, [supabase])
+
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   const navGroups = [
     {
@@ -38,9 +60,17 @@ export default function Sidebar() {
       ],
     },
     {
+      title: t('events'),
+      items: [
+        { href: '/congresos', icon: Calendar, label: t('congresos') },
+        { href: '/gastos', icon: Receipt, label: t('gastos') },
+      ],
+    },
+    {
       title: null,
       items: [
         { href: '/settings', icon: Settings, label: t('settings') },
+        ...(isAdmin ? [{ href: '/users', icon: ShieldCheck, label: t('users') }] : []),
       ],
     },
   ]
