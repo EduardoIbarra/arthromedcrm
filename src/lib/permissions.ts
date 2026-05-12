@@ -12,6 +12,8 @@ export const SECTIONS = [
   'roles'
 ] as const
 
+export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']
+
 export type Section = typeof SECTIONS[number] | '*'
 
 export interface UserPermissions {
