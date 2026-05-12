@@ -9,7 +9,7 @@ export async function GET(request: Request) {
 
   // Determine the correct origin for redirection
   const host = request.headers.get('host')
-  const protocol = request.headers.get('x-forwarded-proto') ?? 'https'
+  const protocol = request.headers.get('x-forwarded-proto') ?? (host?.includes('localhost') ? 'http' : 'https')
   const origin = host ? `${protocol}://${host}` : new URL(request.url).origin
 
   if (code) {
