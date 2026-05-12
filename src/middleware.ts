@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -52,12 +52,16 @@ export async function proxy(request: NextRequest) {
                         (request.nextUrl.pathname.startsWith('/api/public/'))
 
     if (!isPublicApi) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
     }
   }
 
   if (user && isLoginPage) {
-    return NextResponse.redirect(new URL('/', request.url))
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    return NextResponse.redirect(url)
   }
 
   return response
