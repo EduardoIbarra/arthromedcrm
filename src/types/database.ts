@@ -141,11 +141,22 @@ export type GastoInsert = Omit<Gasto, 'id' | 'created_at' | 'updated_at'> & {
   id?: string
 }
 
+export interface Role {
+  id: string
+  name: string
+  description: string | null
+  permissions: Record<string, string[]>
+  created_at: string
+  updated_at: string
+}
+
 export interface UserProfile {
   id: string
   email: string
   role: 'superadmin' | 'admin' | 'user'
-  permissions: Record<string, unknown>
+  role_id: string | null
+  roles?: Role // For joined queries
+  permission_overrides: Record<string, string[]>
   created_at: string
   updated_at: string
 }

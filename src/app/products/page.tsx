@@ -7,6 +7,7 @@ import { useI18n } from '@/contexts/I18nContext'
 import { Search, Package, ArrowUpDown, Edit2, Download } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
+import PermissionGuard from '@/components/PermissionGuard'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -160,13 +161,15 @@ export default function ProductsPage() {
             {t('appName')} / {t('products')}
           </p>
         </div>
-        <button 
-          onClick={exportToExcel} 
-          className="btn-secondary text-sm"
-          disabled={products.length === 0}
-        >
-          <Download size={16} /> {t('exportExcel')}
-        </button>
+        <PermissionGuard section="products" action="view">
+          <button 
+            onClick={exportToExcel} 
+            className="btn-secondary text-sm"
+            disabled={products.length === 0}
+          >
+            <Download size={16} /> {t('exportExcel')}
+          </button>
+        </PermissionGuard>
       </header>
 
       <div className="card p-4 flex flex-col sm:flex-row gap-4">
@@ -234,13 +237,15 @@ export default function ProductsPage() {
                     <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{formatCurrency(product.sale_price)}</td>
                     <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{formatCurrency(product.base_hospital_price)}</td>
                     <td className="p-4">
-                      <button
-                        onClick={() => handleOpenEdit(product)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                        title={t('editProductPrices')}
-                      >
-                        <Edit2 size={16} />
-                      </button>
+                      <PermissionGuard section="products" action="edit">
+                        <button
+                          onClick={() => handleOpenEdit(product)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          title={t('editProductPrices')}
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

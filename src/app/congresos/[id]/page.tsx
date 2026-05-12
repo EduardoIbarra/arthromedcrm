@@ -10,6 +10,7 @@ import {
   Globe, File, Download, Paperclip 
 } from 'lucide-react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 export default function EditCongresoPage() {
   const { id } = useParams<{ id: string }>()
@@ -34,15 +35,12 @@ export default function EditCongresoPage() {
     specialty_id: ''
   })
 
+  const supabase = createClient()
+
   useEffect(() => {
     // Fetch specialties
     const fetchSpecialties = async () => {
       try {
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        const supabase = createClient(supabaseUrl, supabaseAnonKey)
-        
         const { data } = await supabase.from('catalog_specialties').select('id, name').order('name')
         if (data) {
           setSpecialties(data)
@@ -158,12 +156,6 @@ export default function EditCongresoPage() {
     if (!file) return
     setIsUploadingFile(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-      const ext = file.name.split('.').pop() || ''
       const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
       const { data, error: uploadError } = await supabase.storage.from('documents').upload(`congresos/${id}/${fileName}`, file)
       if (uploadError) throw uploadError
@@ -198,11 +190,6 @@ export default function EditCongresoPage() {
     if (!file) return
     setUploading(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
       const ext = file.name.split('.').pop() || 'pdf'
       const fileName = `flyer_${id}_${Date.now()}.${ext}`
       const { data, error: uploadError } = await supabase.storage.from('documents').upload(`congresos/${fileName}`, file)

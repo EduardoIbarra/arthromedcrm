@@ -15,6 +15,7 @@ import { es, enUS, zhCN } from 'date-fns/locale'
 import { Locale } from '@/lib/i18n'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import PermissionGuard from '@/components/PermissionGuard'
 
 const dfLocales: Record<Locale, typeof es> = { es, en: enUS, zh: zhCN }
 
@@ -184,8 +185,10 @@ export default function ClientDetailPage() {
           <Link href="/clients" className="btn-ghost text-sm"><ChevronLeft size={16} /> {t('back')}</Link>
           <div className="flex gap-2 flex-wrap">
             <button onClick={getAI} className="btn-secondary text-sm"><Bot size={15} /> {t('aiSummary')}</button>
-            <button onClick={() => setShowWA(true)} className="btn-secondary text-sm"><MessageCircle size={15} /> {t('sendWhatsApp')}</button>
-            <button onClick={() => setShowNote(true)} className="btn-secondary text-sm"><Plus size={15} /> {t('addNote')}</button>
+            <PermissionGuard section="clients" action="edit">
+              <button onClick={() => setShowWA(true)} className="btn-secondary text-sm"><MessageCircle size={15} /> {t('sendWhatsApp')}</button>
+              <button onClick={() => setShowNote(true)} className="btn-secondary text-sm"><Plus size={15} /> {t('addNote')}</button>
+            </PermissionGuard>
             {editing ? (
               <>
                 <button onClick={save} disabled={saving} className="btn-primary text-sm">
@@ -194,9 +197,13 @@ export default function ClientDetailPage() {
                 <button onClick={() => { setEditing(false); setEditData(client) }} className="btn-ghost text-sm"><X size={15} /> {t('cancel')}</button>
               </>
             ) : (
-              <button onClick={() => setEditing(true)} className="btn-primary text-sm"><Edit3 size={15} /> {t('editClient')}</button>
+              <PermissionGuard section="clients" action="edit">
+                <button onClick={() => setEditing(true)} className="btn-primary text-sm"><Edit3 size={15} /> {t('editClient')}</button>
+              </PermissionGuard>
             )}
-            <button onClick={() => setShowDelete(true)} className="btn-ghost text-sm" style={{ color: '#b91c1c' }}><Trash2 size={15} /></button>
+            <PermissionGuard section="clients" action="delete">
+              <button onClick={() => setShowDelete(true)} className="btn-ghost text-sm" style={{ color: '#b91c1c' }}><Trash2 size={15} /></button>
+            </PermissionGuard>
           </div>
         </div>
 

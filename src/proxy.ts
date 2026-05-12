@@ -35,19 +35,25 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // TEMPORARILY DISABLED AUTH
-  return response
-
-  /*
   // Protect all routes except login and auth callback
   const isLoginPage = request.nextUrl.pathname === '/login'
   const isAuthCallback = request.nextUrl.pathname.startsWith('/api/auth')
   const isPublicAsset = request.nextUrl.pathname.startsWith('/_next') || 
                         request.nextUrl.pathname.startsWith('/favicon.ico') ||
-                        request.nextUrl.pathname.startsWith('/distribuidores') // Public directory
+                        request.nextUrl.pathname.startsWith('/distribuidores') || // Public directory
+                        request.nextUrl.pathname === '/registro' ||
+                        request.nextUrl.pathname === '/qr'
 
   if (!user && !isLoginPage && !isAuthCallback && !isPublicAsset) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    // Also allow specific public API routes
+    const isPublicApi = (request.nextUrl.pathname === '/api/catalog/specialties' && request.method === 'GET') ||
+                        (request.nextUrl.pathname.startsWith('/api/congresos/') && request.method === 'GET') ||
+                        (request.nextUrl.pathname === '/api/clients' && request.method === 'POST') ||
+                        (request.nextUrl.pathname.startsWith('/api/public/'))
+
+    if (!isPublicApi) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
   }
 
   if (user && isLoginPage) {
@@ -55,7 +61,6 @@ export async function proxy(request: NextRequest) {
   }
 
   return response
-  */
 }
 
 export const config = {

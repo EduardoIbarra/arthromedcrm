@@ -6,6 +6,7 @@ import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import { ArrowLeft, Save, Upload, Loader2, FileText, X } from 'lucide-react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 export default function NewCongresoPage() {
   const { t } = useI18n()
@@ -26,20 +27,13 @@ export default function NewCongresoPage() {
     specialty_id: ''
   })
 
+  const supabase = createClient()
+
   useEffect(() => {
     // Fetch specialties
     const fetchSpecialties = async () => {
       try {
-        // use supabase directly or create an api endpoint? 
-        // We already have GET /api/catalog/specialties which returns an array of objects
-        // wait, /api/catalog/specialties only returns {name}, let's check its output.
-        // Actually I'll use supabase directly since it's a client component.
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        const supabase = createClient(supabaseUrl, supabaseAnonKey)
-        
-        const { data, error } = await supabase.from('catalog_specialties').select('id, name').order('name')
+        const { data } = await supabase.from('catalog_specialties').select('id, name').order('name')
         if (data) {
           setSpecialties(data)
         }
@@ -103,11 +97,6 @@ export default function NewCongresoPage() {
     if (!file) return
     setUploading(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
       const ext = file.name.split('.').pop() || 'pdf'
       const fileName = `flyer_${Date.now()}.${ext}`
       const { data, error: uploadError } = await supabase.storage.from('documents').upload(`congresos/${fileName}`, file)

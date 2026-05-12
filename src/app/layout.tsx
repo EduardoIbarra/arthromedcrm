@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { I18nProvider } from '@/contexts/I18nContext'
+import { UserProvider } from '@/contexts/UserContext'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -24,7 +25,9 @@ export default function RootLayout({
     <html lang="es" className={inter.variable}>
       <body className="antialiased">
         <I18nProvider>
-          {children}
+          <UserProvider>
+            {children}
+          </UserProvider>
         </I18nProvider>
       </body>
     </html>

@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
+import PermissionGuard from '@/components/PermissionGuard'
 
 interface GastoWithCongreso extends Gasto {
   congreso?: {
@@ -89,12 +90,14 @@ export default function GastosPage() {
               {t('appName')} / {t('events')}
             </p>
           </div>
-          <Link 
-            href="/gastos/new" 
-            className="btn-primary"
-          >
-            <Plus size={18} /> {t('newGasto')}
-          </Link>
+          <PermissionGuard section="gastos" action="create">
+            <Link 
+              href="/gastos/new" 
+              className="btn-primary"
+            >
+              <Plus size={18} /> {t('newGasto')}
+            </Link>
+          </PermissionGuard>
         </header>
 
         {isLoading ? (
@@ -111,27 +114,31 @@ export default function GastosPage() {
               <div key={gasto.id} className="card p-6 flex flex-col items-start gap-4 hover:border-blue-300 hover:shadow-md transition-all group relative overflow-hidden h-full">
                 
                 <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <button 
-                    onClick={(e) => { 
-                      e.preventDefault(); e.stopPropagation(); 
-                      router.push(`/gastos/${gasto.id}`) 
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                    title={t('editGasto')}
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    onClick={(e) => { 
-                      e.preventDefault(); e.stopPropagation(); 
-                      setSelectedGasto(gasto); 
-                      setIsDeleteModalOpen(true); 
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                    title={t('delete')}
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <PermissionGuard section="gastos" action="edit">
+                    <button 
+                      onClick={(e) => { 
+                        e.preventDefault(); e.stopPropagation(); 
+                        router.push(`/gastos/${gasto.id}`) 
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                      title={t('editGasto')}
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  </PermissionGuard>
+                  <PermissionGuard section="gastos" action="delete">
+                    <button 
+                      onClick={(e) => { 
+                        e.preventDefault(); e.stopPropagation(); 
+                        setSelectedGasto(gasto); 
+                        setIsDeleteModalOpen(true); 
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                      title={t('delete')}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </PermissionGuard>
                 </div>
 
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 group-hover:bg-blue-100 transition-all duration-300">

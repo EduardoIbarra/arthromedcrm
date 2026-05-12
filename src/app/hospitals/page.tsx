@@ -8,6 +8,7 @@ import { Building, ArrowRight, Plus, Edit2, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
+import PermissionGuard from '@/components/PermissionGuard'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -116,12 +117,14 @@ export default function HospitalsPage() {
             {t('appName')} / {t('hospitals')}
           </p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()} 
-          className="btn-primary"
-        >
-          <Plus size={18} /> {t('newHospital')}
-        </button>
+        <PermissionGuard section="hospitals" action="create">
+          <button 
+            onClick={() => handleOpenModal()} 
+            className="btn-primary"
+          >
+            <Plus size={18} /> {t('newHospital')}
+          </button>
+        </PermissionGuard>
       </header>
 
       {isLoading ? (
@@ -140,22 +143,26 @@ export default function HospitalsPage() {
                 
                 {/* Actions (Absolute top-right) */}
                 <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenModal(hospital); }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    onClick={(e) => { 
-                      e.preventDefault(); e.stopPropagation(); 
-                      setFormData({ id: hospital.id, name: hospital.name }); 
-                      setIsDeleteModalOpen(true); 
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <PermissionGuard section="hospitals" action="edit">
+                    <button 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenModal(hospital); }}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  </PermissionGuard>
+                  <PermissionGuard section="hospitals" action="delete">
+                    <button 
+                      onClick={(e) => { 
+                        e.preventDefault(); e.stopPropagation(); 
+                        setFormData({ id: hospital.id, name: hospital.name }); 
+                        setIsDeleteModalOpen(true); 
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </PermissionGuard>
                 </div>
 
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 group-hover:bg-blue-100 transition-all duration-300">

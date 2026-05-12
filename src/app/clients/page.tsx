@@ -10,6 +10,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import PermissionGuard from '@/components/PermissionGuard'
 
 const MEXICO_STATES = [
   'CDMX', 'Estado de México', 'Jalisco', 'Nuevo León', 'Puebla', 'Guanajuato',
@@ -89,8 +90,12 @@ function ClientsContent() {
             <p className="text-sm" style={{ color: '#5a5b5d' }}>{total} registros</p>
           </div>
           <div className="flex gap-2 sm:ml-auto">
-            <button onClick={exportCsv} className="btn-secondary text-sm"><Download size={15} /> {t('exportCsv')}</button>
-            <Link href="/clients/new" className="btn-primary text-sm"><UserPlus size={15} /> {t('newClient')}</Link>
+            <PermissionGuard section="clients" action="view">
+              <button onClick={exportCsv} className="btn-secondary text-sm"><Download size={15} /> {t('exportCsv')}</button>
+            </PermissionGuard>
+            <PermissionGuard section="clients" action="create">
+              <Link href="/clients/new" className="btn-primary text-sm"><UserPlus size={15} /> {t('newClient')}</Link>
+            </PermissionGuard>
           </div>
         </div>
 

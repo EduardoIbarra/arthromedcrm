@@ -93,13 +93,6 @@ export default function SettingsPage() {
             <Row label="Proyecto" value="vogpviplsmupegohvbtl" />
             <Row label="Región" value="us-east-1" />
           </div>
-          <div className="p-3 rounded-xl" style={{ background: '#fef3c7', border: '1px solid #fde68a' }}>
-            <p className="text-xs font-semibold mb-1" style={{ color: '#b45309' }}>⚡ Primera vez</p>
-            <p className="text-xs" style={{ color: '#37383a' }}>
-              Ejecuta <code className="font-mono px-1 rounded" style={{ background: '#e8f1f9', color: '#0763a9' }}>supabase/migration.sql</code> en el Editor SQL de Supabase.
-              Luego ve a <strong>Importar</strong> para cargar el CSV.
-            </p>
-          </div>
         </SettingCard>
       </div>
     </AppShell>

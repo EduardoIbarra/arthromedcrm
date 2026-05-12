@@ -50,7 +50,7 @@ export default function Header() {
         <button
           className="p-2 rounded-xl transition-colors hover:bg-blue-50"
           style={{ color: '#5a5b5d' }}
-          aria-label="Notificaciones"
+          aria-label={t('notifications' as any) || 'Notificaciones'}
         >
           <Bell size={18} />
         </button>
@@ -68,7 +68,7 @@ export default function Header() {
           <button
             onClick={handleSignOut}
             className="p-2 rounded-xl transition-colors hover:bg-red-50 text-gray-400 hover:text-red-500"
-            title="Cerrar Sesión"
+            title={t('logout' as any) || 'Cerrar Sesión'}
           >
             <LogOut size={18} />
           </button>

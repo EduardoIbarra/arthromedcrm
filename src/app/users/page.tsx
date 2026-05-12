@@ -2,46 +2,56 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
-import { UserProfile } from '@/types/database'
+import { UserProfile, Role } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import { 
   Users, Shield, ShieldCheck, User, Trash2, 
-  Search, X, Loader2, AlertCircle
+  Search, X, Loader2, AlertCircle, Settings2,
+  CheckSquare, Square
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
+import Modal from '@/components/Modal'
+import { SECTIONS, ACTIONS } from '@/lib/permissions'
+import Link from 'next/link'
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
 export default function UsersPage() {
   const { t } = useI18n()
   const [users, setUsers] = useState<UserProfile[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [editingOverrides, setEditingOverrides] = useState<UserProfile | null>(null)
+  
   const supabase = createClient()
 
   useEffect(() => {
-    fetchUsers()
+    fetchData()
   }, [])
 
-  async function fetchUsers() {
+  async function fetchData() {
     setLoading(true)
     setError(null)
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const [usersRes, rolesRes] = await Promise.all([
+        supabase.from('user_profiles').select('*, roles(*)').order('created_at', { ascending: false }),
+        supabase.from('roles').select('*').order('name', { ascending: true })
+      ])
 
-      if (error) throw error
-      setUsers(data || [])
+      if (usersRes.error) throw usersRes.error
+      if (rolesRes.error) throw rolesRes.error
+
+      setUsers(usersRes.data || [])
+      setRoles(rolesRes.data || [])
 
       if (authUser) {
-        setCurrentUser(data?.find(u => u.id === authUser.id) || null)
+        setCurrentUser(usersRes.data?.find(u => u.id === authUser.id) || null)
       }
     } catch (err: any) {
       setError(err.message)
@@ -50,27 +60,59 @@ export default function UsersPage() {
     }
   }
 
-  const handleUpdateRole = async (userId: string, newRole: string) => {
+  const handleUpdateRole = async (userId: string, roleId: string) => {
     try {
+      const selectedRole = roles.find(r => r.id === roleId)
       const { error } = await supabase
         .from('user_profiles')
-        .update({ role: newRole })
+        .update({ 
+          role_id: roleId,
+          // We keep the old 'role' string for legacy support if needed, 
+          // or we can map it based on the role name.
+          role: selectedRole?.name.toLowerCase().includes('admin') ? 'admin' : 'user'
+        })
         .eq('id', userId)
 
       if (error) throw error
-      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole as any } : u))
+      setUsers(users.map(u => u.id === userId ? { ...u, role_id: roleId, roles: selectedRole } : u))
     } catch (err: any) {
       alert(err.message)
     }
   }
 
+  const handleUpdateOverrides = async () => {
+    if (!editingOverrides) return
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ permission_overrides: editingOverrides.permission_overrides })
+        .eq('id', editingOverrides.id)
+
+      if (error) throw error
+      setUsers(users.map(u => u.id === editingOverrides.id ? editingOverrides : u))
+      setEditingOverrides(null)
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
+
+  const toggleOverride = (section: string, action: string) => {
+    if (!editingOverrides) return
+    const currentOverrides = { ...(editingOverrides.permission_overrides || {}) }
+    const sectionOverrides = [...(currentOverrides[section] || [])]
+    
+    if (sectionOverrides.includes(action)) {
+      currentOverrides[section] = sectionOverrides.filter(a => a !== action)
+    } else {
+      currentOverrides[section] = [...sectionOverrides, action]
+    }
+    
+    setEditingOverrides({ ...editingOverrides, permission_overrides: currentOverrides })
+  }
+
   const handleDeleteUser = async (userId: string) => {
     if (!confirm(t('confirm'))) return
     try {
-      // Note: This only deletes the profile. Deleting the actual auth user 
-      // usually requires administrative privileges or a service role.
-      // For this implementation, we'll assume the user has the necessary setup or 
-      // we'll at least remove their profile so they can't access the ERP.
       const { error } = await supabase
         .from('user_profiles')
         .delete()
@@ -87,22 +129,6 @@ export default function UsersPage() {
     u.email.toLowerCase().includes(search.toLowerCase())
   )
 
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'superadmin': return <ShieldCheck size={16} className="text-amber-600" />
-      case 'admin': return <Shield size={16} className="text-blue-600" />
-      default: return <User size={16} className="text-gray-500" />
-    }
-  }
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'superadmin': return t('superadmin')
-      case 'admin': return t('admin')
-      default: return t('user')
-    }
-  }
-
   const isSuperAdmin = currentUser?.role === 'superadmin'
 
   return (
@@ -111,22 +137,25 @@ export default function UsersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: '#37383a' }}>{t('manageUsers')}</h1>
-            <p className="text-sm" style={{ color: '#5a5b5d' }}>{users.length} usuarios registrados</p>
+            <p className="text-sm" style={{ color: '#5a5b5d' }}>{users.length} {t('usersRegistered')}</p>
           </div>
           
-          <div className="relative w-full sm:w-72">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={t('search')}
-              className="erp-input pl-10 pr-10"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                <X size={16} />
-              </button>
+          <div className="flex items-center gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={t('search')}
+                className="erp-input pl-10"
+              />
+            </div>
+            {isSuperAdmin && (
+              <Link href="/users/roles" className="btn-ghost whitespace-nowrap">
+                <Shield size={18} />
+                {t('manageRoles')}
+              </Link>
             )}
           </div>
         </div>
@@ -154,10 +183,10 @@ export default function UsersPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Usuario</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Rol</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Registrado</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('user')}</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('role')}</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('registered')}</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -175,16 +204,23 @@ export default function UsersPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border
-                            ${user.role === 'superadmin' ? 'bg-amber-50 border-amber-200 text-amber-700' : 
-                              user.role === 'admin' ? 'bg-blue-50 border-blue-200 text-blue-700' : 
-                              'bg-gray-50 border-gray-200 text-gray-600'}`}
+                        {isSuperAdmin && user.id !== currentUser?.id ? (
+                          <select
+                            value={user.role_id || ''}
+                            onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                            className="text-xs border rounded-lg px-2 py-1 bg-white hover:border-blue-300 transition-colors outline-none max-w-[150px]"
                           >
-                            {getRoleIcon(user.role)}
-                            {getRoleLabel(user.role)}
+                            <option value="">{t('noRole')}</option>
+                            {roles.map(r => (
+                              <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border bg-blue-50 border-blue-200 text-blue-700 w-fit">
+                            <Shield size={14} />
+                            {user.roles?.name || user.role || t('user')}
                           </div>
-                        </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-xs text-gray-500">
@@ -195,15 +231,13 @@ export default function UsersPage() {
                         <div className="flex items-center justify-end gap-2">
                           {isSuperAdmin && user.id !== currentUser?.id && (
                             <>
-                              <select
-                                value={user.role}
-                                onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                                className="text-xs border rounded-lg px-2 py-1 bg-white hover:border-blue-300 transition-colors outline-none"
+                              <button
+                                onClick={() => setEditingOverrides(user)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-all opacity-0 group-hover:opacity-100"
+                                title="Permisos Especiales"
                               >
-                                <option value="user">{t('user')}</option>
-                                <option value="admin">{t('admin')}</option>
-                                <option value="superadmin">{t('superadmin')}</option>
-                              </select>
+                                <Settings2 size={16} />
+                              </button>
                               <button
                                 onClick={() => handleDeleteUser(user.id)}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
@@ -214,7 +248,7 @@ export default function UsersPage() {
                             </>
                           )}
                           {user.id === currentUser?.id && (
-                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter bg-blue-50 px-1.5 py-0.5 rounded">Tú</span>
+                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter bg-blue-50 px-1.5 py-0.5 rounded">{t('you')}</span>
                           )}
                         </div>
                       </td>
@@ -225,6 +259,59 @@ export default function UsersPage() {
             </div>
           )}
         </div>
+
+        {/* Permission Overrides Modal */}
+        {editingOverrides && (
+          <Modal
+            open={!!editingOverrides}
+            onClose={() => setEditingOverrides(null)}
+            title={`${t('specialPermissions')}: ${editingOverrides.email}`}
+          >
+            <div className="space-y-6">
+              <p className="text-sm text-gray-500">
+                {t('overridesDesc')} ({editingOverrides.roles?.name || t('none')}).
+              </p>
+
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-600">{t('section')}</th>
+                      {['view', 'create', 'edit', 'delete'].map(action => (
+                        <th key={action} className="px-4 py-2 text-center font-semibold text-gray-600 capitalize">{t(action as any)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {SECTIONS.map(section => (
+                      <tr key={section}>
+                        <td className="px-4 py-3 font-medium text-gray-700 capitalize">{t(section as any)}</td>
+                        {['view', 'create', 'edit', 'delete'].map(action => {
+                          const isChecked = (editingOverrides.permission_overrides?.[section] || []).includes(action)
+                          return (
+                            <td key={action} className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => toggleOverride(section, action)}
+                                className={`p-1.5 rounded-lg transition-colors ${isChecked ? 'text-amber-600 bg-amber-50' : 'text-gray-300 hover:bg-gray-100'}`}
+                              >
+                                {isChecked ? <CheckSquare size={20} /> : <Square size={20} />}
+                              </button>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button onClick={() => setEditingOverrides(null)} className="btn-ghost">{t('cancel')}</button>
+                <button onClick={handleUpdateOverrides} className="btn-primary">{t('saveChanges')}</button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
     </AppShell>
   )
