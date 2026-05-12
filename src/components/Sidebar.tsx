@@ -10,6 +10,20 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
+import { Section, PermissionAction } from '@/lib/permissions'
+
+interface NavItem {
+  href: string
+  icon: any
+  label: string
+  section: Section
+  action?: PermissionAction
+}
+
+interface NavGroup {
+  title: string | null
+  items: NavItem[]
+}
 
 export default function Sidebar() {
   const { t } = useI18n()
@@ -18,7 +32,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const navGroups = [
+  const navGroups: NavGroup[] = [
     {
       title: null,
       items: [
@@ -60,7 +74,7 @@ export default function Sidebar() {
   const filteredNavGroups = navGroups.map(group => ({
     ...group,
     items: group.items.filter(item => 
-      hasPermission(item.section as any, (item.action as any) || 'view')
+      hasPermission(item.section, item.action || 'view')
     )
   })).filter(group => group.items.length > 0)
 
@@ -112,7 +126,7 @@ export default function Sidebar() {
           </div>
         ) : filteredNavGroups.length === 0 ? (
           <div className="px-3 py-10 text-center">
-            <p className="text-xs text-gray-400 italic">No tienes permisos para ver ninguna sección.</p>
+            <p className="text-xs text-gray-400 italic">{t('noPermissions' as any) || 'No tienes permisos para ver ninguna sección.'}</p>
           </div>
         ) : (
           filteredNavGroups.map((group, groupIndex) => (
@@ -173,9 +187,9 @@ export default function Sidebar() {
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="btn-ghost w-full justify-center text-xs"
-          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+          aria-label={collapsed ? (t('expandMenu' as any) || 'Expandir menú') : (t('collapseMenu' as any) || 'Colapsar menú')}
         >
-          {collapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /> Colapsar</>}
+          {collapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /> {t('collapse' as any) || 'Colapsar'}</>}
         </button>
       </div>
     </div>
@@ -187,7 +201,7 @@ export default function Sidebar() {
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-xl bg-white border border-blue-100 shadow"
         style={{ color: '#0763a9' }}
-        aria-label="Abrir menú"
+        aria-label={t('openMenu' as any) || 'Abrir menú'}
       >
         <Menu size={20} />
       </button>
