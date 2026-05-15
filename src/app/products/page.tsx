@@ -372,8 +372,8 @@ export default function ProductsPage() {
                 onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
                 className="erp-input w-full"
               >
-                <option value="equipment">Equipo (5% desc.)</option>
-                <option value="consumable">Consumible (4% desc.)</option>
+                <option value="equipment">Equipo</option>
+                <option value="consumable">Consumible</option>
               </select>
             </div>
             <div>
