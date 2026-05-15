@@ -94,6 +94,20 @@ export default function EditCongresoPage() {
     fetchCongreso()
   }, [id])
 
+  const handleDeleteFile = async (fileId: string) => {
+    if (!confirm(t('deleteFileDesc'))) return
+    try {
+      const res = await fetch(`/api/congresos/${id}/files/${fileId}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        fetchFiles()
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   const addWorkshop = () => {
     setWorkshops([...workshops, { name: '', date_time: '', max_people: 20, cost: 0, professor: '' }])
   }
