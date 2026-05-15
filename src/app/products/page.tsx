@@ -13,6 +13,37 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+const PRODUCT_CATEGORIES = [
+  "Plasma > Sistema > Sistema ARS 900*",
+  "Plasma > Sistema > Electrodos > UXD 90*",
+  "Plasma > Sistema > Electrodos > UXD 70*",
+  "Plasma > Sistema > Electrodos > SPINE O UBE*",
+  "Plasma > Sistema > Electrodos > UGD*",
+  "Plasma > Sistema > Electrodos > UBE NEEDLE*",
+  "Plasma > Sistema > Electrodos > CANNON3*",
+  "Plasma > Sistema > Electrodos > CANNON*",
+  "Plasma > Sistema > Electrodos > SPINE O QFX*",
+  "Plasma > Sistema > Electrodos > SPINE FX*",
+  "Plasma > Sistema > Electrodos > LUMBA FX*",
+  "Plasma > Sistema > Electrodos > CERVA FX*",
+  "Plasma > Sistema > Electrodos > TR FORCEPS*",
+  "Plasma > Sistema > Electrodos > TB FORCEPS*",
+  "Plasma > Sistema > Electrodos > SHAVER & BUR",
+  "Sistema > Sistema quirúrgico de potencia RIC 11*",
+  "Sistema > Piezas de mano > MMA0* > CHUCK RECTO*",
+  "Sistema > Piezas de mano > MMA0* > CHUCK ANGULADO*",
+  "Sistema > Piezas de mano > MMB0*",
+  "Sistema > Fresas > DGA > Cuchilla",
+  "Sistema > Fresas > DGA > Diamante",
+  "Sistema > Fresas > DGB > Cuchilla",
+  "Sistema > Fresas > DGB > Diamante",
+  "Sistema > Consumibles Chucks",
+  "Sistema > Instrumental > AX + BX*",
+  "Sistema > Instrumental > CX*",
+  "Sistema > Lentes > Lente de 0°",
+  "Sistema > Lentes > Lente de 30°",
+]
+
 export default function ProductsPage() {
   const { t } = useI18n()
   const [products, setProducts] = useState<Product[]>([])
@@ -26,8 +57,21 @@ export default function ProductsPage() {
   // Edit State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [editForm, setEditForm] = useState<{ id: string, sale_price: number | '', base_hospital_price: number | '' }>({
-    id: '', sale_price: '', base_hospital_price: ''
+  const [specialtiesList, setSpecialtiesList] = useState<{ id: string, name: string }[]>([])
+  const [editForm, setEditForm] = useState<{ 
+    id: string, 
+    sale_price: number | '', 
+    base_hospital_price: number | '',
+    type: string,
+    category: string,
+    specialty_ids: string[]
+  }>({
+    id: '', 
+    sale_price: '', 
+    base_hospital_price: '',
+    type: 'consumable',
+    category: '',
+    specialty_ids: []
   })
 
   const fetchProducts = async () => {
@@ -50,13 +94,22 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts()
+    fetchSpecialties()
   }, [])
+
+  const fetchSpecialties = async () => {
+    const { data } = await supabase.from('catalog_specialties').select('*').order('name')
+    if (data) setSpecialtiesList(data)
+  }
 
   const handleOpenEdit = (product: Product) => {
     setEditForm({
       id: product.id,
       sale_price: product.sale_price !== null ? product.sale_price : '',
-      base_hospital_price: product.base_hospital_price !== null ? product.base_hospital_price : ''
+      base_hospital_price: product.base_hospital_price !== null ? product.base_hospital_price : '',
+      type: product.type || 'consumable',
+      category: product.category || '',
+      specialty_ids: product.specialty_ids || []
     })
     setIsEditModalOpen(true)
   }
@@ -70,6 +123,10 @@ export default function ProductsPage() {
         .update({
           sale_price: editForm.sale_price === '' ? null : Number(editForm.sale_price),
           base_hospital_price: editForm.base_hospital_price === '' ? null : Number(editForm.base_hospital_price),
+          type: editForm.type,
+          category: editForm.category,
+          specialty_ids: editForm.specialty_ids,
+          updated_at: new Date().toISOString()
         })
         .eq('id', editForm.id)
         
@@ -302,6 +359,61 @@ export default function ProductsPage() {
                 className="erp-input w-full"
                 placeholder="0.00"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tipo de Producto
+              </label>
+              <select
+                value={editForm.type}
+                onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                className="erp-input w-full"
+              >
+                <option value="equipment">Equipo (5% desc.)</option>
+                <option value="consumable">Consumible (4% desc.)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Categoría
+              </label>
+              <select
+                value={editForm.category}
+                onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                className="erp-input w-full"
+              >
+                <option value="">-- Seleccionar --</option>
+                {PRODUCT_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Especialidades
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200 max-h-48 overflow-y-auto">
+              {specialtiesList.map(spec => (
+                <label key={spec.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-white p-1 rounded transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editForm.specialty_ids.includes(spec.id)}
+                    onChange={(e) => {
+                      const ids = e.target.checked 
+                        ? [...editForm.specialty_ids, spec.id]
+                        : editForm.specialty_ids.filter(id => id !== spec.id)
+                      setEditForm({ ...editForm, specialty_ids: ids })
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="truncate">{spec.name}</span>
+                </label>
+              ))}
             </div>
           </div>
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Congreso } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
-import { Calendar, Plus, Edit2, Trash2, MapPin, Clock } from 'lucide-react'
+import { Calendar, Plus, Edit2, Trash2, MapPin, Clock, Globe } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import AppShell from '@/components/AppShell'
@@ -145,8 +145,15 @@ export default function CongresosPage() {
 
                 <div className="w-full pt-4 mt-auto border-t border-gray-100 flex justify-between items-center">
                   <Link 
+                    href={`/congresos/${congreso.id}/landing`} 
+                    target="_blank"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1"
+                  >
+                    <Globe size={14} /> Ver Landing
+                  </Link>
+                  <Link 
                     href={`/qr?congressId=${congreso.id}`} 
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                    className="text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors"
                   >
                     {t('generateQr')}
                   </Link>

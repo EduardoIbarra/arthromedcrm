@@ -74,6 +74,8 @@ export interface Product {
   base_hospital_price: number | null
   line: string | null
   type: string | null
+  category: string | null
+  specialty_ids: string[] | null
   created_at: string
   updated_at: string
 }
@@ -103,12 +105,32 @@ export interface Congreso {
   location: string
   description: string
   flyer: string | null
-  specialty_id: string | null
+  specialty_ids: string[] | null
   created_at: string
   updated_at: string
+  workshops?: Workshop[]
+  contacts?: Contact[]
 }
 
-export type CongresoInsert = Omit<Congreso, 'id' | 'created_at' | 'updated_at'> & {
+export interface Workshop {
+  id: string
+  congress_id: string
+  name: string
+  date_time: string
+  max_people: number
+  cost: number | null
+  professor: string
+}
+
+export interface Contact {
+  id: string
+  congress_id: string
+  name: string
+  number: string | null
+  email: string | null
+}
+
+export type CongresoInsert = Omit<Congreso, 'id' | 'created_at' | 'updated_at' | 'workshops' | 'contacts'> & {
   id?: string
 }
 

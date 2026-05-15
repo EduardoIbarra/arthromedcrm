@@ -523,7 +523,6 @@ model catalog_specialties {
   id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name       String      @unique
   created_at DateTime    @default(now()) @db.Timestamptz(6)
-  congresos  congresos[]
 
   @@schema("public")
 }
@@ -659,14 +658,39 @@ model congresos {
   location            String
   description         String
   flyer               String?
-  specialty_id        String?              @db.Uuid
+  specialty_ids       String[]
   created_at          DateTime             @default(now()) @db.Timestamptz(6)
   updated_at          DateTime             @default(now()) @db.Timestamptz(6)
   congreso_files      congreso_files[]
-  catalog_specialties catalog_specialties? @relation(fields: [specialty_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   gastos              gastos[]
+  workshops           congress_workshops[]
+  contacts            congress_contacts[]
 
   @@index([start_date])
+  @@schema("public")
+}
+
+model congress_workshops {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congress_id     String    @db.Uuid
+  name            String
+  date_time       DateTime  @db.Timestamptz(6)
+  max_people      Int
+  cost            Decimal?  @db.Decimal(10, 2)
+  professor       String
+  congress        congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model congress_contacts {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congress_id     String    @db.Uuid
+  name            String
+  number          String?
+  email           String?
+  congress        congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+
   @@schema("public")
 }
 
@@ -1222,6 +1246,8 @@ model products {
   base_hospital_price Decimal?          @db.Decimal(10, 2)
   line                String?
   type                String?
+  category            String?
+  specialty_ids       String[]
   created_at          DateTime          @default(now()) @db.Timestamptz(6)
   updated_at          DateTime          @default(now()) @db.Timestamptz(6)
   hospital_prices     hospital_prices[]
