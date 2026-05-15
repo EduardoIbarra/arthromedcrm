@@ -10,7 +10,7 @@ const prismaClientSingleton = () => {
     return new Proxy({}, {
       get: (target, prop) => {
         if (prop === 'then') return undefined
-        return () => { throw new Error('Prisma was initialized without DATABASE_URL. Please check your environment variables.') }
+        throw new Error(`Prisma was initialized without DATABASE_URL. Property "${String(prop)}" cannot be accessed. Check your Vercel Environment Variables.`)
       }
     }) as any
   }
