@@ -4,8 +4,8 @@ import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import { UserProfile, Role } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
-import { 
-  Users, Shield, ShieldCheck, User, Trash2, 
+import {
+  Users, Shield, ShieldCheck, User, Trash2,
   Search, X, Loader2, AlertCircle, Settings2,
   CheckSquare, Square
 } from 'lucide-react'
@@ -26,7 +26,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [editingOverrides, setEditingOverrides] = useState<UserProfile | null>(null)
-  
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function UsersPage() {
     setError(null)
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser()
-      
+
       const [usersRes, rolesRes] = await Promise.all([
         supabase.from('user_profiles').select('*, roles(*)').order('created_at', { ascending: false }),
         supabase.from('roles').select('*').order('name', { ascending: true })
@@ -65,7 +65,7 @@ export default function UsersPage() {
       const selectedRole = roles.find(r => r.id === roleId)
       const { error } = await supabase
         .from('user_profiles')
-        .update({ 
+        .update({
           role_id: roleId,
           // We keep the old 'role' string for legacy support if needed, 
           // or we can map it based on the role name.
@@ -100,13 +100,13 @@ export default function UsersPage() {
     if (!editingOverrides) return
     const currentOverrides = { ...(editingOverrides.permission_overrides || {}) }
     const sectionOverrides = [...(currentOverrides[section] || [])]
-    
+
     if (sectionOverrides.includes(action)) {
       currentOverrides[section] = sectionOverrides.filter(a => a !== action)
     } else {
       currentOverrides[section] = [...sectionOverrides, action]
     }
-    
+
     setEditingOverrides({ ...editingOverrides, permission_overrides: currentOverrides })
   }
 
@@ -125,7 +125,7 @@ export default function UsersPage() {
     }
   }
 
-  const filteredUsers = users.filter((u: UserProfile) => 
+  const filteredUsers = users.filter((u: UserProfile) =>
     u.email.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -139,7 +139,7 @@ export default function UsersPage() {
             <h1 className="text-2xl font-bold" style={{ color: '#37383a' }}>{t('manageUsers')}</h1>
             <p className="text-sm" style={{ color: '#5a5b5d' }}>{users.length} {t('usersRegistered')}</p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="relative w-full sm:w-64">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
