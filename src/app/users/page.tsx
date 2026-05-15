@@ -51,7 +51,7 @@ export default function UsersPage() {
       setRoles(rolesRes.data || [])
 
       if (authUser) {
-        setCurrentUser(usersRes.data?.find(u => u.id === authUser.id) || null)
+        setCurrentUser(usersRes.data?.find((u: UserProfile) => u.id === authUser.id) || null)
       }
     } catch (err: any) {
       setError(err.message)
@@ -74,7 +74,7 @@ export default function UsersPage() {
         .eq('id', userId)
 
       if (error) throw error
-      setUsers(users.map(u => u.id === userId ? { ...u, role_id: roleId, roles: selectedRole } : u))
+      setUsers(users.map((u: UserProfile) => u.id === userId ? { ...u, role_id: roleId, roles: selectedRole } : u))
     } catch (err: any) {
       alert(err.message)
     }
@@ -89,7 +89,7 @@ export default function UsersPage() {
         .eq('id', editingOverrides.id)
 
       if (error) throw error
-      setUsers(users.map(u => u.id === editingOverrides.id ? editingOverrides : u))
+      setUsers(users.map((u: UserProfile) => u.id === editingOverrides.id ? editingOverrides : u))
       setEditingOverrides(null)
     } catch (err: any) {
       alert(err.message)
@@ -119,13 +119,13 @@ export default function UsersPage() {
         .eq('id', userId)
 
       if (error) throw error
-      setUsers(users.filter(u => u.id !== userId))
+      setUsers(users.filter((u: UserProfile) => u.id !== userId))
     } catch (err: any) {
       alert(err.message)
     }
   }
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter((u: UserProfile) => 
     u.email.toLowerCase().includes(search.toLowerCase())
   )
 
