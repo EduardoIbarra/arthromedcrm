@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import type { Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -41,7 +40,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } = body
     
     // Update main record and nested relations
-    const data = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const data = await prisma.$transaction(async (tx: any) => {
       // 1. Delete existing workshops and contacts to replace them
       await tx.congress_workshops.deleteMany({ where: { congress_id: id } })
       await tx.congress_contacts.deleteMany({ where: { congress_id: id } })
