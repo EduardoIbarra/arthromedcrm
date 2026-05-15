@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       .select('id, name')
       .order('name')
 
-    const categoryList = categories?.map(c => `${c.name} (ID: ${c.id})`).join(', ') || ''
+    const categoryList = categories?.map((c: { name: string; id: string }) => `${c.name} (ID: ${c.id})`).join(', ') || ''
 
     const { object } = await generateObject({
       model: google('models/gemini-2.5-flash'),
