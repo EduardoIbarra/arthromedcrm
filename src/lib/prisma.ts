@@ -3,11 +3,16 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
 const prismaClientSingleton = () => {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not defined in environment variables')
+  const connectionString = process.env.DATABASE_URL
+  
+  if (!connectionString) {
+    // If we are in build phase, we can return a "lazy" client or just not throw yet
+    // This allows the build to complete if any code imports this file
+    console.warn('Warning: DATABASE_URL is not defined. Prisma will fail at runtime.')
+    return new PrismaClient() as any
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const pool = new Pool({ connectionString })
   const adapter = new PrismaPg(pool)
   
   return new PrismaClient({
