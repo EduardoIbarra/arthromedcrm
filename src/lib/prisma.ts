@@ -6,10 +6,13 @@ const prismaClientSingleton = () => {
   const connectionString = process.env.DATABASE_URL
   
   if (!connectionString) {
-    // If we are in build phase, we can return a "lazy" client or just not throw yet
-    // This allows the build to complete if any code imports this file
     console.warn('Warning: DATABASE_URL is not defined. Prisma will fail at runtime.')
-    return new PrismaClient() as any
+    return new Proxy({}, {
+      get: (target, prop) => {
+        if (prop === 'then') return undefined
+        return () => { throw new Error('Prisma was initialized without DATABASE_URL. Please check your environment variables.') }
+      }
+    }) as any
   }
 
   const pool = new Pool({ connectionString })
