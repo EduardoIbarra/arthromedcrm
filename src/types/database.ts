@@ -131,10 +131,25 @@ export interface Gasto {
   iva: number
   total: number
   comments: string | null
+  card: string | null
   congress_id: string | null
   category_id: string | null
+  is_billable: boolean
+  is_billed?: boolean
+  folio_fiscal?: string | null
+  invoice_url?: string | null
+  expense_date?: string | null
+  category?: { id?: string; name: string }
   created_at: string
   updated_at: string
+}
+
+export interface GastoAttachment {
+  id: string
+  gasto_id: string
+  name: string
+  url: string
+  created_at: string
 }
 
 export type GastoInsert = Omit<Gasto, 'id' | 'created_at' | 'updated_at'> & {

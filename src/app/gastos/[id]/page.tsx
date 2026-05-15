@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
-import { ArrowLeft, Save, Receipt } from 'lucide-react'
+import { ArrowLeft, Save, Receipt, Upload, X, FileText, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 export default function EditGastoPage() {
   const { id } = useParams<{ id: string }>()
@@ -16,6 +17,7 @@ export default function EditGastoPage() {
   const [error, setError] = useState<string | null>(null)
   const [congresos, setCongresos] = useState<{ id: string; name: string }[]>([])
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [uploading, setUploading] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -25,19 +27,25 @@ export default function EditGastoPage() {
     iva: 0,
     total: 0,
     comments: '',
+    card: '',
     congress_id: '',
-    category_id: ''
+    category_id: '',
+    is_billable: false,
+    is_billed: false,
+    folio_fiscal: '',
+    invoice_url: '',
+    expense_date: new Date().toISOString().split('T')[0]
   })
+
+  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([])
+
+  const supabase = createClient()
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true)
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
+        
         // Fetch congresses
         const congRes = await fetch('/api/congresos')
         if (congRes.ok) {
@@ -53,6 +61,7 @@ export default function EditGastoPage() {
         const res = await fetch(`/api/gastos/${id}`)
         if (!res.ok) throw new Error('Failed to load gasto')
         const { data } = await res.json()
+        
         setFormData({
           name: data.name,
           description: data.description || '',
@@ -61,9 +70,20 @@ export default function EditGastoPage() {
           iva: data.iva,
           total: data.total,
           comments: data.comments || '',
+          card: data.card || '',
           congress_id: data.congress_id || '',
-          category_id: data.category_id || ''
+          category_id: data.category_id || '',
+          is_billable: data.is_billable || false,
+          is_billed: data.is_billed || false,
+          folio_fiscal: data.folio_fiscal || '',
+          invoice_url: data.invoice_url || '',
+          expense_date: data.expense_date ? new Date(data.expense_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
         })
+
+        if (data.gasto_attachments) {
+          setAttachments(data.gasto_attachments.map((a: any) => ({ name: a.name, url: a.url })))
+        }
+
       } catch (err: any) {
         setError(err.message)
       } finally {
@@ -81,6 +101,37 @@ export default function EditGastoPage() {
     setFormData(prev => ({ ...prev, iva: ivaAmount, total: amount + ivaAmount }))
   }, [formData.amount, formData.iva_percent])
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'invoice' | 'general') => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(type)
+    try {
+      const ext = file.name.split('.').pop() || 'pdf'
+      const timestamp = Date.now()
+      const fileName = `${type}_${timestamp}.${ext}`
+      const { data, error: uploadError } = await supabase.storage.from('documents').upload(`gastos/${fileName}`, file)
+      if (uploadError) throw uploadError
+      
+      const { data: publicUrlData } = supabase.storage.from('documents').getPublicUrl(data.path)
+      const url = publicUrlData.publicUrl
+
+      if (type === 'invoice') {
+        setFormData(p => ({ ...p, invoice_url: url }))
+      } else {
+        setAttachments(p => [...p, { name: file.name, url }])
+      }
+    } catch (err: any) {
+      console.error(err)
+      setError('Error al subir el archivo: ' + err.message)
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSaving(true)
@@ -92,7 +143,9 @@ export default function EditGastoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          congress_id: formData.congress_id || null
+          congress_id: formData.congress_id || null,
+          category_id: formData.category_id || null,
+          attachments
         })
       })
       if (!res.ok) {
@@ -145,7 +198,20 @@ export default function EditGastoPage() {
 
         <form onSubmit={handleSave} className="card p-6 md:p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('expenseDate')} *
+              </label>
+              <input
+                required
+                type="date"
+                className="erp-input w-full"
+                value={formData.expense_date}
+                onChange={e => setFormData({ ...formData, expense_date: e.target.value })}
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('name')} *
               </label>
@@ -238,6 +304,18 @@ export default function EditGastoPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('card')}
+              </label>
+              <input
+                type="text"
+                className="erp-input w-full"
+                value={formData.card}
+                onChange={e => setFormData({ ...formData, card: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('congresos')} (Opcional)
               </label>
               <select
@@ -250,6 +328,96 @@ export default function EditGastoPage() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex items-center gap-6 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  checked={formData.is_billable}
+                  onChange={e => setFormData({ ...formData, is_billable: e.target.checked })}
+                />
+                <span className="text-sm font-medium text-gray-700">{t('billable')}</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  checked={formData.is_billed}
+                  onChange={e => setFormData({ ...formData, is_billed: e.target.checked })}
+                />
+                <span className="text-sm font-medium text-gray-700">{t('billed')}</span>
+              </label>
+            </div>
+
+            {/* Billing Details (Conditional) */}
+            {formData.is_billed && (
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-blue-50/50 rounded-2xl border border-blue-100 animate-slide-down">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('fiscalFolio')}
+                  </label>
+                  <input
+                    type="text"
+                    className="erp-input w-full bg-white"
+                    placeholder={t('fiscalFolioPlaceholder') as string}
+                    value={formData.folio_fiscal}
+                    onChange={e => setFormData({ ...formData, folio_fiscal: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('invoiceFile')}
+                  </label>
+                  <div className="space-y-2">
+                    {formData.invoice_url && (
+                      <div className="flex items-center gap-2">
+                        <a href={formData.invoice_url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1 truncate">
+                          <FileText size={16} /> {t('viewInvoice')}
+                        </a>
+                        <button type="button" onClick={() => setFormData(p => ({ ...p, invoice_url: '' }))} className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+                    <label className="btn-secondary w-full justify-center cursor-pointer text-sm bg-white">
+                      {uploading === 'invoice' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                      {uploading === 'invoice' ? t('uploading') : (formData.invoice_url ? t('replace') : t('uploadInvoice'))}
+                      <input type="file" accept=".pdf,.xml,image/*" className="hidden" onChange={e => handleFileUpload(e, 'invoice')} disabled={!!uploading} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* General Attachments */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('attachmentsDetails')}
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <a href={att.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 truncate text-blue-600 hover:underline">
+                      <FileText size={18} className="text-gray-400" />
+                      <span className="text-sm truncate">{att.name}</span>
+                    </a>
+                    <button type="button" onClick={() => removeAttachment(idx)} className="text-gray-400 hover:text-red-500 p-1">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                
+                <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer group">
+                  {uploading === 'general' ? <Loader2 size={20} className="animate-spin text-blue-600" /> : <Upload size={20} className="text-gray-400 group-hover:text-blue-600" />}
+                  <span className="text-sm font-medium text-gray-500 group-hover:text-blue-600">
+                    {uploading === 'general' ? t('uploading') : t('attachFile')}
+                  </span>
+                  <input type="file" multiple className="hidden" onChange={e => handleFileUpload(e, 'general')} disabled={!!uploading} />
+                </label>
+              </div>
             </div>
 
             <div className="md:col-span-2">

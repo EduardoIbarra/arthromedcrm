@@ -106,6 +106,25 @@ body {
 }
 .pulse-dot { animation: pulseDot 2s ease-in-out infinite; }
 
+@keyframes aiScan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateY(400%); opacity: 0; }
+}
+.ai-scan-line {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #a855f7, transparent);
+  box-shadow: 0 0 15px #a855f7;
+  animation: aiScan 2s linear infinite;
+}
+
+@keyframes aiGlow {
+  0%, 100% { box-shadow: 0 0 5px rgba(168, 85, 247, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(168, 85, 247, 0.6); }
+}
+.ai-glow { animation: aiGlow 2s ease-in-out infinite; }
+
+
 /* ── Status badges ─────────────────────────── */
 .badge-active {
   background: #dcfce7;

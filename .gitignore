@@ -48,3 +48,5 @@ _chat.txt
 !package.json
 !package-lock.json
 !tsconfig.json
+
+/src/generated/prisma
