@@ -166,7 +166,7 @@ export default function EditCongresoPage() {
         throw new Error(json.error || 'Failed to update')
       }
       
-      router.push('/congresos')
+      router.push(`/congresos/${id}/view`)
     } catch (err: any) {
       console.error(err)
       setError(err.message)
@@ -239,7 +239,7 @@ export default function EditCongresoPage() {
       <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in space-y-6">
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Link href="/congresos" className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all">
+            <Link href={`/congresos/${id}/view`} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all">
               <ArrowLeft size={24} />
             </Link>
             <div>

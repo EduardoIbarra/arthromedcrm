@@ -54,6 +54,7 @@ function RegistroContent() {
   const [form, setForm] = useState<FormData>({ name: '', specialty: '', customSpecialty: '', hospital: '', phone: '', state: '' })
   const [specialties, setSpecialties] = useState<string[]>([])
   const [submitted, setSubmitted] = useState(false)
+  const [createdClientId, setCreatedClientId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -142,9 +143,12 @@ function RegistroContent() {
           tags: congressId ? ['simposio', `congreso:${congressId}`] : ['simposio'],
         }),
       })
+      const json = await res.json()
       if (!res.ok) {
-        const json = await res.json()
         throw new Error(json.error || 'Error al registrar')
+      }
+      if (json.data && json.data.id) {
+        setCreatedClientId(json.data.id)
       }
       setSubmitted(true)
     } catch (e: unknown) {
@@ -154,7 +158,7 @@ function RegistroContent() {
     }
   }
 
-  if (submitted) return <SuccessScreen name={form.name.split(' ')[0]} />
+  if (submitted) return <SuccessScreen name={form.name.split(' ')[0]} congressId={congressId} clientId={createdClientId} />
 
   const progress = ((stepIndex + 1) / STEPS.length) * 100
 
@@ -367,7 +371,29 @@ function ConfirmRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function SuccessScreen({ name }: { name: string }) {
+function SuccessScreen({ name, congressId, clientId }: { name: string, congressId?: string | null, clientId?: string | null }) {
+  const [countdown, setCountdown] = useState(5)
+
+  useEffect(() => {
+    if (!congressId) return
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(c => c - 1), 1000)
+      return () => clearTimeout(timer)
+    } else {
+      const url = `/congresos/${congressId}/landing${clientId ? `?clientId=${clientId}` : ''}`
+      window.location.href = url
+    }
+  }, [countdown, congressId, clientId])
+
+  const handleContinue = () => {
+    if (congressId) {
+      window.location.href = `/congresos/${congressId}/landing${clientId ? `?clientId=${clientId}` : ''}`
+    } else {
+      window.location.href = '/'
+    }
+  }
+
   return (
     <div className="min-h-[100dvh] bg-linear-to-br from-[#f0f5fa] via-[#dceaf5] to-[#c5d9ee] relative overflow-hidden flex items-start justify-center p-4">
       <div className="fixed rounded-full blur-[80px] opacity-35 pointer-events-none z-0 w-[380px] h-[380px] bg-radial from-[#9bbfdf] to-[#0763a9] -top-20 -right-20 animate-[pulse_12s_infinite_alternate]" />
@@ -395,7 +421,26 @@ function SuccessScreen({ name }: { name: string }) {
           <p className="text-[#5a5b5d] leading-relaxed">
             Su registro fue recibido con éxito. Un asesor especializado se pondrá en contacto con usted por WhatsApp para enviarle la información solicitada.
           </p>
-          <div className="flex items-center gap-2 px-4 py-2 bg-[#e8f1f9] border border-[#c5d9ee] rounded-full text-[11px] font-bold text-[#0763a9] uppercase tracking-wider">
+          
+          <div className="w-full mt-4 flex flex-col gap-3">
+            <button
+              onClick={handleContinue}
+              className="w-full flex items-center justify-center gap-2 bg-linear-to-br from-[#0763a9] to-[#054d85] text-white py-3.5 px-6 rounded-2xl font-bold text-lg shadow-lg shadow-[#0763a9]/30 transition-all active:scale-[0.98]"
+            >
+              {congressId ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  Continuar ({countdown}s)
+                </>
+              ) : (
+                <>
+                  Continuar <ChevronRight size={20} />
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 bg-[#e8f1f9] border border-[#c5d9ee] rounded-full text-[11px] font-bold text-[#0763a9] uppercase tracking-wider mt-2">
             <span>🏥</span> Arthromed — Equipo de Alto Rendimiento
           </div>
         </motion.div>

@@ -10,7 +10,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const data = await prisma.congresos.findUnique({
       where: { id },
       include: {
-        workshops: true,
+        workshops: {
+          include: {
+            enrollments: {
+              select: { client_id: true }
+            }
+          }
+        },
         contacts: true
       }
     })
@@ -43,11 +49,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     
     // Update main record and nested relations
     const data = await prisma.$transaction(async (tx: any) => {
-      // 1. Delete existing workshops and contacts to replace them
-      await tx.congress_workshops.deleteMany({ where: { congress_id: id } })
-      await tx.congress_contacts.deleteMany({ where: { congress_id: id } })
+      // 1. Delete removed workshops and contacts
+      const existingWorkshops = await tx.congress_workshops.findMany({ where: { congress_id: id }, select: { id: true } })
+      const incomingWorkshopIds = (workshops || []).filter((w: any) => w.id).map((w: any) => w.id)
+      const workshopsToDelete = existingWorkshops.filter((w: any) => !incomingWorkshopIds.includes(w.id)).map((w: any) => w.id)
+      
+      const existingContacts = await tx.congress_contacts.findMany({ where: { congress_id: id }, select: { id: true } })
+      const incomingContactIds = (contacts || []).filter((c: any) => c.id).map((c: any) => c.id)
+      const contactsToDelete = existingContacts.filter((c: any) => !incomingContactIds.includes(c.id)).map((c: any) => c.id)
 
-      // 2. Update congress and create new related records
+      if (workshopsToDelete.length > 0) {
+        await tx.congress_workshops.deleteMany({ where: { id: { in: workshopsToDelete } } })
+      }
+      if (contactsToDelete.length > 0) {
+        await tx.congress_contacts.deleteMany({ where: { id: { in: contactsToDelete } } })
+      }
+
+      // 2. Update congress and upsert related records
       return await tx.congresos.update({
         where: { id },
         data: {
@@ -59,7 +77,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           flyer,
           specialty_ids: specialty_ids || [],
           workshops: {
-            create: (workshops || []).map((w: any) => ({
+            upsert: (workshops || []).filter((w: any) => w.id).map((w: any) => ({
+              where: { id: w.id },
+              update: { name: w.name, date_time: new Date(w.date_time), max_people: Number(w.max_people), cost: w.cost ? Number(w.cost) : null, professor: w.professor },
+              create: { name: w.name, date_time: new Date(w.date_time), max_people: Number(w.max_people), cost: w.cost ? Number(w.cost) : null, professor: w.professor }
+            })),
+            create: (workshops || []).filter((w: any) => !w.id).map((w: any) => ({
               name: w.name,
               date_time: new Date(w.date_time),
               max_people: Number(w.max_people),
@@ -68,7 +91,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             }))
           },
           contacts: {
-            create: (contacts || []).map((c: any) => ({
+            upsert: (contacts || []).filter((c: any) => c.id).map((c: any) => ({
+              where: { id: c.id },
+              update: { name: c.name, number: c.number, email: c.email },
+              create: { name: c.name, number: c.number, email: c.email }
+            })),
+            create: (contacts || []).filter((c: any) => !c.id).map((c: any) => ({
               name: c.name,
               number: c.number,
               email: c.email

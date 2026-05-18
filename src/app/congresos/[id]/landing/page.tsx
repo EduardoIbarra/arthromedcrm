@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Calendar, MapPin, Users, Clock, User, Phone, Mail, 
   ChevronRight, Package, ArrowRight, Download, Globe,
-  Shield, CheckCircle2, Sparkles, Tag, AlignLeft
+  Shield, CheckCircle2, Sparkles, Tag, AlignLeft, Loader2, X
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -25,8 +25,12 @@ interface CongresoData {
 
 export default function CongressLandingPage() {
   const { id } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
   const [congress, setCongress] = useState<CongresoData | null>(null)
   const [products, setProducts] = useState<any[]>([])
+  const [clientName, setClientName] = useState<string | null>(null)
+  const [currentClientId, setCurrentClientId] = useState<string | null>(null)
+  const [processingWorkshop, setProcessingWorkshop] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,6 +59,69 @@ export default function CongressLandingPage() {
     }
     loadData()
   }, [id])
+
+  useEffect(() => {
+    const cid = searchParams.get('clientId') || localStorage.getItem('arthromed_lead_client_id')
+    if (cid) {
+      localStorage.setItem('arthromed_lead_client_id', cid)
+      setCurrentClientId(cid)
+      fetch(`/api/clients/${cid}`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.data && res.data.name) {
+            setClientName(res.data.name.split(' ')[0])
+          }
+        })
+        .catch(console.error)
+    }
+  }, [searchParams])
+
+  const handleEnrollToggle = async (workshopId: string, isEnrolled: boolean) => {
+    if (!currentClientId) {
+      alert('Debe registrarse primero escaneando el código QR para poder inscribirse a talleres.')
+      return
+    }
+    
+    setProcessingWorkshop(workshopId)
+    try {
+      const method = isEnrolled ? 'DELETE' : 'POST'
+      const url = isEnrolled 
+        ? `/api/workshops/${workshopId}/enroll?clientId=${currentClientId}`
+        : `/api/workshops/${workshopId}/enroll`
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: isEnrolled ? null : JSON.stringify({ clientId: currentClientId })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error en la operación')
+      }
+
+      setCongress(prev => {
+        if (!prev) return prev
+        const newWorkshops = prev.workshops.map(w => {
+          if (w.id === workshopId) {
+            const enrollments = [...(w.enrollments || [])]
+            if (isEnrolled) {
+              return { ...w, enrollments: enrollments.filter((e: any) => e.client_id !== currentClientId) }
+            } else {
+              return { ...w, enrollments: [...enrollments, { client_id: currentClientId }] }
+            }
+          }
+          return w
+        })
+        return { ...prev, workshops: newWorkshops }
+      })
+
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setProcessingWorkshop(null)
+    }
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -103,6 +170,17 @@ export default function CongressLandingPage() {
           >
             <Sparkles size={14} /> Congreso Médico Exclusivo
           </motion.div>
+
+          {clientName && (
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="text-2xl md:text-3xl font-medium text-slate-300 mb-4"
+            >
+              ¡Bienvenido, Dr. {clientName}!
+            </motion.h2>
+          )}
           
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
@@ -157,13 +235,18 @@ export default function CongressLandingPage() {
                 <span className="text-sm text-slate-500">{congress.workshops.length} sesiones</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {congress.workshops.map((w, i) => (
+                {congress.workshops.map((w, i) => {
+                  const enrolledCount = w.enrollments?.length || 0
+                  const isEnrolled = currentClientId ? w.enrollments?.some((e: any) => e.client_id === currentClientId) : false
+                  const isFull = enrolledCount >= w.max_people
+
+                  return (
                   <motion.div 
                     key={w.id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     whileInView={{ opacity: 1, scale: 1 }}
                     transition={{ delay: i * 0.1 }}
-                    className="group bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 hover:bg-white/[0.06] transition-all hover:border-blue-500/30"
+                    className="group bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 hover:bg-white/[0.06] transition-all hover:border-blue-500/30 flex flex-col"
                   >
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
@@ -176,7 +259,7 @@ export default function CongressLandingPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="space-y-3 pt-4 border-t border-white/[0.05]">
+                    <div className="space-y-3 pt-4 border-t border-white/[0.05] flex-1">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Fecha y Hora:</span>
                         <span className="text-slate-300 font-medium">
@@ -185,15 +268,42 @@ export default function CongressLandingPage() {
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Cupo:</span>
-                        <span className="text-slate-300 font-medium">{w.max_people} personas</span>
+                        <span className="text-slate-300 font-medium">{enrolledCount} / {w.max_people} personas</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Costo:</span>
                         <span className="text-blue-400 font-bold">{w.cost > 0 ? formatCurrency(w.cost) : 'Gratis'}</span>
                       </div>
                     </div>
+                    
+                    <div className="pt-5 mt-4 border-t border-white/[0.05]">
+                      <button 
+                        onClick={() => handleEnrollToggle(w.id, isEnrolled)}
+                        disabled={processingWorkshop === w.id || (!isEnrolled && isFull)}
+                        className={`group/btn w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                          isEnrolled 
+                            ? 'bg-emerald-500/20 text-emerald-400 hover:bg-red-500/20 hover:text-red-400 border border-emerald-500/30 hover:border-red-500/30' 
+                            : (!isEnrolled && isFull)
+                              ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+                        }`}
+                      >
+                        {processingWorkshop === w.id ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : isEnrolled ? (
+                          <>
+                            <span className="flex group-hover/btn:hidden items-center gap-2"><CheckCircle2 size={18} /> Inscrito</span>
+                            <span className="hidden group-hover/btn:flex items-center gap-2"><X size={18} /> Cancelar</span>
+                          </>
+                        ) : isFull ? (
+                          'Cupo Lleno'
+                        ) : (
+                          'Inscribirme'
+                        )}
+                      </button>
+                    </div>
                   </motion.div>
-                ))}
+                )})}
               </div>
             </section>
           )}

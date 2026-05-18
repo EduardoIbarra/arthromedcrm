@@ -129,8 +129,8 @@ export default function CongresosPage() {
                   <Calendar size={24} />
                 </div>
                 
-                <div className="flex-1 w-full">
-                  <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{congreso.name}</h3>
+                <Link href={`/congresos/${congreso.id}/view`} className="flex-1 w-full group/link block">
+                  <h3 className="text-lg font-bold text-gray-900 mb-1 truncate group-hover/link:text-blue-600 transition-colors">{congreso.name}</h3>
                   <div className="space-y-2 mt-3">
                     <p className="text-sm text-gray-500 flex items-center gap-2">
                       <Clock size={14} className="text-blue-400" />
@@ -141,7 +141,7 @@ export default function CongresosPage() {
                       <span className="truncate">{congreso.location}</span>
                     </p>
                   </div>
-                </div>
+                </Link>
 
                 <div className="w-full pt-4 mt-auto border-t border-gray-100 flex justify-between items-center">
                   <Link 

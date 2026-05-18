@@ -628,6 +628,7 @@ model clients {
   distributor_letters  distributor_letters[]
   orders               orders[]
   product_prices       product_prices[]
+  workshop_enrollments congress_workshop_enrollments[]
 
   @@index([status])
   @@index([distributor_id], map: "idx_clients_distributor_id")
@@ -680,7 +681,21 @@ model congress_workshops {
   cost            Decimal?  @db.Decimal(10, 2)
   professor       String
   congress        congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+  enrollments     congress_workshop_enrollments[]
 
+  @@schema("public")
+}
+
+model congress_workshop_enrollments {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workshop_id     String             @db.Uuid
+  client_id       String             @db.Uuid
+  created_at      DateTime           @default(now()) @db.Timestamptz(6)
+
+  workshop        congress_workshops @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
+  client          clients            @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@unique([workshop_id, client_id])
   @@schema("public")
 }
 
