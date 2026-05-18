@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Calendar, MapPin, Users, Clock, User, Phone, Mail, 
+import {
+  Calendar, MapPin, Users, Clock, User, Phone, Mail,
   ChevronRight, Package, ArrowRight, Download, Globe,
   Shield, CheckCircle2, Sparkles, Tag, AlignLeft, Loader2, X,
   ShoppingBag, Trash2, Plus, Minus
@@ -124,7 +124,7 @@ export default function CongressLandingPage() {
       }
 
       const resData = await res.json()
-      
+
       // If a new client was registered, save their client ID
       if (resData.clientId && !currentClientId) {
         localStorage.setItem('arthromed_lead_client_id', resData.clientId)
@@ -202,11 +202,11 @@ export default function CongressLandingPage() {
       alert('Debe registrarse primero escaneando el código QR para poder inscribirse a talleres.')
       return
     }
-    
+
     setProcessingWorkshop(workshopId)
     try {
       const method = isEnrolled ? 'DELETE' : 'POST'
-      const url = isEnrolled 
+      const url = isEnrolled
         ? `/api/workshops/${workshopId}/enroll?clientId=${currentClientId}`
         : `/api/workshops/${workshopId}/enroll`
 
@@ -246,7 +246,7 @@ export default function CongressLandingPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-      <motion.div 
+      <motion.div
         animate={{ scale: [1, 1.1, 1], rotate: [0, 90, 0] }}
         transition={{ repeat: Infinity, duration: 2 }}
         className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
@@ -302,8 +302,8 @@ export default function CongressLandingPage() {
               ¡Bienvenido, Dr. {clientName}!
             </motion.h2>
           )}
-          
-          <motion.h1 
+
+          <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
@@ -312,7 +312,7 @@ export default function CongressLandingPage() {
             {congress.name}
           </motion.h1>
 
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -328,15 +328,15 @@ export default function CongressLandingPage() {
             </div>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="flex justify-center mt-12"
           >
-            <a 
-              href="https://arthromed.com.mx/" 
-              target="_blank" 
+            <a
+              href="https://arthromed.com.mx/"
+              target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold px-10 py-5 rounded-2xl shadow-xl shadow-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 active:scale-95 text-lg border border-blue-400/20"
             >
@@ -350,10 +350,10 @@ export default function CongressLandingPage() {
 
       {/* Content Grid */}
       <main className="relative max-w-6xl mx-auto px-6 pb-24 grid grid-cols-1 lg:grid-cols-12 gap-12">
-        
+
         {/* Left Column: Info & Workshops */}
         <div className="lg:col-span-8 space-y-12">
-          
+
           {/* Description */}
           <section className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-md">
             <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
@@ -380,73 +380,73 @@ export default function CongressLandingPage() {
                   const isFull = enrolledCount >= w.max_people
 
                   return (
-                  <motion.div 
-                    key={w.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="group bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 hover:bg-white/[0.06] transition-all hover:border-blue-500/30 flex flex-col"
-                  >
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
-                        <Users size={24} />
+                    <motion.div
+                      key={w.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      whileInView={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="group bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 hover:bg-white/[0.06] transition-all hover:border-blue-500/30 flex flex-col"
+                    >
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                          <Users size={24} />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-white text-lg">{w.name}</h3>
+                          <p className="text-sm text-slate-500 flex items-center gap-1">
+                            <User size={12} /> {w.professor}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-white text-lg">{w.name}</h3>
-                        <p className="text-sm text-slate-500 flex items-center gap-1">
-                          <User size={12} /> {w.professor}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-3 pt-4 border-t border-white/[0.05] flex-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Fecha y Hora:</span>
-                        <span className="text-slate-300 font-medium">
-                          {new Date(w.date_time).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      {congress.enable_workshops !== false && (
+                      <div className="space-y-3 pt-4 border-t border-white/[0.05] flex-1">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-500">Cupo:</span>
-                          <span className="text-slate-300 font-medium">{enrolledCount} / {w.max_people} personas</span>
+                          <span className="text-slate-500">Fecha y Hora:</span>
+                          <span className="text-slate-300 font-medium">
+                            {new Date(w.date_time).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        {congress.enable_workshops !== false && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-500">Cupo:</span>
+                            <span className="text-slate-300 font-medium">{enrolledCount} / {w.max_people} personas</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Costo:</span>
+                          <span className="text-blue-400 font-bold">{w.cost > 0 ? formatCurrency(w.cost) : 'Gratis'}</span>
+                        </div>
+                      </div>
+
+                      {congress.enable_workshops !== false && (
+                        <div className="pt-5 mt-4 border-t border-white/[0.05]">
+                          <button
+                            onClick={() => handleEnrollToggle(w.id, isEnrolled)}
+                            disabled={processingWorkshop === w.id || (!isEnrolled && isFull)}
+                            className={`group/btn w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isEnrolled
+                                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-red-500/20 hover:text-red-400 border border-emerald-500/30 hover:border-red-500/30'
+                                : (!isEnrolled && isFull)
+                                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                  : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+                              }`}
+                          >
+                            {processingWorkshop === w.id ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : isEnrolled ? (
+                              <>
+                                <span className="flex group-hover/btn:hidden items-center gap-2"><CheckCircle2 size={18} /> Inscrito</span>
+                                <span className="hidden group-hover/btn:flex items-center gap-2"><X size={18} /> Cancelar</span>
+                              </>
+                            ) : isFull ? (
+                              'Cupo Lleno'
+                            ) : (
+                              'Inscribirme'
+                            )}
+                          </button>
                         </div>
                       )}
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Costo:</span>
-                        <span className="text-blue-400 font-bold">{w.cost > 0 ? formatCurrency(w.cost) : 'Gratis'}</span>
-                      </div>
-                    </div>
-                    
-                    {congress.enable_workshops !== false && (
-                      <div className="pt-5 mt-4 border-t border-white/[0.05]">
-                        <button 
-                          onClick={() => handleEnrollToggle(w.id, isEnrolled)}
-                          disabled={processingWorkshop === w.id || (!isEnrolled && isFull)}
-                          className={`group/btn w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                            isEnrolled 
-                              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-red-500/20 hover:text-red-400 border border-emerald-500/30 hover:border-red-500/30' 
-                              : (!isEnrolled && isFull)
-                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                                : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
-                          }`}
-                        >
-                          {processingWorkshop === w.id ? (
-                            <Loader2 size={18} className="animate-spin" />
-                          ) : isEnrolled ? (
-                            <>
-                              <span className="flex group-hover/btn:hidden items-center gap-2"><CheckCircle2 size={18} /> Inscrito</span>
-                              <span className="hidden group-hover/btn:flex items-center gap-2"><X size={18} /> Cancelar</span>
-                            </>
-                          ) : isFull ? (
-                            'Cupo Lleno'
-                          ) : (
-                            'Inscribirme'
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </motion.div>
-                )})}
+                    </motion.div>
+                  )
+                })}
               </div>
             </section>
           )}
@@ -464,7 +464,7 @@ export default function CongressLandingPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {products.map((p, i) => (
-                  <motion.div 
+                  <motion.div
                     key={p.id}
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
@@ -479,7 +479,7 @@ export default function CongressLandingPage() {
                       </div>
                       <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{p.description}</h3>
                       <p className="text-sm text-slate-500 mb-6">{p.model || p.order_code || 'Referencia estándar'}</p>
-                      
+
                       <div className="flex items-end gap-3">
                         <div>
                           <p className="text-[10px] text-slate-500 line-through mb-1">{formatCurrency(p.sale_price || 0)}</p>
@@ -487,8 +487,8 @@ export default function CongressLandingPage() {
                         </div>
                         {cart[p.id] ? (
                           <div className="ml-auto flex items-center bg-blue-600 rounded-xl overflow-hidden shadow-lg shadow-blue-900/30">
-                            <button 
-                              onClick={() => updateQuantity(p.id, cart[p.id] - 1)} 
+                            <button
+                              onClick={() => updateQuantity(p.id, cart[p.id] - 1)}
                               className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
                             >
                               -
@@ -496,15 +496,15 @@ export default function CongressLandingPage() {
                             <span className="px-2 text-white font-black text-xs min-w-[20px] text-center">
                               {cart[p.id]}
                             </span>
-                            <button 
-                              onClick={() => updateQuantity(p.id, cart[p.id] + 1)} 
+                            <button
+                              onClick={() => updateQuantity(p.id, cart[p.id] + 1)}
                               className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
                             >
                               +
                             </button>
                           </div>
                         ) : (
-                          <button 
+                          <button
                             onClick={() => addToCart(p)}
                             className="ml-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/40"
                           >
@@ -561,24 +561,24 @@ export default function CongressLandingPage() {
 
         {/* Right Column: Flyer & Contacts */}
         <aside className="lg:col-span-4 space-y-8">
-          
+
           {/* Flyer Card */}
           {congress.flyer && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="bg-white/[0.03] border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl"
             >
               <div className="aspect-[3/4] relative bg-slate-900 flex items-center justify-center group overflow-hidden">
-                <img 
-                  src={congress.flyer} 
-                  alt="Congress Flyer" 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                <img
+                  src={congress.flyer}
+                  alt="Congress Flyer"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                  <a 
-                    href={congress.flyer} 
-                    target="_blank" 
+                  <a
+                    href={congress.flyer}
+                    target="_blank"
                     rel="noreferrer"
                     className="btn-primary rounded-full px-6 flex items-center gap-2"
                   >
@@ -593,7 +593,7 @@ export default function CongressLandingPage() {
           )}
 
           {/* Contacts Card */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
@@ -627,9 +627,9 @@ export default function CongressLandingPage() {
                 <p className="text-blue-100 text-sm">No hay información de contacto disponible actualmente.</p>
               )}
             </div>
-            <button className="w-full mt-8 py-4 bg-white text-blue-600 rounded-2xl font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+            {/* <button className="w-full mt-8 py-4 bg-white text-blue-600 rounded-2xl font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
               Chatear con un asesor <ChevronRight size={18} />
-            </button>
+            </button> */}
           </motion.div>
 
           {/* Trust Badge */}
@@ -644,13 +644,13 @@ export default function CongressLandingPage() {
       {/* Floating Cart Button */}
       <AnimatePresence>
         {Object.keys(cart).length > 0 && (
-          <motion.div 
+          <motion.div
             initial={{ scale: 0, y: 50, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0, y: 50, opacity: 0 }}
             className="fixed bottom-6 right-6 z-40"
           >
-            <button 
+            <button
               onClick={() => setIsCartOpen(true)}
               className="flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold px-6 py-4 rounded-full shadow-2xl transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
@@ -674,7 +674,7 @@ export default function CongressLandingPage() {
         {isCartOpen && (
           <>
             {/* Backdrop */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -682,7 +682,7 @@ export default function CongressLandingPage() {
               className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50"
             />
             {/* Drawer */}
-            <motion.div 
+            <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
@@ -695,7 +695,7 @@ export default function CongressLandingPage() {
                   <ShoppingBag className="text-blue-500" size={24} />
                   <h2 className="text-xl font-bold text-white">Tu Pre-orden</h2>
                 </div>
-                <button 
+                <button
                   onClick={() => setIsCartOpen(false)}
                   className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
                 >
@@ -711,7 +711,7 @@ export default function CongressLandingPage() {
                   const discountedPrice = calculateDiscountedPrice(product.sale_price || 0, product.type || '')
 
                   return (
-                    <div 
+                    <div
                       key={productId}
                       className="bg-white/[0.02] border border-white/[0.05] p-4 rounded-2xl flex gap-4 items-center justify-between"
                     >
@@ -720,24 +720,24 @@ export default function CongressLandingPage() {
                         <p className="text-xs text-slate-500 mt-1">{product.model || product.order_code}</p>
                         <p className="text-sm font-bold text-blue-400 mt-2">{formatCurrency(discountedPrice)}</p>
                       </div>
-                      
+
                       <div className="flex flex-col items-end gap-2">
-                        <button 
+                        <button
                           onClick={() => removeFromCart(productId)}
                           className="text-slate-500 hover:text-rose-500 transition-colors p-1 cursor-pointer"
                         >
                           <Trash2 size={16} />
                         </button>
-                        
+
                         <div className="flex items-center bg-slate-800 rounded-lg overflow-hidden border border-white/[0.05]">
-                          <button 
+                          <button
                             onClick={() => updateQuantity(productId, qty - 1)}
                             className="px-2 py-1 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
                           >
                             <Minus size={10} />
                           </button>
                           <span className="px-2 text-white font-bold text-xs min-w-[20px] text-center">{qty}</span>
-                          <button 
+                          <button
                             onClick={() => updateQuantity(productId, qty + 1)}
                             className="px-2 py-1 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
                           >
@@ -768,7 +768,7 @@ export default function CongressLandingPage() {
                   <p className="text-xs text-slate-500 leading-normal">
                     * Los precios mostrados incluyen el descuento exclusivo del congreso.
                   </p>
-                  <button 
+                  <button
                     onClick={() => {
                       setIsCartOpen(false)
                       setIsCheckoutOpen(true)
@@ -790,7 +790,7 @@ export default function CongressLandingPage() {
         {isCheckoutOpen && (
           <>
             {/* Backdrop */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -799,7 +799,7 @@ export default function CongressLandingPage() {
             />
             {/* Modal Container */}
             <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4">
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -811,7 +811,7 @@ export default function CongressLandingPage() {
                     <Tag className="text-blue-500" size={20} />
                     Finalizar Pre-orden
                   </h3>
-                  <button 
+                  <button
                     onClick={() => setIsCheckoutOpen(false)}
                     className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
                   >
@@ -837,7 +837,7 @@ export default function CongressLandingPage() {
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Nombre Completo *</label>
-                        <input 
+                        <input
                           type="text"
                           required
                           value={checkoutForm.name}
@@ -849,7 +849,7 @@ export default function CongressLandingPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Correo Electrónico *</label>
-                          <input 
+                          <input
                             type="email"
                             required
                             value={checkoutForm.email}
@@ -860,7 +860,7 @@ export default function CongressLandingPage() {
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Teléfono (10 dígitos) *</label>
-                          <input 
+                          <input
                             type="tel"
                             required
                             pattern="[0-9]{10}"
@@ -876,7 +876,7 @@ export default function CongressLandingPage() {
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Notas o Comentarios Adicionales</label>
-                    <textarea 
+                    <textarea
                       value={checkoutForm.notes}
                       onChange={e => setCheckoutForm({ ...checkoutForm, notes: e.target.value })}
                       placeholder="Dirección de envío, dudas técnicas, o especificaciones..."
@@ -893,7 +893,7 @@ export default function CongressLandingPage() {
                   </div>
 
                   {/* Submit Button */}
-                  <button 
+                  <button
                     type="submit"
                     disabled={isPlacingOrder}
                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/20 disabled:opacity-50 cursor-pointer"
@@ -922,7 +922,7 @@ export default function CongressLandingPage() {
         {orderSuccess && (
           <>
             {/* Backdrop */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -930,7 +930,7 @@ export default function CongressLandingPage() {
             />
             {/* Modal */}
             <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4">
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
@@ -943,7 +943,7 @@ export default function CongressLandingPage() {
                 <p className="text-slate-300 text-sm leading-relaxed mb-6">
                   Tu pre-orden de cotización con precios de congreso ha sido registrada correctamente. Un ejecutivo de nuestro equipo de ventas se pondrá en contacto contigo muy pronto para brindarte atención personalizada.
                 </p>
-                <button 
+                <button
                   onClick={() => setOrderSuccess(false)}
                   className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition-all cursor-pointer"
                 >
