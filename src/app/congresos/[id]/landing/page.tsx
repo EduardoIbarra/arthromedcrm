@@ -373,7 +373,7 @@ export default function CongressLandingPage() {
                 </h2>
                 <span className="text-sm text-slate-500">{congress.workshops.length} sesiones</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className={`grid grid-cols-1 ${congress.workshops.length > 1 ? 'md:grid-cols-2' : ''} gap-6`}>
                 {congress.workshops.map((w, i) => {
                   const enrolledCount = w.enrollments?.length || 0
                   const isEnrolled = currentClientId ? w.enrollments?.some((e: any) => e.client_id === currentClientId) : false
@@ -411,10 +411,12 @@ export default function CongressLandingPage() {
                             <span className="text-slate-300 font-medium">{enrolledCount} / {w.max_people} personas</span>
                           </div>
                         )}
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-500">Costo:</span>
-                          <span className="text-blue-400 font-bold">{w.cost > 0 ? formatCurrency(w.cost) : 'Gratis'}</span>
-                        </div>
+                        {congress.enable_workshops !== false && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-500">Costo:</span>
+                            <span className="text-blue-400 font-bold">{w.cost > 0 ? formatCurrency(w.cost) : 'Gratis'}</span>
+                          </div>
+                        )}
                       </div>
 
                       {congress.enable_workshops !== false && (
