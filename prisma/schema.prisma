@@ -667,6 +667,7 @@ model congresos {
   gastos              gastos[]
   workshops           congress_workshops[]
   contacts            congress_contacts[]
+  orders              orders[]
 
   @@index([start_date])
   @@schema("public")
@@ -1100,6 +1101,7 @@ model orders {
   id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   client_id        String        @db.Uuid
   hospital_id      String?       @db.Uuid
+  congress_id      String?       @db.Uuid
   status           String        @default("pending")
   total_amount     Decimal       @db.Decimal(12, 2)
   currency         String?       @default("MXN")
@@ -1109,6 +1111,7 @@ model orders {
   updated_at       DateTime      @default(now()) @db.Timestamptz(6)
   order_items      order_items[]
   clients          clients       @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  congresos        congresos?    @relation(fields: [congress_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }

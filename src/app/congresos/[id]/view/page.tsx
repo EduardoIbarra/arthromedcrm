@@ -6,10 +6,12 @@ import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import { 
   ArrowLeft, Calendar, MapPin, AlignLeft, Globe, 
-  Users, User, DollarSign, Edit2, ChevronRight, Phone, Mail
+  Users, User, DollarSign, Edit2, ChevronRight, Phone, Mail,
+  ShoppingBag, ChevronDown, ChevronUp
 } from 'lucide-react'
 import Link from 'next/link'
 import PermissionGuard from '@/components/PermissionGuard'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function CongresoViewPage() {
   const { id } = useParams<{ id: string }>()
@@ -18,6 +20,31 @@ export default function CongresoViewPage() {
   const [congreso, setCongreso] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Orders State
+  const [orders, setOrders] = useState<any[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(true)
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const res = await fetch(`/api/congresos/${id}/orders`)
+        if (!res.ok) throw new Error('Failed to load orders')
+        const { data } = await res.json()
+        setOrders(data || [])
+      } catch (err) {
+        console.error('Error loading orders:', err)
+      } finally {
+        setLoadingOrders(false)
+      }
+    }
+    fetchOrders()
+  }, [id])
+
+  const toggleOrderExpand = (orderId: string) => {
+    setExpandedOrderId(prev => (prev === orderId ? null : orderId))
+  }
 
   useEffect(() => {
     const fetchCongreso = async () => {
@@ -181,6 +208,128 @@ export default function CongresoViewPage() {
               ) : (
                 <div className="card p-8 text-center text-gray-500 bg-gray-50/50">
                   No hay talleres configurados para este congreso.
+                </div>
+              )}
+            </section>
+
+            {/* Pre-Orders Section */}
+            <section className="space-y-4 pt-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <ShoppingBag size={20} className="text-blue-600" />
+                  Pre-órdenes de Productos ({orders.length})
+                </h2>
+              </div>
+
+              {loadingOrders ? (
+                <div className="card p-8 flex justify-center items-center">
+                  <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                </div>
+              ) : orders.length > 0 ? (
+                <div className="space-y-3">
+                  {orders.map((order: any) => {
+                    const isExpanded = expandedOrderId === order.id
+                    const orderDate = new Date(order.created_at).toLocaleString('es-MX', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                    
+                    return (
+                      <div 
+                        key={order.id}
+                        className="card overflow-hidden hover:border-blue-200 transition-all bg-white border border-gray-100 rounded-xl"
+                      >
+                        {/* Summary Row */}
+                        <div 
+                          onClick={() => toggleOrderExpand(order.id)}
+                          className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none hover:bg-gray-50/40 transition-colors"
+                        >
+                          <div className="space-y-1">
+                            <h3 className="font-bold text-gray-900">Dr. {order.clients?.name || 'Prospecto Anónimo'}</h3>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                              {order.clients?.email_primary && (
+                                <span className="flex items-center gap-1">
+                                  <Mail size={12} /> {order.clients.email_primary}
+                                </span>
+                              )}
+                              {order.clients?.phone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone size={12} /> {order.clients.phone}
+                                </span>
+                              )}
+                              <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[10px]">
+                                ID: {order.id.slice(0, 8)}...
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-6">
+                            <div className="text-right">
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Pre-orden</p>
+                              <p className="text-lg font-black text-blue-600">
+                                {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(order.total_amount)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400 font-medium">{orderDate}</span>
+                              <div className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors">
+                                {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Detail Block */}
+                        <AnimatePresence initial={false}>
+                          {isExpanded && (
+                            <motion.div 
+                              initial={{ height: 0 }}
+                              animate={{ height: 'auto' }}
+                              exit={{ height: 0 }}
+                              className="border-t border-gray-100 bg-gray-50/30 overflow-hidden"
+                            >
+                              <div className="p-5 space-y-4">
+                                <div className="space-y-2">
+                                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Productos de Interés</h4>
+                                  <div className="divide-y divide-gray-100 border border-gray-200/60 rounded-xl bg-white overflow-hidden shadow-sm">
+                                    {order.order_items.map((item: any) => (
+                                      <div key={item.id} className="p-4 flex items-center justify-between text-sm">
+                                        <div className="space-y-1">
+                                          <p className="font-semibold text-gray-800">{item.product?.description}</p>
+                                          <p className="text-xs text-gray-400 font-medium">
+                                            Mod: {item.product?.model || 'Estándar'} | Cód: {item.product?.order_code || 'N/A'}
+                                          </p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="font-mono text-gray-600">Cant: <strong className="text-gray-900">{item.quantity}</strong></p>
+                                          <p className="text-xs text-gray-500 mt-0.5">
+                                            {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(item.unit_price)} c/u
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {order.notes && (
+                                  <div className="bg-blue-50/20 border border-blue-100/50 p-4 rounded-xl space-y-1">
+                                    <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wider">Notas del Médico</h4>
+                                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{order.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="card p-8 text-center text-gray-500 bg-gray-50/50">
+                  Aún no se han registrado pre-órdenes en este congreso.
                 </div>
               )}
             </section>

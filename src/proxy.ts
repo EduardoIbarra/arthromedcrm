@@ -52,6 +52,7 @@ export async function proxy(request: NextRequest) {
                         (request.nextUrl.pathname === '/api/clients' && request.method === 'POST') ||
                         (request.nextUrl.pathname.startsWith('/api/clients/') && request.method === 'GET') ||
                         (request.nextUrl.pathname === '/api/products/filter' && request.method === 'GET') ||
+                        (request.nextUrl.pathname === '/api/orders' && request.method === 'POST') ||
                         (request.nextUrl.pathname.startsWith('/api/workshops/')) ||
                         (request.nextUrl.pathname.startsWith('/api/public/'))
 

@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Calendar, MapPin, Users, Clock, User, Phone, Mail, 
   ChevronRight, Package, ArrowRight, Download, Globe,
-  Shield, CheckCircle2, Sparkles, Tag, AlignLeft, Loader2, X
+  Shield, CheckCircle2, Sparkles, Tag, AlignLeft, Loader2, X,
+  ShoppingBag, Trash2, Plus, Minus
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -33,6 +34,112 @@ export default function CongressLandingPage() {
   const [processingWorkshop, setProcessingWorkshop] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Cart & Pre-order States
+  const [cart, setCart] = useState<{ [productId: string]: number }>({})
+  const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  const [checkoutForm, setCheckoutForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    notes: ''
+  })
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false)
+  const [orderSuccess, setOrderSuccess] = useState(false)
+
+  const addToCart = (product: any) => {
+    setCart(prev => ({
+      ...prev,
+      [product.id]: (prev[product.id] || 0) + 1
+    }))
+  }
+
+  const updateQuantity = (productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      const newCart = { ...cart }
+      delete newCart[productId]
+      setCart(newCart)
+    } else {
+      setCart(prev => ({
+        ...prev,
+        [productId]: quantity
+      }))
+    }
+  }
+
+  const removeFromCart = (productId: string) => {
+    const newCart = { ...cart }
+    delete newCart[productId]
+    setCart(newCart)
+  }
+
+  const calculateCartTotal = () => {
+    return Object.entries(cart).reduce((total, [productId, qty]) => {
+      const product = products.find(p => p.id === productId)
+      if (!product) return total
+      const discountPrice = calculateDiscountedPrice(product.sale_price || 0, product.type || '')
+      return total + (discountPrice * qty)
+    }, 0)
+  }
+
+  const handlePlaceOrder = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsPlacingOrder(true)
+
+    try {
+      const orderItems = Object.entries(cart).map(([productId, qty]) => {
+        const product = products.find(p => p.id === productId)
+        const unitPrice = product ? calculateDiscountedPrice(product.sale_price || 0, product.type || '') : 0
+        return {
+          productId,
+          quantity: qty,
+          unitPrice
+        }
+      })
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: currentClientId || undefined,
+          contactInfo: currentClientId ? undefined : {
+            name: checkoutForm.name,
+            email: checkoutForm.email,
+            phone: checkoutForm.phone
+          },
+          congressId: id,
+          notes: checkoutForm.notes,
+          items: orderItems
+        })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error al procesar la pre-orden')
+      }
+
+      const resData = await res.json()
+      
+      // If a new client was registered, save their client ID
+      if (resData.clientId && !currentClientId) {
+        localStorage.setItem('arthromed_lead_client_id', resData.clientId)
+        setCurrentClientId(resData.clientId)
+        if (checkoutForm.name) {
+          setClientName(checkoutForm.name.split(' ')[0])
+        }
+      }
+
+      setCart({})
+      setIsCartOpen(false)
+      setIsCheckoutOpen(false)
+      setOrderSuccess(true)
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setIsPlacingOrder(false)
+    }
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -342,12 +449,33 @@ export default function CongressLandingPage() {
                           <p className="text-[10px] text-slate-500 line-through mb-1">{formatCurrency(p.sale_price || 0)}</p>
                           <p className="text-2xl font-black text-white">{formatCurrency(calculateDiscountedPrice(p.sale_price || 0, p.type || ''))}</p>
                         </div>
-                        <Link 
-                          href="#" 
-                          className="ml-auto w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/40"
-                        >
-                          <ArrowRight size={20} />
-                        </Link>
+                        {cart[p.id] ? (
+                          <div className="ml-auto flex items-center bg-blue-600 rounded-xl overflow-hidden shadow-lg shadow-blue-900/30">
+                            <button 
+                              onClick={() => updateQuantity(p.id, cart[p.id] - 1)} 
+                              className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
+                            >
+                              -
+                            </button>
+                            <span className="px-2 text-white font-black text-xs min-w-[20px] text-center">
+                              {cart[p.id]}
+                            </span>
+                            <button 
+                              onClick={() => updateQuantity(p.id, cart[p.id] + 1)} 
+                              className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => addToCart(p)}
+                            className="ml-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/40"
+                          >
+                            <span>Cotizar</span>
+                            <ArrowRight size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -438,6 +566,320 @@ export default function CongressLandingPage() {
 
         </aside>
       </main>
+
+      {/* Floating Cart Button */}
+      <AnimatePresence>
+        {Object.keys(cart).length > 0 && (
+          <motion.div 
+            initial={{ scale: 0, y: 50, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0, y: 50, opacity: 0 }}
+            className="fixed bottom-6 right-6 z-40"
+          >
+            <button 
+              onClick={() => setIsCartOpen(true)}
+              className="flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold px-6 py-4 rounded-full shadow-2xl transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <div className="relative">
+                <ShoppingBag size={20} />
+                <span className="absolute -top-3.5 -right-3.5 bg-rose-500 text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-slate-950 font-black">
+                  {Object.values(cart).reduce((a, b) => a + b, 0)}
+                </span>
+              </div>
+              <span>Ver pre-orden</span>
+              <span className="bg-white/10 px-2 py-0.5 rounded-lg text-sm">
+                {formatCurrency(calculateCartTotal())}
+              </span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Cart Drawer */}
+      <AnimatePresence>
+        {isCartOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCartOpen(false)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50"
+            />
+            {/* Drawer */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-slate-900 border-l border-white/[0.08] shadow-2xl z-50 flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-white/[0.05] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="text-blue-500" size={24} />
+                  <h2 className="text-xl font-bold text-white">Tu Pre-orden</h2>
+                </div>
+                <button 
+                  onClick={() => setIsCartOpen(false)}
+                  className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Items List */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {Object.entries(cart).map(([productId, qty]) => {
+                  const product = products.find(p => p.id === productId)
+                  if (!product) return null
+                  const discountedPrice = calculateDiscountedPrice(product.sale_price || 0, product.type || '')
+
+                  return (
+                    <div 
+                      key={productId}
+                      className="bg-white/[0.02] border border-white/[0.05] p-4 rounded-2xl flex gap-4 items-center justify-between"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-white text-sm truncate">{product.description}</p>
+                        <p className="text-xs text-slate-500 mt-1">{product.model || product.order_code}</p>
+                        <p className="text-sm font-bold text-blue-400 mt-2">{formatCurrency(discountedPrice)}</p>
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-2">
+                        <button 
+                          onClick={() => removeFromCart(productId)}
+                          className="text-slate-500 hover:text-rose-500 transition-colors p-1 cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                        
+                        <div className="flex items-center bg-slate-800 rounded-lg overflow-hidden border border-white/[0.05]">
+                          <button 
+                            onClick={() => updateQuantity(productId, qty - 1)}
+                            className="px-2 py-1 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                          >
+                            <Minus size={10} />
+                          </button>
+                          <span className="px-2 text-white font-bold text-xs min-w-[20px] text-center">{qty}</span>
+                          <button 
+                            onClick={() => updateQuantity(productId, qty + 1)}
+                            className="px-2 py-1 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                          >
+                            <Plus size={10} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {Object.keys(cart).length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-3 py-20">
+                    <ShoppingBag size={48} className="opacity-20" />
+                    <p className="font-medium">Tu carrito está vacío</p>
+                    <p className="text-xs max-w-[200px]">Agrega productos recomendados del congreso para cotizar.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              {Object.keys(cart).length > 0 && (
+                <div className="p-6 border-t border-white/[0.05] bg-slate-950/40 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-medium">Total de Pre-orden</span>
+                    <span className="text-2xl font-black text-white">{formatCurrency(calculateCartTotal())}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-normal">
+                    * Los precios mostrados incluyen el descuento exclusivo del congreso.
+                  </p>
+                  <button 
+                    onClick={() => {
+                      setIsCartOpen(false)
+                      setIsCheckoutOpen(true)
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-base transition-all shadow-lg shadow-blue-900/30 cursor-pointer"
+                  >
+                    <span>Proceder a Pre-ordenar</span>
+                    <ArrowRight size={18} />
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Checkout Modal */}
+      <AnimatePresence>
+        {isCheckoutOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCheckoutOpen(false)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50"
+            />
+            {/* Modal Container */}
+            <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                className="bg-slate-900 border border-white/[0.08] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col relative"
+              >
+                {/* Header */}
+                <div className="p-6 border-b border-white/[0.05] flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Tag className="text-blue-500" size={20} />
+                    Finalizar Pre-orden
+                  </h3>
+                  <button 
+                    onClick={() => setIsCheckoutOpen(false)}
+                    className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handlePlaceOrder} className="p-6 space-y-6">
+                  {currentClientId ? (
+                    <div className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-2xl flex items-center gap-3">
+                      <CheckCircle2 className="text-blue-400 flex-shrink-0" size={20} />
+                      <p className="text-sm text-slate-300">
+                        Pre-ordenando como: <strong className="text-white">Dr. {clientName || 'Registrado'}</strong>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-2xl">
+                        <p className="text-xs text-yellow-400 leading-normal">
+                          Para colocar tu pre-orden, ingresa tus datos de contacto. Te registraremos como prospecto para dar seguimiento a tu cotización.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Nombre Completo *</label>
+                        <input 
+                          type="text"
+                          required
+                          value={checkoutForm.name}
+                          onChange={e => setCheckoutForm({ ...checkoutForm, name: e.target.value })}
+                          placeholder="Ej. Dr. Alejandro Gómez"
+                          className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Correo Electrónico *</label>
+                          <input 
+                            type="email"
+                            required
+                            value={checkoutForm.email}
+                            onChange={e => setCheckoutForm({ ...checkoutForm, email: e.target.value })}
+                            placeholder="ejemplo@correo.com"
+                            className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Teléfono (10 dígitos) *</label>
+                          <input 
+                            type="tel"
+                            required
+                            pattern="[0-9]{10}"
+                            value={checkoutForm.phone}
+                            onChange={e => setCheckoutForm({ ...checkoutForm, phone: e.target.value })}
+                            placeholder="8110203040"
+                            className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Notas o Comentarios Adicionales</label>
+                    <textarea 
+                      value={checkoutForm.notes}
+                      onChange={e => setCheckoutForm({ ...checkoutForm, notes: e.target.value })}
+                      placeholder="Dirección de envío, dudas técnicas, o especificaciones..."
+                      rows={3}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors resize-none"
+                    />
+                  </div>
+
+                  {/* Clarification Alert */}
+                  <div className="bg-indigo-600/10 border border-indigo-500/20 p-4 rounded-2xl">
+                    <p className="text-xs text-indigo-300 leading-relaxed">
+                      💡 <strong>Nota Importante:</strong> Esto es una pre-orden de cotización. Ningún cargo se realizará en este momento. Un ejecutivo de ventas de Arthromed revisará la disponibilidad de tu equipo/consumible y se comunicará contigo para confirmar el pedido y método de pago.
+                    </p>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button 
+                    type="submit"
+                    disabled={isPlacingOrder}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/20 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isPlacingOrder ? (
+                      <>
+                        <Loader2 className="animate-spin" size={18} />
+                        <span>Procesando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={18} />
+                        <span>Colocar Pre-orden</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {orderSuccess && (
+          <>
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50"
+            />
+            {/* Modal */}
+            <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-slate-900 border border-emerald-500/20 rounded-3xl w-full max-w-md p-8 text-center shadow-2xl relative"
+              >
+                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-400 animate-bounce">
+                  <CheckCircle2 size={44} />
+                </div>
+                <h3 className="text-2xl font-black text-white mb-3">¡Pre-orden Recibida!</h3>
+                <p className="text-slate-300 text-sm leading-relaxed mb-6">
+                  Tu pre-orden de cotización con precios de congreso ha sido registrada correctamente. Un ejecutivo de nuestro equipo de ventas se pondrá en contacto contigo muy pronto para brindarte atención personalizada.
+                </p>
+                <button 
+                  onClick={() => setOrderSuccess(false)}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition-all cursor-pointer"
+                >
+                  Entendido
+                </button>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <footer className="py-12 border-t border-white/[0.05] text-center">
