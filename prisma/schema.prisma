@@ -661,6 +661,8 @@ model congresos {
   description         String
   flyer               String?
   specialty_ids       String[]
+  terms_doctor        String?
+  terms_distributor   String?
   created_at          DateTime             @default(now()) @db.Timestamptz(6)
   updated_at          DateTime             @default(now()) @db.Timestamptz(6)
   congreso_files      congreso_files[]

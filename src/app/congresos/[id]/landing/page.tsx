@@ -313,6 +313,24 @@ export default function CongressLandingPage() {
               <span>{congress.location}</span>
             </div>
           </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex justify-center mt-12"
+          >
+            <a 
+              href="https://arthromed.com.mx/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold px-10 py-5 rounded-2xl shadow-xl shadow-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 active:scale-95 text-lg border border-blue-400/20"
+            >
+              <Globe className="animate-[spin_6s_linear_infinite]" size={22} />
+              <span>Ver Catálogos</span>
+              <ChevronRight size={20} />
+            </a>
+          </motion.div>
         </div>
       </header>
 

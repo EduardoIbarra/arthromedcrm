@@ -31,6 +31,8 @@ export async function POST(request: NextRequest) {
       description, 
       flyer, 
       specialty_ids,
+      terms_doctor,
+      terms_distributor,
       workshops,
       contacts 
     } = body
@@ -48,6 +50,8 @@ export async function POST(request: NextRequest) {
         description: description || '',
         flyer,
         specialty_ids: specialty_ids || [],
+        terms_doctor: terms_doctor || '',
+        terms_distributor: terms_distributor || '',
         workshops: {
           create: (workshops || []).map((w: any) => ({
             name: w.name,

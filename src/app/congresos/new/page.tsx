@@ -24,6 +24,8 @@ export default function NewCongresoPage() {
     end_date: '',
     location: '',
     description: '',
+    terms_doctor: '',
+    terms_distributor: '',
     flyer: '',
     specialty_ids: [] as string[]
   })
@@ -250,6 +252,32 @@ export default function NewCongresoPage() {
                   className="erp-input w-full"
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Términos y Condiciones para Médicos
+                </label>
+                <textarea
+                  rows={3}
+                  className="erp-input w-full"
+                  placeholder="Ingrese los términos y condiciones específicos para el registro de médicos..."
+                  value={formData.terms_doctor}
+                  onChange={e => setFormData({ ...formData, terms_doctor: e.target.value })}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Términos y Condiciones para Distribuidores
+                </label>
+                <textarea
+                  rows={3}
+                  className="erp-input w-full"
+                  placeholder="Ingrese los términos y condiciones específicos para el registro de distribuidores..."
+                  value={formData.terms_distributor}
+                  onChange={e => setFormData({ ...formData, terms_distributor: e.target.value })}
                 />
               </div>
 

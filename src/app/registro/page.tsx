@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, Suspense } from 'react'
-import { CheckCircle, ChevronRight, Loader2, Stethoscope, Building2, Phone, MapPin, User, ArrowLeft } from 'lucide-react'
+import { CheckCircle, ChevronRight, Loader2, Stethoscope, Building2, Phone, MapPin, User, ArrowLeft, Users } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
@@ -13,27 +13,25 @@ const MEXICAN_STATES = [
   'Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz','Yucatán','Zacatecas',
 ]
 
-// Dynamic specialties will be fetched from API
-
-
-type Step = 'name' | 'specialty' | 'hospital' | 'phone' | 'state' | 'confirm'
+type Step = 'name' | 'role' | 'specialty' | 'hospital' | 'phone' | 'state' | 'confirm'
 
 interface FormData {
   name: string
+  role: 'Médico' | 'Distribuidor' | ''
   specialty: string
   customSpecialty: string
   hospital: string
   phone: string
   state: string
+  acceptTerms: boolean
 }
 
-const STEPS: Step[] = ['name', 'specialty', 'hospital', 'phone', 'state', 'confirm']
-
 const STEP_META: Record<Step, { icon: React.ReactNode; title: string; subtitle: string }> = {
-  name:      { icon: <User size={22} />,         title: '¿Cómo se llama?',              subtitle: 'Su nombre completo como aparece en su cédula profesional' },
+  name:      { icon: <User size={22} />,         title: '¿Cómo se llama?',              subtitle: 'Su nombre completo como aparece en su identificación oficial' },
+  role:      { icon: <Users size={22} />,        title: '¿Cuál es su rol?',             subtitle: 'Seleccione si es médico especialista o distribuidor comercial' },
   specialty: { icon: <Stethoscope size={22} />,  title: '¿Cuál es su especialidad?',    subtitle: 'Seleccione la que mejor describe su práctica principal' },
   hospital:  { icon: <Building2 size={22} />,    title: '¿Dónde ejerce?',               subtitle: 'Hospital o institución donde realiza la mayoría de sus procedimientos' },
-  phone:     { icon: <Phone size={22} />,         title: '¿Su WhatsApp?',               subtitle: 'Le enviaremos información de productos relevantes a su especialidad' },
+  phone:     { icon: <Phone size={22} />,         title: '¿Su WhatsApp?',               subtitle: 'Le enviaremos información relevante a su perfil' },
   state:     { icon: <MapPin size={22} />,        title: '¿En qué estado practica?',    subtitle: 'Esto nos permite asignarle un asesor en su zona' },
   confirm:   { icon: <CheckCircle size={22} />,  title: 'Todo listo',                   subtitle: 'Verifique su información antes de enviar' },
 }
@@ -50,15 +48,21 @@ function RegistroContent() {
   const searchParams = useSearchParams()
   const congressId = searchParams.get('congressId')
   const [congressName, setCongressName] = useState<string | null>(null)
+  const [congress, setCongress] = useState<any | null>(null)
   const [step, setStep] = useState<Step>('name')
-  const [form, setForm] = useState<FormData>({ name: '', specialty: '', customSpecialty: '', hospital: '', phone: '', state: '' })
+  const [form, setForm] = useState<FormData>({ name: '', role: '', specialty: '', customSpecialty: '', hospital: '', phone: '', state: '', acceptTerms: false })
   const [specialties, setSpecialties] = useState<string[]>([])
   const [submitted, setSubmitted] = useState(false)
   const [createdClientId, setCreatedClientId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const stepIndex = STEPS.indexOf(step)
+
+  const steps: Step[] = form.role === 'Distribuidor'
+    ? ['name', 'role', 'phone', 'state', 'confirm']
+    : ['name', 'role', 'specialty', 'hospital', 'phone', 'state', 'confirm']
+
+  const stepIndex = steps.indexOf(step)
 
   useEffect(() => {
     async function loadSpecialties() {
@@ -70,7 +74,6 @@ function RegistroContent() {
         }
       } catch (e) {
         console.error('Error loading specialties', e)
-        // Fallback in case of error
         setSpecialties(['Ortopedia y Traumatología', 'Cirugía de Columna', 'Otra especialidad'])
       }
     }
@@ -82,20 +85,24 @@ function RegistroContent() {
       fetch(`/api/congresos/${congressId}`)
         .then(res => res.json())
         .then(res => {
-          if (res.data) setCongressName(res.data.name)
+          if (res.data) {
+            setCongressName(res.data.name)
+            setCongress(res.data)
+          }
         })
         .catch(console.error)
     }
   }, [congressId])
 
   useEffect(() => {
-    if (step !== 'confirm' && step !== 'specialty' && step !== 'state') {
+    if (step !== 'confirm' && step !== 'role' && step !== 'specialty' && step !== 'state') {
       setTimeout(() => inputRef.current?.focus(), 100)
     }
   }, [step])
 
   const isStepValid = (f = form) => {
     if (step === 'name') return f.name.trim().length >= 3
+    if (step === 'role') return !!f.role
     if (step === 'specialty') {
       if (f.specialty === 'Otra especialidad') return f.customSpecialty.trim().length >= 2
       return !!f.specialty
@@ -103,18 +110,19 @@ function RegistroContent() {
     if (step === 'hospital') return f.hospital.trim().length >= 2
     if (step === 'phone') return /^\d{10}$/.test(f.phone.replace(/\D/g, ''))
     if (step === 'state') return !!f.state
+    if (step === 'confirm') return f.acceptTerms
     return true
   }
 
   const next = (f = form) => {
     if (!isStepValid(f)) return
-    const idx = STEPS.indexOf(step)
-    if (idx < STEPS.length - 1) setStep(STEPS[idx + 1])
+    const idx = steps.indexOf(step)
+    if (idx < steps.length - 1) setStep(steps[idx + 1])
   }
 
   const back = () => {
-    const idx = STEPS.indexOf(step)
-    if (idx > 0) setStep(STEPS[idx - 1])
+    const idx = steps.indexOf(step)
+    if (idx > 0) setStep(steps[idx - 1])
   }
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -122,25 +130,37 @@ function RegistroContent() {
   }
 
   const submit = async () => {
+    if (!form.acceptTerms) {
+      setError('Debe aceptar los términos y condiciones para registrarse.')
+      return
+    }
+
     setLoading(true)
     setError('')
-    const specialtyValue = form.specialty === 'Otra especialidad' && form.customSpecialty
-      ? form.customSpecialty
-      : form.specialty
+    
+    const specialtyValue = form.role === 'Médico'
+      ? (form.specialty === 'Otra especialidad' && form.customSpecialty ? form.customSpecialty : form.specialty)
+      : 'Distribuidor'
+
+    const tags = congressId ? ['simposio', `congreso:${congressId}`] : ['simposio']
+    if (form.role) {
+      tags.push(form.role.toLowerCase())
+    }
+
     try {
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name.trim(),
-          specialties: [specialtyValue],
-          hospitals: [form.hospital.trim()],
+          specialties: form.role === 'Médico' ? [specialtyValue] : [],
+          hospitals: form.role === 'Médico' ? [form.hospital.trim()] : [],
           whatsapp_phone: form.phone.replace(/\D/g, ''),
           phone: form.phone.replace(/\D/g, ''),
           states: [form.state],
           status: 'Nuevo Prospecto',
-          source: congressName ? `Congreso: ${congressName}` : 'Simposio Registro',
-          tags: congressId ? ['simposio', `congreso:${congressId}`] : ['simposio'],
+          source: congressName ? `Congreso: ${congressName}` : `Simposio ${form.role || 'Registro'}`,
+          tags: tags,
         }),
       })
       const json = await res.json()
@@ -158,9 +178,9 @@ function RegistroContent() {
     }
   }
 
-  if (submitted) return <SuccessScreen name={form.name.split(' ')[0]} congressId={congressId} clientId={createdClientId} />
+  if (submitted) return <SuccessScreen name={form.name.split(' ')[0]} congressId={congressId} clientId={createdClientId} role={form.role} />
 
-  const progress = ((stepIndex + 1) / STEPS.length) * 100
+  const progress = ((stepIndex + 1) / steps.length) * 100
 
   return (
     <div className="min-h-[100dvh] bg-linear-to-br from-[#f0f5fa] via-[#dceaf5] to-[#c5d9ee] relative overflow-hidden flex items-start justify-center p-4">
@@ -187,7 +207,7 @@ function RegistroContent() {
         </div>
 
         {/* Step counter */}
-        <p className="text-[10px] font-bold text-[#8a8b8d] tracking-widest self-end mt-[-12px] uppercase">Paso {stepIndex + 1} de {STEPS.length}</p>
+        <p className="text-[10px] font-bold text-[#8a8b8d] tracking-widest self-end mt-[-12px] uppercase">Paso {stepIndex + 1} de {steps.length}</p>
 
         {/* Card */}
         <motion.div 
@@ -220,10 +240,61 @@ function RegistroContent() {
               />
             )}
 
+            {step === 'role' && (
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  id="role-doctor"
+                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+                    form.role === 'Médico'
+                      ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-bold shadow-md shadow-[#0763a9]/10'
+                      : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
+                  }`}
+                  onClick={() => {
+                    const updated = { ...form, role: 'Médico' as const }
+                    setForm(updated)
+                    setTimeout(() => next(updated), 180)
+                  }}
+                >
+                  <div className="w-10 h-10 bg-white/80 rounded-xl flex items-center justify-center text-[#0763a9] shadow-sm">
+                    <Stethoscope size={20} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-base leading-tight">Médico Especialista</p>
+                    <p className="text-xs text-[#5a5b5d] mt-0.5">Procedimientos y práctica profesional</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  id="role-distributor"
+                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+                    form.role === 'Distribuidor'
+                      ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-bold shadow-md shadow-[#0763a9]/10'
+                      : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
+                  }`}
+                  onClick={() => {
+                    const updated = { ...form, role: 'Distribuidor' as const }
+                    setForm(updated)
+                    setTimeout(() => next(updated), 180)
+                  }}
+                >
+                  <div className="w-10 h-10 bg-white/80 rounded-xl flex items-center justify-center text-[#0763a9] shadow-sm">
+                    <Building2 size={20} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-base leading-tight">Distribuidor Comercial</p>
+                    <p className="text-xs text-[#5a5b5d] mt-0.5">Socios comerciales y distribución</p>
+                  </div>
+                </button>
+              </div>
+            )}
+
             {step === 'specialty' && (
               <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#9bbfdf] scrollbar-track-[#f0f5fa]">
                 {specialties.map(sp => (
                   <button
+                    type="button"
                     key={sp}
                     id={`specialty-${sp.replace(/\s+/g, '-').toLowerCase()}`}
                     className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all active:scale-[0.98] ${
@@ -296,6 +367,7 @@ function RegistroContent() {
               <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#9bbfdf] scrollbar-track-[#f0f5fa]">
                 {MEXICAN_STATES.map(st => (
                   <button
+                    type="button"
                     key={st}
                     id={`state-${st.replace(/\s+/g, '-').toLowerCase()}`}
                     className={`w-full text-left px-4 py-2.5 rounded-xl border-2 text-sm transition-all active:scale-[0.98] ${
@@ -318,10 +390,40 @@ function RegistroContent() {
             {step === 'confirm' && (
               <div className="flex flex-col gap-3">
                 <ConfirmRow label="Nombre" value={form.name} />
-                <ConfirmRow label="Especialidad" value={form.specialty === 'Otra especialidad' ? form.customSpecialty : form.specialty} />
-                <ConfirmRow label="Hospital / Institución" value={form.hospital} />
+                <ConfirmRow label="Rol" value={form.role} />
+                {form.role === 'Médico' && (
+                  <>
+                    <ConfirmRow label="Especialidad" value={form.specialty === 'Otra especialidad' ? form.customSpecialty : form.specialty} />
+                    <ConfirmRow label="Hospital / Institución" value={form.hospital} />
+                  </>
+                )}
                 <ConfirmRow label="WhatsApp" value={`+52 ${form.phone}`} />
                 <ConfirmRow label="Estado" value={form.state} />
+
+                {/* Terms and Conditions Box */}
+                <div className="mt-2 flex flex-col gap-2">
+                  <label className="text-[10px] font-bold text-[#8a8b8d] uppercase tracking-wider">Términos y Condiciones de Registro</label>
+                  <div className="w-full bg-[#f8fafd] border border-[#e8f1f9] rounded-2xl p-4 max-h-[140px] overflow-y-auto text-xs text-[#5a5b5d] leading-relaxed scrollbar-thin scrollbar-thumb-[#9bbfdf]">
+                    {form.role === 'Médico' 
+                      ? (congress?.terms_doctor || 'Al registrarse, usted acepta recibir información sobre congresos, talleres y productos de alta especialidad médica distribuidos por Arthromed. Sus datos serán procesados con absoluta confidencialidad en cumplimiento de nuestro aviso de privacidad.')
+                      : (congress?.terms_distributor || 'Al registrarse como distribuidor, usted acepta cumplir con las políticas comerciales de distribución de Arthromed y autoriza el contacto de un asesor comercial para evaluar la alianza comercial de acuerdo con nuestras políticas vigentes.')
+                    }
+                  </div>
+                  
+                  <label className="flex items-start gap-2.5 mt-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      id="checkbox-terms"
+                      checked={form.acceptTerms}
+                      onChange={e => setForm(p => ({ ...p, acceptTerms: e.target.checked }))}
+                      className="mt-0.5 rounded border-[#d4e0ec] text-[#0763a9] focus:ring-[#0763a9] cursor-pointer"
+                    />
+                    <span className="text-[11px] text-[#5a5b5d] leading-snug select-none group-hover:text-[#37383a] transition-colors">
+                      Acepto los términos y condiciones de registro especificados arriba.
+                    </span>
+                  </label>
+                </div>
+
                 {error && <p className="text-sm text-[#b91c1c] bg-[#fee2e2] border border-[#fecaca] rounded-xl px-4 py-3 mt-2">{error}</p>}
               </div>
             )}
@@ -331,6 +433,7 @@ function RegistroContent() {
           <div className="flex items-center gap-3">
             {stepIndex > 0 && (
               <button 
+                type="button"
                 id="btn-back" 
                 className="w-12 h-12 flex items-center justify-center rounded-2xl border-2 border-[#d4e0ec] bg-[#f8fafd] text-[#5a5b5d] hover:bg-[#e8f1f9] hover:border-[#9bbfdf] transition-all flex-shrink-0" 
                 onClick={back}
@@ -339,8 +442,9 @@ function RegistroContent() {
               </button>
             )}
 
-            {step !== 'specialty' && step !== 'state' && (
+            {step !== 'role' && step !== 'specialty' && step !== 'state' && (
               <button
+                type="button"
                 id={step === 'confirm' ? 'btn-submit' : 'btn-next'}
                 className="flex-1 inline-flex items-center justify-center gap-2 bg-linear-to-br from-[#0763a9] to-[#054d85] text-white py-3.5 px-6 rounded-2xl font-bold text-lg shadow-lg shadow-[#0763a9]/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                 onClick={step === 'confirm' ? submit : () => next()}
@@ -355,7 +459,7 @@ function RegistroContent() {
         </motion.div>
 
         <p className="text-[11px] text-[#8a8b8d] text-center leading-relaxed max-w-[300px] mt-2">
-          Sus datos se mantienen confidenciales y sólo se usan para contactarle con información relevante a su práctica.
+          Sus datos se mantienen confidenciales y sólo se usan para contactarle con información relevante a su perfil.
         </p>
       </div>
     </div>
@@ -371,7 +475,7 @@ function ConfirmRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function SuccessScreen({ name, congressId, clientId }: { name: string, congressId?: string | null, clientId?: string | null }) {
+function SuccessScreen({ name, congressId, clientId, role }: { name: string, congressId?: string | null, clientId?: string | null, role?: string }) {
   const [countdown, setCountdown] = useState(5)
 
   useEffect(() => {
@@ -393,6 +497,10 @@ function SuccessScreen({ name, congressId, clientId }: { name: string, congressI
       window.location.href = '/'
     }
   }
+
+  const welcomeText = role === 'Distribuidor'
+    ? `¡Bienvenido, ${name}!`
+    : `¡Bienvenido, Dr. ${name}!`
 
   return (
     <div className="min-h-[100dvh] bg-linear-to-br from-[#f0f5fa] via-[#dceaf5] to-[#c5d9ee] relative overflow-hidden flex items-start justify-center p-4">
@@ -417,7 +525,7 @@ function SuccessScreen({ name, congressId, clientId }: { name: string, congressI
           <div className="w-20 h-20 bg-linear-to-br from-[#dcfce7] to-[#bbf7d0] rounded-full flex items-center justify-center text-[#15803d] shadow-lg shadow-[#15803d]/20">
             <CheckCircle size={40} />
           </div>
-          <h1 className="text-2xl font-bold text-[#37383a]">¡Bienvenido, Dr. {name}!</h1>
+          <h1 className="text-2xl font-bold text-[#37383a]">{welcomeText}</h1>
           <p className="text-[#5a5b5d] leading-relaxed">
             Su registro fue recibido con éxito. Un asesor especializado se pondrá en contacto con usted por WhatsApp para enviarle la información solicitada.
           </p>

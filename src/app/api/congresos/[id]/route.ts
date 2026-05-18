@@ -43,6 +43,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       description, 
       flyer, 
       specialty_ids,
+      terms_doctor,
+      terms_distributor,
       workshops,
       contacts 
     } = body
@@ -76,6 +78,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           description,
           flyer,
           specialty_ids: specialty_ids || [],
+          terms_doctor,
+          terms_distributor,
           workshops: {
             upsert: (workshops || []).filter((w: any) => w.id).map((w: any) => ({
               where: { id: w.id },
