@@ -26,6 +26,7 @@ export default function NewCongresoPage() {
     description: '',
     terms_doctor: '',
     terms_distributor: '',
+    enable_workshops: true,
     flyer: '',
     specialty_ids: [] as string[]
   })
@@ -365,6 +366,20 @@ export default function NewCongresoPage() {
               >
                 <Plus size={16} /> Agregar Taller
               </button>
+            </div>
+
+            <div className="flex items-center gap-3 p-4 bg-purple-50/50 rounded-2xl border border-purple-100 mb-2">
+              <input
+                type="checkbox"
+                id="enable_workshops"
+                checked={formData.enable_workshops}
+                onChange={e => setFormData({ ...formData, enable_workshops: e.target.checked })}
+                className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 w-5 h-5 cursor-pointer"
+              />
+              <label htmlFor="enable_workshops" className="text-sm font-semibold text-purple-900 cursor-pointer select-none">
+                Habilitar inscripciones a talleres desde la Landing Page
+                <span className="block text-xs font-normal text-purple-700 mt-0.5">Si se desmarca, los talleres se mostrarán en la Landing Page con fines informativos, pero los usuarios no podrán inscribirse.</span>
+              </label>
             </div>
 
             {workshops.length === 0 ? (

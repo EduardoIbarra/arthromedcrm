@@ -34,6 +34,7 @@ export default function EditCongresoPage() {
     description: '',
     terms_doctor: '',
     terms_distributor: '',
+    enable_workshops: true,
     flyer: '',
     specialty_ids: [] as string[]
   })
@@ -77,12 +78,13 @@ export default function EditCongresoPage() {
         const { data } = await res.json()
         setFormData({
           name: data.name,
-          start_date: data.start_date,
-          end_date: data.end_date,
+          start_date: data.start_date ? new Date(data.start_date).toISOString().split('T')[0] : '',
+          end_date: data.end_date ? new Date(data.end_date).toISOString().split('T')[0] : '',
           location: data.location,
           description: data.description || '',
           terms_doctor: data.terms_doctor || '',
           terms_distributor: data.terms_distributor || '',
+          enable_workshops: data.enable_workshops !== false,
           flyer: data.flyer || '',
           specialty_ids: data.specialty_ids || []
         })
@@ -349,6 +351,20 @@ export default function EditCongresoPage() {
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h2 className="text-lg font-semibold flex items-center gap-2"><Calendar className="text-purple-600" size={20} /> Talleres</h2>
               <button type="button" onClick={addWorkshop} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Agregar Taller</button>
+            </div>
+
+            <div className="flex items-center gap-3 p-4 bg-purple-50/50 rounded-2xl border border-purple-100 mb-2">
+              <input
+                type="checkbox"
+                id="enable_workshops"
+                checked={formData.enable_workshops}
+                onChange={e => setFormData({ ...formData, enable_workshops: e.target.checked })}
+                className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 w-5 h-5 cursor-pointer"
+              />
+              <label htmlFor="enable_workshops" className="text-sm font-semibold text-purple-900 cursor-pointer select-none">
+                Habilitar inscripciones a talleres desde la Landing Page
+                <span className="block text-xs font-normal text-purple-700 mt-0.5">Si se desmarca, los talleres se mostrarán en la Landing Page con fines informativos, pero los usuarios no podrán inscribirse.</span>
+              </label>
             </div>
             <div className="space-y-4">
               {workshops.map((w, i) => (

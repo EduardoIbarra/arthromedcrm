@@ -50,7 +50,7 @@ function RegistroContent() {
   const [congressName, setCongressName] = useState<string | null>(null)
   const [congress, setCongress] = useState<any | null>(null)
   const [step, setStep] = useState<Step>('name')
-  const [form, setForm] = useState<FormData>({ name: '', role: '', specialty: '', customSpecialty: '', hospital: '', phone: '', state: '', acceptTerms: false })
+  const [form, setForm] = useState<FormData>({ name: '', role: '', specialty: '', customSpecialty: '', hospital: '', phone: '', state: '', acceptTerms: true })
   const [specialties, setSpecialties] = useState<string[]>([])
   const [submitted, setSubmitted] = useState(false)
   const [createdClientId, setCreatedClientId] = useState<string | null>(null)
@@ -110,7 +110,7 @@ function RegistroContent() {
     if (step === 'hospital') return f.hospital.trim().length >= 2
     if (step === 'phone') return /^\d{10}$/.test(f.phone.replace(/\D/g, ''))
     if (step === 'state') return !!f.state
-    if (step === 'confirm') return f.acceptTerms
+    if (step === 'confirm') return true
     return true
   }
 
@@ -130,11 +130,6 @@ function RegistroContent() {
   }
 
   const submit = async () => {
-    if (!form.acceptTerms) {
-      setError('Debe aceptar los términos y condiciones para registrarse.')
-      return
-    }
-
     setLoading(true)
     setError('')
     
@@ -399,30 +394,6 @@ function RegistroContent() {
                 )}
                 <ConfirmRow label="WhatsApp" value={`+52 ${form.phone}`} />
                 <ConfirmRow label="Estado" value={form.state} />
-
-                {/* Terms and Conditions Box */}
-                <div className="mt-2 flex flex-col gap-2">
-                  <label className="text-[10px] font-bold text-[#8a8b8d] uppercase tracking-wider">Términos y Condiciones de Registro</label>
-                  <div className="w-full bg-[#f8fafd] border border-[#e8f1f9] rounded-2xl p-4 max-h-[140px] overflow-y-auto text-xs text-[#5a5b5d] leading-relaxed scrollbar-thin scrollbar-thumb-[#9bbfdf]">
-                    {form.role === 'Médico' 
-                      ? (congress?.terms_doctor || 'Al registrarse, usted acepta recibir información sobre congresos, talleres y productos de alta especialidad médica distribuidos por Arthromed. Sus datos serán procesados con absoluta confidencialidad en cumplimiento de nuestro aviso de privacidad.')
-                      : (congress?.terms_distributor || 'Al registrarse como distribuidor, usted acepta cumplir con las políticas comerciales de distribución de Arthromed y autoriza el contacto de un asesor comercial para evaluar la alianza comercial de acuerdo con nuestras políticas vigentes.')
-                    }
-                  </div>
-                  
-                  <label className="flex items-start gap-2.5 mt-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      id="checkbox-terms"
-                      checked={form.acceptTerms}
-                      onChange={e => setForm(p => ({ ...p, acceptTerms: e.target.checked }))}
-                      className="mt-0.5 rounded border-[#d4e0ec] text-[#0763a9] focus:ring-[#0763a9] cursor-pointer"
-                    />
-                    <span className="text-[11px] text-[#5a5b5d] leading-snug select-none group-hover:text-[#37383a] transition-colors">
-                      Acepto los términos y condiciones de registro especificados arriba.
-                    </span>
-                  </label>
-                </div>
 
                 {error && <p className="text-sm text-[#b91c1c] bg-[#fee2e2] border border-[#fecaca] rounded-xl px-4 py-3 mt-2">{error}</p>}
               </div>

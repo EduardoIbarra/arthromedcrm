@@ -22,6 +22,9 @@ interface CongresoData {
   specialty_ids: string[]
   workshops: any[]
   contacts: any[]
+  enable_workshops?: boolean
+  terms_doctor?: string | null
+  terms_distributor?: string | null
 }
 
 export default function CongressLandingPage() {
@@ -31,6 +34,7 @@ export default function CongressLandingPage() {
   const [products, setProducts] = useState<any[]>([])
   const [clientName, setClientName] = useState<string | null>(null)
   const [currentClientId, setCurrentClientId] = useState<string | null>(null)
+  const [clientRole, setClientRole] = useState<'médico' | 'distribuidor' | null>(null)
   const [processingWorkshop, setProcessingWorkshop] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -175,8 +179,18 @@ export default function CongressLandingPage() {
       fetch(`/api/clients/${cid}`)
         .then(res => res.json())
         .then(res => {
-          if (res.data && res.data.name) {
-            setClientName(res.data.name.split(' ')[0])
+          if (res.data) {
+            if (res.data.name) {
+              setClientName(res.data.name.split(' ')[0])
+            }
+            if (res.data.tags && Array.isArray(res.data.tags)) {
+              const tags = res.data.tags.map((t: string) => t.toLowerCase())
+              if (tags.includes('médico') || tags.includes('medico')) {
+                setClientRole('médico')
+              } else if (tags.includes('distribuidor')) {
+                setClientRole('distribuidor')
+              }
+            }
           }
         })
         .catch(console.error)
@@ -391,42 +405,46 @@ export default function CongressLandingPage() {
                           {new Date(w.date_time).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Cupo:</span>
-                        <span className="text-slate-300 font-medium">{enrolledCount} / {w.max_people} personas</span>
-                      </div>
+                      {congress.enable_workshops !== false && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Cupo:</span>
+                          <span className="text-slate-300 font-medium">{enrolledCount} / {w.max_people} personas</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500">Costo:</span>
                         <span className="text-blue-400 font-bold">{w.cost > 0 ? formatCurrency(w.cost) : 'Gratis'}</span>
                       </div>
                     </div>
                     
-                    <div className="pt-5 mt-4 border-t border-white/[0.05]">
-                      <button 
-                        onClick={() => handleEnrollToggle(w.id, isEnrolled)}
-                        disabled={processingWorkshop === w.id || (!isEnrolled && isFull)}
-                        className={`group/btn w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                          isEnrolled 
-                            ? 'bg-emerald-500/20 text-emerald-400 hover:bg-red-500/20 hover:text-red-400 border border-emerald-500/30 hover:border-red-500/30' 
-                            : (!isEnrolled && isFull)
-                              ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                              : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
-                        }`}
-                      >
-                        {processingWorkshop === w.id ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : isEnrolled ? (
-                          <>
-                            <span className="flex group-hover/btn:hidden items-center gap-2"><CheckCircle2 size={18} /> Inscrito</span>
-                            <span className="hidden group-hover/btn:flex items-center gap-2"><X size={18} /> Cancelar</span>
-                          </>
-                        ) : isFull ? (
-                          'Cupo Lleno'
-                        ) : (
-                          'Inscribirme'
-                        )}
-                      </button>
-                    </div>
+                    {congress.enable_workshops !== false && (
+                      <div className="pt-5 mt-4 border-t border-white/[0.05]">
+                        <button 
+                          onClick={() => handleEnrollToggle(w.id, isEnrolled)}
+                          disabled={processingWorkshop === w.id || (!isEnrolled && isFull)}
+                          className={`group/btn w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                            isEnrolled 
+                              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-red-500/20 hover:text-red-400 border border-emerald-500/30 hover:border-red-500/30' 
+                              : (!isEnrolled && isFull)
+                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+                          }`}
+                        >
+                          {processingWorkshop === w.id ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : isEnrolled ? (
+                            <>
+                              <span className="flex group-hover/btn:hidden items-center gap-2"><CheckCircle2 size={18} /> Inscrito</span>
+                              <span className="hidden group-hover/btn:flex items-center gap-2"><X size={18} /> Cancelar</span>
+                            </>
+                          ) : isFull ? (
+                            'Cupo Lleno'
+                          ) : (
+                            'Inscribirme'
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 )})}
               </div>
@@ -501,6 +519,44 @@ export default function CongressLandingPage() {
               </div>
             </section>
           )}
+
+          {/* Terms & Conditions Section */}
+          <section className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-md">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <Shield className="text-blue-500" size={20} /> Términos y Condiciones
+            </h2>
+            <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+              Consulte las bases regulatorias y condiciones de registro establecidas para este congreso según su perfil profesional.
+            </p>
+
+            <div className={`grid grid-cols-1 ${clientRole === null ? 'md:grid-cols-2' : ''} gap-8`}>
+              {/* Doctors Terms */}
+              {(clientRole === null || clientRole === 'médico') && (
+                <div className="bg-slate-950/40 rounded-2xl p-6 border border-white/[0.04] flex flex-col">
+                  <div className="flex items-center gap-2 mb-4 border-b border-white/[0.05] pb-3">
+                    <User className="text-blue-400" size={18} />
+                    <h3 className="font-bold text-white text-base">Médicos Especialistas</h3>
+                  </div>
+                  <div className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                    {congress.terms_doctor || 'Al registrarse, usted acepta recibir información sobre congresos, talleres y productos de alta especialidad médica distribuidos por Arthromed. Sus datos serán procesados con absoluta confidencialidad en cumplimiento de nuestro aviso de privacidad.'}
+                  </div>
+                </div>
+              )}
+
+              {/* Distributors Terms */}
+              {(clientRole === null || clientRole === 'distribuidor') && (
+                <div className="bg-slate-950/40 rounded-2xl p-6 border border-white/[0.04] flex flex-col">
+                  <div className="flex items-center gap-2 mb-4 border-b border-white/[0.05] pb-3">
+                    <Users className="text-indigo-400" size={18} />
+                    <h3 className="font-bold text-white text-base">Distribuidores Comerciales</h3>
+                  </div>
+                  <div className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                    {congress.terms_distributor || 'Al registrarse como distribuidor, usted acepta cumplir con las políticas comerciales de distribución de Arthromed y autoriza el contacto de un asesor comercial para evaluar la alianza comercial de acuerdo con nuestras políticas vigentes.'}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
 
         {/* Right Column: Flyer & Contacts */}
