@@ -49,6 +49,7 @@ export async function proxy(request: NextRequest) {
     // Also allow specific public API routes
     const isPublicApi = (request.nextUrl.pathname === '/api/catalog/specialties' && request.method === 'GET') ||
                         (request.nextUrl.pathname.startsWith('/api/congresos/') && request.method === 'GET') ||
+                        (request.nextUrl.pathname === '/api/catalogos' && request.method === 'GET') ||
                         (request.nextUrl.pathname === '/api/clients' && request.method === 'POST') ||
                         (request.nextUrl.pathname.startsWith('/api/clients/') && request.method === 'GET') ||
                         (request.nextUrl.pathname === '/api/products/filter' && request.method === 'GET') ||

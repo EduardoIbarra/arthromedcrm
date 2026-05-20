@@ -7,9 +7,19 @@ import {
   Calendar, MapPin, Users, Clock, User, Phone, Mail,
   ChevronRight, Package, ArrowRight, Download, Globe,
   Shield, CheckCircle2, Sparkles, Tag, AlignLeft, Loader2, X,
-  ShoppingBag, Trash2, Plus, Minus
+  ShoppingBag, Trash2, Plus, Minus, FileText, ExternalLink
 } from 'lucide-react'
 import Link from 'next/link'
+
+interface CatalogItem {
+  catalog_id: string
+  catalog: {
+    id: string
+    name: string
+    pdf_url: string
+    description: string | null
+  }
+}
 
 interface CongresoData {
   id: string
@@ -22,9 +32,115 @@ interface CongresoData {
   specialty_ids: string[]
   workshops: any[]
   contacts: any[]
+  congress_catalogos?: CatalogItem[]
   enable_workshops?: boolean
   terms_doctor?: string | null
   terms_distributor?: string | null
+}
+
+// ─── CatalogCard component ─────────────────────────────────────────────────
+function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; pdf_url: string; description: string | null }; index: number }) {
+  const [canvasEl, setCanvasEl] = useState<HTMLCanvasElement | null>(null)
+  const [previewReady, setPreviewReady] = useState(false)
+  const [previewFailed, setPreviewFailed] = useState(false)
+
+  useEffect(() => {
+    if (!canvasEl) return
+    let cancelled = false
+
+    const renderPdf = async () => {
+      try {
+        // Dynamically load pdf.js ESM from CDN via import()
+        // We use a proxied URL approach with a global to avoid re-loading
+        const pdfjsLib = await import(/* webpackIgnore: true */ 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs' as any)
+        if (cancelled) return
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+
+        const loadingTask = pdfjsLib.getDocument({ url: catalog.pdf_url, withCredentials: false })
+        const pdf = await loadingTask.promise
+        if (cancelled) return
+
+        const page = await pdf.getPage(1)
+        if (cancelled || !canvasEl) return
+
+        const viewport = page.getViewport({ scale: 1.0 })
+        const ctx = canvasEl.getContext('2d')
+        if (!ctx) return
+
+        // Fit within the card width ~280px
+        const desiredWidth = 280
+        const scale = desiredWidth / viewport.width
+        const scaledViewport = page.getViewport({ scale })
+
+        canvasEl.width = scaledViewport.width
+        canvasEl.height = scaledViewport.height
+
+        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
+        if (!cancelled) setPreviewReady(true)
+      } catch (err) {
+        console.warn('PDF preview failed for', catalog.name, err)
+        if (!cancelled) setPreviewFailed(true)
+      }
+    }
+
+    renderPdf()
+    return () => { cancelled = true }
+  }, [canvasEl, catalog.pdf_url])
+
+  return (
+    <motion.a
+      href={catalog.pdf_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -6, scale: 1.02 }}
+      transition={{ delay: index * 0.07, duration: 0.3 }}
+      viewport={{ once: true }}
+      className="group relative flex flex-col rounded-3xl overflow-hidden border border-white/[0.08] bg-white/[0.03] hover:border-blue-500/40 hover:bg-white/[0.06] backdrop-blur-md transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-blue-900/30"
+    >
+      {/* PDF Preview Canvas */}
+      <div className="relative w-full bg-slate-900/60 flex items-center justify-center overflow-hidden" style={{ minHeight: '200px' }}>
+        {!previewReady && !previewFailed && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="text-slate-600 animate-spin" size={28} />
+          </div>
+        )}
+        {previewFailed && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <FileText className="text-slate-600" size={48} />
+            <span className="text-xs text-slate-600">Vista previa no disponible</span>
+          </div>
+        )}
+        <canvas
+          ref={setCanvasEl}
+          className={`w-full transition-opacity duration-500 ${previewReady ? 'opacity-100' : 'opacity-0'}`}
+          style={{ display: 'block' }}
+        />
+        {/* Gradient overlay at bottom of canvas */}
+        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-slate-900/80 to-transparent pointer-events-none" />
+        {/* Open badge */}
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <div className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl shadow-lg">
+            <ExternalLink size={12} />
+            Abrir
+          </div>
+        </div>
+      </div>
+
+      {/* Card Footer */}
+      <div className="flex flex-col gap-1 p-4 flex-1">
+        <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-blue-300 transition-colors">{catalog.name}</h3>
+        {catalog.description && (
+          <p className="text-xs text-slate-500 line-clamp-2">{catalog.description}</p>
+        )}
+        <div className="mt-2 flex items-center gap-1.5 text-blue-400 text-xs font-semibold group-hover:text-blue-300 transition-colors">
+          <FileText size={12} /> Ver PDF completo
+        </div>
+      </div>
+    </motion.a>
+  )
 }
 
 export default function CongressLandingClient() {
@@ -343,23 +459,24 @@ export default function CongressLandingClient() {
             </div>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="flex justify-center mt-12"
-          >
-            <a
-              href="https://arthromed.com.mx/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold px-10 py-5 rounded-2xl shadow-xl shadow-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 active:scale-95 text-lg border border-blue-400/20"
+          {congress.congress_catalogos && congress.congress_catalogos.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="flex justify-center mt-10"
             >
-              <Globe className="animate-[spin_6s_linear_infinite]" size={22} />
-              <span>Ver Catálogos</span>
-              <ChevronRight size={20} />
-            </a>
-          </motion.div>
+              <a
+                href="#catalogos"
+                onClick={(e) => { e.preventDefault(); document.getElementById('catalogos')?.scrollIntoView({ behavior: 'smooth' }) }}
+                className="inline-flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold px-10 py-5 rounded-2xl shadow-xl shadow-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 active:scale-95 text-lg border border-blue-400/20"
+              >
+                <FileText className="animate-[bounce_2s_ease-in-out_infinite]" size={22} />
+                <span>Ver Catálogos del Evento</span>
+                <ChevronRight size={20} />
+              </a>
+            </motion.div>
+          )}
         </div>
       </header>
 
@@ -667,6 +784,36 @@ export default function CongressLandingClient() {
 
         </aside>
       </main>
+
+      {/* Catalogs Section — full width, below the 12-col grid */}
+      {congress.congress_catalogos && congress.congress_catalogos.length > 0 && (
+        <section
+          id="catalogos"
+          className="relative max-w-6xl mx-auto px-6 pb-24"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+            className="mb-10 flex items-center gap-4"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+              <FileText className="text-blue-400" size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">Catálogos del Evento</h2>
+              <p className="text-slate-500 text-sm mt-1">Haz clic en cualquier catálogo para abrirlo</p>
+            </div>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {congress.congress_catalogos.map((cc, i) => (
+              <CatalogCard key={cc.catalog_id} catalog={cc.catalog} index={i} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Floating Cart Button */}
       <AnimatePresence>

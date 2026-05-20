@@ -6,7 +6,7 @@ import Image from 'next/image'
 import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
-  ShieldCheck
+  ShieldCheck, FileText
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -58,6 +58,7 @@ export default function Sidebar() {
       title: t('events'),
       items: [
         { href: '/congresos', icon: Calendar, label: t('congresos'), section: 'congresos' },
+        { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'congresos' },
         { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
       ],
     },

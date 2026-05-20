@@ -41,6 +41,9 @@ export default function EditCongresoPage() {
 
   const [workshops, setWorkshops] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
+  
+  const [availableCatalogs, setAvailableCatalogs] = useState<any[]>([])
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([])
 
   const supabase = createClient()
 
@@ -90,6 +93,10 @@ export default function EditCongresoPage() {
         })
         setWorkshops(data.workshops || [])
         setContacts(data.contacts || [])
+        
+        const linkedCatalogIds = data.congress_catalogos?.map((cc: any) => cc.catalog_id) || []
+        setSelectedCatalogIds(linkedCatalogIds)
+        
         fetchFiles()
       } catch (err: any) {
         setError(err.message)
@@ -99,6 +106,29 @@ export default function EditCongresoPage() {
     }
     fetchCongreso()
   }, [id])
+
+  useEffect(() => {
+    const fetchAllCatalogs = async () => {
+      try {
+        const res = await fetch('/api/catalogos')
+        if (res.ok) {
+          const { data } = await res.json()
+          setAvailableCatalogs(data)
+        }
+      } catch (err) {
+        console.error('Error loading catalogs:', err)
+      }
+    }
+    fetchAllCatalogs()
+  }, [])
+
+  const handleCatalogToggle = (catalogId: string) => {
+    setSelectedCatalogIds(prev => 
+      prev.includes(catalogId)
+        ? prev.filter(id => id !== catalogId)
+        : [...prev, catalogId]
+    )
+  }
 
   const handleDeleteFile = async (fileId: string) => {
     if (!confirm(t('deleteFileDesc'))) return
@@ -160,7 +190,8 @@ export default function EditCongresoPage() {
       const payload = {
         ...formData,
         workshops,
-        contacts: contacts.filter(c => c.name || c.number || c.email)
+        contacts: contacts.filter(c => c.name || c.number || c.email),
+        catalog_ids: selectedCatalogIds
       }
       const res = await fetch(`/api/congresos/${id}`, {
         method: 'PATCH',
@@ -420,6 +451,51 @@ export default function EditCongresoPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Catalogs Selection Card */}
+          <div className="card p-6 md:p-8 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="text-blue-600" size={20} />
+                Catálogos Asociados
+              </h2>
+            </div>
+            {availableCatalogs.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">
+                No hay catálogos globales creados. Puedes crear catálogos en la sección de "Catálogos" del menú principal.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {availableCatalogs.map(catalog => {
+                  const isChecked = selectedCatalogIds.includes(catalog.id)
+                  return (
+                    <label 
+                      key={catalog.id} 
+                      className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none
+                        ${isChecked 
+                          ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-50' 
+                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleCatalogToggle(catalog.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{catalog.name}</p>
+                        {catalog.description && (
+                          <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{catalog.description}</p>
+                        )}
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-4 pt-6">

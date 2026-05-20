@@ -17,7 +17,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             }
           }
         },
-        contacts: true
+        contacts: true,
+        congress_catalogos: {
+          include: {
+            catalog: true
+          }
+        }
       }
     })
 
@@ -47,7 +52,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       terms_distributor,
       enable_workshops,
       workshops,
-      contacts 
+      contacts,
+      catalog_ids
     } = body
     
     // Update main record and nested relations
@@ -66,6 +72,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       if (contactsToDelete.length > 0) {
         await tx.congress_contacts.deleteMany({ where: { id: { in: contactsToDelete } } })
+      }
+
+      // Sync catalog associations
+      await tx.congress_catalogos.deleteMany({ where: { congress_id: id } })
+      if (catalog_ids && catalog_ids.length > 0) {
+        await tx.congress_catalogos.createMany({
+          data: catalog_ids.map((cid: string) => ({
+            congress_id: id,
+            catalog_id: cid
+          }))
+        })
       }
 
       // 2. Update congress and upsert related records
@@ -111,7 +128,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         },
         include: {
           workshops: true,
-          contacts: true
+          contacts: true,
+          congress_catalogos: {
+            include: {
+              catalog: true
+            }
+          }
         }
       })
     })
