@@ -273,6 +273,21 @@ export default function CongressLandingPage() {
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val)
   }
 
+  const groupedProducts = products.reduce((acc: { [key: string]: any[] }, p) => {
+    const lineName = p.line ? p.line.trim().toUpperCase() : 'GENERAL'
+    if (!acc[lineName]) {
+      acc[lineName] = []
+    }
+    acc[lineName].push(p)
+    return acc
+  }, {})
+
+  const sortedLines = Object.keys(groupedProducts).sort((a, b) => {
+    if (a === 'GENERAL') return 1
+    if (b === 'GENERAL') return -1
+    return a.localeCompare(b)
+  })
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white overflow-x-hidden">
       {/* Background Orbs */}
@@ -455,8 +470,8 @@ export default function CongressLandingPage() {
 
           {/* Featured Products */}
           {products.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-8">
+            <section className="space-y-8">
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                   <Package className="text-emerald-500" /> Productos Recomendados
                 </h2>
@@ -464,59 +479,69 @@ export default function CongressLandingPage() {
                   <Tag size={12} /> Descuentos de Congreso
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {products.map((p, i) => (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    className="bg-white/[0.03] border border-white/[0.08] rounded-3xl overflow-hidden hover:bg-white/[0.05] transition-all group"
-                  >
-                    <div className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{p.type === 'equipment' ? 'EQUIPO' : 'CONSUMIBLE'}</span>
-                        <div className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-black">
-                          -{p.type === 'equipment' ? '5%' : '4%'}
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{p.description}</h3>
-                      <p className="text-sm text-slate-500 mb-6">{p.model || p.order_code || 'Referencia estándar'}</p>
 
-                      <div className="flex items-end gap-3">
-                        <div>
-                          <p className="text-[10px] text-slate-500 line-through mb-1">{formatCurrency(p.sale_price || 0)}</p>
-                          <p className="text-2xl font-black text-white">{formatCurrency(calculateDiscountedPrice(p.sale_price || 0, p.type || ''))}</p>
-                        </div>
-                        {cart[p.id] ? (
-                          <div className="ml-auto flex items-center bg-blue-600 rounded-xl overflow-hidden shadow-lg shadow-blue-900/30">
-                            <button
-                              onClick={() => updateQuantity(p.id, cart[p.id] - 1)}
-                              className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
-                            >
-                              -
-                            </button>
-                            <span className="px-2 text-white font-black text-xs min-w-[20px] text-center">
-                              {cart[p.id]}
-                            </span>
-                            <button
-                              onClick={() => updateQuantity(p.id, cart[p.id] + 1)}
-                              className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
-                            >
-                              +
-                            </button>
+              <div className="space-y-10">
+                {sortedLines.map((lineName) => (
+                  <div key={lineName} className="space-y-4">
+                    <h3 className="text-lg font-bold text-white/95 flex items-center gap-2 border-l-4 border-blue-500 pl-3 uppercase tracking-wider">
+                      {lineName}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      {groupedProducts[lineName].map((p) => (
+                        <motion.div
+                          key={p.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          className="bg-white/[0.03] border border-white/[0.08] rounded-3xl overflow-hidden hover:bg-white/[0.05] transition-all group"
+                        >
+                          <div className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{p.type === 'equipment' ? 'EQUIPO' : 'CONSUMIBLE'}</span>
+                              <div className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-black">
+                                -{p.type === 'equipment' ? '5%' : '4%'}
+                              </div>
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{p.description}</h3>
+                            <p className="text-sm text-slate-500 mb-6">{p.model || p.order_code || 'Referencia estándar'}</p>
+
+                            <div className="flex items-end gap-3">
+                              <div>
+                                <p className="text-[10px] text-slate-500 line-through mb-1">{formatCurrency(p.sale_price || 0)}</p>
+                                <p className="text-2xl font-black text-white">{formatCurrency(calculateDiscountedPrice(p.sale_price || 0, p.type || ''))}</p>
+                              </div>
+                              {cart[p.id] ? (
+                                <div className="ml-auto flex items-center bg-blue-600 rounded-xl overflow-hidden shadow-lg shadow-blue-900/30">
+                                  <button
+                                    onClick={() => updateQuantity(p.id, cart[p.id] - 1)}
+                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="px-2 text-white font-black text-xs min-w-[20px] text-center">
+                                    {cart[p.id]}
+                                  </span>
+                                  <button
+                                    onClick={() => updateQuantity(p.id, cart[p.id] + 1)}
+                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => addToCart(p)}
+                                  className="ml-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/40"
+                                >
+                                  <span>Cotizar</span>
+                                  <ArrowRight size={14} />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => addToCart(p)}
-                            className="ml-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/40"
-                          >
-                            <span>Cotizar</span>
-                            <ArrowRight size={14} />
-                          </button>
-                        )}
-                      </div>
+                        </motion.div>
+                      ))}
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </section>
