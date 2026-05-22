@@ -33,6 +33,14 @@ const WA_TEMPLATES = [
   { id: 'lead_referral_doctor', label: 'Referido por Doctor' },
 ]
 
+const MEXICAN_STATES = [
+  'Aguascalientes','Baja California','Baja California Sur','Campeche','Chiapas',
+  'Chihuahua','Ciudad de México','Coahuila','Colima','Durango','Estado de México',
+  'Guanajuato','Guerrero','Hidalgo','Jalisco','Michoacán','Morelos','Nayarit',
+  'Nuevo León','Oaxaca','Puebla','Querétaro','Quintana Roo','San Luis Potosí',
+  'Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz','Yucatán','Zacatecas',
+]
+
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
 export default function ClientDetailPage() {
@@ -322,7 +330,37 @@ export default function ClientDetailPage() {
               <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('commercialInfo')}</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <InfoRow label={t('operatingStates')}>{arrayField('states')}</InfoRow>
+              <InfoRow label={t('operatingStates')}>
+                {editing ? (
+                  <div className="max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#9bbfdf] scrollbar-track-[#f0f5fa] border border-[#d4e0ec] rounded-lg p-1 bg-[#f8fafd] flex flex-col gap-1">
+                    {MEXICAN_STATES.map(st => {
+                      const isSelected = (editData.states || []).includes(st)
+                      return (
+                        <button
+                          type="button"
+                          key={st}
+                          className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-all ${
+                            isSelected 
+                              ? 'bg-[#e8f1f9] text-[#0763a9] font-semibold border border-[#0763a9]' 
+                              : 'text-[#37383a] hover:bg-[#e8f1f9] border border-transparent'
+                          }`}
+                          onClick={() => {
+                            const current = editData.states || []
+                            const next = isSelected ? current.filter(s => s !== st) : [...current, st]
+                            setEditData(p => ({ ...p, states: next }))
+                          }}
+                        >
+                          {st}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm" style={{ color: '#37383a' }}>
+                    {(client?.states as string[])?.join(', ') || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
+                  </p>
+                )}
+              </InfoRow>
               <InfoRow label={t('hospitalChains')}>{arrayField('hospitals')}</InfoRow>
               <InfoRow label={t('medicalSpecialties')}>{arrayField('specialties')}</InfoRow>
             </div>

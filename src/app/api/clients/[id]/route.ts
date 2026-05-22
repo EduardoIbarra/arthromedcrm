@@ -22,7 +22,10 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 // PATCH /api/clients/[id]
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body: ClientUpdate = await request.json()
+  const body: any = await request.json()
+
+  // Remove relation fields that cannot be updated directly
+  delete body.client_activities
 
   // Auto-assign distributor ID when status changes to Activo
   if (body.status === 'Activo') {

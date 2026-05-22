@@ -166,7 +166,36 @@ function RegistroContent() {
         throw new Error(json.error || 'Error al registrar')
       }
       if (json.data && json.data.id) {
-        setCreatedClientId(json.data.id)
+        const clientId = json.data.id
+        setCreatedClientId(clientId)
+
+        try {
+          const landingUrl = congressId 
+            ? `${window.location.origin}/congresos/${congressId}/landing?clientId=${clientId}`
+            : window.location.origin
+            
+          const nameText = form.role === 'Distribuidor' ? form.name.split(' ')[0] : `Dr(a). ${form.name.split(' ')[0]}`
+
+          await fetch('/api/whatsapp/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              to: form.phone.replace(/\D/g, ''), 
+              template: 'arthromed_contact_register_es',
+              components: [
+                {
+                  type: 'body',
+                  parameters: [
+                    { type: 'text', text: nameText },
+                    { type: 'text', text: landingUrl }
+                  ]
+                }
+              ]
+            })
+          })
+        } catch (waErr) {
+          console.error("Failed to send WhatsApp", waErr)
+        }
       }
       setSubmitted(true)
     } catch (e: unknown) {

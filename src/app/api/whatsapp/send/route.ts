@@ -4,25 +4,34 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!
 
 export async function POST(request: NextRequest) {
-  const { to, template, language = 'es_MX', components = [] } = await request.json()
+  const { to, template, language = 'es_MX', components = [], text } = await request.json()
 
-  if (!to || !template) {
-    return NextResponse.json({ error: 'Missing to or template' }, { status: 400 })
+  if (!to) {
+    return NextResponse.json({ error: 'Missing to' }, { status: 400 })
+  }
+  if (!template && !text) {
+    return NextResponse.json({ error: 'Missing template or text' }, { status: 400 })
   }
 
   const phoneClean = to.replace(/\D/g, '')
   const phone = phoneClean.startsWith('52') ? phoneClean : `52${phoneClean}`
 
-  const body = {
+  const body: any = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to: phone,
-    type: 'template',
-    template: {
+  }
+
+  if (template) {
+    body.type = 'template'
+    body.template = {
       name: template,
       language: { code: language },
       components,
-    },
+    }
+  } else if (text) {
+    body.type = 'text'
+    body.text = { body: text }
   }
 
   try {
