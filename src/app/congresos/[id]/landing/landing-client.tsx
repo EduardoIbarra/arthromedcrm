@@ -1133,6 +1133,11 @@ export default function CongressLandingClient() {
       <footer className="py-12 border-t border-white/[0.05] text-center">
         <div className="max-w-6xl mx-auto px-6">
           <p className="text-slate-500 text-sm">© 2026 Arthromed — Equipo Médico de Alto Rendimiento. Todos los derechos reservados.</p>
+          <div className="mt-4">
+            <Link href="/aviso-de-privacidad" className="text-slate-400 hover:text-blue-400 text-sm transition-colors">
+              Aviso de Privacidad
+            </Link>
+          </div>
         </div>
       </footer>
 

@@ -56,9 +56,9 @@ function QRContent() {
           <Image 
             src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
             alt="Arthromed Logo" 
-            width={240} 
-            height={80} 
-            className="h-16 w-auto object-contain"
+            width={480} 
+            height={160} 
+            className="h-32 w-auto object-contain"
             priority
           />
         </motion.div>

@@ -4,6 +4,7 @@ import { CheckCircle, ChevronRight, Loader2, Stethoscope, Building2, Phone, MapP
 import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const MEXICAN_STATES = [
   'Aguascalientes','Baja California','Baja California Sur','Campeche','Chiapas',
@@ -58,10 +59,11 @@ function RegistroContent() {
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const steps: Step[] = form.role === 'Distribuidor'
+  const getStepsForRole = (role: string): Step[] => role === 'Distribuidor'
     ? ['name', 'role', 'phone', 'state', 'confirm']
     : ['name', 'role', 'specialty', 'hospital', 'phone', 'state', 'confirm']
 
+  const steps = getStepsForRole(form.role)
   const stepIndex = steps.indexOf(step)
 
   useEffect(() => {
@@ -116,8 +118,9 @@ function RegistroContent() {
 
   const next = (f = form) => {
     if (!isStepValid(f)) return
-    const idx = steps.indexOf(step)
-    if (idx < steps.length - 1) setStep(steps[idx + 1])
+    const currentSteps = getStepsForRole(f.role)
+    const idx = currentSteps.indexOf(step)
+    if (idx < currentSteps.length - 1) setStep(currentSteps[idx + 1])
   }
 
   const back = () => {
@@ -189,9 +192,9 @@ function RegistroContent() {
           <Image 
             src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
             alt="Arthromed Logo" 
-            width={180} 
-            height={60} 
-            className="h-12 w-auto object-contain"
+            width={360} 
+            height={120} 
+            className="h-24 w-auto object-contain"
             priority
           />
         </div>
@@ -430,7 +433,8 @@ function RegistroContent() {
         </motion.div>
 
         <p className="text-[11px] text-[#8a8b8d] text-center leading-relaxed max-w-[300px] mt-2">
-          Sus datos se mantienen confidenciales y sólo se usan para contactarle con información relevante a su perfil.
+          Sus datos se mantienen confidenciales y sólo se usan para contactarle con información relevante a su perfil. <br/>
+          <Link href="/aviso-de-privacidad" className="text-[#0763a9] hover:underline font-medium">Aviso de Privacidad</Link>
         </p>
       </div>
     </div>
@@ -482,9 +486,9 @@ function SuccessScreen({ name, congressId, clientId, role }: { name: string, con
           <Image 
             src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
             alt="Arthromed Logo" 
-            width={200} 
-            height={70} 
-            className="h-14 w-auto object-contain"
+            width={400} 
+            height={140} 
+            className="h-28 w-auto object-contain"
             priority
           />
         </div>
