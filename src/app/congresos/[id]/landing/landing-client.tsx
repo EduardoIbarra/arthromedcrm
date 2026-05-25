@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, MapPin, Users, Clock, User, Phone, Mail,
   ChevronRight, Package, ArrowRight, Download, Globe,
-  Shield, CheckCircle2, Sparkles, Tag, AlignLeft, Loader2, X,
+  Shield, CheckCircle2, Tag, AlignLeft, Loader2, X,
   ShoppingBag, Trash2, Plus, Minus, FileText, ExternalLink
 } from 'lucide-react'
 import Link from 'next/link'
@@ -98,19 +98,19 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
       whileHover={{ y: -6, scale: 1.02 }}
       transition={{ delay: index * 0.07, duration: 0.3 }}
       viewport={{ once: true }}
-      className="group relative flex flex-col rounded-3xl overflow-hidden border border-white/[0.08] bg-white/[0.03] hover:border-blue-500/40 hover:bg-white/[0.06] backdrop-blur-md transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-blue-900/30"
+      className="group relative flex flex-col rounded-3xl overflow-hidden border border-[#d4e0ec] bg-white hover:border-blue-500/40 hover:bg-[#f8fafc] backdrop-blur-md transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-blue-900/30"
     >
       {/* PDF Preview Canvas */}
-      <div className="relative w-full bg-slate-900/60 flex items-center justify-center overflow-hidden" style={{ minHeight: '200px' }}>
+      <div className="relative w-full bg-slate-100/80 flex items-center justify-center overflow-hidden" style={{ minHeight: '200px' }}>
         {!previewReady && !previewFailed && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="text-slate-600 animate-spin" size={28} />
+            <Loader2 className="text-[#5a5b5d] animate-spin" size={28} />
           </div>
         )}
         {previewFailed && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-            <FileText className="text-slate-600" size={48} />
-            <span className="text-xs text-slate-600">Vista previa no disponible</span>
+            <FileText className="text-[#5a5b5d]" size={48} />
+            <span className="text-xs text-[#5a5b5d]">Vista previa no disponible</span>
           </div>
         )}
         <canvas
@@ -119,7 +119,7 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
           style={{ display: 'block' }}
         />
         {/* Gradient overlay at bottom of canvas */}
-        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-slate-900/80 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white/80 to-transparent pointer-events-none" />
         {/* Open badge */}
         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <div className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl shadow-lg">
@@ -131,9 +131,9 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
 
       {/* Card Footer */}
       <div className="flex flex-col gap-1 p-4 flex-1">
-        <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-blue-300 transition-colors">{catalog.name}</h3>
+        <h3 className="text-sm font-bold text-[#37383a] line-clamp-1 group-hover:text-blue-300 transition-colors">{catalog.name}</h3>
         {catalog.description && (
-          <p className="text-xs text-slate-500 line-clamp-2">{catalog.description}</p>
+          <p className="text-xs text-[#8a8b8d] line-clamp-2">{catalog.description}</p>
         )}
         <div className="mt-2 flex items-center gap-1.5 text-blue-400 text-xs font-semibold group-hover:text-blue-300 transition-colors">
           <FileText size={12} /> Ver PDF completo
@@ -361,7 +361,7 @@ export default function CongressLandingClient() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen bg-[#f0f5fa] flex items-center justify-center">
       <motion.div
         animate={{ scale: [1, 1.1, 1], rotate: [0, 90, 0] }}
         transition={{ repeat: Infinity, duration: 2 }}
@@ -371,12 +371,12 @@ export default function CongressLandingClient() {
   )
 
   if (error || !congress) return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+    <div className="min-h-screen bg-[#f0f5fa] flex flex-col items-center justify-center p-6 text-center">
       <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
         <Users className="text-red-500" size={40} />
       </div>
-      <h1 className="text-3xl font-bold text-white mb-2">Evento no encontrado</h1>
-      <p className="text-slate-400 max-w-md">Lo sentimos, no pudimos encontrar los detalles de este congreso.</p>
+      <h1 className="text-3xl font-bold text-[#37383a] mb-2">Evento no encontrado</h1>
+      <p className="text-[#5a5b5d] max-w-md">Lo sentimos, no pudimos encontrar los detalles de este congreso.</p>
     </div>
   )
 
@@ -405,22 +405,27 @@ export default function CongressLandingClient() {
   })
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-blue-500 selection:text-white overflow-x-hidden">
+    <div className="min-h-screen bg-[#f0f5fa] text-[#37383a] selection:bg-blue-500 selection:text-white overflow-x-hidden">
       {/* Background Orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[20%] right-[-5%] w-[30%] h-[30%] bg-indigo-600/10 blur-[100px] rounded-full" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-[500px] bg-gradient-to-b from-blue-50/80 to-transparent blur-[100px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-100/50 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[20%] right-[-5%] w-[30%] h-[30%] bg-indigo-50/50 blur-[100px] rounded-full" />
       </div>
 
       {/* Hero Section */}
       <header className="relative pt-20 pb-32 px-6">
         <div className="max-w-6xl mx-auto text-center">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-8"
+            className="flex justify-center mb-10"
           >
-            <Sparkles size={14} /> Congreso Médico Exclusivo
+            <img 
+              src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
+              alt="Arthromed" 
+              className="h-20 md:h-28 object-contain opacity-90"
+            />
           </motion.div>
 
           {clientName && (
@@ -428,7 +433,7 @@ export default function CongressLandingClient() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="text-2xl md:text-3xl font-medium text-slate-300 mb-4"
+              className="text-2xl md:text-3xl font-medium text-[#5a5b5d] mb-4"
             >
               ¡Bienvenido, Dr. {clientName}!
             </motion.h2>
@@ -438,7 +443,7 @@ export default function CongressLandingClient() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-5xl md:text-7xl font-extrabold text-white mb-8 tracking-tight"
+            className="text-5xl md:text-7xl font-extrabold text-[#37383a] mb-8 tracking-tight"
           >
             {congress.name}
           </motion.h1>
@@ -447,7 +452,7 @@ export default function CongressLandingClient() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="flex flex-wrap justify-center gap-6 text-lg text-slate-300"
+            className="flex flex-wrap justify-center gap-6 text-lg text-[#5a5b5d]"
           >
             <div className="flex items-center gap-2">
               <Calendar className="text-blue-500" size={20} />
@@ -487,11 +492,11 @@ export default function CongressLandingClient() {
         <div className="lg:col-span-8 space-y-12">
 
           {/* Description */}
-          <section className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-md">
-            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+          <section className="bg-white border border-[#d4e0ec] rounded-3xl p-8 backdrop-blur-md">
+            <h2 className="text-2xl font-bold text-[#37383a] mb-6 flex items-center gap-3">
               <AlignLeft className="text-blue-500" /> Acerca del Congreso
             </h2>
-            <p className="text-slate-400 leading-relaxed text-lg whitespace-pre-wrap">
+            <p className="text-[#5a5b5d] leading-relaxed text-lg whitespace-pre-wrap">
               {congress.description}
             </p>
           </section>
@@ -500,10 +505,10 @@ export default function CongressLandingClient() {
           {congress.workshops && congress.workshops.length > 0 && (
             <section>
               <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-[#37383a] flex items-center gap-3">
                   <Calendar className="text-purple-500" /> Talleres Disponibles
                 </h2>
-                <span className="text-sm text-slate-500">{congress.workshops.length} sesiones</span>
+                <span className="text-sm text-[#8a8b8d]">{congress.workshops.length} sesiones</span>
               </div>
               <div className={`grid grid-cols-1 ${congress.workshops.length > 1 ? 'md:grid-cols-2' : ''} gap-6`}>
                 {congress.workshops.map((w, i) => {
@@ -517,49 +522,49 @@ export default function CongressLandingClient() {
                       initial={{ opacity: 0, scale: 0.95 }}
                       whileInView={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.1 }}
-                      className="group bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 hover:bg-white/[0.06] transition-all hover:border-blue-500/30 flex flex-col"
+                      className="group bg-white border border-[#d4e0ec] rounded-3xl p-6 hover:bg-[#f8fafc] transition-all hover:border-blue-500/30 flex flex-col"
                     >
                       <div className="flex items-center gap-4 mb-4">
                         <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
                           <Users size={24} />
                         </div>
                         <div>
-                          <h3 className="font-bold text-white text-lg">{w.name}</h3>
-                          <p className="text-sm text-slate-500 flex items-center gap-1">
+                          <h3 className="font-bold text-[#37383a] text-lg">{w.name}</h3>
+                          <p className="text-sm text-[#8a8b8d] flex items-center gap-1">
                             <User size={12} /> {w.professor}
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-3 pt-4 border-t border-white/[0.05] flex-1">
+                      <div className="space-y-3 pt-4 border-t border-[#d4e0ec] flex-1">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-500">Fecha y Hora:</span>
-                          <span className="text-slate-300 font-medium">
+                          <span className="text-[#8a8b8d]">Fecha y Hora:</span>
+                          <span className="text-[#5a5b5d] font-medium">
                             {new Date(w.date_time).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                         {congress.enable_workshops !== false && (
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-500">Cupo:</span>
-                            <span className="text-slate-300 font-medium">{enrolledCount} / {w.max_people} personas</span>
+                            <span className="text-[#8a8b8d]">Cupo:</span>
+                            <span className="text-[#5a5b5d] font-medium">{enrolledCount} / {w.max_people} personas</span>
                           </div>
                         )}
                         {congress.enable_workshops !== false && (
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-500">Costo:</span>
+                            <span className="text-[#8a8b8d]">Costo:</span>
                             <span className="text-blue-400 font-bold">{w.cost > 0 ? formatCurrency(w.cost) : 'Gratis'}</span>
                           </div>
                         )}
                       </div>
 
                       {congress.enable_workshops !== false && (
-                        <div className="pt-5 mt-4 border-t border-white/[0.05]">
+                        <div className="pt-5 mt-4 border-t border-[#d4e0ec]">
                           <button
                             onClick={() => handleEnrollToggle(w.id, isEnrolled)}
                             disabled={processingWorkshop === w.id || (!isEnrolled && isFull)}
                             className={`group/btn w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isEnrolled
-                                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-red-500/20 hover:text-red-400 border border-emerald-500/30 hover:border-red-500/30'
+                                ? 'bg-emerald-100 text-emerald-700 hover:bg-red-100 hover:text-red-700 border border-emerald-200 hover:border-red-200'
                                 : (!isEnrolled && isFull)
-                                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                  ? 'bg-[#f0f5fa] text-[#8a8b8d] cursor-not-allowed'
                                   : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
                               }`}
                           >
@@ -589,10 +594,10 @@ export default function CongressLandingClient() {
           {products.length > 0 && (
             <section className="space-y-8">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                  <Package className="text-emerald-500" /> Productos Recomendados
+                <h2 className="text-2xl font-bold text-[#37383a] flex items-center gap-3">
+                  <Package className="text-emerald-600" /> Productos Recomendados
                 </h2>
-                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-xs font-bold uppercase tracking-wider">
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wider">
                   <Tag size={12} /> Descuentos de Congreso
                 </div>
               </div>
@@ -600,7 +605,7 @@ export default function CongressLandingClient() {
               <div className="space-y-10">
                 {sortedLines.map((lineName) => (
                   <div key={lineName} className="space-y-4">
-                    <h3 className="text-lg font-bold text-white/95 flex items-center gap-2 border-l-4 border-blue-500 pl-3 uppercase tracking-wider">
+                    <h3 className="text-lg font-bold text-[#37383a] flex items-center gap-2 border-l-4 border-blue-500 pl-3 uppercase tracking-wider">
                       {lineName}
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -609,37 +614,37 @@ export default function CongressLandingClient() {
                           key={p.id}
                           initial={{ opacity: 0, y: 20 }}
                           whileInView={{ opacity: 1, y: 0 }}
-                          className="bg-white/[0.03] border border-white/[0.08] rounded-3xl overflow-hidden hover:bg-white/[0.05] transition-all group"
+                          className="bg-white border border-[#d4e0ec] rounded-3xl overflow-hidden hover:bg-[#f8fafc] transition-all group"
                         >
                           <div className="p-6">
                             <div className="flex justify-between items-start mb-4">
-                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{p.type === 'equipment' ? 'EQUIPO' : 'CONSUMIBLE'}</span>
-                              <div className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-black">
+                              <span className="text-xs font-bold text-[#8a8b8d] uppercase tracking-widest">{p.type === 'equipment' ? 'EQUIPO' : 'CONSUMIBLE'}</span>
+                              <div className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black">
                                 -{p.type === 'equipment' ? '5%' : '4%'}
                               </div>
                             </div>
-                            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{p.description}</h3>
-                            <p className="text-sm text-slate-500 mb-6">{p.model || p.order_code || 'Referencia estándar'}</p>
+                            <h3 className="text-xl font-bold text-[#37383a] mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{p.description}</h3>
+                            <p className="text-sm text-[#8a8b8d] mb-6">{p.model || p.order_code || 'Referencia estándar'}</p>
 
                             <div className="flex items-end gap-3">
                               <div>
-                                <p className="text-[10px] text-slate-500 line-through mb-1">{formatCurrency(p.sale_price || 0)}</p>
-                                <p className="text-2xl font-black text-white">{formatCurrency(calculateDiscountedPrice(p.sale_price || 0, p.type || ''))}</p>
+                                <p className="text-[10px] text-[#8a8b8d] line-through mb-1">{formatCurrency(p.sale_price || 0)}</p>
+                                <p className="text-2xl font-black text-[#37383a]">{formatCurrency(calculateDiscountedPrice(p.sale_price || 0, p.type || ''))}</p>
                               </div>
                               {cart[p.id] ? (
                                 <div className="ml-auto flex items-center bg-blue-600 rounded-xl overflow-hidden shadow-lg shadow-blue-900/30">
                                   <button
                                     onClick={() => updateQuantity(p.id, cart[p.id] - 1)}
-                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
+                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-[#37383a] font-bold text-xs"
                                   >
                                     -
                                   </button>
-                                  <span className="px-2 text-white font-black text-xs min-w-[20px] text-center">
+                                  <span className="px-2 text-[#37383a] font-black text-xs min-w-[20px] text-center">
                                     {cart[p.id]}
                                   </span>
                                   <button
                                     onClick={() => updateQuantity(p.id, cart[p.id] + 1)}
-                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-white font-bold text-xs"
+                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-[#37383a] font-bold text-xs"
                                   >
                                     +
                                   </button>
@@ -665,23 +670,23 @@ export default function CongressLandingClient() {
           )}
 
           {/* Terms & Conditions Section */}
-          <section className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-md">
-            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+          <section className="bg-white border border-[#d4e0ec] rounded-3xl p-8 backdrop-blur-md">
+            <h2 className="text-2xl font-bold text-[#37383a] mb-6 flex items-center gap-3">
               <Shield className="text-blue-500" size={20} /> Términos y Condiciones
             </h2>
-            <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+            <p className="text-[#5a5b5d] text-sm mb-6 leading-relaxed">
               Consulte las bases regulatorias y condiciones de registro establecidas para este congreso según su perfil profesional.
             </p>
 
             <div className={`grid grid-cols-1 ${clientRole === null ? 'md:grid-cols-2' : ''} gap-8`}>
               {/* Doctors Terms */}
               {(clientRole === null || clientRole === 'médico') && (
-                <div className="bg-slate-950/40 rounded-2xl p-6 border border-white/[0.04] flex flex-col">
-                  <div className="flex items-center gap-2 mb-4 border-b border-white/[0.05] pb-3">
+                <div className="bg-[#f0f5fa]/40 rounded-2xl p-6 border border-[#d4e0ec] flex flex-col">
+                  <div className="flex items-center gap-2 mb-4 border-b border-[#d4e0ec] pb-3">
                     <User className="text-blue-400" size={18} />
-                    <h3 className="font-bold text-white text-base">Médicos Especialistas</h3>
+                    <h3 className="font-bold text-[#37383a] text-base">Médicos Especialistas</h3>
                   </div>
-                  <div className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="text-xs text-[#5a5b5d] leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
                     {congress.terms_doctor || 'Al registrarse, usted acepta recibir información sobre congresos, talleres y productos de alta especialidad médica distribuidos por Arthromed. Sus datos serán procesados con absoluta confidencialidad en cumplimiento de nuestro aviso de privacidad.'}
                   </div>
                 </div>
@@ -689,12 +694,12 @@ export default function CongressLandingClient() {
 
               {/* Distributors Terms */}
               {(clientRole === null || clientRole === 'distribuidor') && (
-                <div className="bg-slate-950/40 rounded-2xl p-6 border border-white/[0.04] flex flex-col">
-                  <div className="flex items-center gap-2 mb-4 border-b border-white/[0.05] pb-3">
+                <div className="bg-[#f0f5fa]/40 rounded-2xl p-6 border border-[#d4e0ec] flex flex-col">
+                  <div className="flex items-center gap-2 mb-4 border-b border-[#d4e0ec] pb-3">
                     <Users className="text-indigo-400" size={18} />
-                    <h3 className="font-bold text-white text-base">Distribuidores Comerciales</h3>
+                    <h3 className="font-bold text-[#37383a] text-base">Distribuidores Comerciales</h3>
                   </div>
-                  <div className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="text-xs text-[#5a5b5d] leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
                     {congress.terms_distributor || 'Al registrarse como distribuidor, usted acepta cumplir con las políticas comerciales de distribución de Arthromed y autoriza el contacto de un asesor comercial para evaluar la alianza comercial de acuerdo con nuestras políticas vigentes.'}
                   </div>
                 </div>
@@ -711,15 +716,15 @@ export default function CongressLandingClient() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="bg-white/[0.03] border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl"
+              className="bg-white border border-[#d4e0ec] rounded-3xl overflow-hidden shadow-2xl"
             >
-              <div className="aspect-[3/4] relative bg-slate-900 flex items-center justify-center group overflow-hidden">
+              <div className="aspect-[3/4] relative bg-white flex items-center justify-center group overflow-hidden">
                 <img
                   src={congress.flyer}
                   alt="Congress Flyer"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
-                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                <div className="absolute inset-0 bg-[#f0f5fa]/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
                   <a
                     href={congress.flyer}
                     target="_blank"
@@ -731,7 +736,7 @@ export default function CongressLandingClient() {
                 </div>
               </div>
               <div className="p-6">
-                <p className="text-sm text-slate-500 text-center italic">Documentación oficial del evento</p>
+                <p className="text-sm text-[#8a8b8d] text-center italic">Documentación oficial del evento</p>
               </div>
             </motion.div>
           )}
@@ -802,8 +807,8 @@ export default function CongressLandingClient() {
               <FileText className="text-blue-400" size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white">Catálogos del Evento</h2>
-              <p className="text-slate-500 text-sm mt-1">Haz clic en cualquier catálogo para abrirlo</p>
+              <h2 className="text-2xl font-bold text-[#37383a]">Catálogos del Evento</h2>
+              <p className="text-[#8a8b8d] text-sm mt-1">Haz clic en cualquier catálogo para abrirlo</p>
             </div>
           </motion.div>
 
@@ -853,7 +858,7 @@ export default function CongressLandingClient() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsCartOpen(false)}
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50"
+              className="fixed inset-0 bg-[#f0f5fa]/60 backdrop-blur-sm z-50"
             />
             {/* Drawer */}
             <motion.div
@@ -861,17 +866,17 @@ export default function CongressLandingClient() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-slate-900 border-l border-white/[0.08] shadow-2xl z-50 flex flex-col"
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white border-l border-[#d4e0ec] shadow-2xl z-50 flex flex-col"
             >
               {/* Header */}
-              <div className="p-6 border-b border-white/[0.05] flex items-center justify-between">
+              <div className="p-6 border-b border-[#d4e0ec] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="text-blue-500" size={24} />
-                  <h2 className="text-xl font-bold text-white">Tu Pre-orden</h2>
+                  <h2 className="text-xl font-bold text-[#37383a]">Tu Pre-orden</h2>
                 </div>
                 <button
                   onClick={() => setIsCartOpen(false)}
-                  className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className="w-10 h-10 rounded-full hover:bg-[#e8f1f9] flex items-center justify-center text-[#5a5b5d] hover:text-[#37383a] transition-colors cursor-pointer"
                 >
                   <X size={20} />
                 </button>
@@ -887,33 +892,33 @@ export default function CongressLandingClient() {
                   return (
                     <div
                       key={productId}
-                      className="bg-white/[0.02] border border-white/[0.05] p-4 rounded-2xl flex gap-4 items-center justify-between"
+                      className="bg-white border border-[#d4e0ec] p-4 rounded-2xl flex gap-4 items-center justify-between"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-white text-sm truncate">{product.description}</p>
-                        <p className="text-xs text-slate-500 mt-1">{product.model || product.order_code}</p>
+                        <p className="font-bold text-[#37383a] text-sm truncate">{product.description}</p>
+                        <p className="text-xs text-[#8a8b8d] mt-1">{product.model || product.order_code}</p>
                         <p className="text-sm font-bold text-blue-400 mt-2">{formatCurrency(discountedPrice)}</p>
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
                         <button
                           onClick={() => removeFromCart(productId)}
-                          className="text-slate-500 hover:text-rose-500 transition-colors p-1 cursor-pointer"
+                          className="text-[#8a8b8d] hover:text-rose-500 transition-colors p-1 cursor-pointer"
                         >
                           <Trash2 size={16} />
                         </button>
 
-                        <div className="flex items-center bg-slate-800 rounded-lg overflow-hidden border border-white/[0.05]">
+                        <div className="flex items-center bg-[#f0f5fa] rounded-lg overflow-hidden border border-[#d4e0ec]">
                           <button
                             onClick={() => updateQuantity(productId, qty - 1)}
-                            className="px-2 py-1 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                            className="px-2 py-1 hover:bg-slate-200 text-[#37383a] font-bold text-xs cursor-pointer"
                           >
                             <Minus size={10} />
                           </button>
-                          <span className="px-2 text-white font-bold text-xs min-w-[20px] text-center">{qty}</span>
+                          <span className="px-2 text-[#37383a] font-bold text-xs min-w-[20px] text-center">{qty}</span>
                           <button
                             onClick={() => updateQuantity(productId, qty + 1)}
-                            className="px-2 py-1 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                            className="px-2 py-1 hover:bg-slate-200 text-[#37383a] font-bold text-xs cursor-pointer"
                           >
                             <Plus size={10} />
                           </button>
@@ -924,7 +929,7 @@ export default function CongressLandingClient() {
                 })}
 
                 {Object.keys(cart).length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-3 py-20">
+                  <div className="h-full flex flex-col items-center justify-center text-center text-[#8a8b8d] gap-3 py-20">
                     <ShoppingBag size={48} className="opacity-20" />
                     <p className="font-medium">Tu carrito está vacío</p>
                     <p className="text-xs max-w-[200px]">Agrega productos recomendados del congreso para cotizar.</p>
@@ -934,12 +939,12 @@ export default function CongressLandingClient() {
 
               {/* Footer */}
               {Object.keys(cart).length > 0 && (
-                <div className="p-6 border-t border-white/[0.05] bg-slate-950/40 space-y-4">
+                <div className="p-6 border-t border-[#d4e0ec] bg-[#f0f5fa]/40 space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-medium">Total de Pre-orden</span>
-                    <span className="text-2xl font-black text-white">{formatCurrency(calculateCartTotal())}</span>
+                    <span className="text-[#5a5b5d] font-medium">Total de Pre-orden</span>
+                    <span className="text-2xl font-black text-[#37383a]">{formatCurrency(calculateCartTotal())}</span>
                   </div>
-                  <p className="text-xs text-slate-500 leading-normal">
+                  <p className="text-xs text-[#8a8b8d] leading-normal">
                     * Los precios mostrados incluyen el descuento exclusivo del congreso.
                   </p>
                   <button
@@ -969,7 +974,7 @@ export default function CongressLandingClient() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsCheckoutOpen(false)}
-              className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50"
+              className="fixed inset-0 bg-[#f0f5fa]/70 backdrop-blur-sm z-50"
             />
             {/* Modal Container */}
             <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4">
@@ -977,17 +982,17 @@ export default function CongressLandingClient() {
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                className="bg-slate-900 border border-white/[0.08] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col relative"
+                className="bg-white border border-[#d4e0ec] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col relative"
               >
                 {/* Header */}
-                <div className="p-6 border-b border-white/[0.05] flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <div className="p-6 border-b border-[#d4e0ec] flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-[#37383a] flex items-center gap-2">
                     <Tag className="text-blue-500" size={20} />
                     Finalizar Pre-orden
                   </h3>
                   <button
                     onClick={() => setIsCheckoutOpen(false)}
-                    className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    className="w-8 h-8 rounded-full hover:bg-[#e8f1f9] flex items-center justify-center text-[#5a5b5d] hover:text-[#37383a] transition-colors cursor-pointer"
                   >
                     <X size={18} />
                   </button>
@@ -998,8 +1003,8 @@ export default function CongressLandingClient() {
                   {currentClientId ? (
                     <div className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-2xl flex items-center gap-3">
                       <CheckCircle2 className="text-blue-400 flex-shrink-0" size={20} />
-                      <p className="text-sm text-slate-300">
-                        Pre-ordenando como: <strong className="text-white">Dr. {clientName || 'Registrado'}</strong>
+                      <p className="text-sm text-[#5a5b5d]">
+                        Pre-ordenando como: <strong className="text-[#37383a]">Dr. {clientName || 'Registrado'}</strong>
                       </p>
                     </div>
                   ) : (
@@ -1010,30 +1015,30 @@ export default function CongressLandingClient() {
                         </p>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Nombre Completo *</label>
+                        <label className="text-xs font-bold text-[#5a5b5d] uppercase tracking-wider block">Nombre Completo *</label>
                         <input
                           type="text"
                           required
                           value={checkoutForm.name}
                           onChange={e => setCheckoutForm({ ...checkoutForm, name: e.target.value })}
                           placeholder="Ej. Dr. Alejandro Gómez"
-                          className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors"
+                          className="w-full bg-white border border-[#d4e0ec] focus:border-blue-500 rounded-xl px-4 py-3 text-[#37383a] text-sm outline-none transition-colors"
                         />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Correo Electrónico *</label>
+                          <label className="text-xs font-bold text-[#5a5b5d] uppercase tracking-wider block">Correo Electrónico *</label>
                           <input
                             type="email"
                             required
                             value={checkoutForm.email}
                             onChange={e => setCheckoutForm({ ...checkoutForm, email: e.target.value })}
                             placeholder="ejemplo@correo.com"
-                            className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors"
+                            className="w-full bg-white border border-[#d4e0ec] focus:border-blue-500 rounded-xl px-4 py-3 text-[#37383a] text-sm outline-none transition-colors"
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Teléfono (10 dígitos) *</label>
+                          <label className="text-xs font-bold text-[#5a5b5d] uppercase tracking-wider block">Teléfono (10 dígitos) *</label>
                           <input
                             type="tel"
                             required
@@ -1041,7 +1046,7 @@ export default function CongressLandingClient() {
                             value={checkoutForm.phone}
                             onChange={e => setCheckoutForm({ ...checkoutForm, phone: e.target.value })}
                             placeholder="8110203040"
-                            className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors"
+                            className="w-full bg-white border border-[#d4e0ec] focus:border-blue-500 rounded-xl px-4 py-3 text-[#37383a] text-sm outline-none transition-colors"
                           />
                         </div>
                       </div>
@@ -1049,13 +1054,13 @@ export default function CongressLandingClient() {
                   )}
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Notas o Comentarios Adicionales</label>
+                    <label className="text-xs font-bold text-[#5a5b5d] uppercase tracking-wider block">Notas o Comentarios Adicionales</label>
                     <textarea
                       value={checkoutForm.notes}
                       onChange={e => setCheckoutForm({ ...checkoutForm, notes: e.target.value })}
                       placeholder="Dirección de envío, dudas técnicas, o especificaciones..."
                       rows={3}
-                      className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors resize-none"
+                      className="w-full bg-white border border-[#d4e0ec] focus:border-blue-500 rounded-xl px-4 py-3 text-[#37383a] text-sm outline-none transition-colors resize-none"
                     />
                   </div>
 
@@ -1100,7 +1105,7 @@ export default function CongressLandingClient() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50"
+              className="fixed inset-0 bg-[#f0f5fa]/80 backdrop-blur-md z-50"
             />
             {/* Modal */}
             <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4">
@@ -1108,13 +1113,13 @@ export default function CongressLandingClient() {
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-slate-900 border border-emerald-500/20 rounded-3xl w-full max-w-md p-8 text-center shadow-2xl relative"
+                className="bg-white border border-emerald-200 rounded-3xl w-full max-w-md p-8 text-center shadow-2xl relative"
               >
-                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-400 animate-bounce">
+                <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600 animate-bounce">
                   <CheckCircle2 size={44} />
                 </div>
-                <h3 className="text-2xl font-black text-white mb-3">¡Pre-orden Recibida!</h3>
-                <p className="text-slate-300 text-sm leading-relaxed mb-6">
+                <h3 className="text-2xl font-black text-[#37383a] mb-3">¡Pre-orden Recibida!</h3>
+                <p className="text-[#5a5b5d] text-sm leading-relaxed mb-6">
                   Tu pre-orden de cotización con precios de congreso ha sido registrada correctamente. Un ejecutivo de nuestro equipo de ventas se pondrá en contacto contigo muy pronto para brindarte atención personalizada.
                 </p>
                 <button
@@ -1130,11 +1135,11 @@ export default function CongressLandingClient() {
       </AnimatePresence>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-white/[0.05] text-center">
+      <footer className="py-12 border-t border-[#d4e0ec] text-center">
         <div className="max-w-6xl mx-auto px-6">
-          <p className="text-slate-500 text-sm">© 2026 Arthromed — Equipo Médico de Alto Rendimiento. Todos los derechos reservados.</p>
+          <p className="text-[#8a8b8d] text-sm">© 2026 Arthromed — Equipo Médico de Alto Rendimiento. Todos los derechos reservados.</p>
           <div className="mt-4">
-            <Link href="/aviso-de-privacidad" className="text-slate-400 hover:text-blue-400 text-sm transition-colors">
+            <Link href="/aviso-de-privacidad" className="text-[#5a5b5d] hover:text-blue-400 text-sm transition-colors">
               Aviso de Privacidad
             </Link>
           </div>
