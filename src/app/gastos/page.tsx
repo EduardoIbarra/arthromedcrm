@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Gasto } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
-import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle, Search } from 'lucide-react'
+import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle, Search, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -34,6 +34,33 @@ export default function GastosPage() {
   const [selectedCongresoFilter, setSelectedCongresoFilter] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsExportDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  const handleExportPDF = () => {
+    setIsExportDropdownOpen(false)
+    const params = new URLSearchParams()
+    if (startDate) params.append('startDate', startDate)
+    if (endDate) params.append('endDate', endDate)
+    if (selectedCategoryFilter) params.append('category', selectedCategoryFilter)
+    if (selectedCongresoFilter) params.append('congreso', selectedCongresoFilter)
+    if (searchTerm) params.append('search', searchTerm)
+    
+    window.open(`/gastos/print?${params.toString()}`, '_blank')
+  }
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [selectedGasto, setSelectedGasto] = useState<GastoWithCongreso | null>(null)
@@ -124,6 +151,7 @@ export default function GastosPage() {
 
 
   const handleExportExcel = () => {
+    setIsExportDropdownOpen(false)
     if (filteredGastos.length === 0) return
     const dataToExport = filteredGastos.map(g => ({
       Fecha: g.expense_date ? new Date(g.expense_date).toLocaleDateString() : new Date(g.created_at).toLocaleDateString(),
@@ -322,9 +350,38 @@ export default function GastosPage() {
             
             <div className="flex items-center gap-3">
               <PermissionGuard section="gastos" action="create">
-                <button onClick={handleExportExcel} className="btn-secondary whitespace-nowrap">
-                  <Download size={18} /> Exportar
-                </button>
+                <div className="relative" ref={dropdownRef}>
+                  <button 
+                    onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)} 
+                    className="btn-secondary whitespace-nowrap flex items-center gap-1.5"
+                  >
+                    <Download size={18} /> Exportar <ChevronDown size={14} className="text-gray-500" />
+                  </button>
+                  {isExportDropdownOpen && (
+                    <div className="absolute left-0 md:right-0 md:left-auto mt-2 w-56 rounded-xl bg-white border border-gray-200 shadow-lg py-1 z-30 animate-fade-in">
+                      <button
+                        onClick={handleExportExcel}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors border-b border-gray-100 cursor-pointer"
+                      >
+                        <FileSpreadsheet size={16} className="text-green-600" />
+                        <div>
+                          <p className="font-semibold text-gray-900">Excel (CSV)</p>
+                          <p className="text-xs text-gray-400">Exportar listado actual</p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={handleExportPDF}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <FileText size={16} className="text-red-600" />
+                        <div>
+                          <p className="font-semibold text-gray-900">Reporte PDF</p>
+                          <p className="text-xs text-gray-400">Con gráficos y resúmenes</p>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary whitespace-nowrap !bg-purple-50 !text-purple-600 !border-purple-200 hover:!bg-purple-100">
                   <Sparkles size={18} /> Importar AI
                 </button>
@@ -385,7 +442,7 @@ export default function GastosPage() {
                 )}
                 {searchTerm && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200">
-                    <span>{t('search') || 'Buscar'}: "{searchTerm}"</span>
+                    <span>{t('search') || 'Buscar'}: &quot;{searchTerm}&quot;</span>
                     <button 
                       onClick={() => setSearchTerm('')}
                       className="hover:bg-gray-200 p-0.5 rounded-full transition-colors"
