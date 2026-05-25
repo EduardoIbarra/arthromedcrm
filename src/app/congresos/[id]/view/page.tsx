@@ -115,7 +115,13 @@ export default function CongresoViewPage() {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link 
+              href={`/congresos/${id}/planning`} 
+              className="btn-secondary bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+            >
+              <Calendar size={18} /> {t('planning')}
+            </Link>
             <Link 
               href={`/congresos/${id}/landing`} 
               target="_blank"

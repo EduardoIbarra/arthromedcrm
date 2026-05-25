@@ -22,6 +22,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           include: {
             catalog: true
           }
+        },
+        itinerary_items: {
+          orderBy: [
+            { date: 'asc' },
+            { time: 'asc' }
+          ]
+        },
+        travelers: {
+          orderBy: { name: 'asc' }
         }
       }
     })
