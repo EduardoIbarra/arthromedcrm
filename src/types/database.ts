@@ -198,5 +198,24 @@ export interface UserProfile {
   updated_at: string
 }
 
-// No longer exporting Database type since we use untyped client
+export interface Evento {
+  id: string
+  nombre: string
+  tipo: string // 'cirugia' | 'workshop' | 'actividad' | 'otro'
+  fecha_inicio: string
+  fecha_fin: string | null
+  ubicacion: string | null
+  responsable: string | null
+  presupuesto: number | null
+  estado: string // 'planificado' | 'realizado' | 'cancelado'
+  descripcion: string | null
+  created_by: string | null
+  created_at: string | null
+}
+
+export type EventoInsert = Omit<Evento, 'id' | 'created_at' | 'created_by'> & {
+  id?: string
+}
+
 export type Database = Record<string, unknown>
+
