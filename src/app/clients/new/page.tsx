@@ -5,7 +5,7 @@ import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import { ChevronLeft, Save, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { ClientInsert } from '@/types/database'
+import { ClientInsert, Congreso } from '@/types/database'
 
 const MEXICO_STATES = [
   'CDMX','Estado de México','Jalisco','Nuevo León','Puebla','Guanajuato',
@@ -67,10 +67,12 @@ export default function NewClientPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [specialties, setSpecialties] = useState<string[]>([])
+  const [congresos, setCongresos] = useState<Congreso[]>([])
+  const [selectedCongreso, setSelectedCongreso] = useState('')
   const [form, setForm] = useState<Partial<ClientInsert>>({ status: 'Activo', states: [], hospitals: [], specialties: [], tags: [] })
 
   useEffect(() => {
-    async function loadSpecialties() {
+    async function loadData() {
       try {
         const res = await fetch('/api/catalog/specialties')
         const json = await res.json()
@@ -79,8 +81,15 @@ export default function NewClientPage() {
         console.error('Error loading specialties', e)
         setSpecialties(['Artroscopia', 'Columna', 'Traumatología y Ortopedia'])
       }
+      try {
+        const res = await fetch('/api/congresos')
+        const json = await res.json()
+        if (json.data) setCongresos(json.data)
+      } catch (e) {
+        console.error('Error loading congresos', e)
+      }
     }
-    loadSpecialties()
+    loadData()
   }, [])
 
   const set = (key: keyof ClientInsert, val: unknown) => setForm(p => ({ ...p, [key]: val }))
@@ -94,7 +103,12 @@ export default function NewClientPage() {
     if (!form.name?.trim()) { setError('El nombre es obligatorio'); return }
     setSaving(true); setError(null)
     try {
-      const res = await fetch('/api/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      // Merge congreso tag into tags array
+      const tags = [...(form.tags || []).filter(t => !t.startsWith('congreso:'))]
+      if (selectedCongreso) tags.push(`congreso:${selectedCongreso}`)
+      const payload = { ...form, tags }
+
+      const res = await fetch('/api/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       router.push(`/clients/${json.data.id}`)
@@ -139,6 +153,12 @@ export default function NewClientPage() {
             </Field>
             <Field label="Origen (Source)">
               <input className="erp-input" value={form.source || ''} onChange={e => set('source', e.target.value)} placeholder="Ej: Simposio, WhatsApp" />
+            </Field>
+            <Field label={t('selectCongress')}>
+              <select className="erp-input" value={selectedCongreso} onChange={e => setSelectedCongreso(e.target.value)}>
+                <option value="">Ninguno</option>
+                {congresos.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </Field>
             <Field label={t('taxRegime')} full>
               <select className="erp-input" value={form.tax_regime || ''} onChange={e => set('tax_regime', e.target.value)}>

@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import StatusBadge from '@/components/StatusBadge'
-import { Client } from '@/types/database'
+import { Client, Congreso } from '@/types/database'
 import { Search, Filter, Download, UserPlus, Phone, Mail, MapPin, ChevronRight, X, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -31,14 +31,17 @@ function ClientsContent() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [stateFilter, setStateFilter] = useState('')
+  const [congresoFilter, setCongresoFilter] = useState('')
   const [isProspectFilter, setIsProspectFilter] = useState(false)
   const [page, setPage] = useState(1)
   const [showFilters, setShowFilters] = useState(false)
+  const [congresos, setCongresos] = useState<Congreso[]>([])
   const debouncedSearch = useDebounce(search, 350)
 
   useEffect(() => {
     const status = searchParams.get('status')
     const isProspect = searchParams.get('is_prospect') === 'true'
+    const congreso = searchParams.get('congreso')
     if (status) {
       setStatusFilter(status)
       setShowFilters(true)
@@ -48,7 +51,18 @@ function ClientsContent() {
       setStatusFilter('')
       setShowFilters(true)
     }
+    if (congreso) {
+      setCongresoFilter(congreso)
+      setShowFilters(true)
+    }
   }, [searchParams])
+
+  useEffect(() => {
+    fetch('/api/congresos')
+      .then(r => r.json())
+      .then(json => setCongresos(json.data || []))
+      .catch(() => {})
+  }, [])
 
   const fetchClients = useCallback(async () => {
     setLoading(true)
@@ -57,6 +71,7 @@ function ClientsContent() {
       ...(debouncedSearch && { search: debouncedSearch }),
       ...(statusFilter && { status: statusFilter }),
       ...(stateFilter && { state: stateFilter }),
+      ...(congresoFilter && { congreso: congresoFilter }),
       ...(isProspectFilter && { is_prospect: 'true' }),
     })
     try {
@@ -65,10 +80,10 @@ function ClientsContent() {
       setClients(json.data || [])
       setTotal(json.count || 0)
     } finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, stateFilter, isProspectFilter, page])
+  }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, page])
 
   useEffect(() => { fetchClients() }, [fetchClients])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, isProspectFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter])
 
   const exportCsv = () => {
     const headers = ['Nombre', 'RFC', 'Teléfono', 'Email Contacto', 'Estados', 'Especialidades', 'Estatus']
@@ -103,7 +118,7 @@ function ClientsContent() {
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#8a8b8d' }} />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search')} className="erp-input pl-9" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search')} className="erp-input pl-10" />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#8a8b8d' }}><X size={14} /></button>
             )}
@@ -114,9 +129,9 @@ function ClientsContent() {
             style={showFilters ? { color: '#0763a9', borderColor: '#0763a9' } : {}}
           >
             <Filter size={15} /> {t('filter')}
-            {(statusFilter || stateFilter || isProspectFilter) && (
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter) && (
               <span className="ml-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center" style={{ background: '#0763a9' }}>
-                {[statusFilter, stateFilter, isProspectFilter].filter(Boolean).length}
+                {[statusFilter, stateFilter, congresoFilter, isProspectFilter].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -160,8 +175,15 @@ function ClientsContent() {
                 {MEXICO_STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            {(statusFilter || stateFilter || isProspectFilter) && (
-              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setIsProspectFilter(false) }} className="btn-ghost text-xs self-end mb-0.5">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: '#5a5b5d' }}>Congreso</label>
+              <select value={congresoFilter} onChange={e => setCongresoFilter(e.target.value)} className="erp-input text-sm py-1.5" style={{ minWidth: 180 }}>
+                <option value="">{t('all')}</option>
+                {congresos.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter) && (
+              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setCongresoFilter(''); setIsProspectFilter(false) }} className="btn-ghost text-xs self-end mb-0.5">
                 <X size={13} /> Limpiar
               </button>
             )}
