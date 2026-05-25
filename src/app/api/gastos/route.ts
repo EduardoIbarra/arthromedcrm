@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const startDate = searchParams.get('startDate')
   const endDate = searchParams.get('endDate')
+  const congressId = searchParams.get('congress_id')
 
   let query = supabase
     .from('gastos')
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
   }
   if (endDate) {
     query = query.lte('expense_date', endDate)
+  }
+  if (congressId) {
+    query = query.eq('congress_id', congressId)
   }
 
   const { data, error } = await query

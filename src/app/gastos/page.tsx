@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Gasto } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
-import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2 } from 'lucide-react'
+import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -29,6 +29,8 @@ export default function GastosPage() {
   const [gastos, setGastos] = useState<GastoWithCongreso[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [congresos, setCongresos] = useState<{ id: string; name: string }[]>([])
+  const [selectedCongreso, setSelectedCongreso] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -53,6 +55,7 @@ export default function GastosPage() {
       const params = new URLSearchParams()
       if (startDate) params.append('startDate', startDate)
       if (endDate) params.append('endDate', endDate)
+      if (selectedCongreso) params.append('congress_id', selectedCongreso)
       
       const res = await fetch('/api/gastos?' + params.toString())
       if (!res.ok) {
@@ -83,10 +86,21 @@ export default function GastosPage() {
     }
   }
 
+  const fetchCongresos = async () => {
+    try {
+      const res = await fetch('/api/congresos')
+      const { data } = await res.json()
+      if (data) setCongresos(data.map((c: any) => ({ id: c.id, name: c.name })))
+    } catch (err) {
+      console.error('Error fetching congresos:', err)
+    }
+  }
+
   useEffect(() => {
     fetchGastos()
     fetchCategories()
-  }, [startDate, endDate])
+    fetchCongresos()
+  }, [startDate, endDate, selectedCongreso])
 
   const handleDelete = async () => {
     if (!selectedGasto) return
@@ -246,38 +260,64 @@ export default function GastosPage() {
       <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in space-y-8">
         
         {/* HEADER */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <Receipt className="text-blue-600" size={28} />
-              {t('gastos')}
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {t('appName')} / {t('gastos')}
-            </p>
+        <header className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                <Receipt className="text-blue-600" size={28} />
+                {t('gastos')}
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {t('appName')} / {t('gastos')}
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <PermissionGuard section="gastos" action="create">
+                <button onClick={handleExportExcel} className="btn-secondary whitespace-nowrap">
+                  <Download size={18} /> Exportar
+                </button>
+                <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary whitespace-nowrap !bg-purple-50 !text-purple-600 !border-purple-200 hover:!bg-purple-100">
+                  <Sparkles size={18} /> Importar AI
+                </button>
+                <Link href="/gastos/new" className="btn-primary whitespace-nowrap">
+                  <Plus size={18} /> {t('newGasto')}
+                </Link>
+              </PermissionGuard>
+            </div>
           </div>
-          
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            {/* Filters */}
+
+          {/* Filters Row */}
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
               <Filter size={18} className="text-gray-400 ml-2" />
-              <div className="flex items-center gap-2">
-                <input 
-                  type="date" 
-                  className="erp-input !py-1.5 !px-3 text-sm"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  title={t('startDate') as string}
-                />
-                <span className="text-gray-400">-</span>
-                <input 
-                  type="date" 
-                  className="erp-input !py-1.5 !px-3 text-sm"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  title={t('endDate') as string}
-                />
-              </div>
+              <select
+                className="erp-input !py-1.5 !px-3 text-sm min-w-[160px]"
+                value={selectedCongreso}
+                onChange={e => setSelectedCongreso(e.target.value)}
+                title="Filtrar por congreso"
+              >
+                <option value="">Todos los congresos</option>
+                {congresos.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <span className="text-gray-200">|</span>
+              <input 
+                type="date" 
+                className="erp-input !py-1.5 !px-3 text-sm"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                title={t('startDate') as string}
+              />
+              <span className="text-gray-400">-</span>
+              <input 
+                type="date" 
+                className="erp-input !py-1.5 !px-3 text-sm"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                title={t('endDate') as string}
+              />
             </div>
 
             {/* View Toggle */}
@@ -297,20 +337,6 @@ export default function GastosPage() {
                 <List size={18} />
               </button>
             </div>
-
-
-            <PermissionGuard section="gastos" action="create">
-              <button onClick={handleExportExcel} className="btn-secondary whitespace-nowrap">
-                <Download size={18} /> Exportar
-              </button>
-              <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary whitespace-nowrap !bg-purple-50 !text-purple-600 !border-purple-200 hover:!bg-purple-100">
-                <Sparkles size={18} /> Importar AI
-              </button>
-              <Link href="/gastos/new" className="btn-primary whitespace-nowrap">
-                <Plus size={18} /> {t('newGasto')}
-              </Link>
-            </PermissionGuard>
-
           </div>
         </header>
 
