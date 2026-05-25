@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Gasto } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
-import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2 } from 'lucide-react'
+import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -30,7 +30,8 @@ export default function GastosPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [congresos, setCongresos] = useState<{ id: string; name: string }[]>([])
-  const [selectedCongreso, setSelectedCongreso] = useState('')
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null)
+  const [selectedCongresoFilter, setSelectedCongresoFilter] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -55,7 +56,6 @@ export default function GastosPage() {
       const params = new URLSearchParams()
       if (startDate) params.append('startDate', startDate)
       if (endDate) params.append('endDate', endDate)
-      if (selectedCongreso) params.append('congress_id', selectedCongreso)
       
       const res = await fetch('/api/gastos?' + params.toString())
       if (!res.ok) {
@@ -100,7 +100,7 @@ export default function GastosPage() {
     fetchGastos()
     fetchCategories()
     fetchCongresos()
-  }, [startDate, endDate, selectedCongreso])
+  }, [startDate, endDate])
 
   const handleDelete = async () => {
     if (!selectedGasto) return
@@ -123,8 +123,8 @@ export default function GastosPage() {
 
 
   const handleExportExcel = () => {
-    if (gastos.length === 0) return
-    const dataToExport = gastos.map(g => ({
+    if (filteredGastos.length === 0) return
+    const dataToExport = filteredGastos.map(g => ({
       Fecha: g.expense_date ? new Date(g.expense_date).toLocaleDateString() : new Date(g.created_at).toLocaleDateString(),
       Descripción: g.description,
       Nombre: g.name,
@@ -221,39 +221,68 @@ export default function GastosPage() {
     }).format(amount)
   }
 
-  // Analytics Data Preparation
-  const categoryMap = gastos.reduce((acc, curr) => {
+  // 1. Filtered lists for cross-filtering and rendering
+  const gastosForCategoryChart = gastos.filter(g => {
+    if (selectedCongresoFilter) {
+      const congresoName = g.congreso?.name || 'Sin Congreso'
+      return congresoName === selectedCongresoFilter
+    }
+    return true
+  })
+
+  const gastosForCongresoChart = gastos.filter(g => {
+    if (selectedCategoryFilter) {
+      const catName = g.category?.name || 'Sin Categoría'
+      return catName === selectedCategoryFilter
+    }
+    return true
+  })
+
+  const filteredGastos = gastos.filter(g => {
+    if (selectedCategoryFilter) {
+      const catName = g.category?.name || 'Sin Categoría'
+      if (catName !== selectedCategoryFilter) return false
+    }
+    if (selectedCongresoFilter) {
+      const congresoName = g.congreso?.name || 'Sin Congreso'
+      if (congresoName !== selectedCongresoFilter) return false
+    }
+    return true
+  })
+
+  // 2. Analytics Data Preparation
+  const categoryMap = gastosForCategoryChart.reduce((acc, curr) => {
     const catName = curr.category?.name || 'Sin Categoría'
     acc[catName] = (acc[catName] || 0) + Number(curr.amount || 0)
     return acc
   }, {} as Record<string, number>)
   const categoryData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }))
 
-  const congresoMap = gastos.reduce((acc, curr) => {
+  const congresoMap = gastosForCongresoChart.reduce((acc, curr) => {
     const congresoName = curr.congreso?.name || 'Sin Congreso'
     acc[congresoName] = (acc[congresoName] || 0) + Number(curr.amount || 0)
     return acc
   }, {} as Record<string, number>)
   const congresoData = Object.entries(congresoMap).map(([name, value]) => ({ name, value }))
 
-  const billableAmount = gastos.filter(g => g.is_billable).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
-  const nonBillableAmount = gastos.filter(g => !g.is_billable).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
+  const billableAmount = filteredGastos.filter(g => g.is_billable).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
+  const nonBillableAmount = filteredGastos.filter(g => !g.is_billable).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
   const billableData = [
     { name: t('billable'), value: billableAmount },
     { name: t('nonFacturable'), value: nonBillableAmount }
   ].filter(d => d.value > 0)
 
-  const billedAmount = gastos.filter(g => g.is_billable && g.is_billed).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
-  const unbilledAmount = gastos.filter(g => g.is_billable && !g.is_billed).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
+  const billedAmount = filteredGastos.filter(g => g.is_billable && g.is_billed).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
+  const unbilledAmount = filteredGastos.filter(g => g.is_billable && !g.is_billed).reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
   const pendingData = [
     { name: t('billed'), value: billedAmount },
     { name: t('unbilled'), value: unbilledAmount }
   ].filter(d => d.value > 0)
 
-  const kpiTotalSpent = gastos.reduce((acc, curr) => acc + Number(curr.total || 0), 0)
-  const kpiTotalBillable = gastos.filter(g => g.is_billable).reduce((acc, curr) => acc + Number(curr.total || 0), 0)
-  const kpiTotalPendingBilling = gastos.filter(g => g.is_billable && !g.is_billed).reduce((acc, curr) => acc + Number(curr.total || 0), 0)
-  const kpiExpensesCount = gastos.length
+  const kpiTotalSpent = filteredGastos.reduce((acc, curr) => acc + Number(curr.total || 0), 0)
+  const kpiTotalBillable = filteredGastos.filter(g => g.is_billable).reduce((acc, curr) => acc + Number(curr.total || 0), 0)
+  const kpiTotalPendingBilling = filteredGastos.filter(g => g.is_billable && !g.is_billed).reduce((acc, curr) => acc + Number(curr.total || 0), 0)
+  const kpiExpensesCount = filteredGastos.length
 
   return (
     <AppShell>
@@ -288,21 +317,9 @@ export default function GastosPage() {
           </div>
 
           {/* Filters Row */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
               <Filter size={18} className="text-gray-400 ml-2" />
-              <select
-                className="erp-input !py-1.5 !px-3 text-sm min-w-[160px]"
-                value={selectedCongreso}
-                onChange={e => setSelectedCongreso(e.target.value)}
-                title="Filtrar por congreso"
-              >
-                <option value="">Todos los congresos</option>
-                {congresos.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <span className="text-gray-200">|</span>
               <input 
                 type="date" 
                 className="erp-input !py-1.5 !px-3 text-sm"
@@ -319,6 +336,45 @@ export default function GastosPage() {
                 title={t('endDate') as string}
               />
             </div>
+
+            {/* Active Filter Badges */}
+            {(selectedCategoryFilter || selectedCongresoFilter) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedCategoryFilter && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                    <span>{t('categoryFilter')}: {selectedCategoryFilter}</span>
+                    <button 
+                      onClick={() => setSelectedCategoryFilter(null)}
+                      className="hover:bg-blue-100 p-0.5 rounded-full transition-colors"
+                      title="Quitar filtro"
+                    >
+                      <XCircle size={14} className="text-blue-500 hover:text-blue-700" />
+                    </button>
+                  </span>
+                )}
+                {selectedCongresoFilter && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
+                    <span>{t('congresoFilter')}: {selectedCongresoFilter}</span>
+                    <button 
+                      onClick={() => setSelectedCongresoFilter(null)}
+                      className="hover:bg-purple-100 p-0.5 rounded-full transition-colors"
+                      title="Quitar filtro"
+                    >
+                      <XCircle size={14} className="text-purple-500 hover:text-purple-700" />
+                    </button>
+                  </span>
+                )}
+                <button 
+                  onClick={() => {
+                    setSelectedCategoryFilter(null)
+                    setSelectedCongresoFilter(null)
+                  }}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  {t('cleanFilters')}
+                </button>
+              </div>
+            )}
 
             {/* View Toggle */}
             <div className="flex items-center p-1 bg-gray-100 rounded-lg">
@@ -370,10 +426,35 @@ export default function GastosPage() {
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={categoryData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value">
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
+                    <Pie 
+                      data={categoryData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={40} 
+                      outerRadius={70} 
+                      paddingAngle={2} 
+                      dataKey="value"
+                      onClick={(data) => {
+                        if (data && typeof data.name === 'string') {
+                          const name = data.name
+                          setSelectedCategoryFilter(prev => prev === name ? null : name)
+                        }
+                      }}
+                      style={{ cursor: 'pointer', outline: 'none' }}
+                    >
+                      {categoryData.map((entry, index) => {
+                        const isSelected = selectedCategoryFilter === entry.name
+                        const isAnySelected = selectedCategoryFilter !== null
+                        return (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={COLORS[index % COLORS.length]} 
+                            opacity={isAnySelected ? (isSelected ? 1.0 : 0.3) : 1.0}
+                            stroke={isSelected ? '#3b82f6' : '#fff'}
+                            strokeWidth={isSelected ? 2 : 1}
+                          />
+                        )
+                      })}
                     </Pie>
                     <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                   </PieChart>
@@ -418,10 +499,35 @@ export default function GastosPage() {
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={congresoData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value">
-                      {congresoData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
+                    <Pie 
+                      data={congresoData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={40} 
+                      outerRadius={70} 
+                      paddingAngle={2} 
+                      dataKey="value"
+                      onClick={(data) => {
+                        if (data && typeof data.name === 'string') {
+                          const name = data.name
+                          setSelectedCongresoFilter(prev => prev === name ? null : name)
+                        }
+                      }}
+                      style={{ cursor: 'pointer', outline: 'none' }}
+                    >
+                      {congresoData.map((entry, index) => {
+                        const isSelected = selectedCongresoFilter === entry.name
+                        const isAnySelected = selectedCongresoFilter !== null
+                        return (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={COLORS[index % COLORS.length]} 
+                            opacity={isAnySelected ? (isSelected ? 1.0 : 0.3) : 1.0}
+                            stroke={isSelected ? '#3b82f6' : '#fff'}
+                            strokeWidth={isSelected ? 2 : 1}
+                          />
+                        )
+                      })}
                     </Pie>
                     <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                   </PieChart>
@@ -444,10 +550,23 @@ export default function GastosPage() {
           <div className="card p-12 text-center text-gray-500">
             {t('noResults')}
           </div>
+        ) : filteredGastos.length === 0 ? (
+          <div className="card p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-3">
+            <p className="font-medium text-gray-600">{t('noFilteredResults')}</p>
+            <button 
+              onClick={() => {
+                setSelectedCategoryFilter(null)
+                setSelectedCongresoFilter(null)
+              }}
+              className="btn-secondary !py-1.5 !px-4 text-xs animate-pulse"
+            >
+              {t('cleanFilters')}
+            </button>
+          </div>
         ) : viewMode === 'grid' ? (
           /* GRID VIEW */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gastos.map(gasto => (
+            {filteredGastos.map(gasto => (
               <div 
                 key={gasto.id} 
                 className="card p-6 flex flex-col items-start gap-4 hover:border-blue-300 hover:shadow-md transition-all group relative overflow-hidden h-full cursor-pointer"
@@ -534,7 +653,7 @@ export default function GastosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {gastos.map(gasto => (
+                  {filteredGastos.map(gasto => (
                     <tr 
                       key={gasto.id} 
                       className="hover:bg-gray-50 transition-colors cursor-pointer"

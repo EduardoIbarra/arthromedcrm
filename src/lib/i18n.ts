@@ -228,6 +228,10 @@ export const translations = {
     activeCongresos: 'Congresos Activos',
     nextCongreso: 'Próximo Congreso',
     overview: 'Resumen General',
+    cleanFilters: 'Limpiar filtros',
+    categoryFilter: 'Categoría',
+    congresoFilter: 'Congreso',
+    noFilteredResults: 'No se encontraron gastos con los filtros aplicados.',
   },
   en: {
     appName: 'Arthromed ERP',
@@ -443,6 +447,10 @@ export const translations = {
     activeCongresos: 'Active Congresses',
     nextCongreso: 'Next Congress',
     overview: 'Overview',
+    cleanFilters: 'Clear filters',
+    categoryFilter: 'Category',
+    congresoFilter: 'Congress',
+    noFilteredResults: 'No spendings found with the applied filters.',
   },
   zh: {
     appName: 'Arthromed ERP',
@@ -658,6 +666,10 @@ export const translations = {
     activeCongresos: '活跃大会',
     nextCongreso: '下一个大会',
     overview: '概览',
+    cleanFilters: '清除筛选',
+    categoryFilter: '类别',
+    congresoFilter: '大会',
+    noFilteredResults: '未找到符合筛选条件的支出。',
   },
 } as const
 
