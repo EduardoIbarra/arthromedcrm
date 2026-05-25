@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Gasto } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
-import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle } from 'lucide-react'
+import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle, Search } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -32,6 +32,7 @@ export default function GastosPage() {
   const [congresos, setCongresos] = useState<{ id: string; name: string }[]>([])
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null)
   const [selectedCongresoFilter, setSelectedCongresoFilter] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -222,7 +223,23 @@ export default function GastosPage() {
   }
 
   // 1. Filtered lists for cross-filtering and rendering
+  const searchFilter = (g: GastoWithCongreso) => {
+    if (!searchTerm.trim()) return true
+    const term = searchTerm.toLowerCase()
+    const matchesDescription = g.description?.toLowerCase().includes(term) || false
+    const matchesName = g.name?.toLowerCase().includes(term) || false
+    const matchesCategory = g.category?.name?.toLowerCase().includes(term) || false
+    const matchesCongreso = g.congreso?.name?.toLowerCase().includes(term) || false
+    const matchesCard = g.card?.toLowerCase().includes(term) || false
+    const matchesComments = g.comments?.toLowerCase().includes(term) || false
+    const matchesFolio = g.folio_fiscal?.toLowerCase().includes(term) || false
+    const matchesAmount = g.amount !== undefined && g.amount !== null ? String(g.amount).includes(term) : false
+    const matchesTotal = g.total !== undefined && g.total !== null ? String(g.total).includes(term) : false
+    return matchesDescription || matchesName || matchesCategory || matchesCongreso || matchesCard || matchesComments || matchesFolio || matchesAmount || matchesTotal
+  }
+
   const gastosForCategoryChart = gastos.filter(g => {
+    if (!searchFilter(g)) return false
     if (selectedCongresoFilter) {
       const congresoName = g.congreso?.name || 'Sin Congreso'
       return congresoName === selectedCongresoFilter
@@ -231,6 +248,7 @@ export default function GastosPage() {
   })
 
   const gastosForCongresoChart = gastos.filter(g => {
+    if (!searchFilter(g)) return false
     if (selectedCategoryFilter) {
       const catName = g.category?.name || 'Sin Categoría'
       return catName === selectedCategoryFilter
@@ -239,6 +257,7 @@ export default function GastosPage() {
   })
 
   const filteredGastos = gastos.filter(g => {
+    if (!searchFilter(g)) return false
     if (selectedCategoryFilter) {
       const catName = g.category?.name || 'Sin Categoría'
       if (catName !== selectedCategoryFilter) return false
@@ -338,7 +357,7 @@ export default function GastosPage() {
             </div>
 
             {/* Active Filter Badges */}
-            {(selectedCategoryFilter || selectedCongresoFilter) && (
+            {(selectedCategoryFilter || selectedCongresoFilter || searchTerm) && (
               <div className="flex flex-wrap items-center gap-2">
                 {selectedCategoryFilter && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
@@ -364,10 +383,23 @@ export default function GastosPage() {
                     </button>
                   </span>
                 )}
+                {searchTerm && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200">
+                    <span>{t('search') || 'Buscar'}: "{searchTerm}"</span>
+                    <button 
+                      onClick={() => setSearchTerm('')}
+                      className="hover:bg-gray-200 p-0.5 rounded-full transition-colors"
+                      title="Quitar filtro"
+                    >
+                      <XCircle size={14} className="text-gray-500 hover:text-gray-750" />
+                    </button>
+                  </span>
+                )}
                 <button 
                   onClick={() => {
                     setSelectedCategoryFilter(null)
                     setSelectedCongresoFilter(null)
+                    setSearchTerm('')
                   }}
                   className="text-xs font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
                 >
@@ -537,6 +569,30 @@ export default function GastosPage() {
           </div>
         )}
 
+        {/* Search Input */}
+        {!isLoading && !error && gastos.length > 0 && (
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={t('searchGastos') || 'Buscar gastos...'}
+                className="erp-input pl-10 pr-10 w-full"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                >
+                  <XCircle size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* CONTENT */}
         {isLoading ? (
           <div className="card p-12 flex justify-center">
@@ -557,6 +613,7 @@ export default function GastosPage() {
               onClick={() => {
                 setSelectedCategoryFilter(null)
                 setSelectedCongresoFilter(null)
+                setSearchTerm('')
               }}
               className="btn-secondary !py-1.5 !px-4 text-xs animate-pulse"
             >

@@ -160,6 +160,18 @@ body {
   box-shadow: 0 0 0 3px rgba(7,99,169,0.12);
 }
 
+/* Prevent icon overlap on inputs with relative absolute-positioned icons/buttons */
+.relative > svg.absolute + .erp-input,
+.relative > .absolute + .erp-input {
+  padding-left: 2.5rem !important;
+}
+
+.relative > .erp-input:has(~ svg.absolute),
+.relative > .erp-input:has(~ button.absolute),
+.relative > .erp-input:has(~ .absolute) {
+  padding-right: 2.5rem !important;
+}
+
 /* ── Buttons ─────────────────────────────────── */
 .btn-primary {
   display: inline-flex;
