@@ -1,11 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Users, CheckCircle2, XCircle, Sparkles, MapPin, Activity } from 'lucide-react'
+import {
+  Users, CheckCircle2, XCircle, Sparkles, MapPin, Activity,
+  Receipt, Calendar, DollarSign, Clock, ArrowUpRight, TrendingUp
+} from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import StatCard from '@/components/StatCard'
 import StatusBadge from '@/components/StatusBadge'
-import { Client } from '@/types/database'
+import { Client, Congreso, Gasto } from '@/types/database'
 import { formatDistanceToNow } from 'date-fns'
 import { es, enUS, zhCN } from 'date-fns/locale'
 import { Locale } from '@/lib/i18n'
@@ -16,7 +19,13 @@ import {
 
 const dateFnsLocales: Record<Locale, typeof es> = { es, en: enUS, zh: zhCN }
 
+interface GastoWithRels extends Gasto {
+  congreso?: { name: string }
+  category?: { name: string }
+}
+
 interface DashboardData {
+  // Clients
   total: number
   active: number
   inactive: number
@@ -24,6 +33,14 @@ interface DashboardData {
   recentClients: Client[]
   byState: { state: string; count: number }[]
   bySpecialty: { specialty: string; count: number }[]
+  // Gastos
+  gastos: GastoWithRels[]
+  totalSpent: number
+  totalBillable: number
+  pendingBilling: number
+  gastosCount: number
+  // Congresos
+  congresos: Congreso[]
 }
 
 export default function DashboardPage() {
@@ -34,10 +51,21 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const res = await fetch('/api/clients?pageSize=200')
-        const json = await res.json()
-        const clients: Client[] = json.data || []
+        const [clientsRes, gastosRes, congresosRes] = await Promise.all([
+          fetch('/api/clients?pageSize=200'),
+          fetch('/api/gastos'),
+          fetch('/api/congresos'),
+        ])
 
+        const clientsJson = await clientsRes.json()
+        const gastosJson = await gastosRes.json()
+        const congresosJson = await congresosRes.json()
+
+        const clients: Client[] = clientsJson.data || []
+        const gastos: GastoWithRels[] = gastosJson.data || []
+        const congresos: Congreso[] = congresosJson.data || []
+
+        // Client stats
         const active = clients.filter(c => c.status === 'Activo').length
         const inactive = clients.filter(c => c.status === 'Inactivo').length
         const prospects = clients.filter(c => !['Activo', 'Inactivo'].includes(c.status)).length
@@ -56,7 +84,17 @@ export default function DashboardPage() {
         const bySpecialty = Object.entries(specCount).sort((a, b) => b[1] - a[1]).slice(0, 6)
           .map(([specialty, count]) => ({ specialty: specialty.split(',')[0].trim().slice(0, 22), count }))
 
-        setData({ total: clients.length, active, inactive, prospects, recentClients: clients.slice(0, 6), byState, bySpecialty })
+        // Gasto stats
+        const totalSpent = gastos.reduce((acc, g) => acc + Number(g.total || 0), 0)
+        const totalBillable = gastos.filter(g => g.is_billable).reduce((acc, g) => acc + Number(g.total || 0), 0)
+        const pendingBilling = gastos.filter(g => g.is_billable && !g.is_billed).reduce((acc, g) => acc + Number(g.total || 0), 0)
+
+        setData({
+          total: clients.length, active, inactive, prospects,
+          recentClients: clients.slice(0, 5), byState, bySpecialty,
+          gastos: gastos.slice(0, 5), totalSpent, totalBillable, pendingBilling, gastosCount: gastos.length,
+          congresos,
+        })
       } finally { setLoading(false) }
     }
     loadDashboard()
@@ -65,6 +103,14 @@ export default function DashboardPage() {
   const dfLocale = dateFnsLocales[locale] ?? es
   const CARD_STYLE = { background: '#ffffff', border: '1px solid #d4e0ec' }
   const CHART_TOOLTIP = { background: '#ffffff', border: '1px solid #d4e0ec', borderRadius: 8, color: '#37383a' }
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount)
+
+  // Upcoming congresos (end_date >= today)
+  const today = new Date()
+  const upcomingCongresos = (data?.congresos ?? []).filter(c => new Date(c.end_date) >= today).slice(0, 4)
+  const pastCongresos = (data?.congresos ?? []).filter(c => new Date(c.end_date) < today).slice(0, 2)
 
   if (loading) return (
     <AppShell>
@@ -83,10 +129,197 @@ export default function DashboardPage() {
         {/* Page title */}
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#37383a' }}>{t('dashboard')}</h1>
-          <p className="text-sm mt-0.5" style={{ color: '#5a5b5d' }}>{t('tagline')}</p>
+          <p className="text-sm mt-0.5" style={{ color: '#5a5b5d' }}>{t('overview')}</p>
         </div>
 
-        {/* KPI Cards */}
+        {/* ═══════════════════════════════════════════
+            SECTION 1: GASTOS (at the top)
+        ═══════════════════════════════════════════ */}
+
+        {/* Gastos KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title={t('totalSpent')}
+            value={formatCurrency(data?.totalSpent ?? 0)}
+            icon={<DollarSign size={22} />}
+            color="blue"
+            href="/gastos"
+          />
+          <StatCard
+            title={t('totalBillable')}
+            value={formatCurrency(data?.totalBillable ?? 0)}
+            icon={<Receipt size={22} />}
+            color="green"
+            href="/gastos"
+          />
+          <StatCard
+            title={t('totalPendingBilling')}
+            value={formatCurrency(data?.pendingBilling ?? 0)}
+            icon={<TrendingUp size={22} />}
+            color="amber"
+            href="/gastos"
+          />
+          <StatCard
+            title={t('expensesCount')}
+            value={data?.gastosCount ?? 0}
+            icon={<Receipt size={22} />}
+            color="red"
+            href="/gastos"
+          />
+        </div>
+
+        {/* Recent Gastos + Upcoming Congresos side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Recent Gastos */}
+          <div className="rounded-2xl p-5 bg-white" style={CARD_STYLE}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Receipt size={16} style={{ color: '#0763a9' }} />
+                <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('recentExpenses')}</h2>
+              </div>
+              <Link href="/gastos" className="text-xs font-medium" style={{ color: '#0763a9' }}>{t('viewAll')} →</Link>
+            </div>
+            {(data?.gastos ?? []).length === 0 ? (
+              <p className="text-sm py-8 text-center" style={{ color: '#8a8b8d' }}>{t('noExpenses')}</p>
+            ) : (
+              <div className="space-y-0">
+                {(data?.gastos ?? []).map((gasto, idx) => (
+                  <Link
+                    key={gasto.id}
+                    href={`/gastos/${gasto.id}`}
+                    className="flex items-center gap-3 py-3 hover:bg-blue-50/50 -mx-2 px-2 rounded-xl transition-colors group"
+                    style={idx < (data?.gastos.length ?? 0) - 1 ? { borderBottom: '1px solid #f0f5fa' } : {}}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: '#e8f1f9', color: '#0763a9' }}
+                    >
+                      <Receipt size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: '#37383a' }}>
+                        {gasto.description || gasto.name}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: '#8a8b8d' }}>
+                        {gasto.congreso?.name ?? (gasto.category?.name || '')}
+                        {gasto.expense_date && ` · ${new Date(gasto.expense_date).toLocaleDateString()}`}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <span className="text-sm font-bold" style={{ color: '#0763a9' }}>{formatCurrency(gasto.total)}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ═══════════════════════════════════════════
+              SECTION 2: CONGRESOS
+          ═══════════════════════════════════════════ */}
+          <div className="rounded-2xl p-5 bg-white" style={CARD_STYLE}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} style={{ color: '#7c3aed' }} />
+                <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('upcomingCongresos')}</h2>
+              </div>
+              <Link href="/congresos" className="text-xs font-medium" style={{ color: '#7c3aed' }}>{t('viewAll')} →</Link>
+            </div>
+            {upcomingCongresos.length === 0 && pastCongresos.length === 0 ? (
+              <p className="text-sm py-8 text-center" style={{ color: '#8a8b8d' }}>{t('noCongresos')}</p>
+            ) : (
+              <div className="space-y-0">
+                {upcomingCongresos.map((congreso, idx) => {
+                  const startDate = new Date(congreso.start_date)
+                  const endDate = new Date(congreso.end_date)
+                  const isActive = today >= startDate && today <= endDate
+                  const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+                  return (
+                    <Link
+                      key={congreso.id}
+                      href={`/congresos/${congreso.id}/view`}
+                      className="flex items-center gap-3 py-3 hover:bg-purple-50/50 -mx-2 px-2 rounded-xl transition-colors group"
+                      style={idx < upcomingCongresos.length - 1 || pastCongresos.length > 0 ? { borderBottom: '1px solid #f0f5fa' } : {}}
+                    >
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background: isActive ? '#f3e8ff' : '#ede9fe',
+                          color: isActive ? '#7c3aed' : '#8b5cf6'
+                        }}
+                      >
+                        <Calendar size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: '#37383a' }}>
+                          {congreso.name}
+                        </p>
+                        <p className="text-xs truncate" style={{ color: '#8a8b8d' }}>
+                          <MapPin size={10} className="inline mr-1" style={{ verticalAlign: 'middle' }} />
+                          {congreso.location}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        {isActive ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+                            style={{ background: '#dcfce7', color: '#15803d' }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                            En curso
+                          </span>
+                        ) : (
+                          <div>
+                            <p className="text-xs font-medium" style={{ color: '#7c3aed' }}>
+                              {daysUntil > 0 ? `${daysUntil}d` : ''}
+                            </p>
+                            <p className="text-xs" style={{ color: '#c4c5c7' }}>
+                              {startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  )
+                })}
+                {/* Show a couple past congresos dimmed if there's room */}
+                {pastCongresos.map((congreso, idx) => (
+                  <Link
+                    key={congreso.id}
+                    href={`/congresos/${congreso.id}/view`}
+                    className="flex items-center gap-3 py-3 hover:bg-gray-50/50 -mx-2 px-2 rounded-xl transition-colors opacity-50"
+                    style={idx < pastCongresos.length - 1 ? { borderBottom: '1px solid #f0f5fa' } : {}}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: '#f3f4f6', color: '#9ca3af' }}
+                    >
+                      <Calendar size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: '#6b7280' }}>
+                        {congreso.name}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: '#9ca3af' }}>
+                        {congreso.location}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <p className="text-xs" style={{ color: '#d1d5db' }}>
+                        {new Date(congreso.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════
+            SECTION 3: CLIENTS
+        ═══════════════════════════════════════════ */}
+
+        {/* Client KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard title={t('totalClients')} value={data?.total ?? 0} icon={<Users size={22} />} color="blue" href="/clients" />
           <StatCard title={t('activeClients')} value={data?.active ?? 0} icon={<CheckCircle2 size={22} />} color="green" href="/clients?status=Activo" />
@@ -94,8 +327,9 @@ export default function DashboardPage() {
           <StatCard title={t('prospects')} value={data?.prospects ?? 0} icon={<Sparkles size={22} />} color="amber" href="/clients?is_prospect=true" />
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Charts + Recent Clients */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Chart: By State */}
           <div className="rounded-2xl p-5 bg-white" style={CARD_STYLE}>
             <div className="flex items-center gap-2 mb-4">
               <MapPin size={16} style={{ color: '#0763a9' }} />
@@ -116,6 +350,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
 
+          {/* Chart: By Specialty */}
           <div className="rounded-2xl p-5 bg-white" style={CARD_STYLE}>
             <div className="flex items-center gap-2 mb-4">
               <Activity size={16} style={{ color: '#b45309' }} />
@@ -135,42 +370,37 @@ export default function DashboardPage() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
 
-        {/* Recent Clients */}
-        <div className="rounded-2xl p-5 bg-white" style={CARD_STYLE}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('recentActivity')}</h2>
-            <Link href="/clients" className="text-xs font-medium" style={{ color: '#0763a9' }}>{t('viewAll')} →</Link>
-          </div>
-          <div className="space-y-0">
-            {(data?.recentClients ?? []).map((client, idx) => (
-              <Link
-                key={client.id}
-                href={`/clients/${client.id}`}
-                className="flex items-center gap-3 py-3 hover:bg-blue-50/50 -mx-2 px-2 rounded-xl transition-colors group"
-                style={idx < (data?.recentClients.length ?? 0) - 1 ? { borderBottom: '1px solid #f0f5fa' } : {}}
-              >
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0"
-                  style={{ background: '#e8f1f9', color: '#0763a9' }}
+          {/* Recent Clients */}
+          <div className="rounded-2xl p-5 bg-white" style={CARD_STYLE}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('recentActivity')}</h2>
+              <Link href="/clients" className="text-xs font-medium" style={{ color: '#0763a9' }}>{t('viewAll')} →</Link>
+            </div>
+            <div className="space-y-0">
+              {(data?.recentClients ?? []).map((client, idx) => (
+                <Link
+                  key={client.id}
+                  href={`/clients/${client.id}`}
+                  className="flex items-center gap-3 py-2.5 hover:bg-blue-50/50 -mx-2 px-2 rounded-xl transition-colors group"
+                  style={idx < (data?.recentClients.length ?? 0) - 1 ? { borderBottom: '1px solid #f0f5fa' } : {}}
                 >
-                  {client.name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate transition-colors" style={{ color: '#37383a' }}>{client.name}</p>
-                  <p className="text-xs truncate" style={{ color: '#8a8b8d' }}>{client.states?.slice(0, 2).join(', ')}</p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <StatusBadge status={client.status} size="sm" />
-                  <span className="text-xs hidden sm:block" style={{ color: '#c4c5c7' }}>
-                    {client.registered_at
-                      ? formatDistanceToNow(new Date(client.registered_at), { addSuffix: true, locale: dfLocale })
-                      : ''}
-                  </span>
-                </div>
-              </Link>
-            ))}
+                  <div
+                    className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0"
+                    style={{ background: '#e8f1f9', color: '#0763a9' }}
+                  >
+                    {client.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate transition-colors" style={{ color: '#37383a' }}>{client.name}</p>
+                    <p className="text-xs truncate" style={{ color: '#8a8b8d' }}>{client.states?.slice(0, 2).join(', ')}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <StatusBadge status={client.status} size="sm" />
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </div>

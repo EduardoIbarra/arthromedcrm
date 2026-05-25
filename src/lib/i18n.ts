@@ -220,6 +220,14 @@ export const translations = {
     collapseMenu: 'Colapsar menú',
     collapse: 'Colapsar',
     openMenu: 'Abrir menú',
+    // Dashboard v2
+    upcomingCongresos: 'Próximos Congresos',
+    recentExpenses: 'Gastos Recientes',
+    noExpenses: 'No hay gastos registrados',
+    noCongresos: 'No hay congresos próximos',
+    activeCongresos: 'Congresos Activos',
+    nextCongreso: 'Próximo Congreso',
+    overview: 'Resumen General',
   },
   en: {
     appName: 'Arthromed ERP',
@@ -427,6 +435,14 @@ export const translations = {
     collapseMenu: 'Collapse menu',
     collapse: 'Collapse',
     openMenu: 'Open menu',
+    // Dashboard v2
+    upcomingCongresos: 'Upcoming Congresses',
+    recentExpenses: 'Recent Expenses',
+    noExpenses: 'No expenses recorded',
+    noCongresos: 'No upcoming congresses',
+    activeCongresos: 'Active Congresses',
+    nextCongreso: 'Next Congress',
+    overview: 'Overview',
   },
   zh: {
     appName: 'Arthromed ERP',
@@ -634,6 +650,14 @@ export const translations = {
     collapseMenu: '折叠菜单',
     collapse: '折叠',
     openMenu: '打开菜单',
+    // Dashboard v2
+    upcomingCongresos: '即将到来的大会',
+    recentExpenses: '最近支出',
+    noExpenses: '没有记录的支出',
+    noCongresos: '没有即将到来的大会',
+    activeCongresos: '活跃大会',
+    nextCongreso: '下一个大会',
+    overview: '概览',
   },
 } as const
 
