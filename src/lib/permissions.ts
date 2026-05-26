@@ -7,6 +7,7 @@ export const SECTIONS = [
   'hospitals',
   'congresos',
   'gastos',
+  'ventas',
   'settings',
   'users',
   'roles'

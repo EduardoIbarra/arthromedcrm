@@ -487,22 +487,22 @@ export default function GastosPage() {
 
         {/* KPIS */}
         {!isLoading && !error && gastos.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="card p-4 flex flex-col justify-center border-l-4 border-l-blue-500">
-              <span className="text-sm text-gray-500 font-medium">{t('totalSpent')}</span>
-              <span className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(kpiTotalSpent)}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-blue-500">
+              <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('totalSpent')}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiTotalSpent)}</span>
             </div>
-            <div className="card p-4 flex flex-col justify-center border-l-4 border-l-green-500">
-              <span className="text-sm text-gray-500 font-medium">{t('totalBillable')}</span>
-              <span className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(kpiTotalBillable)}</span>
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-green-500">
+              <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('totalBillable')}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiTotalBillable)}</span>
             </div>
-            <div className="card p-4 flex flex-col justify-center border-l-4 border-l-yellow-500">
-              <span className="text-sm text-gray-500 font-medium">{t('totalPendingBilling')}</span>
-              <span className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(kpiTotalPendingBilling)}</span>
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-yellow-500">
+              <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('totalPendingBilling')}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiTotalPendingBilling)}</span>
             </div>
-            <div className="card p-4 flex flex-col justify-center border-l-4 border-l-purple-500">
-              <span className="text-sm text-gray-500 font-medium">{t('expensesCount')}</span>
-              <span className="text-2xl font-bold text-gray-900 mt-1">{kpiExpensesCount}</span>
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-purple-500">
+              <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('expensesCount')}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{kpiExpensesCount}</span>
             </div>
           </div>
         )}

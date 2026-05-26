@@ -6,6 +6,7 @@ import Header from '@/components/Header'
 import { useUser } from '@/contexts/UserContext'
 import { Section, PermissionAction } from '@/lib/permissions'
 import { Loader2 } from 'lucide-react'
+import AiChatAssistant from '@/components/AiChatAssistant'
 
 // Map routes to sections and required actions
 const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAction }> = {
@@ -69,6 +70,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      {pathname === '/' && <AiChatAssistant />}
     </div>
   )
 }

@@ -23,25 +23,32 @@ const colorMap = {
 export default function StatCard({ title, value, icon, trend, color = 'blue', subtitle, href }: StatCardProps) {
   const c = colorMap[color]
   
+  const valueStr = String(value)
+  const textSizeClass = valueStr.length > 12
+    ? "text-lg sm:text-xl md:text-2xl lg:text-lg xl:text-xl 2xl:text-2xl"
+    : valueStr.length > 9
+    ? "text-xl sm:text-2xl md:text-3xl lg:text-xl xl:text-2xl"
+    : "text-2xl sm:text-3xl"
+
   const content = (
     <>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium" style={{ color: '#5a5b5d' }}>{title}</p>
-          <p className="text-3xl font-bold mt-1" style={{ color: '#37383a' }}>{value}</p>
-          {subtitle && <p className="text-xs mt-0.5" style={{ color: '#8a8b8d' }}>{subtitle}</p>}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs sm:text-sm font-medium truncate" style={{ color: '#5a5b5d' }} title={title}>{title}</p>
+          <p className={`${textSizeClass} font-bold mt-0.5 sm:mt-1 truncate`} style={{ color: '#37383a' }} title={valueStr}>{value}</p>
+          {subtitle && <p className="text-[10px] sm:text-xs mt-0.5 truncate" style={{ color: '#8a8b8d' }} title={subtitle}>{subtitle}</p>}
         </div>
-        <div className="p-3 rounded-xl" style={{ background: c.iconBg, color: c.iconColor }}>
+        <div className="p-2 sm:p-3 rounded-xl shrink-0" style={{ background: c.iconBg, color: c.iconColor }}>
           {icon}
         </div>
       </div>
 
       {trend !== undefined && (
         <div
-          className="flex items-center gap-1 text-xs font-medium"
+          className="flex items-center gap-1 text-[10px] sm:text-xs font-medium"
           style={{ color: trend > 0 ? '#15803d' : trend < 0 ? '#b91c1c' : '#8a8b8d' }}
         >
-          {trend > 0 ? <TrendingUp size={13} /> : trend < 0 ? <TrendingDown size={13} /> : <Minus size={13} />}
+          {trend > 0 ? <TrendingUp size={12} /> : trend < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
           <span>{trend > 0 ? '+' : ''}{trend}% este mes</span>
         </div>
       )}
@@ -49,7 +56,7 @@ export default function StatCard({ title, value, icon, trend, color = 'blue', su
   )
 
   const commonProps = {
-    className: "bg-white rounded-2xl p-5 flex flex-col gap-3 transition-all duration-150 hover:-translate-y-0.5",
+    className: "bg-white rounded-2xl p-3.5 sm:p-5 flex flex-col gap-2 sm:gap-3 transition-all duration-150 hover:-translate-y-0.5",
     style: { border: `1px solid ${c.border}`, boxShadow: '0 1px 4px rgba(7,99,169,0.06)' }
   }
 

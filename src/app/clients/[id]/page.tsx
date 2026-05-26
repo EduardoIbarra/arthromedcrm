@@ -16,6 +16,19 @@ import { Locale } from '@/lib/i18n'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import PermissionGuard from '@/components/PermissionGuard'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+]
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN'
+  }).format(amount)
+}
 
 const dfLocales: Record<Locale, typeof es> = { es, en: enUS, zh: zhCN }
 
@@ -56,6 +69,19 @@ export default function ClientDetailPage() {
   const [editData, setEditData] = useState<Partial<Client>>({})
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [sales, setSales] = useState<any[]>([])
+  const [loadingSales, setLoadingSales] = useState(true)
+
+  const clientYearlyMap = sales.reduce((acc, curr) => {
+    const yr = curr.anio
+    acc[yr] = (acc[yr] || 0) + Number(curr.monto || 0)
+    return acc
+  }, {} as Record<number, number>)
+
+  const clientYearlyData = Object.entries(clientYearlyMap).map(([year, value]) => ({
+    name: String(year),
+    value
+  })).sort((a, b) => a.name.localeCompare(b.name))
 
   const [showWA, setShowWA] = useState(false)
   const [waTemplate, setWaTemplate] = useState(WA_TEMPLATES[0].id)
@@ -75,16 +101,29 @@ export default function ClientDetailPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [cRes, aRes] = await Promise.all([
+        setLoading(true)
+        setLoadingSales(true)
+        const [cRes, aRes, sRes] = await Promise.all([
           fetch(`/api/clients/${id}`),
           fetch(`/api/clients/${id}/activities`),
+          fetch(`/api/ventas?cliente_id=${id}`)
         ])
         const cJson = await cRes.json()
         const aJson = await aRes.json()
         setClient(cJson.data)
         setEditData(cJson.data)
         setActivities(aJson.data || [])
-      } finally { setLoading(false) }
+        
+        if (sRes.ok) {
+          const sJson = await sRes.json()
+          setSales(sJson.data || [])
+        }
+      } catch (err) {
+        console.error('Error loading client detail data:', err)
+      } finally { 
+        setLoading(false)
+        setLoadingSales(false)
+      }
     }
     load()
   }, [id])
@@ -387,6 +426,83 @@ export default function ClientDetailPage() {
             </InfoRow>
           </div>
         </div>
+
+        {/* Sales History Card */}
+        {!loadingSales && sales.length > 0 && (
+          <div className="rounded-2xl p-5 space-y-6 bg-white" style={CARD}>
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Building2 size={18} style={{ color: '#0d9488' }} />
+                <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>
+                  {t('salesHistory' as any) || 'Historial de Ventas'}
+                </h2>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 font-mono">
+                {t('totalSales' as any) || 'Total Ventas'}: {formatCurrency(sales.reduce((acc, curr) => acc + Number(curr.monto || 0), 0))}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Chart */}
+              <div className="p-4 bg-gray-50/30 rounded-xl border border-gray-100 flex flex-col justify-between">
+                <h3 className="text-xs font-bold text-gray-500 uppercase mb-4">
+                  {t('yearlyComparison' as any) || 'Comparativa por Año'}
+                </h3>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={clientYearlyData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" />
+                      <YAxis tickFormatter={(val) => `$${val/1000}k`} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <Bar dataKey="value" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold text-gray-500 uppercase">
+                  {t('transactions' as any) || 'Transacciones'}
+                </h3>
+                <div className="border border-gray-150 rounded-xl overflow-hidden bg-white max-h-56 overflow-y-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-semibold sticky top-0">
+                        <th className="p-3">{t('period' as any) || 'Periodo'}</th>
+                        <th className="p-3">{t('monto' as any) || 'Monto'}</th>
+                        <th className="p-3 text-right">{t('actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">
+                      {sales
+                        .sort((a, b) => b.anio !== a.anio ? b.anio - a.anio : b.mes - a.mes)
+                        .map(sale => (
+                          <tr key={sale.id} className="hover:bg-gray-50/50">
+                            <td className="p-3 font-medium text-gray-700">
+                              {MONTH_NAMES[sale.mes - 1]} / {sale.anio}
+                            </td>
+                            <td className="p-3 font-semibold text-teal-650">
+                              {formatCurrency(sale.monto)}
+                            </td>
+                            <td className="p-3 text-right">
+                              <Link
+                                href={`/ventas/${sale.id}`}
+                                className="inline-flex items-center text-teal-600 hover:underline hover:text-teal-700"
+                              >
+                                {t('edit') || 'Editar'}
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Timeline */}
         <div className="rounded-2xl p-5 bg-white" style={CARD}>

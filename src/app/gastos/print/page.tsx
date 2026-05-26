@@ -338,7 +338,7 @@ function GastoPrintContent() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number | string) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -378,7 +378,7 @@ function GastoPrintContent() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number | string) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -416,7 +416,7 @@ function GastoPrintContent() {
                         <Cell fill="#3b82f6" />
                         <Cell fill="#94a3b8" />
                       </Pie>
-                      <Tooltip formatter={(value: number | string) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -454,7 +454,7 @@ function GastoPrintContent() {
                         <Cell fill="#10b981" />
                         <Cell fill="#f59e0b" />
                       </Pie>
-                      <Tooltip formatter={(value: number | string) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
