@@ -43,12 +43,12 @@ Reglas de razonamiento y uso de herramientas:
       tools: {
         getSalesData: tool({
           description: 'Obtiene las ventas mensuales detalladas de los clientes filtrando por año, mes o nombre del cliente.',
-          parameters: z.object({
+          inputSchema: z.object({
             anio: z.number().optional().describe('Año específico para filtrar (ej. 2026)'),
             mes: z.number().optional().describe('Mes específico para filtrar (1-12, ej. 1 para enero)'),
             clienteNombre: z.string().optional().describe('Nombre del cliente para filtrar (búsqueda parcial insensible a mayúsculas/minúsculas)'),
           }),
-          execute: async ({ anio, mes, clienteNombre }) => {
+          execute: async ({ anio, mes, clienteNombre }: { anio?: number, mes?: number, clienteNombre?: string }) => {
             try {
               const where: any = {}
               if (anio) {
@@ -85,10 +85,10 @@ Reglas de razonamiento y uso de herramientas:
 
         getSalesSummaryByPeriod: tool({
           description: 'Obtiene el resumen de ventas totales agregadas (sumadas) agrupadas por año y mes.',
-          parameters: z.object({
+          inputSchema: z.object({
             anio: z.number().optional().describe('Año para filtrar el resumen de ventas (ej. 2026). Si se omite, devuelve todo el histórico.'),
           }),
-          execute: async ({ anio }) => {
+          execute: async ({ anio }: { anio?: number }) => {
             try {
               const where: any = {}
               if (anio) {
@@ -125,13 +125,13 @@ Reglas de razonamiento y uso de herramientas:
 
         getUniqueClientsWithSales: tool({
           description: 'Obtiene un listado de los nombres únicos de todos los clientes que tienen registros de ventas en el ERP.',
-          parameters: z.object({}),
+          inputSchema: z.object({}),
           execute: async () => {
             try {
               const result = await prisma.ventas_mensuales_cliente.groupBy({
                 by: ['cliente_nombre'],
               })
-              return result.map(r => r.cliente_nombre)
+              return result.map((r: { cliente_nombre: string }) => r.cliente_nombre)
             } catch (err: any) {
               console.error('Error in getUniqueClientsWithSales tool:', err)
               return { error: err.message }
