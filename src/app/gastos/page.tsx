@@ -242,12 +242,16 @@ export default function GastosPage() {
     }))
   }
 
-  const formatCurrency = (amount: number) => {
-
+  const formatCurrency = (amount: number | string, compact = false) => {
+    const num = typeof amount === 'number' ? amount : parseFloat(amount as any) || 0
+    const absNum = Math.abs(num)
+    if (compact && absNum >= 1000000) {
+      return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
+    }
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
       currency: 'MXN'
-    }).format(amount)
+    }).format(num)
   }
 
   // 1. Filtered lists for cross-filtering and rendering
@@ -488,17 +492,17 @@ export default function GastosPage() {
         {/* KPIS */}
         {!isLoading && !error && gastos.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-blue-500">
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-blue-500 overflow-hidden">
               <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('totalSpent')}</span>
-              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiTotalSpent)}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1 truncate" title={formatCurrency(kpiTotalSpent)}>{formatCurrency(kpiTotalSpent, true)}</span>
             </div>
-            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-green-500">
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-green-500 overflow-hidden">
               <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('totalBillable')}</span>
-              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiTotalBillable)}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1 truncate" title={formatCurrency(kpiTotalBillable)}>{formatCurrency(kpiTotalBillable, true)}</span>
             </div>
-            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-yellow-500">
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-yellow-500 overflow-hidden">
               <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('totalPendingBilling')}</span>
-              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiTotalPendingBilling)}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1 truncate" title={formatCurrency(kpiTotalPendingBilling)}>{formatCurrency(kpiTotalPendingBilling, true)}</span>
             </div>
             <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-purple-500">
               <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('expensesCount')}</span>
@@ -545,7 +549,7 @@ export default function GastosPage() {
                         )
                       })}
                     </Pie>
-                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -560,7 +564,7 @@ export default function GastosPage() {
                       <Cell fill="#3b82f6" />
                       <Cell fill="#94a3b8" />
                     </Pie>
-                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                     <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -576,7 +580,7 @@ export default function GastosPage() {
                       <Cell fill="#10b981" />
                       <Cell fill="#f59e0b" />
                     </Pie>
-                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                     <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -618,7 +622,7 @@ export default function GastosPage() {
                         )
                       })}
                     </Pie>
-                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>

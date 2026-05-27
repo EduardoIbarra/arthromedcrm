@@ -8,9 +8,11 @@ export const SECTIONS = [
   'congresos',
   'gastos',
   'ventas',
+  'cirugias',
   'settings',
   'users',
-  'roles'
+  'roles',
+  'warranties'
 ] as const
 
 export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']

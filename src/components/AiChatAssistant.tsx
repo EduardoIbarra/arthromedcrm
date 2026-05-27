@@ -14,7 +14,7 @@ export default function AiChatAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: '¡Hola! Soy tu asistente de ventas de Arthromed. Puedo darte las ventas totales de un mes, comparar periodos de ventas o darte listados y rankings de clientes. \n\n*Ejemplo: "¿Cuánto se vendió en Enero de 2026?" o "Compara Enero 2026 contra Enero 2025"*'
+      content: '¡Hola! Soy tu asistente de ventas de Arthromed. Puedo darte las ventas totales de un mes, comparar periodos de ventas, darte rankings de clientes o detallar qué productos se han vendido más, sus volúmenes y precios. \n\n*Ejemplo: "¿Cuál es el producto que más vendemos?" o "¿Cuánto se vendió en Enero de 2026?"*'
     }
   ])
   const [input, setInput] = useState('')
@@ -24,8 +24,8 @@ export default function AiChatAssistant() {
 
   const quickPrompts = [
     { label: 'Ventas Enero 2026', prompt: 'Dame las ventas totales del mes de Enero de 2026.' },
-    { label: 'Comparar Ene 26 vs Ene 25', prompt: 'Dame una comparación del mes de enero de 2026 contra enero de 2025.' },
-    { label: 'Ranking Clientes 2026', prompt: '¿Cuál es el ranking de clientes por ventas en el año 2026?' }
+    { label: 'Ranking Clientes 26', prompt: '¿Cuál es el ranking de clientes por ventas en el año 2026?' },
+    { label: 'Producto Más Vendido', prompt: '¿Cuál es el producto que más vendemos?' }
   ]
 
   const scrollToBottom = () => {
@@ -279,7 +279,7 @@ export default function AiChatAssistant() {
                 onClick={() => setMessages([
                   {
                     role: 'assistant',
-                    content: '¡Hola! Soy tu asistente de ventas de Arthromed. Puedo darte las ventas totales de un mes, comparar periodos de ventas o darte listados y rankings de clientes. \n\n*Ejemplo: "¿Cuánto se vendió en Enero de 2026?" o "Compara Enero 2026 contra Enero 2025"*'
+                    content: '¡Hola! Soy tu asistente de ventas de Arthromed. Puedo darte las ventas totales de un mes, comparar periodos de ventas, darte rankings de clientes o detallar qué productos se han vendido más, sus volúmenes y precios. \n\n*Ejemplo: "¿Cuál es el producto que más vendemos?" o "¿Cuánto se vendió en Enero de 2026?"*'
                   }
                 ])}
                 title="Reiniciar chat"

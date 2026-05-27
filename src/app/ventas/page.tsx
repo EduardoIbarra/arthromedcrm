@@ -130,11 +130,24 @@ export default function VentasPage() {
     XLSX.writeFile(workbook, 'Reporte_Ventas_Mensuales.xlsx')
   }
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | string, compact = false) => {
+    const num = typeof amount === 'number' ? amount : parseFloat(amount as any) || 0
+    const absNum = Math.abs(num)
+    if (compact && absNum >= 1000000) {
+      return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
+    }
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
       currency: 'MXN'
-    }).format(amount)
+    }).format(num)
+  }
+
+  const formatChartTick = (val: number) => {
+    const absVal = Math.abs(val)
+    if (absVal >= 1000000) {
+      return `${val < 0 ? '-' : ''}$${(absVal / 1000000).toFixed(2)}M`
+    }
+    return `${val < 0 ? '-' : ''}$${(absVal / 1000).toFixed(0)}k`
   }
 
   // 1. Filtered lists for cross-filtering and rendering
@@ -437,13 +450,13 @@ export default function VentasPage() {
         {/* KPIS */}
         {!isLoading && !error && ventas.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-teal-600">
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-teal-600 overflow-hidden">
               <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('totalSales' as any) || 'Ventas Totales'}</span>
-              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiTotalSales)}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1 truncate" title={formatCurrency(kpiTotalSales)}>{formatCurrency(kpiTotalSales, true)}</span>
             </div>
-            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-blue-600">
+            <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-blue-600 overflow-hidden">
               <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('averageSale' as any) || 'Promedio Mensual'}</span>
-              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{formatCurrency(kpiAverageSale)}</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1 truncate" title={formatCurrency(kpiAverageSale)}>{formatCurrency(kpiAverageSale, true)}</span>
             </div>
             <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-orange-500">
               <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('activeClients') || 'Clientes Activos'}</span>
@@ -502,7 +515,7 @@ export default function VentasPage() {
                         )
                       })}
                     </Pie>
-                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -544,8 +557,8 @@ export default function VentasPage() {
                     <BarChart data={monthlyDataMap}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(val) => `$${val/1000}k`} />
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <YAxis tickFormatter={formatChartTick} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                       <Bar 
                         dataKey="value" 
                         fill="#0d9488" 
@@ -567,8 +580,8 @@ export default function VentasPage() {
                     <BarChart data={yearlySalesData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(val) => `$${val/1000}k`} />
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <YAxis tickFormatter={formatChartTick} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                       <Bar 
                         dataKey="value" 
                         fill="#0284c7" 
@@ -586,8 +599,8 @@ export default function VentasPage() {
                     <LineChart data={compareMonthlyData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(val) => `$${val/1000}k`} />
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <YAxis tickFormatter={formatChartTick} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                       <Legend />
                       {activeYears.map((yr, idx) => {
                         const yearStr = String(yr)
@@ -1031,8 +1044,8 @@ export default function VentasPage() {
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" />
-                    <YAxis tickFormatter={(val) => `$${val/1000}k`} />
-                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                    <YAxis tickFormatter={formatChartTick} />
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                     <Bar dataKey="value" fill="#0d9488" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

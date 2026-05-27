@@ -23,11 +23,24 @@ const MONTH_NAMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ]
 
-const formatCurrency = (amount: number) => {
+const formatCurrency = (amount: number, compact = false) => {
+  const num = typeof amount === 'number' ? amount : parseFloat(amount as any) || 0
+  const absNum = Math.abs(num)
+  if (compact && absNum >= 1000000) {
+    return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
+  }
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN'
-  }).format(amount)
+  }).format(num)
+}
+
+const formatChartTick = (val: number) => {
+  const absVal = Math.abs(val)
+  if (absVal >= 1000000) {
+    return `${val < 0 ? '-' : ''}$${(absVal / 1000000).toFixed(2)}M`
+  }
+  return `${val < 0 ? '-' : ''}$${(absVal / 1000).toFixed(0)}k`
 }
 
 const dfLocales: Record<Locale, typeof es> = { es, en: enUS, zh: zhCN }
@@ -438,7 +451,7 @@ export default function ClientDetailPage() {
                 </h2>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 font-mono">
-                {t('totalSales' as any) || 'Total Ventas'}: {formatCurrency(sales.reduce((acc, curr) => acc + Number(curr.monto || 0), 0))}
+                {t('totalSales' as any) || 'Total Ventas'}: {formatCurrency(sales.reduce((acc, curr) => acc + Number(curr.monto || 0), 0), true)}
               </span>
             </div>
 
@@ -453,8 +466,8 @@ export default function ClientDetailPage() {
                     <BarChart data={clientYearlyData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(val) => `$${val/1000}k`} />
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <YAxis tickFormatter={formatChartTick} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                       <Bar dataKey="value" fill="#0d9488" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>

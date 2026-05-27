@@ -11,14 +11,10 @@ export async function GET(request: NextRequest) {
     const clienteId = searchParams.get('cliente_id')
     const search = searchParams.get('search')
 
-    const where: any = {}
+    const where: any = {
+      estado: { notIn: ['anulado', 'cancelada'] }
+    }
 
-    if (anio) {
-      where.anio = parseInt(anio, 10)
-    }
-    if (mes) {
-      where.mes = parseInt(mes, 10)
-    }
     if (clienteId) {
       where.cliente_id = clienteId
     }
@@ -29,18 +25,50 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const rawData = await prisma.ventas_mensuales_cliente.findMany({
+    if (anio) {
+      const yearNum = parseInt(anio, 10)
+      if (mes) {
+        const monthNum = parseInt(mes, 10)
+        const startDate = new Date(yearNum, monthNum - 1, 1)
+        const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999)
+        where.fecha_expedicion = {
+          gte: startDate,
+          lte: endDate
+        }
+      } else {
+        const startDate = new Date(yearNum, 0, 1)
+        const endDate = new Date(yearNum, 11, 31, 23, 59, 59, 999)
+        where.fecha_expedicion = {
+          gte: startDate,
+          lte: endDate
+        }
+      }
+    } else if (mes) {
+      const currentYear = new Date().getFullYear()
+      const monthNum = parseInt(mes, 10)
+      const startDate = new Date(currentYear, monthNum - 1, 1)
+      const endDate = new Date(currentYear, monthNum, 0, 23, 59, 59, 999)
+      where.fecha_expedicion = {
+        gte: startDate,
+        lte: endDate
+      }
+    }
+
+    const rawData = await prisma.facturas_cliente.findMany({
       where,
-      orderBy: [
-        { anio: 'desc' },
-        { mes: 'desc' }
-      ]
+      orderBy: {
+        fecha_expedicion: 'desc'
+      }
     })
 
-    // Map BigInt id to string to avoid JSON serialization errors
     const data = rawData.map((item: any) => ({
-      ...item,
-      id: item.id.toString()
+      id: item.id,
+      cliente_id: item.cliente_id || '',
+      cliente_nombre: item.cliente_nombre,
+      anio: new Date(item.fecha_expedicion).getFullYear(),
+      mes: new Date(item.fecha_expedicion).getMonth() + 1,
+      monto: Number(item.total),
+      created_at: item.created_at || item.fecha_expedicion
     }))
 
     return NextResponse.json({ data })
@@ -63,37 +91,37 @@ export async function POST(request: NextRequest) {
     const nMes = parseInt(mes, 10)
     const fMonto = parseFloat(monto)
 
-    // Check if a record already exists for this client, year, and month
-    const existing = await prisma.ventas_mensuales_cliente.findUnique({
-      where: {
-        cliente_id_anio_mes: {
-          cliente_id,
-          anio: nAnio,
-          mes: nMes
-        }
-      }
+    // Try to lookup client to get RFC
+    const clientRecord = await prisma.clientes.findUnique({
+      where: { id: cliente_id }
     })
 
-    if (existing) {
-      return NextResponse.json({ 
-        error: `Ya existe un registro de ventas para ${cliente_nombre} en ${nMes}/${nAnio}.` 
-      }, { status: 409 })
-    }
-
-    const rawNewRecord = await prisma.ventas_mensuales_cliente.create({
+    const rawNewRecord = await prisma.facturas_cliente.create({
       data: {
+        numero_factura: `Manual-${nAnio}${String(nMes).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
         cliente_id,
         cliente_nombre,
-        anio: nAnio,
-        mes: nMes,
-        monto: fMonto,
-        created_at: new Date()
+        cliente_rfc: clientRecord?.rfc || null,
+        fecha_expedicion: new Date(nAnio, nMes - 1, 1),
+        fecha_vencimiento: new Date(nAnio, nMes - 1, 1),
+        estado: 'pagada',
+        subtotal: fMonto,
+        iva: 0,
+        total: fMonto,
+        observaciones: 'Registro manual de ventas',
+        created_at: new Date(),
+        updated_at: new Date()
       }
     })
 
     const newRecord = {
-      ...rawNewRecord,
-      id: rawNewRecord.id.toString()
+      id: rawNewRecord.id,
+      cliente_id: rawNewRecord.cliente_id || '',
+      cliente_nombre: rawNewRecord.cliente_nombre,
+      anio: new Date(rawNewRecord.fecha_expedicion).getFullYear(),
+      mes: new Date(rawNewRecord.fecha_expedicion).getMonth() + 1,
+      monto: Number(rawNewRecord.total),
+      created_at: rawNewRecord.created_at || rawNewRecord.fecha_expedicion
     }
 
     return NextResponse.json({ data: newRecord }, { status: 201 })

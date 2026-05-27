@@ -7,8 +7,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const record = await prisma.ventas_mensuales_cliente.findUnique({
-      where: { id: BigInt(id) }
+    const record = await prisma.facturas_cliente.findUnique({
+      where: { id }
     })
 
     if (!record) {
@@ -17,8 +17,13 @@ export async function GET(
 
     return NextResponse.json({
       data: {
-        ...record,
-        id: record.id.toString()
+        id: record.id,
+        cliente_id: record.cliente_id || '',
+        cliente_nombre: record.cliente_nombre,
+        anio: new Date(record.fecha_expedicion).getFullYear(),
+        mes: new Date(record.fecha_expedicion).getMonth() + 1,
+        monto: Number(record.total),
+        created_at: record.created_at || record.fecha_expedicion
       }
     })
   } catch (error: any) {
@@ -36,54 +41,62 @@ export async function PATCH(
     const body = await request.json()
     const { cliente_id, cliente_nombre, anio, mes, monto } = body
 
-    const updateData: any = {}
-    if (cliente_id !== undefined) updateData.cliente_id = cliente_id
-    if (cliente_nombre !== undefined) updateData.cliente_nombre = cliente_nombre
-    if (anio !== undefined) updateData.anio = parseInt(anio, 10)
-    if (mes !== undefined) updateData.mes = parseInt(mes, 10)
-    if (monto !== undefined) updateData.monto = parseFloat(monto)
+    const current = await prisma.facturas_cliente.findUnique({
+      where: { id }
+    })
 
-    // Check unique constraint if cliente_id, anio, or mes are being modified
-    if (cliente_id !== undefined || anio !== undefined || mes !== undefined) {
-      // Get current values
-      const current = await prisma.ventas_mensuales_cliente.findUnique({
-        where: { id: BigInt(id) }
-      })
-      if (!current) {
-        return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 })
-      }
-      
-      const checkClientId = cliente_id !== undefined ? cliente_id : current.cliente_id
-      const checkAnio = anio !== undefined ? parseInt(anio, 10) : current.anio
-      const checkMes = mes !== undefined ? parseInt(mes, 10) : current.mes
-
-      const existing = await prisma.ventas_mensuales_cliente.findFirst({
-        where: {
-          cliente_id: checkClientId,
-          anio: checkAnio,
-          mes: checkMes,
-          NOT: {
-            id: BigInt(id)
-          }
-        }
-      })
-
-      if (existing) {
-        return NextResponse.json({ 
-          error: `Ya existe un registro de ventas para ese cliente en ${checkMes}/${checkAnio}.` 
-        }, { status: 409 })
-      }
+    if (!current) {
+      return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 })
     }
 
-    const updated = await prisma.ventas_mensuales_cliente.update({
-      where: { id: BigInt(id) },
+    const updateData: any = {}
+    
+    if (cliente_id !== undefined) {
+      updateData.cliente_id = cliente_id
+      // Try to lookup RFC
+      const clientRecord = await prisma.clientes.findUnique({
+        where: { id: cliente_id }
+      })
+      if (clientRecord) {
+        updateData.cliente_rfc = clientRecord.rfc || null
+      }
+    }
+    if (cliente_nombre !== undefined) {
+      updateData.cliente_nombre = cliente_nombre
+    }
+
+    const checkAnio = anio !== undefined ? parseInt(anio, 10) : new Date(current.fecha_expedicion).getFullYear()
+    const checkMes = mes !== undefined ? parseInt(mes, 10) : new Date(current.fecha_expedicion).getMonth() + 1
+
+    if (anio !== undefined || mes !== undefined) {
+      const newDate = new Date(checkAnio, checkMes - 1, 1)
+      updateData.fecha_expedicion = newDate
+      updateData.fecha_vencimiento = newDate
+    }
+
+    if (monto !== undefined) {
+      const fMonto = parseFloat(monto)
+      updateData.subtotal = fMonto
+      updateData.total = fMonto
+      updateData.iva = 0
+    }
+
+    updateData.updated_at = new Date()
+
+    const updated = await prisma.facturas_cliente.update({
+      where: { id },
       data: updateData
     })
 
     return NextResponse.json({
       data: {
-        ...updated,
-        id: updated.id.toString()
+        id: updated.id,
+        cliente_id: updated.cliente_id || '',
+        cliente_nombre: updated.cliente_nombre,
+        anio: new Date(updated.fecha_expedicion).getFullYear(),
+        mes: new Date(updated.fecha_expedicion).getMonth() + 1,
+        monto: Number(updated.total),
+        created_at: updated.created_at || updated.fecha_expedicion
       }
     })
   } catch (error: any) {
@@ -98,8 +111,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    await prisma.ventas_mensuales_cliente.delete({
-      where: { id: BigInt(id) }
+    await prisma.facturas_cliente.delete({
+      where: { id }
     })
     return NextResponse.json({ success: true })
   } catch (error: any) {

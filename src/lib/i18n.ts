@@ -286,6 +286,7 @@ export const translations = {
     salesByYear: 'Ventas por Año',
     compareYears: 'Comparativa de Años',
     transactions: 'Transacciones',
+    warranties: 'Garantías',
   },
   en: {
     appName: 'Arthromed ERP',
@@ -559,6 +560,7 @@ export const translations = {
     salesByYear: 'Sales by Year',
     compareYears: 'Compare Years',
     transactions: 'Transactions',
+    warranties: 'Warranties',
   },
   zh: {
     appName: 'Arthromed ERP',
@@ -832,6 +834,7 @@ export const translations = {
     salesByYear: '按年销售',
     compareYears: '按年对比',
     transactions: '交易',
+    warranties: '质保',
   },
 } as const
 

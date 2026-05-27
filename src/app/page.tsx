@@ -142,8 +142,14 @@ export default function DashboardPage() {
   const CARD_STYLE = { background: '#ffffff', border: '1px solid #d4e0ec' }
   const CHART_TOOLTIP = { background: '#ffffff', border: '1px solid #d4e0ec', borderRadius: 8, color: '#37383a' }
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount)
+  const formatCurrency = (amount: number | string, compact = false) => {
+    const num = typeof amount === 'number' ? amount : parseFloat(amount) || 0
+    const absNum = Math.abs(num)
+    if (compact && absNum >= 1000000) {
+      return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
+    }
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(num)
+  }
 
   // Upcoming congresos (end_date >= today)
   const today = new Date()
@@ -186,7 +192,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               title={t('totalSales' as any) || 'Ventas Totales'}
-              value={formatCurrency(data?.totalSales ?? 0)}
+              value={formatCurrency(data?.totalSales ?? 0, true)}
               icon={<DollarSign size={22} />}
               color="green"
               href="/ventas"
@@ -200,7 +206,7 @@ export default function DashboardPage() {
             />
             <StatCard
               title={t('averageSale' as any) || 'Promedio'}
-              value={formatCurrency(data?.averageSale ?? 0)}
+              value={formatCurrency(data?.averageSale ?? 0, true)}
               icon={<Activity size={22} />}
               color="amber"
               href="/ventas"
@@ -362,21 +368,21 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               title={t('totalSpent')}
-              value={formatCurrency(data?.totalSpent ?? 0)}
+              value={formatCurrency(data?.totalSpent ?? 0, true)}
               icon={<DollarSign size={22} />}
               color="blue"
               href="/gastos"
             />
             <StatCard
               title={t('totalBillable')}
-              value={formatCurrency(data?.totalBillable ?? 0)}
+              value={formatCurrency(data?.totalBillable ?? 0, true)}
               icon={<Receipt size={22} />}
               color="green"
               href="/gastos"
             />
             <StatCard
               title={t('totalPendingBilling')}
-              value={formatCurrency(data?.pendingBilling ?? 0)}
+              value={formatCurrency(data?.pendingBilling ?? 0, true)}
               icon={<TrendingUp size={22} />}
               color="amber"
               href="/gastos"

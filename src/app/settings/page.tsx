@@ -1,8 +1,9 @@
 'use client'
+import { useState, useEffect } from 'react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
-import { Globe, Database, MessageCircle, Bot } from 'lucide-react'
+import { Globe, Database, MessageCircle, Bot, FileText } from 'lucide-react'
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
@@ -29,6 +30,14 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function SettingsPage() {
   const { t } = useI18n()
+  const [alegraConfig, setAlegraConfig] = useState<{ configured: boolean; email: string | null } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/alegra/config')
+      .then(res => res.json())
+      .then(data => setAlegraConfig(data))
+      .catch(err => console.error('Error fetching Alegra config:', err))
+  }, [])
 
   return (
     <AppShell>
@@ -84,6 +93,24 @@ export default function SettingsPage() {
               <p className="text-xs" style={{ color: '#8a8b8d' }}>Modelo para resúmenes de clientes</p>
             </div>
             <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>Activo</span>
+          </div>
+        </SettingCard>
+
+        <SettingCard icon={<FileText size={16} />} iconColor="#0763a9" title="Integración con Alegra">
+          <div className="flex items-center justify-between p-3 rounded-xl" style={{ border: '1px solid #e8f1f9', background: '#f8fafd' }}>
+            <div>
+              <p className="text-sm font-medium" style={{ color: '#37383a' }}>Sincronización de Facturas</p>
+              {alegraConfig?.configured ? (
+                <p className="text-xs" style={{ color: '#8a8b8d' }}>Cuenta: {alegraConfig.email}</p>
+              ) : (
+                <p className="text-xs text-rose-500 font-semibold">Credenciales no configuradas</p>
+              )}
+            </div>
+            {alegraConfig?.configured ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>Conectado</span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}>Desconectado</span>
+            )}
           </div>
         </SettingCard>
 

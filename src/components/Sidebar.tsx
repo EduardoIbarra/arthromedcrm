@@ -6,7 +6,7 @@ import Image from 'next/image'
 import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
-  ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp
+  ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -52,17 +52,26 @@ export default function Sidebar() {
       items: [
         { href: '/products', icon: Package, label: t('products'), section: 'products' },
         { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
+        { href: '/inventario', icon: Warehouse, label: 'Inventario', section: 'products' },
+      ],
+    },
+    {
+      title: 'Operaciones',
+      items: [
+        { href: '/calendario', icon: CalendarDays, label: t('calendar'), section: 'congresos' },
+        { href: '/congresos', icon: Calendar, label: t('congresos'), section: 'congresos' },
+        { href: '/cirugias', icon: Scissors, label: 'Cirugías', section: 'cirugias' },
+        { href: '/garantias', icon: Wrench, label: t('warranties' as any) || 'Garantías', section: 'warranties' },
       ],
     },
     {
       title: t('events'),
       items: [
-        { href: '/calendario', icon: CalendarDays, label: t('calendar'), section: 'congresos' },
-        { href: '/congresos', icon: Calendar, label: t('congresos'), section: 'congresos' },
         { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'congresos' },
         { href: '/previos', icon: ClipboardList, label: 'Previos', section: 'gastos' },
         { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
         { href: '/ventas', icon: TrendingUp, label: t('ventas'), section: 'ventas' },
+        { href: '/facturas', icon: FileText, label: 'Facturas Clientes', section: 'ventas' },
       ],
     },
     {
@@ -77,7 +86,7 @@ export default function Sidebar() {
   // Filter groups and items based on permissions
   const filteredNavGroups = navGroups.map(group => ({
     ...group,
-    items: group.items.filter(item => 
+    items: group.items.filter(item =>
       hasPermission(item.section, item.action || 'view')
     )
   })).filter(group => group.items.length > 0)

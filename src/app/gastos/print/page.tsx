@@ -111,11 +111,16 @@ function GastoPrintContent() {
   }, [isLoading, filteredGastos.length])
 
   // Currency helper
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, compact = false) => {
+    const num = typeof amount === 'number' ? amount : parseFloat(amount as any) || 0
+    const absNum = Math.abs(num)
+    if (compact && absNum >= 1000000) {
+      return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
+    }
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
       currency: 'MXN'
-    }).format(amount)
+    }).format(num)
   }
 
   // Active filters display string
@@ -293,17 +298,17 @@ function GastoPrintContent() {
 
         {/* SUMMARY KPIs CARDS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="chart-box bg-white border border-gray-150 rounded-xl p-4 flex flex-col justify-center border-l-4 border-l-blue-500">
+          <div className="chart-box bg-white border border-gray-150 rounded-xl p-4 flex flex-col justify-center border-l-4 border-l-blue-500 overflow-hidden">
             <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{t('totalSpent') || 'Total Gastado'}</span>
-            <span className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(kpiTotalSpent)}</span>
+            <span className="text-xl font-bold text-gray-900 mt-1 truncate" title={formatCurrency(kpiTotalSpent)}>{formatCurrency(kpiTotalSpent, true)}</span>
           </div>
-          <div className="chart-box bg-white border border-gray-150 rounded-xl p-4 flex flex-col justify-center border-l-4 border-l-green-500">
+          <div className="chart-box bg-white border border-gray-150 rounded-xl p-4 flex flex-col justify-center border-l-4 border-l-green-500 overflow-hidden">
             <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{t('totalBillable') || 'Total Facturable'}</span>
-            <span className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(kpiTotalBillable)}</span>
+            <span className="text-xl font-bold text-gray-900 mt-1 truncate" title={formatCurrency(kpiTotalBillable)}>{formatCurrency(kpiTotalBillable, true)}</span>
           </div>
-          <div className="chart-box bg-white border border-gray-150 rounded-xl p-4 flex flex-col justify-center border-l-4 border-l-yellow-500">
+          <div className="chart-box bg-white border border-gray-150 rounded-xl p-4 flex flex-col justify-center border-l-4 border-l-yellow-500 overflow-hidden">
             <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{t('totalPendingBilling') || 'Pendiente Factura'}</span>
-            <span className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(kpiTotalPendingBilling)}</span>
+            <span className="text-xl font-bold text-gray-900 mt-1 truncate" title={formatCurrency(kpiTotalPendingBilling)}>{formatCurrency(kpiTotalPendingBilling, true)}</span>
           </div>
           <div className="chart-box bg-white border border-gray-150 rounded-xl p-4 flex flex-col justify-center border-l-4 border-l-purple-500">
             <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{t('expensesCount') || 'Transacciones'}</span>
@@ -338,7 +343,7 @@ function GastoPrintContent() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -348,7 +353,7 @@ function GastoPrintContent() {
                     <span key={entry.name} className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
                       <span className="text-gray-600 font-medium">{entry.name}:</span>
-                      <span className="font-bold text-gray-800">{formatCurrency(entry.value)}</span>
+                      <span className="font-bold text-gray-800">{formatCurrency(entry.value, true)}</span>
                     </span>
                   ))}
                 </div>
@@ -378,7 +383,7 @@ function GastoPrintContent() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -387,7 +392,7 @@ function GastoPrintContent() {
                     <span key={entry.name} className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
                       <span className="text-gray-600 font-medium">{entry.name}:</span>
-                      <span className="font-bold text-gray-800">{formatCurrency(entry.value)}</span>
+                      <span className="font-bold text-gray-800">{formatCurrency(entry.value, true)}</span>
                     </span>
                   ))}
                 </div>
@@ -416,7 +421,7 @@ function GastoPrintContent() {
                         <Cell fill="#3b82f6" />
                         <Cell fill="#94a3b8" />
                       </Pie>
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -425,7 +430,7 @@ function GastoPrintContent() {
                     <span key={entry.name} className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: index === 0 ? '#3b82f6' : '#94a3b8' }}></span>
                       <span className="text-gray-600 font-medium">{entry.name}:</span>
-                      <span className="font-bold text-gray-800">{formatCurrency(entry.value)}</span>
+                      <span className="font-bold text-gray-800">{formatCurrency(entry.value, true)}</span>
                     </span>
                   ))}
                 </div>
@@ -454,7 +459,7 @@ function GastoPrintContent() {
                         <Cell fill="#10b981" />
                         <Cell fill="#f59e0b" />
                       </Pie>
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -463,7 +468,7 @@ function GastoPrintContent() {
                     <span key={entry.name} className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: index === 0 ? '#10b981' : '#f59e0b' }}></span>
                       <span className="text-gray-600 font-medium">{entry.name}:</span>
-                      <span className="font-bold text-gray-800">{formatCurrency(entry.value)}</span>
+                      <span className="font-bold text-gray-800">{formatCurrency(entry.value, true)}</span>
                     </span>
                   ))}
                 </div>

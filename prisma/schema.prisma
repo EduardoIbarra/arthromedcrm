@@ -519,6 +519,71 @@ model cartas_distribucion {
   @@schema("public")
 }
 
+/// Cirugías — main surgery record
+model cirugias {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre           String
+  medico           String
+  descripcion      String?
+  fecha            DateTime            @db.Timestamptz(6)
+  estado           String              @default("programada")
+  notas            String?
+  created_at       DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?           @default(now()) @db.Timestamptz(6)
+  cirugia_equipo   cirugia_equipo[]
+  cirugia_productos cirugia_productos[]
+  cirugia_conceptos cirugia_conceptos[]
+
+  @@index([fecha])
+  @@schema("public")
+}
+
+/// Team members assisting in a surgery (linked to auth.users)
+model cirugia_equipo {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id  String    @db.Uuid
+  user_id     String    @db.Uuid
+  rol         String?
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  cirugias    cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([cirugia_id, user_id])
+  @@index([cirugia_id])
+  @@schema("public")
+}
+
+/// Products required for a surgery
+model cirugia_productos {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id       String     @db.Uuid
+  producto_id      String     @db.Uuid
+  cantidad         Int        @default(1)
+  es_consumible    Boolean    @default(false)
+  tipo_uso         String     @default("venta")
+  precio_unitario  Decimal?   @db.Decimal(12, 2)
+  created_at       DateTime?  @default(now()) @db.Timestamptz(6)
+  cirugias         cirugias   @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productos        productos  @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([cirugia_id])
+  @@schema("public")
+}
+
+/// Custom pricing / billing concepts for a surgery
+model cirugia_conceptos {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id      String    @db.Uuid
+  concepto        String
+  cantidad        Decimal   @default(1) @db.Decimal(10, 2)
+  precio_unitario Decimal   @db.Decimal(12, 2)
+  subtotal        Decimal   @default(0) @db.Decimal(12, 2)
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  cirugias        cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([cirugia_id])
+  @@schema("public")
+}
+
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model catalog_specialties {
   id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -589,6 +654,7 @@ model clientes {
   previos            previos[]
   remisiones         remisiones[]
   salidas_inventario salidas_inventario[]
+  garantias          garantias[]
 
   @@schema("public")
 }
@@ -933,6 +999,8 @@ model facturas_cliente {
   observaciones     String?
   created_at        DateTime?           @default(now()) @db.Timestamptz(6)
   updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  fecha_pago        DateTime?           @db.Date
+  metodo_pago       String?             @db.VarChar(100)
   alegra_id         String?             @unique
   factura_productos factura_productos[]
   clientes          clientes?           @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1301,12 +1369,16 @@ model productos {
   descripcion_hospitales String?
   nombre_lista           String?
   precio_lista           Decimal?             @db.Decimal
+  stock_actual           Int?                 @default(0)
+  stock_updated_at       DateTime?            @db.Timestamptz(6)
   detalle_plan_pago      detalle_plan_pago[]
   evento_inventario      evento_inventario[]
   factura_productos      factura_productos[]
   inventario_lotes       inventario_lotes[]
   orden_productos        orden_productos[]
   remision_productos     remision_productos[]
+  cirugia_productos      cirugia_productos[]
+  garantias              garantias[]
 
   @@schema("public")
 }
@@ -1537,6 +1609,31 @@ model whatsapp_messages {
   direction String?
   timestamp DateTime? @default(now()) @db.Timestamptz(6)
   leads     leads?    @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model garantias {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id        String?   @db.Uuid
+  cliente_nombre    String
+  producto_id       String?   @db.Uuid
+  producto_nombre   String
+  numero_serie      String?
+  modelo            String?
+  descripcion_falla String
+  estado            String    @default("recibido")
+  fecha_recepcion   DateTime  @default(now()) @db.Timestamptz(6)
+  fecha_resolucion  DateTime? @db.Timestamptz(6)
+  diagnostico       String?
+  resolucion        String?
+  costo_reparacion  Decimal?  @db.Decimal(12, 2)
+  notas             String?
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6) @updatedAt
+
+  clientes          clientes?  @relation(fields: [cliente_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  productos         productos? @relation(fields: [producto_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@schema("public")
 }
