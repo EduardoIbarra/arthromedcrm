@@ -47,10 +47,10 @@ type Warranty = {
   notas: string | null
   created_at: string
   updated_at: string
-  clientes?: {
-    nombre: string
-    correo: string | null
-    telefono: string | null
+  clients?: {
+    name: string
+    email_primary: string | null
+    phone: string | null
   } | null
   productos?: {
     nombre: string

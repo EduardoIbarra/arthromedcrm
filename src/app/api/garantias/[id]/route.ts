@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { sendInternalNotification } from '@/lib/respond'
 
 // PATCH /api/garantias/[id] - Update warranty record
 export async function PATCH(
@@ -46,11 +47,11 @@ export async function PATCH(
       where: { id },
       data: updateData,
       include: {
-        clientes: {
+        clients: {
           select: {
-            nombre: true,
-            correo: true,
-            telefono: true,
+            name: true,
+            email_primary: true,
+            phone: true,
           },
         },
         productos: {
@@ -61,6 +62,28 @@ export async function PATCH(
         },
       },
     })
+
+    if (estado !== undefined) {
+      let origin = new URL(request.url).origin;
+      if (origin.includes('localhost')) {
+        origin = 'https://arthromed.mx';
+      }
+      const recordUrl = `${origin}/garantias/${updated.id}`;
+      
+      const STATUS_LABELS: Record<string, string> = {
+        recibido: 'Recibido',
+        en_revision: 'En revisión',
+        aprobado: 'Aprobado',
+        rechazado: 'Rechazado',
+        en_reparacion: 'En reparación',
+        completado: 'Completado',
+        entregado: 'Entregado / Devuelto'
+      };
+      const statusLabel = STATUS_LABELS[updated.estado] || updated.estado;
+      
+      const notificationMessage = `Actualización de Garantía:\nCliente: ${updated.cliente_nombre}\nProducto: ${updated.producto_nombre}\nNuevo Estado: *${statusLabel}*\n\nVer detalles:\n${recordUrl}`;
+      sendInternalNotification(notificationMessage, 'garantias').catch(console.error);
+    }
 
     return NextResponse.json({ data: updated })
   } catch (err: any) {

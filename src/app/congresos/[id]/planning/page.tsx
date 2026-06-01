@@ -75,11 +75,13 @@ export default function CongressPlanningPage() {
   })
   const [newTraveler, setNewTraveler] = useState({
     name: '',
+    user_id: '',
     role: '',
     has_pin: false,
     has_gafete: true,
     notes: ''
   })
+  const [systemUsers, setSystemUsers] = useState<{id: string, email: string}[]>([])
 
   // Load Data
   const fetchData = async () => {
@@ -117,6 +119,16 @@ export default function CongressPlanningPage() {
         date: item.date.split('T')[0]
       })))
       setTravelers(json.data.travelers)
+
+      try {
+        const resUsers = await fetch('/api/cirugias/usuarios')
+        if (resUsers.ok) {
+          const jsonUsers = await resUsers.json()
+          if (jsonUsers.data) setSystemUsers(jsonUsers.data)
+        }
+      } catch (err) {
+        console.error('Failed to load system users', err)
+      }
     } catch (err: any) {
       console.error(err)
       setError(err.message)
@@ -228,6 +240,7 @@ export default function CongressPlanningPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newTraveler.name,
+          user_id: newTraveler.user_id || undefined,
           role: newTraveler.role || null,
           has_pin: newTraveler.has_pin,
           has_gafete: newTraveler.has_gafete,
@@ -239,7 +252,8 @@ export default function CongressPlanningPage() {
       const json = await res.json()
       
       setTravelers(prev => [...prev, json.data].sort((a, b) => a.name.localeCompare(b.name)))
-      setNewTraveler({ name: '', role: '', has_pin: false, has_gafete: true, notes: '' })
+      setNewTraveler({ name: '', user_id: '', role: '', has_pin: false, has_gafete: true, notes: '' })
+      showToast('Viajero agregado con éxito')
       showToast('Viajero agregado con éxito')
     } catch (err: any) {
       setError(err.message)
@@ -1080,15 +1094,25 @@ export default function CongressPlanningPage() {
                   </h3>
                   <form onSubmit={handleAddTraveler} className="space-y-4">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nombre Completo *</label>
-                      <input
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Seleccionar Usuario *</label>
+                      <select
                         required
-                        type="text"
-                        placeholder="Ej. Ricardo Reyes"
                         className="erp-input w-full"
-                        value={newTraveler.name}
-                        onChange={e => setNewTraveler({ ...newTraveler, name: e.target.value })}
-                      />
+                        value={newTraveler.user_id}
+                        onChange={e => {
+                          const selected = systemUsers.find(u => u.id === e.target.value)
+                          setNewTraveler({ 
+                            ...newTraveler, 
+                            user_id: e.target.value,
+                            name: selected ? selected.email.split('@')[0] : ''
+                          })
+                        }}
+                      >
+                        <option value="">Seleccione un usuario...</option>
+                        {systemUsers.map(u => (
+                          <option key={u.id} value={u.id}>{u.email}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">Rol / Responsabilidad</label>

@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Users, Shield, ShieldCheck, User, Trash2,
   Search, X, Loader2, AlertCircle, Settings2,
-  CheckSquare, Square
+  CheckSquare, Square, MessageCircle, Edit2, Check
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -26,6 +26,8 @@ export default function UsersPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [editingOverrides, setEditingOverrides] = useState<UserProfile | null>(null)
+  const [editingWhatsapp, setEditingWhatsapp] = useState<string | null>(null)
+  const [whatsappInput, setWhatsappInput] = useState('')
 
   const supabase = createClient()
 
@@ -125,6 +127,21 @@ export default function UsersPage() {
     }
   }
 
+  const handleUpdateWhatsapp = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ whatsapp: whatsappInput })
+        .eq('id', userId)
+
+      if (error) throw error
+      setUsers(users.map((u: UserProfile) => u.id === userId ? { ...u, whatsapp: whatsappInput } : u))
+      setEditingWhatsapp(null)
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
+
   const filteredUsers = users.filter((u: UserProfile) =>
     u.email.toLowerCase().includes(search.toLowerCase())
   )
@@ -184,6 +201,7 @@ export default function UsersPage() {
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-100">
                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('user')}</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">WhatsApp</th>
                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('role')}</th>
                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('registered')}</th>
                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">{t('actions')}</th>
@@ -202,6 +220,45 @@ export default function UsersPage() {
                             <p className="text-[10px] text-gray-400 font-mono">{user.id}</p>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {editingWhatsapp === user.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={whatsappInput}
+                              onChange={(e) => setWhatsappInput(e.target.value)}
+                              placeholder="+52..."
+                              className="text-xs border rounded-lg px-2 py-1 bg-white hover:border-blue-300 transition-colors outline-none max-w-[150px]"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleUpdateWhatsapp(user.id)
+                                if (e.key === 'Escape') setEditingWhatsapp(null)
+                              }}
+                            />
+                            <button onClick={() => handleUpdateWhatsapp(user.id)} className="p-1 rounded bg-green-50 text-green-600 hover:bg-green-100"><Check size={14}/></button>
+                            <button onClick={() => setEditingWhatsapp(null)} className="p-1 rounded bg-gray-50 text-gray-600 hover:bg-gray-100"><X size={14}/></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group/wa">
+                            {user.whatsapp ? (
+                              <span className="text-sm font-medium font-mono text-gray-700">{user.whatsapp}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">No configurado</span>
+                            )}
+                            {(isSuperAdmin || user.id === currentUser?.id) && (
+                              <button 
+                                onClick={() => {
+                                  setWhatsappInput(user.whatsapp || '')
+                                  setEditingWhatsapp(user.id)
+                                }} 
+                                className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover/wa:opacity-100 transition-all"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         {isSuperAdmin && user.id !== currentUser?.id ? (

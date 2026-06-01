@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'arthromed.mx',
       },
+      {
+        protocol: 'https',
+        hostname: 'arthromed.com.mx',
+      },
     ],
   },
   turbopack: {

@@ -110,15 +110,15 @@ export default function PrivacyPolicyPage() {
           <button onClick={() => router.back()} className="text-[#5a5b5d] hover:text-[#0763a9] transition-colors bg-[#f0f5fa] p-2 rounded-xl hover:bg-[#e8f1f9]">
             <ArrowLeft size={20} />
           </button>
-          <Image 
-            src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
-            alt="Arthromed Logo" 
-            width={140} 
-            height={45} 
+          <Image
+            src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png"
+            alt="Arthromed Logo"
+            width={140}
+            height={45}
             className="h-8 w-auto object-contain"
           />
         </div>
-        
+
         {/* Language Selector */}
         <div className="flex items-center gap-1 bg-[#f0f5fa] p-1 rounded-xl border border-[#d4e0ec]">
           <Globe size={14} className="ml-2 text-[#8a8b8d] hidden sm:block" />
@@ -126,11 +126,10 @@ export default function PrivacyPolicyPage() {
             <button
               key={l}
               onClick={() => setLang(l)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                lang === l 
-                  ? 'bg-white text-[#0763a9] shadow-sm shadow-[#0763a9]/10' 
-                  : 'text-[#8a8b8d] hover:text-[#37383a]'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${lang === l
+                ? 'bg-white text-[#0763a9] shadow-sm shadow-[#0763a9]/10'
+                : 'text-[#8a8b8d] hover:text-[#37383a]'
+                }`}
             >
               {l === 'es' ? 'ES' : l === 'en' ? 'EN' : '中文'}
             </button>
@@ -140,7 +139,7 @@ export default function PrivacyPolicyPage() {
 
       {/* Main Content */}
       <main className="w-full max-w-3xl relative z-10 px-4 py-12 flex flex-col gap-8">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
@@ -149,7 +148,7 @@ export default function PrivacyPolicyPage() {
             <Shield size={32} />
           </div>
           <AnimatePresence mode="wait">
-            <motion.h1 
+            <motion.h1
               key={`title-${lang}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -160,7 +159,7 @@ export default function PrivacyPolicyPage() {
             </motion.h1>
           </AnimatePresence>
           <AnimatePresence mode="wait">
-            <motion.p 
+            <motion.p
               key={`subtitle-${lang}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -173,7 +172,7 @@ export default function PrivacyPolicyPage() {
           <p className="text-xs text-[#8a8b8d] mt-2 font-medium tracking-wide uppercase">{content.lastUpdated}</p>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -182,7 +181,7 @@ export default function PrivacyPolicyPage() {
           <div className="flex flex-col gap-10">
             {content.sections.map((section, index) => (
               <AnimatePresence mode="wait" key={`section-${index}`}>
-                <motion.div 
+                <motion.div
                   key={`content-${lang}-${index}`}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}

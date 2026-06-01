@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { sendNotificationToUser } from '@/lib/respond'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +53,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       conceptos,
     } = body
 
+    // Fetch existing team to notify only new members
+    const existingEquipo = await prisma.cirugia_equipo.findMany({ where: { cirugia_id: id } })
+    const existingUserIds = existingEquipo.map(e => e.user_id)
+
     // Delete & recreate nested items (simplest full-replace strategy)
     await prisma.cirugia_equipo.deleteMany({ where: { cirugia_id: id } })
     await prisma.cirugia_productos.deleteMany({ where: { cirugia_id: id } })
@@ -101,6 +106,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         cirugia_conceptos: true,
       },
     })
+
+    const newUsers = (equipo || []).filter((e: any) => !existingUserIds.includes(e.user_id))
+    const remainingUsers = (equipo || []).filter((e: any) => existingUserIds.includes(e.user_id))
+    
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    if (baseUrl.includes('localhost')) {
+      baseUrl = 'https://dev.erp.arthromed.com.mx';
+    }
+    const url = `${baseUrl}/cirugias/${data.id}`;
+    const fechaFormat = new Date(data.fecha).toLocaleString('es-MX', {
+      timeZone: 'America/Monterrey',
+      dateStyle: 'full',
+      timeStyle: 'short',
+    });
+
+    if (newUsers.length > 0) {
+      const messageNew = `¡Hola! Has sido asignado al equipo asistente de la cirugía "${data.nombre}" con el ${data.medico}. \nFecha y hora: ${fechaFormat}\nPuedes ver los detalles aquí: ${url}`;
+      for (const e of newUsers) {
+        if (e.user_id) {
+          await sendNotificationToUser(e.user_id, messageNew);
+        }
+      }
+    }
+
+    if (remainingUsers.length > 0) {
+      const messageUpdate = `¡Hola! Los detalles de la cirugía "${data.nombre}" han sido actualizados. \nFecha y hora: ${fechaFormat}\nPuedes ver los detalles aquí: ${url}`;
+      for (const e of remainingUsers) {
+        if (e.user_id) {
+          await sendNotificationToUser(e.user_id, messageUpdate);
+        }
+      }
+    }
 
     return NextResponse.json({ data })
   } catch (err: any) {

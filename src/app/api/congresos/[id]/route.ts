@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { sendNotificationToUser } from '@/lib/respond'
 
 export const dynamic = 'force-dynamic'
 
@@ -146,6 +147,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       })
     })
+
+    const travelers = await prisma.congreso_viajeros.findMany({
+      where: {
+        congreso_id: id,
+        user_id: { not: null }
+      }
+    })
+
+    if (travelers.length > 0) {
+      let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      if (baseUrl.includes('localhost')) {
+        baseUrl = 'https://dev.erp.arthromed.com.mx';
+      }
+      const url = `${baseUrl}/congresos/${data.id}/view`;
+      const fechaFormat = data.start_date ? new Date(data.start_date).toLocaleString('es-MX', {
+        timeZone: 'America/Monterrey',
+        dateStyle: 'full'
+      }) : 'No definida';
+
+      const messageUpdate = `¡Hola! Los detalles del congreso "${data.name}" han sido actualizados. \nFecha de inicio: ${fechaFormat}\nPuedes ver los detalles aquí: ${url}`;
+      
+      for (const t of travelers) {
+        if (t.user_id) {
+          await sendNotificationToUser(t.user_id, messageUpdate);
+        }
+      }
+    }
 
     return NextResponse.json({ data })
   } catch (err: any) {

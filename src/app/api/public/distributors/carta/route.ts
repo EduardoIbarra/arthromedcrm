@@ -129,14 +129,14 @@ export async function GET() {
         page.drawImage(logoImage, { x: LEFT - 15, y: PAGE_H - 20 - lh, width: lw, height: lh })
         headerHeight = Math.max(headerHeight, 20 + lh + 10) // 20 margin + logo height + 10 padding
       }
-      
+
       const hdr = 'ARTHROMED'
       page.drawText(hdr, {
         x: RIGHT - bold.widthOfTextAtSize(hdr, 13),
         y: PAGE_H - 52,
         size: 13, font: bold, color: DARK,
       })
-      
+
       y = PAGE_H - headerHeight - 20 // Start text below the header area
     }
 

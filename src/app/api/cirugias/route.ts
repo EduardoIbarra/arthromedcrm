@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { sendNotificationToUser } from '@/lib/respond'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +82,25 @@ export async function POST(req: NextRequest) {
         cirugia_conceptos: true,
       },
     })
+
+    if (equipo && equipo.length > 0) {
+      let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      if (baseUrl.includes('localhost')) {
+        baseUrl = 'https://dev.erp.arthromed.com.mx';
+      }
+      const url = `${baseUrl}/cirugias/${cirugia.id}`;
+      const fechaFormat = new Date(cirugia.fecha).toLocaleString('es-MX', {
+        timeZone: 'America/Monterrey',
+        dateStyle: 'full',
+        timeStyle: 'short',
+      });
+      const message = `¡Hola! Has sido asignado al equipo asistente de la cirugía "${cirugia.nombre}" con el ${cirugia.medico}. \nFecha y hora: ${fechaFormat}\nPuedes ver los detalles aquí: ${url}`;
+      for (const e of equipo) {
+        if (e.user_id) {
+          await sendNotificationToUser(e.user_id, message);
+        }
+      }
+    }
 
     return NextResponse.json({ data: cirugia }, { status: 201 })
   } catch (err: any) {

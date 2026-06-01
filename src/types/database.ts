@@ -190,6 +190,7 @@ export interface Role {
 export interface UserProfile {
   id: string
   email: string
+  whatsapp: string | null
   role: 'superadmin' | 'admin' | 'user'
   role_id: string | null
   roles?: Role // For joined queries

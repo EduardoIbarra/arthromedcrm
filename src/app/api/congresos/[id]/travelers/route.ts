@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { sendNotificationToUser } from '@/lib/respond'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -16,11 +17,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         congreso_id: id,
         name,
         role: role || null,
+        user_id: body.user_id || null,
         has_pin: !!has_pin,
         has_gafete: !!has_gafete,
         notes: notes || null
       }
     })
+
+    if (body.user_id) {
+      const congreso = await prisma.congresos.findUnique({
+        where: { id },
+        select: { name: true }
+      });
+      if (congreso) {
+        let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        if (baseUrl.includes('localhost')) {
+          baseUrl = 'https://dev.erp.arthromed.com.mx';
+        }
+        const url = `${baseUrl}/congresos/${id}/view`;
+        const message = `¡Hola! Has sido agregado al equipo viajero del congreso "${congreso.name}". Puedes ver los detalles del congreso aquí: ${url}`;
+        await sendNotificationToUser(body.user_id, message);
+      }
+    }
 
     return NextResponse.json({ data })
   } catch (error: any) {

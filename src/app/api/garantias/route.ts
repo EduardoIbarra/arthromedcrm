@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { sendInternalNotification } from '@/lib/respond'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,11 +30,11 @@ export async function GET(request: NextRequest) {
       where,
       orderBy: { created_at: 'desc' },
       include: {
-        clientes: {
+        clients: {
           select: {
-            nombre: true,
-            correo: true,
-            telefono: true,
+            name: true,
+            email_primary: true,
+            phone: true,
           },
         },
         productos: {
@@ -89,11 +90,11 @@ export async function POST(request: NextRequest) {
         fecha_recepcion: new Date(),
       },
       include: {
-        clientes: {
+        clients: {
           select: {
-            nombre: true,
-            correo: true,
-            telefono: true,
+            name: true,
+            email_primary: true,
+            phone: true,
           },
         },
         productos: {
@@ -104,6 +105,15 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+
+    // Send WhatsApp notification
+    let origin = new URL(request.url).origin;
+    if (origin.includes('localhost')) {
+      origin = 'https://arthromed.com.mx'; // Prevent AWS WAF blocking "localhost" and allow WhatsApp to generate previews
+    }
+    const recordUrl = `${origin}/garantias/${warranty.id}`;
+    const notificationMessage = `Nueva garantía registrada:\nCliente: ${cliente_nombre}\nProducto: ${producto_nombre}\nFalla: ${descripcion_falla}\n\nVer detalles:\n${recordUrl}`;
+    sendInternalNotification(notificationMessage, 'garantias').catch(console.error);
 
     return NextResponse.json({ data: warranty }, { status: 201 })
   } catch (err: any) {

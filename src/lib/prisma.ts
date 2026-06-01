@@ -28,8 +28,8 @@ declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
 }
 
-const hasGarantias = globalThis.prisma && ('garantias' in globalThis.prisma)
-const prisma = hasGarantias ? globalThis.prisma! : prismaClientSingleton()
+const hasAppSettings = globalThis.prisma && ('app_settings' in globalThis.prisma)
+const prisma = hasAppSettings ? globalThis.prisma! : prismaClientSingleton()
 
 export default prisma
 

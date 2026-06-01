@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
-import { Globe, Database, MessageCircle, Bot, FileText } from 'lucide-react'
+import { Globe, Database, MessageCircle, Bot, FileText, X, Plus, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
@@ -31,13 +32,54 @@ function Row({ label, value }: { label: string; value: string }) {
 export default function SettingsPage() {
   const { t } = useI18n()
   const [alegraConfig, setAlegraConfig] = useState<{ configured: boolean; email: string | null } | null>(null)
+  const [garantiasUsers, setGarantiasUsers] = useState<string[]>([])
+  const [users, setUsers] = useState<{id: string, email: string, whatsapp: string}[]>([])
+  const [savingNumbers, setSavingNumbers] = useState(false)
+  const supabase = createClient()
 
   useEffect(() => {
     fetch('/api/alegra/config')
       .then(res => res.json())
       .then(data => setAlegraConfig(data))
       .catch(err => console.error('Error fetching Alegra config:', err))
+
+    fetch('/api/settings?key=notification_config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.value && Array.isArray(data.value.garantias)) {
+          setGarantiasUsers(data.value.garantias)
+        }
+      })
+      .catch(err => console.error('Error fetching notification config:', err))
+      
+    supabase.from('user_profiles').select('id, email, whatsapp').not('whatsapp', 'is', null).then((res: any) => {
+      if (res.data) setUsers(res.data)
+    })
   }, [])
+
+  const saveConfig = async (newGarantias: string[]) => {
+    setSavingNumbers(true)
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'notification_config', value: { garantias: newGarantias } })
+      })
+      setGarantiasUsers(newGarantias)
+    } catch (err) {
+      console.error('Error saving config:', err)
+    } finally {
+      setSavingNumbers(false)
+    }
+  }
+
+  const toggleUser = (userId: string) => {
+    const isSelected = garantiasUsers.includes(userId)
+    const nextUsers = isSelected 
+      ? garantiasUsers.filter(id => id !== userId) 
+      : [...garantiasUsers, userId]
+    saveConfig(nextUsers)
+  }
 
   return (
     <AppShell>
@@ -68,6 +110,40 @@ export default function SettingsPage() {
         </SettingCard>
 
         <SettingCard icon={<MessageCircle size={16} />} iconColor="#15803d" title="WhatsApp">
+          <div>
+            <p className="text-sm font-semibold mb-2" style={{ color: '#37383a' }}>Notificaciones de Garantías</p>
+            <p className="text-xs mb-3" style={{ color: '#8a8b8d' }}>Selecciona qué usuarios recibirán las notificaciones de nuevos registros o cambios de estado en Garantías. Solo aparecen usuarios con número de WhatsApp configurado.</p>
+            
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {users.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No hay usuarios con número de WhatsApp configurado. Ve a la sección de Usuarios para configurarlos.</p>
+              ) : (
+                users.map((user) => {
+                  const isSelected = garantiasUsers.includes(user.id)
+                  return (
+                    <label key={user.id} className="flex items-center justify-between p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{ border: isSelected ? '1px solid #c2e0ff' : '1px solid #e8f1f9', background: isSelected ? '#f0f7ff' : '#ffffff' }}>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => toggleUser(user.id)}
+                          disabled={savingNumbers}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: '#37383a' }}>{user.email}</p>
+                          <p className="text-xs font-mono" style={{ color: '#8a8b8d' }}>{user.whatsapp}</p>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 my-4" />
+
           <p className="text-sm" style={{ color: '#5a5b5d' }}>Plantillas aprobadas disponibles:</p>
           <div className="space-y-2">
             {[

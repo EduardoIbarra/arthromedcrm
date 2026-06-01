@@ -421,9 +421,9 @@ export default function CongressLandingClient() {
             animate={{ opacity: 1, y: 0 }}
             className="flex justify-center mb-10"
           >
-            <img 
-              src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
-              alt="Arthromed" 
+            <img
+              src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png"
+              alt="Arthromed"
               className="h-20 md:h-28 object-contain opacity-90"
             />
           </motion.div>
@@ -562,10 +562,10 @@ export default function CongressLandingClient() {
                             onClick={() => handleEnrollToggle(w.id, isEnrolled)}
                             disabled={processingWorkshop === w.id || (!isEnrolled && isFull)}
                             className={`group/btn w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isEnrolled
-                                ? 'bg-emerald-100 text-emerald-700 hover:bg-red-100 hover:text-red-700 border border-emerald-200 hover:border-red-200'
-                                : (!isEnrolled && isFull)
-                                  ? 'bg-[#f0f5fa] text-[#8a8b8d] cursor-not-allowed'
-                                  : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+                              ? 'bg-emerald-100 text-emerald-700 hover:bg-red-100 hover:text-red-700 border border-emerald-200 hover:border-red-200'
+                              : (!isEnrolled && isFull)
+                                ? 'bg-[#f0f5fa] text-[#8a8b8d] cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
                               }`}
                           >
                             {processingWorkshop === w.id ? (

@@ -7,11 +7,11 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 const MEXICAN_STATES = [
-  'Aguascalientes','Baja California','Baja California Sur','Campeche','Chiapas',
-  'Chihuahua','Ciudad de México','Coahuila','Colima','Durango','Estado de México',
-  'Guanajuato','Guerrero','Hidalgo','Jalisco','Michoacán','Morelos','Nayarit',
-  'Nuevo León','Oaxaca','Puebla','Querétaro','Quintana Roo','San Luis Potosí',
-  'Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz','Yucatán','Zacatecas',
+  'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas',
+  'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Estado de México',
+  'Guanajuato', 'Guerrero', 'Hidalgo', 'Jalisco', 'Michoacán', 'Morelos', 'Nayarit',
+  'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
+  'Sinaloa', 'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
 ]
 
 type Step = 'name' | 'role' | 'specialty' | 'hospital' | 'phone' | 'state' | 'confirm'
@@ -28,13 +28,13 @@ interface FormData {
 }
 
 const STEP_META: Record<Step, { icon: React.ReactNode; title: string; subtitle: string }> = {
-  name:      { icon: <User size={22} />,         title: '¿Cómo se llama?',              subtitle: 'Su nombre completo como aparece en su identificación oficial' },
-  role:      { icon: <Users size={22} />,        title: '¿Cuál es su rol?',             subtitle: 'Seleccione si es médico especialista o distribuidor comercial' },
-  specialty: { icon: <Stethoscope size={22} />,  title: '¿Cuál es su especialidad?',    subtitle: 'Seleccione la que mejor describe su práctica principal' },
-  hospital:  { icon: <Building2 size={22} />,    title: '¿Dónde ejerce?',               subtitle: 'Hospital o institución donde realiza la mayoría de sus procedimientos' },
-  phone:     { icon: <Phone size={22} />,         title: '¿Su WhatsApp?',               subtitle: 'Le enviaremos información relevante a su perfil' },
-  state:     { icon: <MapPin size={22} />,        title: '¿En qué estado practica?',    subtitle: 'Esto nos permite asignarle un asesor en su zona' },
-  confirm:   { icon: <CheckCircle size={22} />,  title: 'Todo listo',                   subtitle: 'Verifique su información antes de enviar' },
+  name: { icon: <User size={22} />, title: '¿Cómo se llama?', subtitle: 'Su nombre completo como aparece en su identificación oficial' },
+  role: { icon: <Users size={22} />, title: '¿Cuál es su rol?', subtitle: 'Seleccione si es médico especialista o distribuidor comercial' },
+  specialty: { icon: <Stethoscope size={22} />, title: '¿Cuál es su especialidad?', subtitle: 'Seleccione la que mejor describe su práctica principal' },
+  hospital: { icon: <Building2 size={22} />, title: '¿Dónde ejerce?', subtitle: 'Hospital o institución donde realiza la mayoría de sus procedimientos' },
+  phone: { icon: <Phone size={22} />, title: '¿Su WhatsApp?', subtitle: 'Le enviaremos información relevante a su perfil' },
+  state: { icon: <MapPin size={22} />, title: '¿En qué estado practica?', subtitle: 'Esto nos permite asignarle un asesor en su zona' },
+  confirm: { icon: <CheckCircle size={22} />, title: 'Todo listo', subtitle: 'Verifique su información antes de enviar' },
 }
 
 export default function RegistroPage() {
@@ -135,7 +135,7 @@ function RegistroContent() {
   const submit = async () => {
     setLoading(true)
     setError('')
-    
+
     const specialtyValue = form.role === 'Médico'
       ? (form.specialty === 'Otra especialidad' && form.customSpecialty ? form.customSpecialty : form.specialty)
       : 'Distribuidor'
@@ -170,24 +170,32 @@ function RegistroContent() {
         setCreatedClientId(clientId)
 
         try {
-          const landingUrl = congressId 
-            ? `${window.location.origin}/congresos/${congressId}/landing?clientId=${clientId}`
-            : window.location.origin
-            
+          // In Meta, configure the button's Base URL as: https://erp.arthromed.com.mx/
+          const urlSuffix = congressId
+            ? `congresos/${congressId}/landing?clientId=${clientId}`
+            : ''
+
           const nameText = form.role === 'Distribuidor' ? form.name.split(' ')[0] : `Dr(a). ${form.name.split(' ')[0]}`
 
           await fetch('/api/whatsapp/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              to: form.phone.replace(/\D/g, ''), 
-              template: 'arthromed_contact_register_es',
+            body: JSON.stringify({
+              to: form.phone.replace(/\D/g, ''),
+              template: 'arthromed_welcome_register', // Update this to match your Meta template name
               components: [
                 {
                   type: 'body',
                   parameters: [
-                    { type: 'text', text: nameText },
-                    { type: 'text', text: landingUrl }
+                    { type: 'text', text: nameText }
+                  ]
+                },
+                {
+                  type: 'button',
+                  sub_type: 'url',
+                  index: '0',
+                  parameters: [
+                    { type: 'text', text: urlSuffix }
                   ]
                 }
               ]
@@ -218,11 +226,11 @@ function RegistroContent() {
       <div className="relative z-10 w-full max-w-lg flex flex-col items-center gap-4 pt-6 pb-8">
         {/* Logo / Brand */}
         <div className="flex flex-col items-center gap-3 mb-2">
-          <Image 
-            src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
-            alt="Arthromed Logo" 
-            width={360} 
-            height={120} 
+          <Image
+            src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png"
+            alt="Arthromed Logo"
+            width={360}
+            height={120}
             className="h-24 w-auto object-contain"
             priority
           />
@@ -237,7 +245,7 @@ function RegistroContent() {
         <p className="text-[10px] font-bold text-[#8a8b8d] tracking-widest self-end mt-[-12px] uppercase">Paso {stepIndex + 1} de {steps.length}</p>
 
         {/* Card */}
-        <motion.div 
+        <motion.div
           key={step}
           initial={{ opacity: 0, y: 20, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -272,11 +280,10 @@ function RegistroContent() {
                 <button
                   type="button"
                   id="role-doctor"
-                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
-                    form.role === 'Médico'
-                      ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-bold shadow-md shadow-[#0763a9]/10'
-                      : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
-                  }`}
+                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${form.role === 'Médico'
+                    ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-bold shadow-md shadow-[#0763a9]/10'
+                    : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
+                    }`}
                   onClick={() => {
                     const updated = { ...form, role: 'Médico' as const }
                     setForm(updated)
@@ -295,11 +302,10 @@ function RegistroContent() {
                 <button
                   type="button"
                   id="role-distributor"
-                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
-                    form.role === 'Distribuidor'
-                      ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-bold shadow-md shadow-[#0763a9]/10'
-                      : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
-                  }`}
+                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${form.role === 'Distribuidor'
+                    ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-bold shadow-md shadow-[#0763a9]/10'
+                    : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
+                    }`}
                   onClick={() => {
                     const updated = { ...form, role: 'Distribuidor' as const }
                     setForm(updated)
@@ -324,16 +330,15 @@ function RegistroContent() {
                     type="button"
                     key={sp}
                     id={`specialty-${sp.replace(/\s+/g, '-').toLowerCase()}`}
-                    className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all active:scale-[0.98] ${
-                      form.specialty === sp 
-                        ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-semibold' 
-                        : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
-                    }`}
-                    onClick={() => { 
+                    className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all active:scale-[0.98] ${form.specialty === sp
+                      ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-semibold'
+                      : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
+                      }`}
+                    onClick={() => {
                       const updated = { ...form, specialty: sp };
-                      setForm(updated); 
+                      setForm(updated);
                       if (sp !== 'Otra especialidad') {
-                        setTimeout(() => next(updated), 180) 
+                        setTimeout(() => next(updated), 180)
                       }
                     }}
                   >
@@ -397,15 +402,14 @@ function RegistroContent() {
                     type="button"
                     key={st}
                     id={`state-${st.replace(/\s+/g, '-').toLowerCase()}`}
-                    className={`w-full text-left px-4 py-2.5 rounded-xl border-2 text-sm transition-all active:scale-[0.98] ${
-                      form.state === st 
-                        ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-semibold' 
-                        : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
-                    }`}
-                    onClick={() => { 
+                    className={`w-full text-left px-4 py-2.5 rounded-xl border-2 text-sm transition-all active:scale-[0.98] ${form.state === st
+                      ? 'border-[#0763a9] bg-[#e8f1f9] text-[#0763a9] font-semibold'
+                      : 'border-[#e8f1f9] bg-[#f8fafd] text-[#37383a] hover:border-[#9bbfdf]'
+                      }`}
+                    onClick={() => {
                       const updated = { ...form, state: st };
-                      setForm(updated); 
-                      setTimeout(() => next(updated), 180) 
+                      setForm(updated);
+                      setTimeout(() => next(updated), 180)
                     }}
                   >
                     {st}
@@ -435,10 +439,10 @@ function RegistroContent() {
           {/* Navigation */}
           <div className="flex items-center gap-3">
             {stepIndex > 0 && (
-              <button 
+              <button
                 type="button"
-                id="btn-back" 
-                className="w-12 h-12 flex items-center justify-center rounded-2xl border-2 border-[#d4e0ec] bg-[#f8fafd] text-[#5a5b5d] hover:bg-[#e8f1f9] hover:border-[#9bbfdf] transition-all flex-shrink-0" 
+                id="btn-back"
+                className="w-12 h-12 flex items-center justify-center rounded-2xl border-2 border-[#d4e0ec] bg-[#f8fafd] text-[#5a5b5d] hover:bg-[#e8f1f9] hover:border-[#9bbfdf] transition-all flex-shrink-0"
                 onClick={back}
               >
                 <ArrowLeft size={18} />
@@ -462,7 +466,7 @@ function RegistroContent() {
         </motion.div>
 
         <p className="text-[11px] text-[#8a8b8d] text-center leading-relaxed max-w-[300px] mt-2">
-          Sus datos se mantienen confidenciales y sólo se usan para contactarle con información relevante a su perfil. <br/>
+          Sus datos se mantienen confidenciales y sólo se usan para contactarle con información relevante a su perfil. <br />
           <Link href="/aviso-de-privacidad" className="text-[#0763a9] hover:underline font-medium">Aviso de Privacidad</Link>
         </p>
       </div>
@@ -512,16 +516,16 @@ function SuccessScreen({ name, congressId, clientId, role }: { name: string, con
       <div className="fixed rounded-full blur-[80px] opacity-35 pointer-events-none z-0 w-[280px] h-[280px] bg-radial from-[#c5d9ee] to-[#3d8bbf] -bottom-15 -left-15 animate-[pulse_16s_infinite_alternate-reverse]" />
       <div className="relative z-10 w-full max-w-lg flex flex-col items-center gap-4 pt-12">
         <div className="flex flex-col items-center gap-3 mb-8">
-          <Image 
-            src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png" 
-            alt="Arthromed Logo" 
-            width={400} 
-            height={140} 
+          <Image
+            src="https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png"
+            alt="Arthromed Logo"
+            width={400}
+            height={140}
             className="h-28 w-auto object-contain"
             priority
           />
         </div>
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="w-full bg-white border border-[#d4e0ec] rounded-3xl p-10 shadow-xl text-center flex flex-col items-center gap-6"
@@ -533,7 +537,7 @@ function SuccessScreen({ name, congressId, clientId, role }: { name: string, con
           <p className="text-[#5a5b5d] leading-relaxed">
             Su registro fue recibido con éxito. Un asesor especializado se pondrá en contacto con usted por WhatsApp para enviarle la información solicitada.
           </p>
-          
+
           <div className="w-full mt-4 flex flex-col gap-3">
             <button
               onClick={handleContinue}

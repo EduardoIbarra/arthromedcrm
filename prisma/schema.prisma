@@ -654,7 +654,6 @@ model clientes {
   previos            previos[]
   remisiones         remisiones[]
   salidas_inventario salidas_inventario[]
-  garantias          garantias[]
 
   @@schema("public")
 }
@@ -695,6 +694,7 @@ model clients {
   orders               orders[]
   product_prices       product_prices[]
   workshop_enrollments congress_workshop_enrollments[]
+  garantias            garantias[]
 
   @@index([status])
   @@index([distributor_id], map: "idx_clients_distributor_id")
@@ -766,6 +766,7 @@ model congreso_viajeros {
   congreso_id String    @db.Uuid
   name        String
   role        String?
+  user_id     String?   @db.Uuid
   has_pin     Boolean   @default(false)
   has_gafete  Boolean   @default(false)
   notes       String?
@@ -974,8 +975,9 @@ model factura_productos {
   precio_unitario    Decimal?         @default(0) @db.Decimal(12, 2)
   importe            Decimal?         @default(0) @db.Decimal(12, 2)
   created_at         DateTime?        @default(now()) @db.Timestamptz(6)
-  facturas_cliente   facturas_cliente @relation(fields: [factura_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  productos          productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  facturas_cliente         facturas_cliente           @relation(fields: [factura_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productos                productos?                 @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  importacion_asignaciones importacion_asignaciones[]
 
   @@schema("public")
 }
@@ -1579,6 +1581,7 @@ model user_profiles {
   created_at           DateTime? @default(now()) @db.Timestamptz(6)
   updated_at           DateTime? @default(now()) @db.Timestamptz(6)
   role_id              String?   @db.Uuid
+  whatsapp             String?
   permission_overrides Json?     @default("{}")
   users                users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   roles                roles?    @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1632,7 +1635,7 @@ model garantias {
   created_at        DateTime  @default(now()) @db.Timestamptz(6)
   updated_at        DateTime  @default(now()) @db.Timestamptz(6) @updatedAt
 
-  clientes          clientes?  @relation(fields: [cliente_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  clients           clients?   @relation(fields: [cliente_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   productos         productos? @relation(fields: [producto_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@schema("public")
@@ -1715,3 +1718,49 @@ enum user_role {
 
   @@schema("public")
 }
+
+model importaciones_recepcion {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fecha      DateTime            @default(now()) @db.Timestamptz(6)
+  status     String              @default("pending")
+  created_at DateTime            @default(now()) @db.Timestamptz(6)
+  items      importacion_items[]
+
+  @@schema("public")
+}
+
+model importacion_items {
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  importacion_id    String                     @db.Uuid
+  producto_nombre   String
+  cantidad_recibida Int
+  cantidad_asignada Int                        @default(0)
+  created_at        DateTime                   @default(now()) @db.Timestamptz(6)
+  importacion       importaciones_recepcion    @relation(fields: [importacion_id], references: [id], onDelete: Cascade)
+  asignaciones      importacion_asignaciones[]
+
+  @@schema("public")
+}
+
+model importacion_asignaciones {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id             String            @db.Uuid
+  factura_producto_id String            @db.Uuid
+  cantidad_asignada   Int
+  ai_reasoning        String?
+  manual_adjustment   Boolean           @default(false)
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  importacion_item    importacion_items @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  factura_producto    factura_productos @relation(fields: [factura_producto_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model app_settings {
+  key        String   @id
+  value      Json
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+

@@ -560,11 +560,8 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                       onClick={() => addEquipoMember(u)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
                     >
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                        style={{ background: '#e8f1f9', color: '#0763a9' }}>
-                        {u.email[0].toUpperCase()}
-                      </div>
-                      <span className="text-sm text-gray-700">{u.email}</span>
+                      <span className="text-sm font-medium text-gray-700">{u.email.split('@')[0]}</span>
+                      <span className="text-xs text-gray-400">({u.email})</span>
                     </button>
                   ))}
                 </div>
@@ -578,19 +575,15 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                     const displayEmail = userInfo?.email || member._email || member.user_id
                     return (
                       <div key={member.user_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                          style={{ background: '#e8f1f9', color: '#0763a9' }}>
-                          {displayEmail[0]?.toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{displayEmail}</p>
+                        <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
                         </div>
                         <input
                           type="text"
                           placeholder="Rol (ej. Instrumentista)"
                           value={member.rol}
                           onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, rol: e.target.value } : m))}
-                          className="erp-input text-sm w-44 shrink-0"
+                          className="erp-input text-sm flex-1 min-w-0"
                         />
                         <button
                           onClick={() => removeEquipoMember(member.user_id)}

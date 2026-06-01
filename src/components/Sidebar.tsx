@@ -6,7 +6,7 @@ import Image from 'next/image'
 import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
-  ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench
+  ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -40,19 +40,20 @@ export default function Sidebar() {
       ],
     },
     {
-      title: t('distribuidores'),
+      title: 'Catálogos',
       items: [
         { href: '/clients', icon: Users, label: t('clients'), section: 'clients' },
         { href: '/clients/new', icon: UserPlus, label: t('newClient'), section: 'clients', action: 'create' },
-        { href: '/import', icon: Upload, label: t('import'), section: 'clients', action: 'create' },
+        { href: '/products', icon: Package, label: t('products'), section: 'products' },
+        { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
+        { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'congresos' },
       ],
     },
     {
-      title: t('prices'),
+      title: 'Inventario',
       items: [
-        { href: '/products', icon: Package, label: t('products'), section: 'products' },
-        { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
         { href: '/inventario', icon: Warehouse, label: 'Inventario', section: 'products' },
+        { href: '/imports/repartition', icon: GitPullRequest, label: t('repartition' as any) || 'Repartición', section: 'clients', action: 'create' },
       ],
     },
     {
@@ -65,20 +66,19 @@ export default function Sidebar() {
       ],
     },
     {
-      title: t('events'),
+      title: 'Finanzas',
       items: [
-        { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'congresos' },
-        { href: '/previos', icon: ClipboardList, label: 'Previos', section: 'gastos' },
-        { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
         { href: '/ventas', icon: TrendingUp, label: t('ventas'), section: 'ventas' },
         { href: '/facturas', icon: FileText, label: 'Facturas Clientes', section: 'ventas' },
+        { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
+        { href: '/previos', icon: ClipboardList, label: 'Previos', section: 'gastos' },
       ],
     },
     {
-      title: null,
+      title: 'Configuración',
       items: [
-        { href: '/settings', icon: Settings, label: t('settings'), section: 'settings' },
         { href: '/users', icon: ShieldCheck, label: t('users'), section: 'users' },
+        { href: '/settings', icon: Settings, label: t('settings'), section: 'settings' },
       ],
     },
   ]
