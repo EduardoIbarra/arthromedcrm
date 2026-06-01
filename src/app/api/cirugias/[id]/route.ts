@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Fetch existing team to notify only new members
     const existingEquipo = await prisma.cirugia_equipo.findMany({ where: { cirugia_id: id } })
-    const existingUserIds = existingEquipo.map(e => e.user_id)
+    const existingUserIds = existingEquipo.map((e: any) => e.user_id)
 
     // Delete & recreate nested items (simplest full-replace strategy)
     await prisma.cirugia_equipo.deleteMany({ where: { cirugia_id: id } })
