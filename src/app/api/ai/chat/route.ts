@@ -30,11 +30,12 @@ Reglas de razonamiento y uso de herramientas:
    - Para VENTAS TOTALES de un periodo, mes, año, tendencias, o comparaciones generales de totales, usa SIEMPRE la herramienta "getSalesSummaryByPeriod". Esta herramienta calcula la suma total directamente en el servidor y te da el valor consolidado de forma 100% exacta sin inducir a errores de cálculo.
    - Para DESGLOSES DE CLIENTES, RANKINGS de clientes, o detalles por cliente, usa "getSalesData" pasando el año ("anio") y/o mes ("mes") si el usuario los especificó.
    - Para CONSULTAS SOBRE PRODUCTOS (cuál se vende más, volúmenes de venta, precios, qué productos compra un cliente, productos vendidos en un periodo, etc.), usa SIEMPRE la herramienta "getProductSalesSummary".
-3. PROYECCIONES: Si el usuario te pide proyecciones de ventas (por ejemplo, para el resto del año 2026 o para periodos futuros), obtén el histórico de ventas utilizando "getSalesSummaryByPeriod" (sin filtrar o filtrando por año), analiza el promedio mensual o la tendencia de crecimiento, y calcula una proyección razonada explicándola paso a paso en tu respuesta.
-4. Responde siempre en español de manera profesional, analítica, clara y concisa.
-5. Muestra siempre las cifras monetarias formateadas como pesos mexicanos (ej. $1,250,500.00 MXN).
-6. Presenta las respuestas de forma muy estructurada. Usa formato Markdown (tablas, negritas, viñetas) para que los rankings, desgloses y comparaciones sean visualmente impecables y fáciles de leer.
-7. Si te preguntan sobre cosas ajenas a las ventas o al ERP, responde amablemente que tu especialidad es el análisis de ventas y datos del ERP de Arthromed.
+3. CONSULTAS DE FACTURAS ESPECÍFICAS: Si el usuario te pregunta por facturas específicas (ej. F-240, F-238, o simplemente 240, 238), usa SIEMPRE la herramienta "getSpecificInvoices" pasando los números de factura.
+4. PROYECCIONES: Si el usuario te pide proyecciones de ventas (por ejemplo, para el resto del año 2026 o para periodos futuros), obtén el histórico de ventas utilizando "getSalesSummaryByPeriod" (sin filtrar o filtrando por año), analiza el promedio mensual o la tendencia de crecimiento, y calcula una proyección razonada explicándola paso a paso en tu respuesta.
+5. Responde siempre en español de manera profesional, analítica, clara y concisa.
+6. Muestra siempre las cifras monetarias formateadas como pesos mexicanos (ej. $1,250,500.00 MXN).
+7. Presenta las respuestas de forma muy estructurada. Usa formato Markdown (tablas, negritas, viñetas) para que los rankings, desgloses y comparaciones sean visualmente impecables y fáciles de leer.
+8. Si te preguntan sobre cosas ajenas a las ventas o al ERP, responde amablemente que tu especialidad es el análisis de ventas y datos del ERP de Arthromed.
 `
 
     const result = await generateText({
@@ -97,6 +98,56 @@ Reglas de razonamiento y uso de herramientas:
               }))
             } catch (err: any) {
               console.error('Error in getSalesData tool:', err)
+              return { error: err.message }
+            }
+          }
+        }),
+
+        getSpecificInvoices: tool({
+          description: 'Obtiene el detalle de una o varias facturas específicas, incluyendo sus productos y montos. Úsalo cuando el usuario pregunte por números de factura concretos (ej. F-240, 238).',
+          inputSchema: z.object({
+            numerosFactura: z.array(z.string()).describe('Lista de números de factura a consultar (ej. ["240", "238", "F-247"])'),
+          }),
+          execute: async ({ numerosFactura }: { numerosFactura: string[] }) => {
+            try {
+              // Limpiar los números para quitar prefijos como "F-", "f-", "factura " y dejar solo el valor que está en BD
+              const cleanNumbers = numerosFactura.map(num => num.replace(/^(f-|factura\s*|#)/i, '').trim())
+
+              const facturas = await prisma.facturas_cliente.findMany({
+                where: {
+                  numero_factura: {
+                    in: cleanNumbers
+                  }
+                },
+                include: {
+                  factura_productos: {
+                    select: {
+                      producto_nombre: true,
+                      cantidad_facturada: true,
+                      precio_unitario: true,
+                      importe: true
+                    }
+                  }
+                }
+              })
+
+              return facturas.map((f: any) => ({
+                numero_factura: f.numero_factura,
+                cliente_nombre: f.cliente_nombre,
+                fecha_expedicion: f.fecha_expedicion,
+                estado: f.estado,
+                subtotal: Number(f.subtotal || 0),
+                iva: Number(f.iva || 0),
+                total: Number(f.total || 0),
+                productos: f.factura_productos.map((p: any) => ({
+                  producto: p.producto_nombre,
+                  cantidad: p.cantidad_facturada,
+                  precio_unitario: Number(p.precio_unitario || 0),
+                  importe: Number(p.importe || 0)
+                }))
+              }))
+            } catch (err: any) {
+              console.error('Error in getSpecificInvoices tool:', err)
               return { error: err.message }
             }
           }

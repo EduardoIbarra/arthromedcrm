@@ -6,7 +6,7 @@ import Image from 'next/image'
 import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
-  ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest
+  ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest, Bot, Sparkles
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -37,6 +37,7 @@ export default function Sidebar() {
       title: null,
       items: [
         { href: '/', icon: LayoutDashboard, label: t('dashboard'), section: 'dashboard' },
+        { href: '/chat', icon: Bot, label: 'Asistente AI', section: 'dashboard' },
       ],
     },
     {
@@ -195,11 +196,22 @@ export default function Sidebar() {
         )}
       </nav>
 
-      {/* Collapse button (desktop) */}
-      <div className="hidden lg:flex p-3 border-t border-blue-100">
+      {/* Sidebar bottom actions */}
+      <div className="p-3 border-t border-blue-100 flex flex-col gap-2 mt-auto">
+        <Link
+          href="/chat"
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center justify-center gap-2 p-2 rounded-xl bg-gradient-to-r from-[#0763a9] to-[#054d85] text-white shadow-sm hover:shadow-md transition-all group"
+          title={collapsed ? "Asistente AI" : undefined}
+        >
+          <Sparkles size={18} className="group-hover:animate-pulse" />
+          {!collapsed && <span className="text-xs font-semibold">Asistente AI</span>}
+        </Link>
+
+        {/* Collapse button (desktop) */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="btn-ghost w-full justify-center text-xs"
+          className="hidden lg:flex btn-ghost w-full justify-center text-xs"
           aria-label={collapsed ? (t('expandMenu' as any) || 'Expandir menú') : (t('collapseMenu' as any) || 'Colapsar menú')}
         >
           {collapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /> {t('collapse' as any) || 'Colapsar'}</>}

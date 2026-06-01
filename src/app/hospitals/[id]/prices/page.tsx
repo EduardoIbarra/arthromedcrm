@@ -98,7 +98,7 @@ export default function HospitalPricesPage({ params }: { params: Promise<{ id: s
   const handleOpenEdit = (item: PriceRow) => {
     setEditForm({
       product_id: item.id,
-      description: item.description,
+      description: [item.description, item.model, item.order_code].filter(Boolean).join(' - '),
       price_id: item.price_id,
       price: item.hospital_price !== null ? item.hospital_price : '',
       pending: item.pending
@@ -302,7 +302,7 @@ export default function HospitalPricesPage({ params }: { params: Promise<{ id: s
                 {filteredAndSorted.map(item => (
                   <tr key={item.id} className={`transition-colors ${item.pending ? 'bg-amber-50/40 hover:bg-amber-50/80' : 'hover:bg-blue-50/30'}`}>
                     <td className="p-4">
-                      <div className="font-medium text-gray-900">{item.description}</div>
+                      <div className="font-medium text-gray-900">{[item.description, item.model, item.order_code].filter(Boolean).join(' - ')}</div>
                       <div className="text-xs text-gray-500 mt-0.5">{item.generic_description}</div>
                     </td>
                     <td className="p-4 text-sm text-gray-600 whitespace-nowrap">{item.model || '-'}</td>

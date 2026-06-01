@@ -400,7 +400,7 @@ export default function ProductsPage() {
                   {filteredAndSorted.map(product => (
                     <tr key={product.id} className="hover:bg-blue-50/30 transition-colors">
                       <td className="p-4">
-                        <div className="font-medium text-gray-900">{product.description}</div>
+                        <div className="font-medium text-gray-900">{[product.description, product.model, product.order_code].filter(Boolean).join(' - ')}</div>
                         {product.generic_description && (
                           <div className="text-xs text-gray-500 mt-0.5">{product.generic_description}</div>
                         )}
@@ -663,7 +663,7 @@ export default function ProductsPage() {
               <p className="text-sm font-medium text-red-800">¿Estás seguro?</p>
               <p className="text-sm text-red-600 mt-0.5">
                 Eliminarás permanentemente el producto{' '}
-                <strong>"{selectedProduct?.description}"</strong>.
+                <strong>"{[selectedProduct?.description, selectedProduct?.model, selectedProduct?.order_code].filter(Boolean).join(' - ')}"</strong>.
                 Esta acción no se puede deshacer.
               </p>
             </div>
