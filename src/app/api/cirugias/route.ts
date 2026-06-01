@@ -14,6 +14,9 @@ export async function GET() {
           include: { productos: { select: { nombre: true, precio_unitario: true } } },
         },
         cirugia_conceptos: true,
+        cirugia_itinerarios: {
+          orderBy: { date: 'asc' }
+        },
       },
       orderBy: { fecha: 'desc' },
     })
@@ -38,6 +41,7 @@ export async function POST(req: NextRequest) {
       equipo,       // [{ user_id, rol }]
       productos,    // [{ producto_id, cantidad, es_consumible, tipo_uso, precio_unitario }]
       conceptos,    // [{ concepto, cantidad, precio_unitario, subtotal }]
+      itinerarios,  // [{ activity, date, time, notes }]
     } = body
 
     if (!nombre || !medico || !fecha) {
@@ -75,11 +79,20 @@ export async function POST(req: NextRequest) {
             subtotal: Number(c.subtotal) || 0,
           })),
         },
+        cirugia_itinerarios: {
+          create: (itinerarios || []).map((i: any) => ({
+            activity: i.activity,
+            date: new Date(i.date),
+            time: i.time || null,
+            notes: i.notes || null,
+          })),
+        },
       },
       include: {
         cirugia_equipo: true,
         cirugia_productos: true,
         cirugia_conceptos: true,
+        cirugia_itinerarios: true,
       },
     })
 

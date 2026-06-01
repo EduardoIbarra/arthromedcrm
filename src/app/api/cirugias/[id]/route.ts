@@ -26,6 +26,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           },
         },
         cirugia_conceptos: true,
+        cirugia_itinerarios: {
+          orderBy: { date: 'asc' }
+        },
       },
     })
     if (!data) return NextResponse.json({ error: 'No encontrada.' }, { status: 404 })
@@ -51,6 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       equipo,
       productos,
       conceptos,
+      itinerarios,
     } = body
 
     // Fetch existing team to notify only new members
@@ -61,6 +65,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await prisma.cirugia_equipo.deleteMany({ where: { cirugia_id: id } })
     await prisma.cirugia_productos.deleteMany({ where: { cirugia_id: id } })
     await prisma.cirugia_conceptos.deleteMany({ where: { cirugia_id: id } })
+    await prisma.cirugia_itinerarios.deleteMany({ where: { cirugia_id: id } })
 
     const data = await prisma.cirugias.update({
       where: { id },
@@ -95,6 +100,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             subtotal: Number(c.subtotal) || 0,
           })),
         },
+        cirugia_itinerarios: {
+          create: (itinerarios || []).map((i: any) => ({
+            activity: i.activity,
+            date: new Date(i.date),
+            time: i.time || null,
+            notes: i.notes || null,
+          })),
+        },
       },
       include: {
         cirugia_equipo: true,
@@ -104,6 +117,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           },
         },
         cirugia_conceptos: true,
+        cirugia_itinerarios: {
+          orderBy: { date: 'asc' }
+        },
       },
     })
 

@@ -533,6 +533,7 @@ model cirugias {
   cirugia_equipo   cirugia_equipo[]
   cirugia_productos cirugia_productos[]
   cirugia_conceptos cirugia_conceptos[]
+  cirugia_itinerarios cirugia_itinerarios[]
 
   @@index([fecha])
   @@schema("public")
@@ -579,6 +580,22 @@ model cirugia_conceptos {
   subtotal        Decimal   @default(0) @db.Decimal(12, 2)
   created_at      DateTime? @default(now()) @db.Timestamptz(6)
   cirugias        cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([cirugia_id])
+  @@schema("public")
+}
+
+/// Itinerary / Activities for a surgery
+model cirugia_itinerarios {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id  String    @db.Uuid
+  activity    String
+  date        DateTime  @db.Date
+  time        String?
+  notes       String?
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+  cirugias    cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([cirugia_id])
   @@schema("public")

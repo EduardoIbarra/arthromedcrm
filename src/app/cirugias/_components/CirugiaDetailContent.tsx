@@ -67,6 +67,13 @@ type ConceptoItem = {
   subtotal: string
 }
 
+type ItinerarioItem = {
+  activity: string
+  date: string
+  time: string
+  notes: string
+}
+
 const ESTADOS = [
   { value: 'programada', label: 'Programada' },
   { value: 'en_curso', label: 'En Curso' },
@@ -74,7 +81,7 @@ const ESTADOS = [
   { value: 'cancelada', label: 'Cancelada' },
 ]
 
-const SECTION_IDS = ['info', 'equipo', 'productos', 'precios'] as const
+const SECTION_IDS = ['info', 'equipo', 'productos', 'itinerario', 'precios'] as const
 type SectionId = typeof SECTION_IDS[number]
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -95,6 +102,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   const [equipo, setEquipo] = useState<EquipoItem[]>([])
   const [productos, setProductos] = useState<ProductoItem[]>([])
   const [conceptos, setConceptos] = useState<ConceptoItem[]>([])
+  const [itinerarios, setItinerarios] = useState<ItinerarioItem[]>([])
 
   // ── Reference data ──
   const [usuarios, setUsuarios] = useState<UserProfile[]>([])
@@ -160,6 +168,14 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
             precio_unitario: String(c.precio_unitario),
             subtotal: String(c.subtotal),
           }))
+        )
+        setItinerarios(
+          data.cirugia_itinerarios?.map((i: any) => ({
+            activity: i.activity,
+            date: new Date(i.date).toISOString().slice(0, 10),
+            time: i.time || '',
+            notes: i.notes || '',
+          })) || []
         )
       })
       .finally(() => setIsLoading(false))
@@ -247,6 +263,23 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     )
   }
 
+  const addItinerario = () => {
+    setItinerarios(prev => [
+      ...prev,
+      { activity: '', date: fecha || new Date().toISOString().slice(0, 10), time: '08:00', notes: '' },
+    ])
+  }
+
+  const removeItinerario = (idx: number) => {
+    setItinerarios(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const updateItinerario = (idx: number, key: keyof ItinerarioItem, value: string) => {
+    setItinerarios(prev =>
+      prev.map((it, i) => (i === idx ? { ...it, [key]: value } : it))
+    )
+  }
+
   const handleSave = useCallback(async () => {
     setSaveError(null)
     if (!nombre.trim()) { setSaveError('El nombre de la cirugía es requerido.'); return }
@@ -276,6 +309,12 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
         precio_unitario: parseFloat(c.precio_unitario) || 0,
         subtotal: parseFloat(c.subtotal) || 0,
       })),
+      itinerarios: itinerarios.map(i => ({
+        activity: i.activity.trim(),
+        date: i.date,
+        time: i.time.trim() || null,
+        notes: i.notes.trim() || null,
+      })),
     }
 
     setIsSaving(true)
@@ -295,7 +334,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     } finally {
       setIsSaving(false)
     }
-  }, [nombre, medico, descripcion, fecha, hora, estado, notas, equipo, productos, conceptos, isNew, cirugiaId, router])
+  }, [nombre, medico, descripcion, fecha, hora, estado, notas, equipo, productos, conceptos, itinerarios, isNew, cirugiaId, router])
 
   // ── Filtered lists for pickers ──
   const filteredUsers = usuarios.filter(u =>
@@ -367,6 +406,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
             { id: 'info' as SectionId, label: 'Info General', icon: Info, badge: undefined as number | undefined },
             { id: 'equipo' as SectionId, label: 'Equipo', icon: Users, badge: equipo.length },
             { id: 'productos' as SectionId, label: 'Productos', icon: Package, badge: productos.length },
+            { id: 'itinerario' as SectionId, label: 'Itinerario', icon: CheckCircle2, badge: itinerarios.length },
             { id: 'precios' as SectionId, label: 'Precios', icon: DollarSign, badge: conceptos.length },
           ]).map(({ id, label, icon: Icon, badge }) => (
             <button
@@ -785,6 +825,91 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
               <button onClick={() => setActiveSection('equipo')} className="btn-secondary text-sm">
                 ← Equipo
               </button>
+              <button onClick={() => setActiveSection('itinerario')} className="btn-primary text-sm flex items-center gap-2">
+                Siguiente: Itinerario <ChevronDown size={15} className="-rotate-90" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: ITINERARIO
+        ═══════════════════════════════════════════════════════════════════ */}
+        {activeSection === 'itinerario' && (
+          <div className="space-y-4">
+            <div className="card p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                  <CheckCircle2 size={16} style={{ color: '#0763a9' }} />
+                  Itinerario y Actividades
+                </h2>
+                <button
+                  id="btn-add-itinerario"
+                  onClick={addItinerario}
+                  className="btn-secondary text-sm flex items-center gap-2"
+                >
+                  <Plus size={14} />
+                  Agregar Actividad
+                </button>
+              </div>
+
+              {itinerarios.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="hidden sm:grid grid-cols-[1fr_120px_100px_1fr_36px] gap-3 px-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    <span>Actividad</span>
+                    <span>Fecha</span>
+                    <span>Hora</span>
+                    <span>Descripción</span>
+                    <span />
+                  </div>
+                  {itinerarios.map((it, idx) => (
+                    <div key={idx} className="bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-[1fr_120px_100px_1fr_36px] sm:gap-3 sm:items-center">
+                      <input
+                        type="text"
+                        placeholder="Ej. Entrada a quirófano"
+                        value={it.activity}
+                        onChange={e => updateItinerario(idx, 'activity', e.target.value)}
+                        className="erp-input text-sm w-full"
+                      />
+                      <input
+                        type="date"
+                        value={it.date}
+                        onChange={e => updateItinerario(idx, 'date', e.target.value)}
+                        className="erp-input text-sm w-full"
+                      />
+                      <input
+                        type="time"
+                        value={it.time}
+                        onChange={e => updateItinerario(idx, 'time', e.target.value)}
+                        className="erp-input text-sm w-full"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Notas adicionales..."
+                        value={it.notes}
+                        onChange={e => updateItinerario(idx, 'notes', e.target.value)}
+                        className="erp-input text-sm w-full"
+                      />
+                      <button
+                        onClick={() => removeItinerario(idx)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors justify-self-end"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+                  No hay actividades registradas. Haz clic en "Agregar Actividad" para añadir una al itinerario.
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between">
+              <button onClick={() => setActiveSection('productos')} className="btn-secondary text-sm">
+                ← Productos
+              </button>
               <button onClick={() => setActiveSection('precios')} className="btn-primary text-sm flex items-center gap-2">
                 Siguiente: Precios <ChevronDown size={15} className="-rotate-90" />
               </button>
@@ -947,8 +1072,8 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
 
             {/* Save footer */}
             <div className="flex justify-between">
-              <button onClick={() => setActiveSection('productos')} className="btn-secondary text-sm">
-                ← Productos
+              <button onClick={() => setActiveSection('itinerario')} className="btn-secondary text-sm">
+                ← Itinerario
               </button>
               <button
                 id="btn-save-cirugia-final"
