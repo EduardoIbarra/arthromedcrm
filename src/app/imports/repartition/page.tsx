@@ -55,9 +55,34 @@ export default function ImportRepartitionPage() {
       }
       setIsSearchingInvoices(true)
       try {
-        const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=5`)
+        const isMultiple = invoiceSearch.includes(',');
+        const size = isMultiple ? 100 : 5;
+        const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=${size}`)
         const data = await res.json()
-        setInvoiceResults(data.data || [])
+        const results = data.data || [];
+        setInvoiceResults(results)
+        
+        if (isMultiple && results.length > 0) {
+          const terms = invoiceSearch.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+          const cleanedTerms = terms.map(s => s.replace(/^F-/i, ''));
+          
+          const matches = results.filter((inv: any) => {
+            const folUpper = String(inv.numero_factura).toUpperCase();
+            return terms.includes(folUpper) || cleanedTerms.some(t => folUpper.includes(t));
+          });
+          
+          if (matches.length > 0) {
+            setSelectedInvoices(prev => {
+              const newSelection = [...prev];
+              matches.forEach((m: any) => {
+                if (!newSelection.find(i => i.numero_factura === m.numero_factura)) {
+                  newSelection.push(m);
+                }
+              });
+              return newSelection;
+            });
+          }
+        }
       } catch (err) {
         console.error(err)
       } finally {
@@ -212,6 +237,13 @@ export default function ImportRepartitionPage() {
           <p className="text-gray-500 mt-1">{t('tagline')}</p>
         </div>
       </div>
+
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 flex items-start gap-3 shadow-sm">
+        <Info className="w-5 h-5 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium">Al completar la repartición, se notificará automáticamente al personal asignado (vía WhatsApp) para que confirmen la dirección de envío con sus clientes.</p>
+        </div>
+      </motion.div>
 
       {error && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 flex items-start gap-3">

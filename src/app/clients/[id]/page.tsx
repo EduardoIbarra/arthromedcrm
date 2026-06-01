@@ -111,21 +111,27 @@ export default function ClientDetailPage() {
   const [showAI, setShowAI] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
 
+  const [staffUsers, setStaffUsers] = useState<any[]>([])
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true)
         setLoadingSales(true)
-        const [cRes, aRes, sRes] = await Promise.all([
+        const [cRes, aRes, sRes, staffRes] = await Promise.all([
           fetch(`/api/clients/${id}`),
           fetch(`/api/clients/${id}/activities`),
-          fetch(`/api/ventas?cliente_id=${id}`)
+          fetch(`/api/ventas?cliente_id=${id}`),
+          fetch('/api/users')
         ])
         const cJson = await cRes.json()
         const aJson = await aRes.json()
+        const staffJson = await staffRes.json()
+        
         setClient(cJson.data)
         setEditData(cJson.data)
         setActivities(aJson.data || [])
+        setStaffUsers(staffJson.data || [])
         
         if (sRes.ok) {
           const sJson = await sRes.json()
@@ -417,7 +423,21 @@ export default function ClientDetailPage() {
               <InfoRow label={t('medicalSpecialties')}>{arrayField('specialties')}</InfoRow>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <InfoRow label={t('assignedTo')}>{field('assigned_to')}</InfoRow>
+              <InfoRow label={t('assignedTo')}>
+                {editing
+                  ? (
+                    <select className="erp-input text-sm" value={editData.assigned_to || ''} onChange={e => setEditData(p => ({ ...p, assigned_to: e.target.value }))}>
+                      <option value="">{t('none') || 'Sin asignar'}</option>
+                      {staffUsers.map(user => (
+                        <option key={user.id} value={user.id}>{user.email}</option>
+                      ))}
+                    </select>
+                  )
+                  : <p className="text-sm" style={{ color: '#37383a' }}>
+                      {client?.assigned_to ? staffUsers.find(u => u.id === client.assigned_to)?.email || client.assigned_to : <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
+                    </p>
+                }
+              </InfoRow>
               <InfoRow label={t('tags')}>
                 {editing
                   ? <input className="erp-input text-sm" value={(editData.tags || []).join(', ')} onChange={e => setEditData(p => ({ ...p, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />

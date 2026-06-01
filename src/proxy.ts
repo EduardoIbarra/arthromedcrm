@@ -58,6 +58,10 @@ export async function proxy(request: NextRequest) {
                         (request.nextUrl.pathname.startsWith('/api/public/'))
 
     if (!isPublicApi) {
+      // Return 401 for API routes instead of redirecting
+      if (request.nextUrl.pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)

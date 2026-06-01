@@ -33,4 +33,6 @@ const prisma = hasAppSettings ? globalThis.prisma! : prismaClientSingleton()
 
 export default prisma
 
+// Hot reload trigger: 1
+
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma

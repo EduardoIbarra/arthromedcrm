@@ -15,6 +15,9 @@ import {
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
+import SearchableSelect from '@/components/SearchableSelect'
+import Link from 'next/link'
+import { MinusCircle } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +30,12 @@ type Producto = {
   stock_actual: number
   precio_unitario: number
   stock_updated_at: string | null
+  inventarios: { id: string; nombre: string; stock: number; updated_at: string }[]
+}
+
+type TipoInventario = {
+  id: string
+  nombre: string
 }
 
 type SortField = 'nombre' | 'categoria' | 'tipo' | 'stock_actual'
@@ -65,6 +74,8 @@ function timeAgo(iso: string | null): string {
 export default function InventarioPage() {
   // Data
   const [items, setItems] = useState<Producto[]>([])
+  const [tiposInventario, setTiposInventario] = useState<TipoInventario[]>([])
+  const [users, setUsers] = useState<{id: string, email: string}[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -74,10 +85,19 @@ export default function InventarioPage() {
   const [sortAsc, setSortAsc] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'in_stock' | 'low' | 'out'>('all')
   const [filterActivo, setFilterActivo] = useState<'all' | 'active' | 'inactive'>('active')
+  const [filterInventario, setFilterInventario] = useState<string>('all')
 
   // Edit modal
   const [editItem, setEditItem] = useState<Producto | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [editInventarioId, setEditInventarioId] = useState<string>('')
+  // Salida modal
+  const [isSalidaModalOpen, setIsSalidaModalOpen] = useState(false)
+  const [salidaItems, setSalidaItems] = useState<{producto_id: string, inventario_id: string, cantidad: string, stock: number}[]>([])
+  const [salidaMotivo, setSalidaMotivo] = useState('')
+  const [salidaAutorizador, setSalidaAutorizador] = useState('')
+  const [isSavingSalida, setIsSavingSalida] = useState(false)
+  const [salidaError, setSalidaError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -87,10 +107,22 @@ export default function InventarioPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/inventario')
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      setItems(json.data as Producto[])
+      const [resInv, resTipos, resUsers] = await Promise.all([
+        fetch('/api/inventario'),
+        fetch('/api/inventario/tipos'),
+        fetch('/api/users')
+      ])
+      const jsonInv = await resInv.json()
+      const jsonTipos = await resTipos.json()
+      const jsonUsers = await resUsers.json()
+      
+      if (!resInv.ok) throw new Error(jsonInv.error)
+      if (!resTipos.ok) throw new Error(jsonTipos.error)
+      if (!resUsers.ok) throw new Error(jsonUsers.error)
+        
+      setItems(jsonInv.data as Producto[])
+      setTiposInventario(jsonTipos.data)
+      setUsers(jsonUsers.data)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -104,7 +136,11 @@ export default function InventarioPage() {
 
   const openEdit = (item: Producto) => {
     setEditItem(item)
-    setEditValue(String(item.stock_actual))
+    // Select default inventory
+    const defaultInv = filterInventario !== 'all' ? filterInventario : (tiposInventario[0]?.id || '')
+    setEditInventarioId(defaultInv)
+    const stockInDefault = item.inventarios?.find(i => i.id === defaultInv)?.stock || 0
+    setEditValue(String(filterInventario !== 'all' ? stockInDefault : item.stock_actual))
     setSaveError(null)
   }
 
@@ -115,26 +151,85 @@ export default function InventarioPage() {
       setSaveError('Ingresa un número entero positivo.')
       return
     }
+    if (!editInventarioId) {
+      setSaveError('Selecciona un tipo de inventario.')
+      return
+    }
     setIsSaving(true)
     setSaveError(null)
     try {
       const res = await fetch(`/api/inventario/${editItem.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stock_actual: val }),
+        body: JSON.stringify({ stock_actual: val, inventario_id: editInventarioId }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       // Optimistic update
-      const updatedAt = json.stock_updated_at ?? new Date().toISOString()
-      setItems(prev =>
-        prev.map(p => p.id === editItem.id ? { ...p, stock_actual: val, stock_updated_at: updatedAt } : p)
-      )
+      fetchInventario() // Re-fetch to get correct totals across inventories
       setEditItem(null)
     } catch (e: any) {
       setSaveError(e.message)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const openSalida = () => {
+    setIsSalidaModalOpen(true)
+    setSalidaItems([{ producto_id: '', inventario_id: tiposInventario[0]?.id || '', cantidad: '', stock: 0 }])
+    setSalidaMotivo('')
+    setSalidaAutorizador('')
+    setSalidaError(null)
+  }
+
+  const addSalidaRow = () => {
+    setSalidaItems([...salidaItems, { producto_id: '', inventario_id: tiposInventario[0]?.id || '', cantidad: '', stock: 0 }])
+  }
+
+  const updateSalidaRow = (index: number, field: string, value: any) => {
+    const newItems = [...salidaItems]
+    newItems[index] = { ...newItems[index], [field]: value }
+    if (field === 'producto_id' || field === 'inventario_id') {
+      const prod = items.find(p => p.id === newItems[index].producto_id)
+      const invId = newItems[index].inventario_id
+      newItems[index].stock = prod?.inventarios?.find(i => i.id === invId)?.stock || 0
+    }
+    setSalidaItems(newItems)
+  }
+
+  const removeSalidaRow = (index: number) => {
+    setSalidaItems(salidaItems.filter((_, i) => i !== index))
+  }
+
+  const handleSalida = async () => {
+    const validItems = salidaItems.filter(i => i.producto_id && i.inventario_id && parseInt(i.cantidad, 10) > 0)
+    if (validItems.length === 0) {
+      setSalidaError('Agrega al menos un producto válido (cantidad mayor a 0).')
+      return
+    }
+
+    setIsSavingSalida(true)
+    setSalidaError(null)
+    try {
+      const res = await fetch(`/api/inventario/salidas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          items: validItems, 
+          motivo: salidaMotivo, 
+          autorizador_id: salidaAutorizador || null 
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      
+      fetchInventario()
+      setIsSalidaModalOpen(false)
+    } catch (e: any) {
+      setSalidaError(e.message)
+    } finally {
+      setIsSavingSalida(false)
     }
   }
 
@@ -146,7 +241,11 @@ export default function InventarioPage() {
   // ─── Derived Data ─────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
-    let result = items
+    let result = items.map(p => {
+      if (filterInventario === 'all') return p
+      const invStock = p.inventarios?.find(i => i.id === filterInventario)?.stock || 0
+      return { ...p, stock_actual: invStock }
+    })
 
     // Active filter
     if (filterActivo === 'active') result = result.filter(p => p.activo !== false)
@@ -177,7 +276,7 @@ export default function InventarioPage() {
       const cmp = av < bv ? -1 : 1
       return sortAsc ? cmp : -cmp
     })
-  }, [items, search, sortField, sortAsc, filterStatus, filterActivo])
+  }, [items, search, sortField, sortAsc, filterStatus, filterActivo, filterInventario])
 
   // KPI totals
   const kpi = useMemo(() => {
@@ -189,7 +288,7 @@ export default function InventarioPage() {
       out: active.filter(p => p.stock_actual <= 0).length,
       units: active.reduce((acc, p) => acc + p.stock_actual, 0),
     }
-  }, [items])
+  }, [filtered])
 
   const SortIcon = ({ field }: { field: SortField }) => (
     <ArrowUpDown
@@ -213,15 +312,27 @@ export default function InventarioPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">Arthromed ERP / Inventario de Productos</p>
           </div>
-          <button
-            id="btn-refresh-inventario"
-            onClick={fetchInventario}
-            className="btn-secondary text-sm self-start sm:self-auto"
-            disabled={isLoading}
-          >
-            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
-            Actualizar
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={openSalida}
+              className="btn-primary bg-red-600 hover:bg-red-700 ring-red-600 border-none text-white shadow-sm text-sm"
+              disabled={isLoading}
+            >
+              <MinusCircle size={15} /> Registrar Salida
+            </button>
+            <Link href="/inventario/tipos" className="btn-secondary text-sm">
+              Gestionar Tipos
+            </Link>
+            <button
+              id="btn-refresh-inventario"
+              onClick={fetchInventario}
+              className="btn-secondary text-sm"
+              disabled={isLoading}
+            >
+              <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+              Actualizar
+            </button>
+          </div>
         </header>
 
         {/* KPI Bar */}
@@ -289,6 +400,22 @@ export default function InventarioPage() {
                 <X size={14} />
               </button>
             )}
+          </div>
+
+          {/* Inventario filter */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Package size={15} className="text-gray-400 shrink-0" />
+            <select
+              value={filterInventario}
+              onChange={e => setFilterInventario(e.target.value)}
+              className="erp-input text-sm"
+              style={{ width: '150px' }}
+            >
+              <option value="all">Todos los Inventarios</option>
+              {tiposInventario.map(t => (
+                <option key={t.id} value={t.id}>{t.nombre}</option>
+              ))}
+            </select>
           </div>
 
           {/* Status filter */}
@@ -500,12 +627,31 @@ export default function InventarioPage() {
               )}
             </div>
 
+            {/* Select Inventario */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Inventario a ajustar <span className="text-red-500">*</span></label>
+              <select
+                className="erp-input w-full text-sm"
+                value={editInventarioId}
+                onChange={e => {
+                  setEditInventarioId(e.target.value)
+                  const currentInvStock = editItem.inventarios?.find(i => i.id === e.target.value)?.stock || 0
+                  setEditValue(String(currentInvStock))
+                }}
+              >
+                <option value="" disabled>Selecciona un inventario</option>
+                {tiposInventario.map(t => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Current stock display */}
             <div className="flex items-center gap-4">
               <div className="flex-1">
                 <p className="text-xs text-gray-500 mb-1">Stock actual</p>
-                <div className={`text-2xl font-bold ${editItem.stock_actual <= 0 ? 'text-red-600' : editItem.stock_actual <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                  {editItem.stock_actual} uds
+                <div className={`text-2xl font-bold text-gray-900`}>
+                  {editInventarioId ? (editItem.inventarios?.find(i => i.id === editInventarioId)?.stock || 0) : editItem.stock_actual} uds
                 </div>
               </div>
               <div className="w-px h-12 bg-gray-200" />
@@ -555,6 +701,137 @@ export default function InventarioPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Salida Global Modal */}
+      <Modal open={isSalidaModalOpen} onClose={() => { if (!isSavingSalida) setIsSalidaModalOpen(false) }} title="Registrar Salida de Inventario" maxWidth="800px">
+        <div className="space-y-5">
+          <p className="text-sm text-gray-500">
+            Agrega los productos que deseas retirar del inventario, indicando la cantidad y el origen de cada uno.
+          </p>
+
+          <div className="space-y-3">
+            {salidaItems.map((row, index) => (
+              <div key={index} className="flex flex-col sm:flex-row gap-3 p-3 bg-gray-50 border border-gray-100 rounded-lg relative">
+                
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">Producto <span className="text-red-500">*</span></label>
+                  <SearchableSelect
+                    options={items.map(p => ({ value: p.id, label: p.nombre }))}
+                    value={row.producto_id}
+                    onChange={val => updateSalidaRow(index, 'producto_id', val)}
+                    placeholder="Selecciona producto..."
+                  />
+                </div>
+                
+                <div className="sm:w-48">
+                  <label className="block text-xs text-gray-500 mb-1">Inventario <span className="text-red-500">*</span></label>
+                  <select
+                    className="erp-input w-full text-sm"
+                    value={row.inventario_id}
+                    onChange={e => updateSalidaRow(index, 'inventario_id', e.target.value)}
+                  >
+                    <option value="" disabled>Origen...</option>
+                    {tiposInventario.map(t => (
+                      <option key={t.id} value={t.id}>{t.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="sm:w-32 flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Cant.</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="erp-input w-full text-sm text-center"
+                      value={row.cantidad}
+                      onChange={e => updateSalidaRow(index, 'cantidad', e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="sm:w-16 flex flex-col items-center justify-center pt-5">
+                  <span className="text-xs text-gray-400 mb-1">Disp.</span>
+                  <span className="font-semibold text-gray-600">{row.stock}</span>
+                </div>
+
+                {salidaItems.length > 1 && (
+                  <button
+                    onClick={() => removeSalidaRow(index)}
+                    className="absolute -top-2 -right-2 p-1 bg-white border border-gray-200 rounded-full text-gray-400 hover:text-red-500 shadow-sm"
+                    title="Eliminar fila"
+                  >
+                    <MinusCircle size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <button onClick={addSalidaRow} className="btn-secondary text-sm">
+            + Agregar otro producto
+          </button>
+
+          <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+            {/* Motivo */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Motivo General de la Salida</label>
+              <textarea
+                className="erp-input w-full text-sm"
+                rows={2}
+                value={salidaMotivo}
+                onChange={e => setSalidaMotivo(e.target.value)}
+                placeholder="Ej. Traspaso a camioneta, merma, consumo..."
+              />
+            </div>
+
+            {/* Autorizador */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Autorizador (Opcional)</label>
+              <select
+                className="erp-input w-full text-sm"
+                value={salidaAutorizador}
+                onChange={e => setSalidaAutorizador(e.target.value)}
+              >
+                <option value="">Ninguno / Yo mismo</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.email}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Error & Actions */}
+          {salidaError && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-100 flex items-start gap-2 text-red-600">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <p className="text-sm">{salidaError}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => setIsSalidaModalOpen(false)}
+              className="btn-secondary"
+              disabled={isSavingSalida}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSalida}
+              className="btn-primary bg-red-600 hover:bg-red-700 ring-red-600 border-none text-white shadow-sm"
+              disabled={isSavingSalida}
+            >
+              {isSavingSalida ? (
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Procesando...</>
+              ) : (
+                <><MinusCircle size={15} /> Confirmar Salida</>
+              )}
+            </button>
+          </div>
+        </div>
       </Modal>
     </AppShell>
   )

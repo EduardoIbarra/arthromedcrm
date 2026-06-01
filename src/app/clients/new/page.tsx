@@ -69,6 +69,7 @@ export default function NewClientPage() {
   const [specialties, setSpecialties] = useState<string[]>([])
   const [congresos, setCongresos] = useState<Congreso[]>([])
   const [selectedCongreso, setSelectedCongreso] = useState('')
+  const [staffUsers, setStaffUsers] = useState<any[]>([])
   const [form, setForm] = useState<Partial<ClientInsert>>({ status: 'Activo', states: [], hospitals: [], specialties: [], tags: [] })
 
   useEffect(() => {
@@ -87,6 +88,13 @@ export default function NewClientPage() {
         if (json.data) setCongresos(json.data)
       } catch (e) {
         console.error('Error loading congresos', e)
+      }
+      try {
+        const res = await fetch('/api/users')
+        const json = await res.json()
+        if (json.data) setStaffUsers(json.data)
+      } catch (e) {
+        console.error('Error loading users', e)
       }
     }
     loadData()
@@ -223,7 +231,10 @@ export default function NewClientPage() {
               <textarea className="erp-input" rows={3} value={form.notes || ''} onChange={e => set('notes', e.target.value)} />
             </Field>
             <Field label={t('assignedTo')}>
-              <input className="erp-input" value={form.assigned_to || ''} onChange={e => set('assigned_to', e.target.value)} placeholder="Nombre del responsable" />
+              <select className="erp-input" value={form.assigned_to || ''} onChange={e => set('assigned_to', e.target.value)}>
+                <option value="">{t('none') || 'Sin asignar'}</option>
+                {staffUsers.map(u => <option key={u.id} value={u.id}>{u.email}</option>)}
+              </select>
             </Field>
             <Field label={`${t('tags')} (separadas por comas)`}>
               <input className="erp-input" value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="vip, nuevo, seguimiento" />

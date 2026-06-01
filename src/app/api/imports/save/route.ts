@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { sendNotificationToUser } from '@/lib/respond';
 
 export async function POST(req: Request) {
   try {
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
           }
         }
 
-        // 5. Add remaining to productos.stock_actual
+        // 5. Add remaining to inventario_productos for Almacén Principal
         if (remainingInventory[productName] > 0) {
           // Find the product by name. We assume product name matches uniquely.
           // If not, we might need more advanced matching, but for now we try to update.
@@ -82,18 +83,79 @@ export async function POST(req: Request) {
           });
           
           if (productRecords.length > 0) {
-            // Update the first matching product
-            await tx.productos.update({
-              where: { id: productRecords[0].id },
-              data: {
-                stock_actual: { increment: remainingInventory[productName] },
-                stock_updated_at: new Date()
-              }
-            });
+            const product = productRecords[0];
+
+            let defaultInv = await tx.tipos_inventario.findFirst({ where: { nombre: 'Almacén Principal' } });
+            if (!defaultInv) {
+              defaultInv = await tx.tipos_inventario.findFirst();
+            }
+
+            if (defaultInv) {
+              await tx.inventario_productos.upsert({
+                where: {
+                  tipo_inventario_id_producto_id: {
+                    tipo_inventario_id: defaultInv.id,
+                    producto_id: product.id,
+                  }
+                },
+                update: {
+                  stock_actual: { increment: remainingInventory[productName] },
+                  stock_updated_at: new Date()
+                },
+                create: {
+                  tipo_inventario_id: defaultInv.id,
+                  producto_id: product.id,
+                  stock_actual: remainingInventory[productName],
+                  stock_updated_at: new Date()
+                }
+              });
+            }
           }
         }
       }
     });
+
+    // 6. Send WhatsApp notifications to staff members assigned to the affected clients
+    if (allocations && allocations.length > 0) {
+      const allocIds = allocations.map((a: any) => a.id);
+      const f_prods = await prisma.factura_productos.findMany({
+        where: { id: { in: allocIds } },
+        include: {
+          facturas_cliente: true
+        }
+      });
+
+      // Collect unique customer names from the affected invoices
+      const uniqueCustomerNames = Array.from(new Set(f_prods.map((fp: any) => fp.facturas_cliente?.cliente_nombre).filter(Boolean))) as string[];
+
+      // Lookup the CRM client records to find the assigned_to
+      const crmClients = await prisma.clients.findMany({
+        where: { name: { in: uniqueCustomerNames } },
+        select: { name: true, assigned_to: true }
+      });
+
+      // Build a map of assigned_to -> Set of client names
+      const notificationsMap: Record<string, Set<string>> = {};
+      for (const client of crmClients) {
+        if (client.assigned_to && client.name) {
+          if (!notificationsMap[client.assigned_to]) {
+            notificationsMap[client.assigned_to] = new Set();
+          }
+          notificationsMap[client.assigned_to].add(client.name);
+        }
+      }
+
+      // Send the notifications
+      for (const [userId, clientSet] of Object.entries(notificationsMap)) {
+        const clientList = Array.from(clientSet).join(', ');
+        const msg = `Hola, se ha completado una repartición de inventario. Por favor, confirma la dirección de envío con los siguientes clientes: ${clientList}.`;
+        
+        // Send asynchronously
+        sendNotificationToUser(userId, msg).catch(err => {
+          console.error(`Failed to send WhatsApp to user ${userId}:`, err);
+        });
+      }
+    }
 
     return NextResponse.json({ success: true });
 

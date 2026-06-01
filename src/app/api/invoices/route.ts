@@ -37,11 +37,23 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      where.OR = [
-        { numero_factura: { contains: search, mode: 'insensitive' } },
-        { cliente_nombre: { contains: search, mode: 'insensitive' } },
-        { cliente_rfc: { contains: search, mode: 'insensitive' } }
-      ]
+      const searchTerms = search.split(',').map(s => s.trim()).filter(Boolean)
+      if (searchTerms.length > 1) {
+        const cleanedTerms = searchTerms.map(s => s.replace(/^F-/i, ''))
+        where.OR = [
+          { numero_factura: { in: searchTerms } },
+          ...cleanedTerms.map(term => ({ numero_factura: { contains: term, mode: 'insensitive' } }))
+        ]
+      } else {
+        const singleTerm = searchTerms[0] || search
+        const singleCleaned = singleTerm.replace(/^F-/i, '')
+        where.OR = [
+          { numero_factura: { contains: singleTerm, mode: 'insensitive' } },
+          { numero_factura: { contains: singleCleaned, mode: 'insensitive' } },
+          { cliente_nombre: { contains: singleTerm, mode: 'insensitive' } },
+          { cliente_rfc: { contains: singleTerm, mode: 'insensitive' } }
+        ]
+      }
     }
 
     const total = await prisma.facturas_cliente.count({ where })

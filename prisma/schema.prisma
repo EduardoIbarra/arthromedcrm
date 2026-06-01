@@ -1381,6 +1381,8 @@ model productos {
   remision_productos     remision_productos[]
   cirugia_productos      cirugia_productos[]
   garantias              garantias[]
+  inventario_productos   inventario_productos[]
+  inventario_movimientos inventario_movimientos[]
 
   @@schema("public")
 }
@@ -1585,6 +1587,8 @@ model user_profiles {
   permission_overrides Json?     @default("{}")
   users                users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   roles                roles?    @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  movimientos_hechos      inventario_movimientos[] @relation("movimiento_usuario")
+  movimientos_autorizados inventario_movimientos[] @relation("movimiento_autorizador")
 
   @@schema("public")
 }
@@ -1764,3 +1768,49 @@ model app_settings {
   @@schema("public")
 }
 
+model tipos_inventario {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre      String   @unique
+  descripcion String?
+  activo      Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  productos              inventario_productos[]
+  inventario_movimientos inventario_movimientos[]
+  
+  @@schema("public")
+}
+
+model inventario_productos {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo_inventario_id String   @db.Uuid
+  producto_id        String   @db.Uuid
+  stock_actual       Int      @default(0)
+  stock_updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  tipos_inventario tipos_inventario @relation(fields: [tipo_inventario_id], references: [id], onDelete: Cascade)
+  productos        productos        @relation(fields: [producto_id], references: [id], onDelete: Cascade)
+
+  @@unique([tipo_inventario_id, producto_id])
+  @@schema("public")
+}
+
+model inventario_movimientos {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo_movimiento    String   @default("SALIDA_MANUAL")
+  producto_id        String   @db.Uuid
+  tipo_inventario_id String   @db.Uuid
+  cantidad           Int
+  motivo             String?
+  usuario_id         String?  @db.Uuid
+  autorizador_id     String?  @db.Uuid
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  productos        productos        @relation(fields: [producto_id], references: [id], onDelete: Cascade)
+  tipos_inventario tipos_inventario @relation(fields: [tipo_inventario_id], references: [id], onDelete: Cascade)
+  usuario          user_profiles?   @relation("movimiento_usuario", fields: [usuario_id], references: [id])
+  autorizador      user_profiles?   @relation("movimiento_autorizador", fields: [autorizador_id], references: [id])
+
+  @@schema("public")
+}

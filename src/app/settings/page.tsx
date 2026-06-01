@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const { t } = useI18n()
   const [alegraConfig, setAlegraConfig] = useState<{ configured: boolean; email: string | null } | null>(null)
   const [garantiasUsers, setGarantiasUsers] = useState<string[]>([])
+  const [inventarioUsers, setInventarioUsers] = useState<string[]>([])
   const [users, setUsers] = useState<{id: string, email: string, whatsapp: string}[]>([])
   const [savingNumbers, setSavingNumbers] = useState(false)
   const supabase = createClient()
@@ -46,8 +47,9 @@ export default function SettingsPage() {
     fetch('/api/settings?key=notification_config')
       .then(res => res.json())
       .then(data => {
-        if (data.value && Array.isArray(data.value.garantias)) {
-          setGarantiasUsers(data.value.garantias)
+        if (data.value) {
+          if (Array.isArray(data.value.garantias)) setGarantiasUsers(data.value.garantias)
+          if (Array.isArray(data.value.inventario_salidas)) setInventarioUsers(data.value.inventario_salidas)
         }
       })
       .catch(err => console.error('Error fetching notification config:', err))
@@ -57,15 +59,19 @@ export default function SettingsPage() {
     })
   }, [])
 
-  const saveConfig = async (newGarantias: string[]) => {
+  const saveConfig = async (newGarantias: string[], newInventario: string[]) => {
     setSavingNumbers(true)
     try {
       await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'notification_config', value: { garantias: newGarantias } })
+        body: JSON.stringify({ 
+          key: 'notification_config', 
+          value: { garantias: newGarantias, inventario_salidas: newInventario } 
+        })
       })
       setGarantiasUsers(newGarantias)
+      setInventarioUsers(newInventario)
     } catch (err) {
       console.error('Error saving config:', err)
     } finally {
@@ -73,12 +79,14 @@ export default function SettingsPage() {
     }
   }
 
-  const toggleUser = (userId: string) => {
-    const isSelected = garantiasUsers.includes(userId)
-    const nextUsers = isSelected 
-      ? garantiasUsers.filter(id => id !== userId) 
-      : [...garantiasUsers, userId]
-    saveConfig(nextUsers)
+  const toggleUser = (userId: string, list: 'garantias' | 'inventario') => {
+    if (list === 'garantias') {
+      const nextUsers = garantiasUsers.includes(userId) ? garantiasUsers.filter(id => id !== userId) : [...garantiasUsers, userId]
+      saveConfig(nextUsers, inventarioUsers)
+    } else {
+      const nextUsers = inventarioUsers.includes(userId) ? inventarioUsers.filter(id => id !== userId) : [...inventarioUsers, userId]
+      saveConfig(garantiasUsers, nextUsers)
+    }
   }
 
   return (
@@ -116,17 +124,51 @@ export default function SettingsPage() {
             
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {users.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">No hay usuarios con número de WhatsApp configurado. Ve a la sección de Usuarios para configurarlos.</p>
+                <p className="text-xs text-gray-400 italic">No hay usuarios con número de WhatsApp configurado.</p>
               ) : (
                 users.map((user) => {
                   const isSelected = garantiasUsers.includes(user.id)
                   return (
-                    <label key={user.id} className="flex items-center justify-between p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{ border: isSelected ? '1px solid #c2e0ff' : '1px solid #e8f1f9', background: isSelected ? '#f0f7ff' : '#ffffff' }}>
+                    <label key={`g-${user.id}`} className="flex items-center justify-between p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{ border: isSelected ? '1px solid #c2e0ff' : '1px solid #e8f1f9', background: isSelected ? '#f0f7ff' : '#ffffff' }}>
                       <div className="flex items-center gap-3">
                         <input 
                           type="checkbox" 
                           checked={isSelected}
-                          onChange={() => toggleUser(user.id)}
+                          onChange={() => toggleUser(user.id, 'garantias')}
+                          disabled={savingNumbers}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: '#37383a' }}>{user.email}</p>
+                          <p className="text-xs font-mono" style={{ color: '#8a8b8d' }}>{user.whatsapp}</p>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 my-4" />
+
+          <div>
+            <p className="text-sm font-semibold mb-2" style={{ color: '#37383a' }}>Notificaciones de Salidas de Inventario</p>
+            <p className="text-xs mb-3" style={{ color: '#8a8b8d' }}>Selecciona qué usuarios recibirán las alertas cuando se registre una salida manual de inventario.</p>
+            
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {users.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No hay usuarios con número de WhatsApp configurado.</p>
+              ) : (
+                users.map((user) => {
+                  const isSelected = inventarioUsers.includes(user.id)
+                  return (
+                    <label key={`i-${user.id}`} className="flex items-center justify-between p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{ border: isSelected ? '1px solid #c2e0ff' : '1px solid #e8f1f9', background: isSelected ? '#f0f7ff' : '#ffffff' }}>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => toggleUser(user.id, 'inventario')}
                           disabled={savingNumbers}
                           className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
                         />

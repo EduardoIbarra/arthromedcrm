@@ -66,10 +66,10 @@ export async function PATCH(
     if (estado !== undefined) {
       let origin = new URL(request.url).origin;
       if (origin.includes('localhost')) {
-        origin = 'https://arthromed.mx';
+        origin = 'https://dev.erp.arthromed.com.mx';
       }
       const recordUrl = `${origin}/garantias/${updated.id}`;
-      
+
       const STATUS_LABELS: Record<string, string> = {
         recibido: 'Recibido',
         en_revision: 'En revisión',
@@ -80,7 +80,7 @@ export async function PATCH(
         entregado: 'Entregado / Devuelto'
       };
       const statusLabel = STATUS_LABELS[updated.estado] || updated.estado;
-      
+
       const notificationMessage = `Actualización de Garantía:\nCliente: ${updated.cliente_nombre}\nProducto: ${updated.producto_nombre}\nNuevo Estado: *${statusLabel}*\n\nVer detalles:\n${recordUrl}`;
       sendInternalNotification(notificationMessage, 'garantias').catch(console.error);
     }
