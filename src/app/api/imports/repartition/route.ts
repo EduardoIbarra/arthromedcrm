@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     }
 
     // Calculate customer spend for priority
-    const clientIds = Array.from(new Set(pendingFacturas.map(f => f.cliente_id).filter(Boolean))) as string[];
+    const clientIds = Array.from(new Set(pendingFacturas.map((f: any) => f.cliente_id).filter(Boolean))) as string[];
     const spendGroups = await prisma.facturas_cliente.groupBy({
       by: ['cliente_id'],
       where: {
@@ -74,16 +74,16 @@ export async function POST(req: Request) {
     });
     
     const spendMap: Record<string, number> = {};
-    spendGroups.forEach(g => {
+    spendGroups.forEach((g: any) => {
       if (g.cliente_id) {
         spendMap[g.cliente_id] = Number(g._sum.total || 0);
       }
     });
 
     // 3. Prepare AI payload
-    const ordersForAi = pendingFacturas.flatMap(f => {
+    const ordersForAi = pendingFacturas.flatMap((f: any) => {
       const spend = f.cliente_id ? (spendMap[f.cliente_id] || 0) : 0;
-      return f.factura_productos.map(fp => ({
+      return f.factura_productos.map((fp: any) => ({
         id: fp.id,
         folio: f.numero_factura,
         customerName: f.cliente_nombre,
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
 
     // Remove orders for products we didn't receive
     // Use lax matching to account for prefixes like "Radiofrecuencia de Plasma " in the DB
-    const relevantOrders = ordersForAi.filter(o => {
+    const relevantOrders = ordersForAi.filter((o: any) => {
       const matchKey = Object.keys(inventoryMap).find(invKey => 
         o.product.toLowerCase().includes(invKey.toLowerCase()) || 
         invKey.toLowerCase().includes(o.product.toLowerCase())
@@ -154,8 +154,8 @@ Output a JSON object with:
     });
 
     // Combine AI results with full order data
-    const finalAllocations = relevantOrders.map(order => {
-      const aiAlloc = object.allocations.find(a => a.id === order.id);
+    const finalAllocations = relevantOrders.map((order: any) => {
+      const aiAlloc = object.allocations.find((a: any) => a.id === order.id);
       const allocatedQty = aiAlloc ? aiAlloc.allocatedQty : 0;
       return {
         ...order,

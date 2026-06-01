@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     }
 
     // We use a transaction to ensure all DB operations succeed or fail together
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // 1. Create the main import record
       const importacion = await tx.importaciones_recepcion.create({
         data: {
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         });
 
         // Create specific allocations for this product
-        const productAllocations = allocations.filter(a => a.product === productName);
+        const productAllocations = allocations.filter((a: any) => a.product === productName);
         for (const alloc of productAllocations) {
           if (alloc.allocatedQty > 0) {
             await tx.importacion_asignaciones.create({
