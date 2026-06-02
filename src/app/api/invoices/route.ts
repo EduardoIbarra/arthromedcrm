@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
     const status = searchParams.get('status') || ''
+    const estado_surtido = searchParams.get('estado_surtido') || ''
     const clienteId = searchParams.get('cliente_id') || ''
     const startDate = searchParams.get('start_date') || ''
     const endDate = searchParams.get('end_date') || ''
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       where.estado = status
+    }
+    if (estado_surtido) {
+      where.estado_surtido = estado_surtido
     }
     if (clienteId) {
       where.cliente_id = clienteId

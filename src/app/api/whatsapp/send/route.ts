@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (template) {
-    payload.message.type = 'template'
+    payload.message.type = 'whatsapp_template'
     
     // Respond.io uses languageCode and mirrors Meta's component structure.
     // Ensure both subType and sub_type are passed just in case.
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(`https://api.respond.io/v2/contact/${targetNumber}/message`, {
+    const res = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}/message`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESPOND_API_TOKEN}`,

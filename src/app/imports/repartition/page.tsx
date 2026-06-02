@@ -24,6 +24,23 @@ export default function ImportRepartitionPage() {
   const [invoiceResults, setInvoiceResults] = useState<any[]>([])
   const [isSearchingInvoices, setIsSearchingInvoices] = useState(false)
   const [selectedInvoices, setSelectedInvoices] = useState<any[]>([])
+  const [pendingInvoices, setPendingInvoices] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const res = await fetch('/api/invoices?status=pagada&estado_surtido=no_surtida&pageSize=500')
+        const data = await res.json()
+        if (data.data) {
+          setPendingInvoices(data.data)
+          setSelectedInvoices(data.data)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    fetchPending()
+  }, [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
@@ -233,6 +250,26 @@ export default function ImportRepartitionPage() {
     return acc
   }, {} as Record<string, Allocation[]>)
 
+  const displayedInvoicesMap = new Map()
+  pendingInvoices.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
+  selectedInvoices.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
+  invoiceResults.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
+
+  let displayedInvoices = Array.from(displayedInvoicesMap.values())
+
+  if (invoiceSearch.trim()) {
+    const terms = invoiceSearch.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+    const cleanedTerms = terms.map(s => s.replace(/^F-/i, ''))
+    
+    displayedInvoices = displayedInvoices.filter((inv: any) => {
+      const folUpper = String(inv.numero_factura).toUpperCase()
+      const cliUpper = String(inv.cliente_nombre || '').toUpperCase()
+      return terms.includes(folUpper) || 
+             cleanedTerms.some(t => folUpper.includes(t)) ||
+             cliUpper.includes(invoiceSearch.trim().toUpperCase())
+    })
+  }
+
   return (
     <AppShell>
       <div className="p-6 max-w-7xl mx-auto min-h-screen space-y-8 bg-gray-50/50">
@@ -286,7 +323,7 @@ export default function ImportRepartitionPage() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[500px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('invoicesToFulfill')}</h2>
             
             <div className="relative mb-4">
@@ -307,47 +344,45 @@ export default function ImportRepartitionPage() {
               )}
             </div>
 
-            {invoiceResults.length > 0 && (
-              <div className="mb-4 border border-gray-100 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50 shadow-sm">
-                {invoiceResults.map(inv => {
-                  const isSelected = !!selectedInvoices.find(i => i.numero_factura === inv.numero_factura)
-                  return (
-                    <div 
-                      key={inv.id} 
-                      onClick={() => toggleInvoice(inv)}
-                      className={`p-3 cursor-pointer transition-colors flex items-start gap-3 hover:bg-indigo-50/50 ${isSelected ? 'bg-indigo-50/30' : 'bg-white'}`}
-                    >
-                      <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300'}`}>
-                        {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                          Folio: {inv.numero_factura}
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">{new Date(inv.fecha_expedicion).toLocaleDateString()}</span>
-                        </div>
-                        <div className="text-xs text-gray-500 line-clamp-1">{inv.cliente_nombre}</div>
-                      </div>
+            <div className="flex-1 min-h-[300px] border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 shadow-sm bg-gray-50/30">
+              {displayedInvoices.length > 0 ? displayedInvoices.map(inv => {
+                const isSelected = !!selectedInvoices.find(i => i.numero_factura === inv.numero_factura)
+                return (
+                  <div 
+                    key={inv.id} 
+                    onClick={() => toggleInvoice(inv)}
+                    className={`p-3 cursor-pointer transition-colors flex items-start gap-3 hover:bg-indigo-50/50 ${isSelected ? 'bg-indigo-50/30' : 'bg-white'}`}
+                  >
+                    <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white'}`}>
+                      {isSelected && <CheckCircle2 className="w-3 h-3" />}
                     </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {selectedInvoices.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wider">Facturas seleccionadas ({selectedInvoices.length})</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedInvoices.map(inv => (
-                    <span key={inv.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 text-sm font-medium border border-indigo-100">
-                      {inv.numero_factura}
-                      <button onClick={() => toggleInvoice(inv)} className="hover:bg-indigo-200 rounded-full p-0.5 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                        Folio: {inv.numero_factura}
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">{new Date(inv.fecha_expedicion).toLocaleDateString()}</span>
+                        {!isSelected && <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-400">Omitida</span>}
+                      </div>
+                      <div className="text-xs text-gray-500 line-clamp-1">{inv.cliente_nombre}</div>
+                    </div>
+                  </div>
+                )
+              }) : (
+                <div className="p-6 text-center text-gray-400 flex flex-col items-center justify-center h-full">
+                  <Search className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-sm">No se encontraron facturas</p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-between items-center text-sm">
+              <span className="text-gray-500 font-medium">Seleccionadas: <span className="text-indigo-600 font-bold">{selectedInvoices.length}</span></span>
+              <button 
+                onClick={() => setSelectedInvoices(displayedInvoices)}
+                className="text-indigo-600 hover:text-indigo-700 font-medium text-xs"
+              >
+                Seleccionar todas visibles
+              </button>
+            </div>
           </div>
 
           <button
