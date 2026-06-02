@@ -7,7 +7,7 @@ import {
   X, CheckCircle, AlertCircle, DollarSign, Calendar, TrendingUp, Info
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
-import Modal from '@/components/Modal'
+import { useRouter } from 'next/navigation'
 
 interface FacturaProducto {
   id: string
@@ -57,6 +57,7 @@ const ESTADO_SURTIDO_MAP: Record<string, { label: string; bg: string; text: stri
 }
 
 export default function FacturasPage() {
+  const router = useRouter()
   const { t, locale } = useI18n()
   
   // State
@@ -80,14 +81,6 @@ export default function FacturasPage() {
   const [pageSize] = useState(15)
   const [totalPages, setTotalPages] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
-
-  // Details Modal
-  const [selectedInvoice, setSelectedInvoice] = useState<Factura | null>(null)
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
-  const [editFulfillmentMode, setEditFulfillmentMode] = useState(false)
-  const [fulfillmentStatus, setFulfillmentStatus] = useState('')
-  const [fulfillmentItems, setFulfillmentItems] = useState<Record<string, number>>({})
-  const [isSavingFulfillment, setIsSavingFulfillment] = useState(false)
 
   // Fetch Invoices
   const fetchInvoices = async () => {
@@ -223,48 +216,7 @@ export default function FacturasPage() {
     }
   }
 
-  const handleSaveFulfillment = async () => {
-    if (!selectedInvoice) return
-    try {
-      setIsSavingFulfillment(true)
-      
-      const itemsPayload = selectedInvoice.factura_productos.map(p => ({
-        id: p.id,
-        cantidad_entregada: fulfillmentStatus === 'completa' ? p.cantidad_facturada : 
-                            fulfillmentStatus === 'no_surtida' ? 0 : 
-                            (fulfillmentItems[p.id] || 0)
-      }))
 
-      const res = await fetch(`/api/invoices/${selectedInvoice.id}/fulfillment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado_surtido: fulfillmentStatus,
-          items: itemsPayload
-        })
-      })
-
-      if (!res.ok) throw new Error('Error al guardar surtido')
-      
-      setEditFulfillmentMode(false)
-      fetchInvoices()
-      
-      setSelectedInvoice({
-        ...selectedInvoice,
-        estado_surtido: fulfillmentStatus,
-        factura_productos: selectedInvoice.factura_productos.map(p => ({
-          ...p,
-          cantidad_entregada: itemsPayload.find(i => i.id === p.id)?.cantidad_entregada || 0
-        }))
-      })
-
-    } catch (error) {
-      console.error(error)
-      alert('Error al guardar surtido')
-    } finally {
-      setIsSavingFulfillment(false)
-    }
-  }
 
   return (
     <AppShell>
@@ -490,17 +442,7 @@ export default function FacturasPage() {
                     return (
                       <tr
                         key={invoice.id}
-                        onClick={() => {
-                          setSelectedInvoice(invoice)
-                          setFulfillmentStatus(invoice.estado_surtido || 'no_surtida')
-                          setEditFulfillmentMode(false)
-                          const initialItems: Record<string, number> = {}
-                          invoice.factura_productos?.forEach(p => {
-                            initialItems[p.id] = p.cantidad_entregada || 0
-                          })
-                          setFulfillmentItems(initialItems)
-                          setIsDetailModalOpen(true)
-                        }}
+                        onClick={() => router.push(`/facturas/${invoice.id}`)}
                         className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
                       >
                         <td className="p-4 pl-6 text-center" onClick={(e) => e.stopPropagation()}>
@@ -592,222 +534,6 @@ export default function FacturasPage() {
             </div>
           )}
         </div>
-
-        {/* DETAILS MODAL */}
-        <Modal
-          open={isDetailModalOpen}
-          onClose={() => setIsDetailModalOpen(false)}
-          title={`Detalle de Factura: ${selectedInvoice?.numero_factura}`}
-        >
-          {selectedInvoice && (
-            <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-1">
-              
-              {/* Header Grid */}
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-[#e8f1f9]">
-                <div>
-                  <p className="text-xs text-gray-400 uppercase font-semibold">Cliente</p>
-                  <p className="text-sm font-bold text-gray-900">{selectedInvoice.cliente_nombre}</p>
-                  {selectedInvoice.cliente_rfc && (
-                    <p className="text-xs text-gray-500 font-mono mt-0.5">RFC: {selectedInvoice.cliente_rfc}</p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400 uppercase font-semibold">Estado Pago</p>
-                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border mt-1 ${
-                    STATUS_MAP[selectedInvoice.estado]?.bg || 'bg-gray-50'
-                  } ${STATUS_MAP[selectedInvoice.estado]?.text || 'text-gray-700'} ${STATUS_MAP[selectedInvoice.estado]?.border || 'border-gray-150'}`}>
-                    {STATUS_MAP[selectedInvoice.estado]?.label || selectedInvoice.estado}
-                  </span>
-
-                  <div className="flex items-center justify-end gap-2 mt-3">
-                    <p className="text-xs text-gray-400 uppercase font-semibold">Estado Surtido</p>
-                    {!editFulfillmentMode && (
-                      <button 
-                        onClick={() => setEditFulfillmentMode(true)}
-                        className="text-xs text-[#0763a9] hover:underline flex items-center gap-1"
-                      >
-                        (Editar)
-                      </button>
-                    )}
-                  </div>
-                  
-                  {editFulfillmentMode ? (
-                    <select
-                      value={fulfillmentStatus}
-                      onChange={(e) => setFulfillmentStatus(e.target.value)}
-                      className="erp-input w-full !py-1 text-xs mt-1"
-                    >
-                      <option value="no_surtida">No Surtida</option>
-                      <option value="parcial">Parcial</option>
-                      <option value="completa">Completa</option>
-                    </select>
-                  ) : (
-                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border mt-1 ${
-                      ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.bg || 'bg-gray-50'
-                    } ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.text || 'text-gray-700'} ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.border || 'border-gray-150'}`}>
-                      {ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.label || 'No Surtida'}
-                    </span>
-                  )}
-                </div>
-
-                <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 uppercase font-semibold">Fecha Expedición</p>
-                  <p className="text-xs text-gray-800 font-semibold flex items-center gap-1 mt-0.5">
-                    <Calendar size={12} className="text-[#0763a9]" />
-                    {formatDate(selectedInvoice.fecha_expedicion)}
-                  </p>
-                </div>
-                <div className="pt-2 border-t border-gray-100 text-right">
-                  <p className="text-xs text-gray-400 uppercase font-semibold">Fecha Vencimiento</p>
-                  <p className="text-xs text-gray-800 font-semibold flex items-center justify-end gap-1 mt-0.5">
-                    <Calendar size={12} className="text-amber-600" />
-                    {formatDate(selectedInvoice.fecha_vencimiento)}
-                  </p>
-                </div>
-
-                {(['pagada', 'pagado'].includes(selectedInvoice.estado)) && selectedInvoice.fecha_pago && (
-                  <div className="col-span-2 pt-2 pb-1 border-t border-gray-100 flex justify-between items-center bg-emerald-50/40 px-3 py-1.5 rounded-xl border border-emerald-100/50">
-                    <span className="text-xs text-emerald-800 font-bold uppercase">Fecha de Pago</span>
-                    <span className="text-xs text-emerald-950 font-extrabold flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-emerald-150 shadow-xs">
-                      <CheckCircle size={12} className="text-emerald-600" />
-                      {formatDate(selectedInvoice.fecha_pago)}
-                    </span>
-                  </div>
-                )}
-
-                {selectedInvoice.metodo_pago && (
-                  <div className="col-span-2 pt-2 pb-1 border-t border-gray-100 flex justify-between items-center bg-blue-50/40 px-3 py-1.5 rounded-xl border border-blue-100/50">
-                    <span className="text-xs text-blue-800 font-bold uppercase">Método de Pago</span>
-                    <span className="text-xs text-blue-950 font-bold bg-white px-2.5 py-0.5 rounded-lg border border-blue-150 shadow-xs">
-                      {selectedInvoice.metodo_pago}
-                    </span>
-                  </div>
-                )}
-
-                {selectedInvoice.alegra_id && (
-                  <div className="col-span-2 pt-2 border-t border-gray-100 flex items-center gap-1.5 text-xs text-gray-400">
-                    <Info size={12} />
-                    <span>ID de Alegra: <strong className="font-mono text-gray-600">{selectedInvoice.alegra_id}</strong></span>
-                  </div>
-                )}
-              </div>
-
-              {/* Items List */}
-              <div>
-                <h4 className="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2">Detalle de Conceptos</h4>
-                <div className="border border-[#e8f1f9] rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100 border-b border-[#e8f1f9] font-bold text-gray-600">
-                        <th className="p-3">Concepto / Producto</th>
-                        <th className="p-3">Código</th>
-                        <th className="p-3 text-center">Cant.</th>
-                        <th className="p-3 text-center">Entregada</th>
-                        <th className="p-3 text-right">Precio Unit.</th>
-                        <th className="p-3 text-right">Importe</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#e8f1f9] text-gray-800 font-medium">
-                      {selectedInvoice.factura_productos && selectedInvoice.factura_productos.length > 0 ? (
-                        selectedInvoice.factura_productos.map((prod) => (
-                          <tr key={prod.id} className="hover:bg-gray-50/50">
-                            <td className="p-3 font-semibold text-gray-900">{prod.producto_nombre}</td>
-                            <td className="p-3 text-gray-500 font-mono">{prod.producto_codigo || '-'}</td>
-                            <td className="p-3 text-center">{prod.cantidad_facturada}</td>
-                            <td className="p-3 text-center font-bold">
-                              {editFulfillmentMode && fulfillmentStatus === 'parcial' ? (
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={prod.cantidad_facturada}
-                                  className="erp-input w-16 text-center !py-1 !px-2 text-xs mx-auto"
-                                  value={fulfillmentItems[prod.id] ?? 0}
-                                  onChange={(e) => setFulfillmentItems(prev => ({ ...prev, [prod.id]: parseInt(e.target.value) || 0 }))}
-                                />
-                              ) : (
-                                <span className={prod.cantidad_entregada >= prod.cantidad_facturada ? 'text-emerald-600' : prod.cantidad_entregada > 0 ? 'text-amber-600' : 'text-rose-600'}>
-                                  {prod.cantidad_entregada || 0}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-3 text-right font-mono">{formatCurrency(prod.precio_unitario)}</td>
-                            <td className="p-3 text-right font-bold text-gray-900 font-mono">{formatCurrency(prod.importe)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={6} className="p-4 text-center text-gray-400 italic">No hay productos en esta factura</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Summary Totals */}
-              <div className="flex justify-end">
-                <div className="w-64 space-y-2 border-t border-gray-100 pt-3 text-sm">
-                  <div className="flex justify-between text-gray-500">
-                    <span>Subtotal:</span>
-                    <span className="font-mono">{formatCurrency(selectedInvoice.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500">
-                    <span>IVA (16%):</span>
-                    <span className="font-mono">{formatCurrency(selectedInvoice.iva)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-950 font-bold text-base border-t border-gray-200 pt-2">
-                    <span>Total:</span>
-                    <span className="font-mono text-[#0763a9]">{formatCurrency(selectedInvoice.total)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Observations */}
-              {selectedInvoice.observaciones && (
-                <div className="space-y-1 bg-blue-50/30 p-3 rounded-lg border border-blue-100/50">
-                  <h4 className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1">
-                    <Info size={12} className="text-[#0763a9]" />
-                    Observaciones
-                  </h4>
-                  <p className="text-xs text-gray-700 leading-relaxed italic">{selectedInvoice.observaciones}</p>
-                </div>
-              )}
-
-              {/* Footer action */}
-              <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
-                {editFulfillmentMode ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        setEditFulfillmentMode(false)
-                        setFulfillmentStatus(selectedInvoice.estado_surtido || 'no_surtida')
-                      }}
-                      className="btn-secondary !py-1.5 !px-4 text-xs cursor-pointer"
-                      disabled={isSavingFulfillment}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleSaveFulfillment}
-                      className="btn-primary !py-1.5 !px-4 text-xs cursor-pointer !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700"
-                      disabled={isSavingFulfillment}
-                    >
-                      {isSavingFulfillment ? 'Guardando...' : 'Guardar Surtido'}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsDetailModalOpen(false)}
-                    className="btn-secondary !py-1.5 !px-4 text-xs cursor-pointer"
-                  >
-                    Cerrar
-                  </button>
-                )}
-              </div>
-
-            </div>
-          )}
-        </Modal>
 
       </div>
     </AppShell>
