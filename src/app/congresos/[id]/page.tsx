@@ -219,7 +219,7 @@ export default function EditCongresoPage() {
   }
 
   const totalGastos = gastosEstimados.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
-  const isBudgetExceeded = globalBudget && totalGastos > Number(globalBudget)
+  const isBudgetExceeded = Boolean(globalBudget && totalGastos > Number(globalBudget))
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
