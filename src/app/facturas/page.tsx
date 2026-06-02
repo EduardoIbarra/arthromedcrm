@@ -14,6 +14,8 @@ interface FacturaProducto {
   producto_nombre: string
   producto_codigo: string | null
   cantidad_facturada: number
+  cantidad_entregada: number
+  cantidad_pendiente: number
   precio_unitario: number
   importe: number
 }
@@ -82,6 +84,10 @@ export default function FacturasPage() {
   // Details Modal
   const [selectedInvoice, setSelectedInvoice] = useState<Factura | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [editFulfillmentMode, setEditFulfillmentMode] = useState(false)
+  const [fulfillmentStatus, setFulfillmentStatus] = useState('')
+  const [fulfillmentItems, setFulfillmentItems] = useState<Record<string, number>>({})
+  const [isSavingFulfillment, setIsSavingFulfillment] = useState(false)
 
   // Fetch Invoices
   const fetchInvoices = async () => {
@@ -214,6 +220,49 @@ export default function FacturasPage() {
       setSelectedIds(new Set())
     } else {
       setSelectedIds(new Set(invoices.map(i => i.id)))
+    }
+  }
+
+  const handleSaveFulfillment = async () => {
+    if (!selectedInvoice) return
+    try {
+      setIsSavingFulfillment(true)
+      
+      const itemsPayload = selectedInvoice.factura_productos.map(p => ({
+        id: p.id,
+        cantidad_entregada: fulfillmentStatus === 'completa' ? p.cantidad_facturada : 
+                            fulfillmentStatus === 'no_surtida' ? 0 : 
+                            (fulfillmentItems[p.id] || 0)
+      }))
+
+      const res = await fetch(`/api/invoices/${selectedInvoice.id}/fulfillment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado_surtido: fulfillmentStatus,
+          items: itemsPayload
+        })
+      })
+
+      if (!res.ok) throw new Error('Error al guardar surtido')
+      
+      setEditFulfillmentMode(false)
+      fetchInvoices()
+      
+      setSelectedInvoice({
+        ...selectedInvoice,
+        estado_surtido: fulfillmentStatus,
+        factura_productos: selectedInvoice.factura_productos.map(p => ({
+          ...p,
+          cantidad_entregada: itemsPayload.find(i => i.id === p.id)?.cantidad_entregada || 0
+        }))
+      })
+
+    } catch (error) {
+      console.error(error)
+      alert('Error al guardar surtido')
+    } finally {
+      setIsSavingFulfillment(false)
     }
   }
 
@@ -387,13 +436,6 @@ export default function FacturasPage() {
               </button>
               <button 
                 disabled={isUpdatingBulk}
-                onClick={() => handleBulkUpdate('parcial')} 
-                className="px-3 py-1.5 bg-white border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold hover:bg-amber-50 transition-colors disabled:opacity-50"
-              >
-                Parcial
-              </button>
-              <button 
-                disabled={isUpdatingBulk}
                 onClick={() => handleBulkUpdate('completa')} 
                 className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-50 transition-colors disabled:opacity-50"
               >
@@ -450,6 +492,13 @@ export default function FacturasPage() {
                         key={invoice.id}
                         onClick={() => {
                           setSelectedInvoice(invoice)
+                          setFulfillmentStatus(invoice.estado_surtido || 'no_surtida')
+                          setEditFulfillmentMode(false)
+                          const initialItems: Record<string, number> = {}
+                          invoice.factura_productos?.forEach(p => {
+                            initialItems[p.id] = p.cantidad_entregada || 0
+                          })
+                          setFulfillmentItems(initialItems)
                           setIsDetailModalOpen(true)
                         }}
                         className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
@@ -570,12 +619,35 @@ export default function FacturasPage() {
                     {STATUS_MAP[selectedInvoice.estado]?.label || selectedInvoice.estado}
                   </span>
 
-                  <p className="text-xs text-gray-400 uppercase font-semibold mt-3">Estado Surtido</p>
-                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border mt-1 ${
-                    ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.bg || 'bg-gray-50'
-                  } ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.text || 'text-gray-700'} ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.border || 'border-gray-150'}`}>
-                    {ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.label || 'No Surtida'}
-                  </span>
+                  <div className="flex items-center justify-end gap-2 mt-3">
+                    <p className="text-xs text-gray-400 uppercase font-semibold">Estado Surtido</p>
+                    {!editFulfillmentMode && (
+                      <button 
+                        onClick={() => setEditFulfillmentMode(true)}
+                        className="text-xs text-[#0763a9] hover:underline flex items-center gap-1"
+                      >
+                        (Editar)
+                      </button>
+                    )}
+                  </div>
+                  
+                  {editFulfillmentMode ? (
+                    <select
+                      value={fulfillmentStatus}
+                      onChange={(e) => setFulfillmentStatus(e.target.value)}
+                      className="erp-input w-full !py-1 text-xs mt-1"
+                    >
+                      <option value="no_surtida">No Surtida</option>
+                      <option value="parcial">Parcial</option>
+                      <option value="completa">Completa</option>
+                    </select>
+                  ) : (
+                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border mt-1 ${
+                      ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.bg || 'bg-gray-50'
+                    } ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.text || 'text-gray-700'} ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.border || 'border-gray-150'}`}>
+                      {ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.label || 'No Surtida'}
+                    </span>
+                  )}
                 </div>
 
                 <div className="pt-2 border-t border-gray-100">
@@ -630,6 +702,7 @@ export default function FacturasPage() {
                         <th className="p-3">Concepto / Producto</th>
                         <th className="p-3">Código</th>
                         <th className="p-3 text-center">Cant.</th>
+                        <th className="p-3 text-center">Entregada</th>
                         <th className="p-3 text-right">Precio Unit.</th>
                         <th className="p-3 text-right">Importe</th>
                       </tr>
@@ -641,13 +714,29 @@ export default function FacturasPage() {
                             <td className="p-3 font-semibold text-gray-900">{prod.producto_nombre}</td>
                             <td className="p-3 text-gray-500 font-mono">{prod.producto_codigo || '-'}</td>
                             <td className="p-3 text-center">{prod.cantidad_facturada}</td>
+                            <td className="p-3 text-center font-bold">
+                              {editFulfillmentMode && fulfillmentStatus === 'parcial' ? (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={prod.cantidad_facturada}
+                                  className="erp-input w-16 text-center !py-1 !px-2 text-xs mx-auto"
+                                  value={fulfillmentItems[prod.id] ?? 0}
+                                  onChange={(e) => setFulfillmentItems(prev => ({ ...prev, [prod.id]: parseInt(e.target.value) || 0 }))}
+                                />
+                              ) : (
+                                <span className={prod.cantidad_entregada >= prod.cantidad_facturada ? 'text-emerald-600' : prod.cantidad_entregada > 0 ? 'text-amber-600' : 'text-rose-600'}>
+                                  {prod.cantidad_entregada || 0}
+                                </span>
+                              )}
+                            </td>
                             <td className="p-3 text-right font-mono">{formatCurrency(prod.precio_unitario)}</td>
                             <td className="p-3 text-right font-bold text-gray-900 font-mono">{formatCurrency(prod.importe)}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center text-gray-400 italic">No hay productos en esta factura</td>
+                          <td colSpan={6} className="p-4 text-center text-gray-400 italic">No hay productos en esta factura</td>
                         </tr>
                       )}
                     </tbody>
@@ -685,13 +774,35 @@ export default function FacturasPage() {
               )}
 
               {/* Footer action */}
-              <div className="flex justify-end pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setIsDetailModalOpen(false)}
-                  className="btn-secondary !py-1.5 !px-4 text-xs cursor-pointer"
-                >
-                  Cerrar
-                </button>
+              <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+                {editFulfillmentMode ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditFulfillmentMode(false)
+                        setFulfillmentStatus(selectedInvoice.estado_surtido || 'no_surtida')
+                      }}
+                      className="btn-secondary !py-1.5 !px-4 text-xs cursor-pointer"
+                      disabled={isSavingFulfillment}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveFulfillment}
+                      className="btn-primary !py-1.5 !px-4 text-xs cursor-pointer !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700"
+                      disabled={isSavingFulfillment}
+                    >
+                      {isSavingFulfillment ? 'Guardando...' : 'Guardar Surtido'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setIsDetailModalOpen(false)}
+                    className="btn-secondary !py-1.5 !px-4 text-xs cursor-pointer"
+                  >
+                    Cerrar
+                  </button>
+                )}
               </div>
 
             </div>
