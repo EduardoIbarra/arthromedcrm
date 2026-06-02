@@ -14,20 +14,27 @@ export async function POST(req: Request) {
     }
 
     // 1. Parse CSV to aggregate inventory by PRODUCTO
-    const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
+    // The new format has no headers. 
+    // Col 0: Invoice ID (only on first row) or empty
+    // Col 1: Product Name
+    // Col 2: Quantity
+    const parsed = Papa.parse(csvContent, { header: false, skipEmptyLines: true });
     const inventoryMap: Record<string, number> = {};
-    let currentFolio = '';
-    let currentCliente = '';
+    let invoiceIdFromChina = '';
 
-    for (const row of parsed.data as any[]) {
-      // Handle the format where Folio/Cliente are only on the first row of a group
-      if (row.FOLIO) currentFolio = row.FOLIO;
-      if (row.CLIENTE) currentCliente = row.CLIENTE;
+    for (let i = 0; i < parsed.data.length; i++) {
+      const row = parsed.data[i] as string[];
       
-      const producto = row.PRODUCTO?.trim();
-      const cantidad = parseInt(row.CANTIDAD || '0', 10);
+      // Extract invoice ID from A1
+      if (i === 0 && row[0]) {
+        invoiceIdFromChina = row[0].trim();
+      }
       
-      if (producto && !isNaN(cantidad)) {
+      const producto = row[1]?.trim();
+      const cantidadStr = row[2]?.trim();
+      const cantidad = parseInt(cantidadStr || '0', 10);
+      
+      if (producto && !isNaN(cantidad) && cantidad > 0) {
         inventoryMap[producto] = (inventoryMap[producto] || 0) + cantidad;
       }
     }
@@ -174,7 +181,8 @@ Output a JSON object with:
     return NextResponse.json({
       allocations: finalAllocations,
       remainingInventory,
-      aiReasoning: object.aiReasoning
+      aiReasoning: object.aiReasoning,
+      invoiceIdFromChina
     });
 
   } catch (error: any) {

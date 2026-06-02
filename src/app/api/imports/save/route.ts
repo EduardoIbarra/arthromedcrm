@@ -4,7 +4,7 @@ import { sendNotificationToUser } from '@/lib/respond';
 
 export async function POST(req: Request) {
   try {
-    const { allocations, remainingInventory, aiReasoning } = await req.json();
+    const { allocations, remainingInventory, aiReasoning, invoiceIdFromChina } = await req.json();
 
     if (!allocations || !Array.isArray(allocations)) {
       return NextResponse.json({ error: 'Asignaciones inválidas' }, { status: 400 });
@@ -15,7 +15,8 @@ export async function POST(req: Request) {
       // 1. Create the main import record
       const importacion = await tx.importaciones_recepcion.create({
         data: {
-          status: 'applied'
+          status: 'applied',
+          invoice_id_china: invoiceIdFromChina || null
         }
       });
 

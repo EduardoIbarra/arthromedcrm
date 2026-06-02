@@ -32,6 +32,7 @@ export default function ImportRepartitionPage() {
   const [remainingInventory, setRemainingInventory] = useState<Record<string, number>>({})
   const [initialInventory, setInitialInventory] = useState<Record<string, number>>({})
   const [aiReasoning, setAiReasoning] = useState<string>('')
+  const [invoiceIdFromChina, setInvoiceIdFromChina] = useState<string>('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -133,6 +134,7 @@ export default function ImportRepartitionPage() {
     setRemainingInventory({})
     setInitialInventory({})
     setAiReasoning('')
+    setInvoiceIdFromChina('')
 
     try {
       const res = await fetch('/api/imports/repartition', {
@@ -147,6 +149,9 @@ export default function ImportRepartitionPage() {
       setAllocations(data.allocations || [])
       setRemainingInventory(data.remainingInventory || {})
       setAiReasoning(data.aiReasoning || '')
+      if (data.invoiceIdFromChina) {
+        setInvoiceIdFromChina(data.invoiceIdFromChina)
+      }
 
       // Calculate initial inventory from allocations + remaining
       const initInv: Record<string, number> = { ...data.remainingInventory }
@@ -201,7 +206,7 @@ export default function ImportRepartitionPage() {
       const res = await fetch('/api/imports/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allocations, remainingInventory, aiReasoning })
+        body: JSON.stringify({ allocations, remainingInventory, aiReasoning, invoiceIdFromChina })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error saving allocations')

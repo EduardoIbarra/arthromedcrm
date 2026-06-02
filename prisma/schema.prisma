@@ -1011,6 +1011,7 @@ model facturas_cliente {
   fecha_vencimiento DateTime            @db.Date
   prioridad         String              @default("normal")
   estado            String              @default("pendiente")
+  estado_surtido    String              @default("no_surtida")
   subtotal          Decimal?            @default(0) @db.Decimal(12, 2)
   iva               Decimal?            @default(0) @db.Decimal(12, 2)
   total             Decimal?            @default(0) @db.Decimal(12, 2)
@@ -1744,11 +1745,12 @@ enum user_role {
 }
 
 model importaciones_recepcion {
-  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fecha      DateTime            @default(now()) @db.Timestamptz(6)
-  status     String              @default("pending")
-  created_at DateTime            @default(now()) @db.Timestamptz(6)
-  items      importacion_items[]
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fecha            DateTime            @default(now()) @db.Timestamptz(6)
+  status           String              @default("pending")
+  invoice_id_china String?
+  created_at       DateTime            @default(now()) @db.Timestamptz(6)
+  items            importacion_items[]
 
   @@schema("public")
 }

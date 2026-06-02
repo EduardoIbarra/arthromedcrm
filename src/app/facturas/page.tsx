@@ -26,6 +26,7 @@ interface Factura {
   fecha_expedicion: string
   fecha_vencimiento: string
   estado: string
+  estado_surtido: string
   subtotal: number
   iva: number
   total: number
@@ -47,6 +48,12 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; bord
   borrador:  { label: 'Borrador',  bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-100'  }  // legacy alias
 }
 
+const ESTADO_SURTIDO_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  no_surtida: { label: 'No Surtida', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100' },
+  parcial: { label: 'Parcial', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
+  completa: { label: 'Completa', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' }
+}
+
 export default function FacturasPage() {
   const { t, locale } = useI18n()
   
@@ -55,6 +62,10 @@ export default function FacturasPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isUpdatingBulk, setIsUpdatingBulk] = useState(false)
   
   // Filters state
   const [searchTerm, setSearchTerm] = useState('')
@@ -134,6 +145,7 @@ export default function FacturasPage() {
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
       setPage(1)
+      setSelectedIds(new Set())
       fetchInvoices()
     }, 300)
 
@@ -142,6 +154,7 @@ export default function FacturasPage() {
 
   // Fetch on page change
   useEffect(() => {
+    setSelectedIds(new Set())
     fetchInvoices()
   }, [page])
 
@@ -173,6 +186,36 @@ export default function FacturasPage() {
   const kpiTotalInvoiced = invoices.reduce((acc, inv) => acc + (!['cancelada', 'anulado'].includes(inv.estado) ? Number(inv.total) || 0 : 0), 0)
   const kpiTotalPaid = invoices.reduce((acc, inv) => acc + (['pagada', 'pagado'].includes(inv.estado) ? Number(inv.total) || 0 : 0), 0)
   const kpiTotalPending = invoices.reduce((acc, inv) => acc + (inv.estado === 'pendiente' ? Number(inv.total) || 0 : 0), 0)
+
+  const handleBulkUpdate = async (status: string) => {
+    try {
+      setIsUpdatingBulk(true)
+      const res = await fetch('/api/invoices/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: Array.from(selectedIds),
+          estado_surtido: status
+        })
+      })
+      if (!res.ok) throw new Error('Error al actualizar')
+      
+      setSelectedIds(new Set())
+      fetchInvoices()
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsUpdatingBulk(false)
+    }
+  }
+
+  const toggleAll = () => {
+    if (selectedIds.size === invoices.length && invoices.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(invoices.map(i => i.id)))
+    }
+  }
 
   return (
     <AppShell>
@@ -327,6 +370,39 @@ export default function FacturasPage() {
           )}
         </div>
 
+        {/* BULK ACTIONS */}
+        {selectedIds.size > 0 && (
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-2xl flex items-center justify-between animate-fade-in">
+            <span className="text-sm font-semibold text-blue-900 ml-2">
+              {selectedIds.size} {selectedIds.size === 1 ? 'factura seleccionada' : 'facturas seleccionadas'}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-blue-700 mr-2 font-medium hidden sm:inline">Marcar surtido como:</span>
+              <button 
+                disabled={isUpdatingBulk}
+                onClick={() => handleBulkUpdate('no_surtida')} 
+                className="px-3 py-1.5 bg-white border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold hover:bg-rose-50 transition-colors disabled:opacity-50"
+              >
+                No Surtida
+              </button>
+              <button 
+                disabled={isUpdatingBulk}
+                onClick={() => handleBulkUpdate('parcial')} 
+                className="px-3 py-1.5 bg-white border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold hover:bg-amber-50 transition-colors disabled:opacity-50"
+              >
+                Parcial
+              </button>
+              <button 
+                disabled={isUpdatingBulk}
+                onClick={() => handleBulkUpdate('completa')} 
+                className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-50 transition-colors disabled:opacity-50"
+              >
+                Completa
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* LIST TABLE */}
         <div className="card overflow-hidden">
           {loading ? (
@@ -345,7 +421,15 @@ export default function FacturasPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50 border-b border-[#e8f1f9] text-xs font-semibold uppercase text-gray-500">
-                    <th className="p-4 pl-6">Folio / Número</th>
+                    <th className="p-4 pl-6 w-12 text-center">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-[#0763a9] focus:ring-[#0763a9] cursor-pointer"
+                        checked={invoices.length > 0 && selectedIds.size === invoices.length}
+                        onChange={toggleAll}
+                      />
+                    </th>
+                    <th className="p-4">Folio / Número</th>
                     <th className="p-4">Cliente</th>
                     <th className="p-4">RFC</th>
                     <th className="p-4">Fecha Expedición</th>
@@ -353,12 +437,14 @@ export default function FacturasPage() {
                     <th className="p-4 text-right">Subtotal</th>
                     <th className="p-4 text-right">IVA</th>
                     <th className="p-4 text-right font-bold">Total</th>
-                    <th className="p-4 text-center">Estado</th>
+                    <th className="p-4 text-center">Surtido</th>
+                    <th className="p-4 text-center">Estado Pago</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e8f1f9] text-sm">
                   {invoices.map((invoice) => {
                     const status = STATUS_MAP[invoice.estado] || { label: invoice.estado, bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-100' }
+                    const surtido = ESTADO_SURTIDO_MAP[invoice.estado_surtido] || ESTADO_SURTIDO_MAP['no_surtida']
                     return (
                       <tr
                         key={invoice.id}
@@ -368,7 +454,20 @@ export default function FacturasPage() {
                         }}
                         className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
                       >
-                        <td className="p-4 pl-6 font-semibold text-[#0763a9] group-hover:underline">
+                        <td className="p-4 pl-6 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 text-[#0763a9] focus:ring-[#0763a9] cursor-pointer"
+                            checked={selectedIds.has(invoice.id)}
+                            onChange={(e) => {
+                              const newSet = new Set(selectedIds)
+                              if (e.target.checked) newSet.add(invoice.id)
+                              else newSet.delete(invoice.id)
+                              setSelectedIds(newSet)
+                            }}
+                          />
+                        </td>
+                        <td className="p-4 font-semibold text-[#0763a9] group-hover:underline">
                           {invoice.numero_factura}
                         </td>
                         <td className="p-4 font-medium text-gray-900 max-w-[200px] truncate">
@@ -391,6 +490,11 @@ export default function FacturasPage() {
                         </td>
                         <td className="p-4 text-right font-bold text-gray-900 font-mono">
                           {formatCurrency(invoice.total)}
+                        </td>
+                        <td className="p-4 text-center">
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${surtido.bg} ${surtido.text} ${surtido.border}`}>
+                            {surtido.label}
+                          </span>
                         </td>
                         <td className="p-4 text-center">
                           <div className="flex flex-col items-center justify-center">
@@ -459,11 +563,18 @@ export default function FacturasPage() {
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400 uppercase font-semibold">Estado</p>
+                  <p className="text-xs text-gray-400 uppercase font-semibold">Estado Pago</p>
                   <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border mt-1 ${
                     STATUS_MAP[selectedInvoice.estado]?.bg || 'bg-gray-50'
                   } ${STATUS_MAP[selectedInvoice.estado]?.text || 'text-gray-700'} ${STATUS_MAP[selectedInvoice.estado]?.border || 'border-gray-150'}`}>
                     {STATUS_MAP[selectedInvoice.estado]?.label || selectedInvoice.estado}
+                  </span>
+
+                  <p className="text-xs text-gray-400 uppercase font-semibold mt-3">Estado Surtido</p>
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border mt-1 ${
+                    ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.bg || 'bg-gray-50'
+                  } ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.text || 'text-gray-700'} ${ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.border || 'border-gray-150'}`}>
+                    {ESTADO_SURTIDO_MAP[selectedInvoice.estado_surtido]?.label || 'No Surtida'}
                   </span>
                 </div>
 

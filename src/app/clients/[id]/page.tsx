@@ -113,6 +113,11 @@ export default function ClientDetailPage() {
 
   const [staffUsers, setStaffUsers] = useState<any[]>([])
 
+  const [showCongressWA, setShowCongressWA] = useState(false)
+  const [congressLink, setCongressLink] = useState('https://bonss.com.mx/catalogo')
+  const [congressSenderName, setCongressSenderName] = useState('Equipo Arthromed')
+  const [congressSending, setCongressSending] = useState(false)
+
   useEffect(() => {
     async function load() {
       try {
@@ -166,6 +171,63 @@ export default function ClientDetailPage() {
         setActivities((await aRes.json()).data || [])
       }
     } finally { setWaSending(false) }
+  }
+
+  const sendCongressWA = async () => {
+    if (!client?.phone) return
+    setCongressSending(true)
+    try {
+      const components: any[] = [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: client.name || 'Doctor' },
+            { type: 'text', text: congressSenderName }
+          ]
+        }
+      ]
+      
+      // Si decidieron usar un botón con URL dinámica en Meta, añadimos el componente del botón
+      if (congressLink) {
+        // Asumiendo que configuraron el botón como dinámico (ej. url base https:// y el resto es la variable)
+        // Meta requiere que los botones dinámicos pasen su variable.
+        // Si el botón es estático en Meta, esto podría sobrar o ser ignorado.
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: '0',
+          parameters: [
+            { type: 'text', text: congressLink.replace(/^https?:\/\//, '') }
+          ]
+        })
+      }
+
+      const res = await fetch('/api/whatsapp/send', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ 
+          to: client.whatsapp_phone || client.phone, 
+          template: 'congress_welcome', 
+          components 
+        }) 
+      })
+      if (res.ok) {
+        await fetch(`/api/clients/${id}/activities`, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ type: 'whatsapp', content: `Plantilla Bienvenida Congreso enviada` }) 
+        })
+        const aRes = await fetch(`/api/clients/${id}/activities`)
+        setActivities((await aRes.json()).data || [])
+        setShowCongressWA(false)
+      } else {
+        alert('Error al enviar mensaje')
+      }
+    } catch (e) {
+      alert('Error al enviar mensaje')
+    } finally { 
+      setCongressSending(false) 
+    }
   }
 
   const addNote = async () => {
@@ -252,6 +314,7 @@ export default function ClientDetailPage() {
           <div className="flex gap-2 flex-wrap">
             <button onClick={getAI} className="btn-secondary text-sm"><Bot size={15} /> {t('aiSummary')}</button>
             <PermissionGuard section="clients" action="edit">
+              <button onClick={() => setShowCongressWA(true)} className="btn-secondary text-sm" style={{ borderColor: '#0763a9', color: '#0763a9' }}><MessageCircle size={15} /> Bienvenida Congreso</button>
               <button onClick={() => setShowWA(true)} className="btn-secondary text-sm"><MessageCircle size={15} /> {t('sendWhatsApp')}</button>
               <button onClick={() => setShowNote(true)} className="btn-secondary text-sm"><Plus size={15} /> {t('addNote')}</button>
             </PermissionGuard>
@@ -591,6 +654,40 @@ export default function ClientDetailPage() {
             <button onClick={() => setShowWA(false)} className="btn-secondary text-sm">{t('cancel')}</button>
             <button onClick={sendWA} disabled={waSending} className="btn-primary text-sm">
               {waSending ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />} {t('sendMessage')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Congress WhatsApp Modal */}
+      <Modal open={showCongressWA} onClose={() => setShowCongressWA(false)} title="Enviar Bienvenida Congreso">
+        <div className="space-y-4">
+          <p className="text-sm" style={{ color: '#5a5b5d' }}>Enviar a: <span style={{ color: '#37383a', fontWeight: 500 }}>{client.whatsapp_phone || client.phone}</span></p>
+          <div className="p-3 bg-[#f8fafd] border border-[#d4e0ec] rounded-lg text-sm text-[#37383a] space-y-2">
+            <p>Hola, <strong>{client.name}</strong>.</p>
+            <p>Fue un gusto coincidir y saludarle en el reciente Congreso. Le escribo de parte del equipo de Arthromed/BONSS México</p>
+            <p>Queremos ponernos a su disposición. Haga clic en el botón de abajo para revisar nuestros productos de la línea BONSS MEDICAL.</p>
+            <p>Quedo a la orden para cualquier duda o cotización. ¡Que tenga un excelente día!</p>
+            <p>Atentamente,<br/><strong>{congressSenderName}</strong><br/>Arthromed</p>
+            <div className="mt-4 pt-3 border-t border-[#d4e0ec] flex justify-center">
+              <a href={congressLink || '#'} target="_blank" rel="noreferrer" className="text-[#0763a9] font-semibold text-center w-full bg-white py-2 rounded-lg border border-[#c5d9ee] flex items-center justify-center gap-2 hover:bg-[#f0f5fa] transition-colors">
+                🔗 Ver Catálogo
+              </a>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: '#5a5b5d' }}>Link al catálogo (Ruta)</label>
+            <input className="erp-input text-sm" value={congressLink} onChange={e => setCongressLink(e.target.value)} placeholder="Ej. bonss.com.mx/catalogo" />
+            <p className="text-xs mt-1 text-[#8a8b8d]">Si configuraste el botón como estático en Meta, puedes dejar este campo vacío.</p>
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: '#5a5b5d' }}>Remitente / Cargo</label>
+            <input className="erp-input text-sm" value={congressSenderName} onChange={e => setCongressSenderName(e.target.value)} />
+          </div>
+          <div className="flex gap-2 justify-end mt-2">
+            <button onClick={() => setShowCongressWA(false)} className="btn-secondary text-sm">{t('cancel')}</button>
+            <button onClick={sendCongressWA} disabled={congressSending} className="btn-primary text-sm">
+              {congressSending ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />} Enviar Mensaje
             </button>
           </div>
         </div>
