@@ -7,7 +7,7 @@ import AppShell from '@/components/AppShell'
 import { 
   ArrowLeft, Save, QrCode, Upload, Loader2, FileText, X, 
   Calendar, MapPin, AlignLeft, Image as ImageIcon, Trash2, 
-  Globe, File, Download, Paperclip, Plus, Users, User, DollarSign, Phone, Mail
+  Globe, File, Download, Paperclip, Plus, Users, User, DollarSign, Phone, Mail, HandCoins, AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -20,6 +20,9 @@ export default function EditCongresoPage() {
   const [uploading, setUploading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  const [activeTab, setActiveTab] = useState<'general' | 'talleres' | 'contactos' | 'catalogos' | 'gastos'>('general')
+
   const [availableSpecialties, setAvailableSpecialties] = useState<{ id: string; name: string }[]>([])
   const [customSpecialty, setCustomSpecialty] = useState('')
   const [showCustomSpecialty, setShowCustomSpecialty] = useState(false)
@@ -45,6 +48,10 @@ export default function EditCongresoPage() {
   const [availableCatalogs, setAvailableCatalogs] = useState<any[]>([])
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([])
 
+  const [spendingCategories, setSpendingCategories] = useState<{ id: string; name: string }[]>([])
+  const [globalBudget, setGlobalBudget] = useState<string>('')
+  const [gastosEstimados, setGastosEstimados] = useState<{ category_id: string; amount: string }[]>([])
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -58,7 +65,18 @@ export default function EditCongresoPage() {
         console.error(err)
       }
     }
+    const fetchSpendingCategories = async () => {
+      try {
+        const { data } = await supabase.from('catalog_spending_categories').select('id, name').order('name')
+        if (data) {
+          setSpendingCategories(data)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
     fetchSpecialties()
+    fetchSpendingCategories()
   }, [])
 
   const fetchFiles = async () => {
@@ -93,6 +111,14 @@ export default function EditCongresoPage() {
         })
         setWorkshops(data.workshops || [])
         setContacts(data.contacts || [])
+        setGlobalBudget(data.global_budget ? data.global_budget.toString() : '')
+        
+        if (data.gastos_estimados && data.gastos_estimados.length > 0) {
+          setGastosEstimados(data.gastos_estimados.map((ge: any) => ({
+            category_id: ge.category_id,
+            amount: ge.amount.toString()
+          })))
+        }
         
         const linkedCatalogIds = data.congress_catalogos?.map((cc: any) => cc.catalog_id) || []
         setSelectedCatalogIds(linkedCatalogIds)
@@ -181,17 +207,40 @@ export default function EditCongresoPage() {
     })
   }
 
+  const handleGastoChange = (categoryId: string, amount: string) => {
+    setGastosEstimados(prev => {
+      const existing = prev.find(g => g.category_id === categoryId)
+      if (existing) {
+        return prev.map(g => g.category_id === categoryId ? { ...g, amount } : g)
+      } else {
+        return [...prev, { category_id: categoryId, amount }]
+      }
+    })
+  }
+
+  const totalGastos = gastosEstimados.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+  const isBudgetExceeded = globalBudget && totalGastos > Number(globalBudget)
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (isBudgetExceeded) {
+      setError('El total de gastos estimados supera el presupuesto global.')
+      setActiveTab('gastos')
+      return
+    }
+
     setIsSaving(true)
     setError(null)
     
     try {
       const payload = {
         ...formData,
+        global_budget: globalBudget ? Number(globalBudget) : null,
         workshops,
         contacts: contacts.filter(c => c.name || c.number || c.email),
-        catalog_ids: selectedCatalogIds
+        catalog_ids: selectedCatalogIds,
+        gastos_estimados: gastosEstimados.filter(g => g.amount && Number(g.amount) > 0)
       }
       const res = await fetch(`/api/congresos/${id}`, {
         method: 'PATCH',
@@ -309,198 +358,307 @@ export default function EditCongresoPage() {
           </div>
         )}
 
+        <div className="flex items-center gap-2 border-b border-gray-200 overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('general')}
+          >
+            <FileText size={16} /> Información General
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'talleres' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('talleres')}
+          >
+            <Calendar size={16} /> Talleres
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'contactos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('contactos')}
+          >
+            <Users size={16} /> Contactos
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'catalogos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('catalogos')}
+          >
+            <FileText size={16} /> Catálogos Asociados
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'gastos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('gastos')}
+          >
+            <HandCoins size={16} /> Gastos Estimados
+          </button>
+        </div>
+
         <form onSubmit={handleSave} className="space-y-6">
-          <div className="card p-6 md:p-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('name')} *</label>
-                <input required type="text" className="erp-input w-full" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('startDate')} *</label>
-                <input required type="date" className="erp-input w-full" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('endDate')} *</label>
-                <input required type="date" className="erp-input w-full" value={formData.end_date} onChange={e => setFormData({ ...formData, end_date: e.target.value })} />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('location')} *</label>
-                <input required type="text" className="erp-input w-full" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('description')}</label>
-                <textarea rows={3} className="erp-input w-full" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Términos y Condiciones para Médicos</label>
-                <textarea rows={3} className="erp-input w-full" placeholder="Ingrese los términos y condiciones específicos para el registro de médicos..." value={formData.terms_doctor} onChange={e => setFormData({ ...formData, terms_doctor: e.target.value })} />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Términos y Condiciones para Distribuidores</label>
-                <textarea rows={3} className="erp-input w-full" placeholder="Ingrese los términos y condiciones específicos para el registro de distribuidores..." value={formData.terms_distributor} onChange={e => setFormData({ ...formData, terms_distributor: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Especialidades *</label>
-                <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200 max-h-40 overflow-y-auto">
-                  {availableSpecialties.map(spec => (
-                    <label key={spec.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-white p-1 rounded transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={formData.specialty_ids.includes(spec.id)}
-                        onChange={() => handleSpecialtyToggle(spec.id)}
-                        className="rounded border-gray-300 text-blue-600"
-                      />
-                      <span className="truncate">{spec.name}</span>
-                    </label>
-                  ))}
+          
+          {activeTab === 'general' && (
+            <div className="card p-6 md:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('name')} *</label>
+                  <input required type="text" className="erp-input w-full" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('flyer')}</label>
-                <div className="space-y-2">
-                  {formData.flyer && (
-                    <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-100 rounded-xl">
-                      <a href={formData.flyer} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex-1 truncate flex items-center gap-1">
-                        <FileText size={16} /> Ver flyer
-                      </a>
-                      <button type="button" onClick={() => setFormData(p => ({ ...p, flyer: '' }))} className="text-red-500 p-1"><X size={16} /></button>
-                    </div>
-                  )}
-                  <label className="btn-secondary w-full justify-center cursor-pointer text-sm">
-                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                    Subir Flyer
-                    <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                  </label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('startDate')} *</label>
+                  <input required type="date" className="erp-input w-full" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} />
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Workshops */}
-          <div className="card p-6 md:p-8 space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2"><Calendar className="text-purple-600" size={20} /> Talleres</h2>
-              <button type="button" onClick={addWorkshop} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Agregar Taller</button>
-            </div>
-
-            <div className="flex items-center gap-3 p-4 bg-purple-50/50 rounded-2xl border border-purple-100 mb-2">
-              <input
-                type="checkbox"
-                id="enable_workshops"
-                checked={formData.enable_workshops}
-                onChange={e => setFormData({ ...formData, enable_workshops: e.target.checked })}
-                className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 w-5 h-5 cursor-pointer"
-              />
-              <label htmlFor="enable_workshops" className="text-sm font-semibold text-purple-900 cursor-pointer select-none">
-                Habilitar inscripciones a talleres desde la Landing Page
-                <span className="block text-xs font-normal text-purple-700 mt-0.5">Si se desmarca, los talleres se mostrarán en la Landing Page con fines informativos, pero los usuarios no podrán inscribirse.</span>
-              </label>
-            </div>
-            <div className="space-y-4">
-              {workshops.map((w, i) => (
-                <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <button type="button" onClick={() => removeWorkshop(i)} className="absolute -top-2 -right-2 p-1 bg-white text-red-500 rounded-full border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><X size={14} /></button>
-                  <div className="md:col-span-2">
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nombre</label>
-                    <input required type="text" className="erp-input w-full bg-white" value={w.name} onChange={e => updateWorkshop(i, 'name', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Profesor</label>
-                    <input required type="text" className="erp-input w-full bg-white" value={w.professor} onChange={e => updateWorkshop(i, 'professor', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha y Hora</label>
-                    <input required type="datetime-local" className="erp-input w-full bg-white" value={w.date_time ? new Date(w.date_time).toISOString().slice(0, 16) : ''} onChange={e => updateWorkshop(i, 'date_time', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cupo</label>
-                    <input required type="number" className="erp-input w-full bg-white" value={w.max_people} onChange={e => updateWorkshop(i, 'max_people', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Costo</label>
-                    <input required type="number" step="0.01" className="erp-input w-full bg-white" value={w.cost} onChange={e => updateWorkshop(i, 'cost', e.target.value)} />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('endDate')} *</label>
+                  <input required type="date" className="erp-input w-full" value={formData.end_date} onChange={e => setFormData({ ...formData, end_date: e.target.value })} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('location')} *</label>
+                  <input required type="text" className="erp-input w-full" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('description')}</label>
+                  <textarea rows={3} className="erp-input w-full" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Términos y Condiciones para Médicos</label>
+                  <textarea rows={3} className="erp-input w-full" placeholder="Ingrese los términos y condiciones específicos para el registro de médicos..." value={formData.terms_doctor} onChange={e => setFormData({ ...formData, terms_doctor: e.target.value })} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Términos y Condiciones para Distribuidores</label>
+                  <textarea rows={3} className="erp-input w-full" placeholder="Ingrese los términos y condiciones específicos para el registro de distribuidores..." value={formData.terms_distributor} onChange={e => setFormData({ ...formData, terms_distributor: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Especialidades *</label>
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200 max-h-40 overflow-y-auto">
+                    {availableSpecialties.map(spec => (
+                      <label key={spec.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-white p-1 rounded transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={formData.specialty_ids.includes(spec.id)}
+                          onChange={() => handleSpecialtyToggle(spec.id)}
+                          className="rounded border-gray-300 text-blue-600"
+                        />
+                        <span className="truncate">{spec.name}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Contacts */}
-          <div className="card p-6 md:p-8 space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2"><Users className="text-green-600" size={20} /> Contactos</h2>
-              <button type="button" onClick={addContact} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Agregar Contacto</button>
-            </div>
-            <div className="space-y-4">
-              {contacts.map((c, i) => (
-                <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <button type="button" onClick={() => removeContact(i)} className="absolute -top-2 -right-2 p-1 bg-white text-red-500 rounded-full border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><X size={14} /></button>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nombre</label>
-                    <input required type="text" className="erp-input w-full bg-white" value={c.name} onChange={e => updateContact(i, 'name', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Teléfono</label>
-                    <input type="text" className="erp-input w-full bg-white" value={c.number || ''} onChange={e => updateContact(i, 'number', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Email</label>
-                    <input type="email" className="erp-input w-full bg-white" value={c.email || ''} onChange={e => updateContact(i, 'email', e.target.value)} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Catalogs Selection Card */}
-          <div className="card p-6 md:p-8 space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <FileText className="text-blue-600" size={20} />
-                Catálogos Asociados
-              </h2>
-            </div>
-            {availableCatalogs.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">
-                No hay catálogos globales creados. Puedes crear catálogos en la sección de "Catálogos" del menú principal.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {availableCatalogs.map(catalog => {
-                  const isChecked = selectedCatalogIds.includes(catalog.id)
-                  return (
-                    <label 
-                      key={catalog.id} 
-                      className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none
-                        ${isChecked 
-                          ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-50' 
-                          : 'border-gray-200 bg-white hover:bg-gray-50'
-                        }
-                      `}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => handleCatalogToggle(catalog.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{catalog.name}</p>
-                        {catalog.description && (
-                          <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{catalog.description}</p>
-                        )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('flyer')}</label>
+                  <div className="space-y-2">
+                    {formData.flyer && (
+                      <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-100 rounded-xl">
+                        <a href={formData.flyer} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex-1 truncate flex items-center gap-1">
+                          <FileText size={16} /> Ver flyer
+                        </a>
+                        <button type="button" onClick={() => setFormData(p => ({ ...p, flyer: '' }))} className="text-red-500 p-1"><X size={16} /></button>
                       </div>
+                    )}
+                    <label className="btn-secondary w-full justify-center cursor-pointer text-sm">
+                      {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                      Subir Flyer
+                      <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
                     </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'talleres' && (
+            <div className="card p-6 md:p-8 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 className="text-lg font-semibold flex items-center gap-2"><Calendar className="text-purple-600" size={20} /> Talleres</h2>
+                <button type="button" onClick={addWorkshop} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Agregar Taller</button>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-purple-50/50 rounded-2xl border border-purple-100 mb-2">
+                <input
+                  type="checkbox"
+                  id="enable_workshops"
+                  checked={formData.enable_workshops}
+                  onChange={e => setFormData({ ...formData, enable_workshops: e.target.checked })}
+                  className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 w-5 h-5 cursor-pointer"
+                />
+                <label htmlFor="enable_workshops" className="text-sm font-semibold text-purple-900 cursor-pointer select-none">
+                  Habilitar inscripciones a talleres desde la Landing Page
+                  <span className="block text-xs font-normal text-purple-700 mt-0.5">Si se desmarca, los talleres se mostrarán en la Landing Page con fines informativos, pero los usuarios no podrán inscribirse.</span>
+                </label>
+              </div>
+              <div className="space-y-4">
+                {workshops.map((w, i) => (
+                  <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button type="button" onClick={() => removeWorkshop(i)} className="absolute -top-2 -right-2 p-1 bg-white text-red-500 rounded-full border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><X size={14} /></button>
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nombre</label>
+                      <input required type="text" className="erp-input w-full bg-white" value={w.name} onChange={e => updateWorkshop(i, 'name', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Profesor</label>
+                      <input required type="text" className="erp-input w-full bg-white" value={w.professor} onChange={e => updateWorkshop(i, 'professor', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha y Hora</label>
+                      <input required type="datetime-local" className="erp-input w-full bg-white" value={w.date_time ? new Date(w.date_time).toISOString().slice(0, 16) : ''} onChange={e => updateWorkshop(i, 'date_time', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cupo</label>
+                      <input required type="number" className="erp-input w-full bg-white" value={w.max_people} onChange={e => updateWorkshop(i, 'max_people', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Costo</label>
+                      <input required type="number" step="0.01" className="erp-input w-full bg-white" value={w.cost} onChange={e => updateWorkshop(i, 'cost', e.target.value)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'contactos' && (
+            <div className="card p-6 md:p-8 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 className="text-lg font-semibold flex items-center gap-2"><Users className="text-green-600" size={20} /> Contactos</h2>
+                <button type="button" onClick={addContact} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Agregar Contacto</button>
+              </div>
+              <div className="space-y-4">
+                {contacts.map((c, i) => (
+                  <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button type="button" onClick={() => removeContact(i)} className="absolute -top-2 -right-2 p-1 bg-white text-red-500 rounded-full border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><X size={14} /></button>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nombre</label>
+                      <input required type="text" className="erp-input w-full bg-white" value={c.name} onChange={e => updateContact(i, 'name', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Teléfono</label>
+                      <input type="text" className="erp-input w-full bg-white" value={c.number || ''} onChange={e => updateContact(i, 'number', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Email</label>
+                      <input type="email" className="erp-input w-full bg-white" value={c.email || ''} onChange={e => updateContact(i, 'email', e.target.value)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'catalogos' && (
+            <div className="card p-6 md:p-8 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <FileText className="text-blue-600" size={20} />
+                  Catálogos Asociados
+                </h2>
+              </div>
+              {availableCatalogs.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">
+                  No hay catálogos globales creados. Puedes crear catálogos en la sección de "Catálogos" del menú principal.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {availableCatalogs.map(catalog => {
+                    const isChecked = selectedCatalogIds.includes(catalog.id)
+                    return (
+                      <label 
+                        key={catalog.id} 
+                        className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none
+                          ${isChecked 
+                            ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-50' 
+                            : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }
+                        `}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleCatalogToggle(catalog.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{catalog.name}</p>
+                          {catalog.description && (
+                            <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{catalog.description}</p>
+                          )}
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'gastos' && (
+            <div className="card p-6 md:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-2 border-b border-gray-100 pb-3 mb-4">
+                <HandCoins className="text-amber-600" size={20} />
+                <h2 className="text-lg font-semibold text-gray-900">Gastos Estimados</h2>
+              </div>
+              
+              <div className="max-w-md">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Presupuesto Global
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="erp-input w-full pl-9 text-lg font-semibold text-gray-900"
+                    placeholder="0.00"
+                    value={globalBudget}
+                    onChange={e => setGlobalBudget(e.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Presupuesto total estimado para este congreso.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-4 border-t border-gray-100">
+                {spendingCategories.map(cat => {
+                  const gasto = gastosEstimados.find(g => g.category_id === cat.id)
+                  return (
+                    <div key={cat.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <span className="text-sm font-medium text-gray-700">{cat.name}</span>
+                      <div className="relative w-full sm:w-40">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="erp-input w-full bg-white pl-8 text-sm"
+                          value={gasto?.amount || ''}
+                          onChange={e => handleGastoChange(cat.id, e.target.value)}
+                        />
+                      </div>
+                    </div>
                   )
                 })}
               </div>
-            )}
-          </div>
+
+              <div className={`mt-6 p-4 rounded-xl border flex items-center justify-between ${isBudgetExceeded ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                <div className="flex items-center gap-2 font-semibold">
+                  Total Estimado
+                  {isBudgetExceeded && <AlertCircle size={16} className="text-red-500" />}
+                </div>
+                <div className="text-xl font-bold">
+                  ${totalGastos.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              
+              {isBudgetExceeded && (
+                <p className="text-sm text-red-600 font-medium">
+                  El total de categorías (${totalGastos.toLocaleString('es-MX')}) excede el presupuesto global definido (${Number(globalBudget).toLocaleString('es-MX')}).
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-4 pt-6">
             <Link href="/congresos" className="btn-secondary bg-white">{t('cancel')}</Link>
-            <button type="submit" disabled={isSaving} className="btn-primary">
+            <button type="submit" disabled={isSaving || isBudgetExceeded} className={`btn-primary ${isBudgetExceeded ? 'opacity-50 cursor-not-allowed' : ''}`}>
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <><Save size={18} /> Guardar Cambios</>}
             </button>
           </div>

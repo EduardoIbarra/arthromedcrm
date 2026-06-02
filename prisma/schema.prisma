@@ -616,6 +616,7 @@ model catalog_spending_categories {
   name       String   @unique
   created_at DateTime @default(now()) @db.Timestamptz(6)
   gastos     gastos[]
+  gastos_estimados congreso_gastos_estimados[]
 
   @@schema("public")
 }
@@ -747,6 +748,7 @@ model congresos {
   terms_doctor        String?
   terms_distributor   String?
   enable_workshops    Boolean              @default(true)
+  global_budget       Decimal?             @db.Decimal(10, 2)
   created_at          DateTime             @default(now()) @db.Timestamptz(6)
   updated_at          DateTime             @default(now()) @db.Timestamptz(6)
   congreso_files      congreso_files[]
@@ -757,8 +759,24 @@ model congresos {
   congress_catalogos  congress_catalogos[]
   itinerary_items     congreso_itinerarios[]
   travelers           congreso_viajeros[]
+  gastos_estimados    congreso_gastos_estimados[]
 
   @@index([start_date])
+  @@schema("public")
+}
+
+model congreso_gastos_estimados {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congreso_id String   @db.Uuid
+  category_id String   @db.Uuid
+  amount      Decimal  @db.Decimal(10, 2)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  congreso    congresos @relation(fields: [congreso_id], references: [id], onDelete: Cascade)
+  category    catalog_spending_categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@unique([congreso_id, category_id])
   @@schema("public")
 }
 

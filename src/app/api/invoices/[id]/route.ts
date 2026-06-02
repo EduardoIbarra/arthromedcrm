@@ -21,6 +21,11 @@ export async function GET(
           orderBy: {
             producto_nombre: 'asc'
           }
+        },
+        remisiones: {
+          include: {
+            remision_productos: true
+          }
         }
       }
     })

@@ -32,6 +32,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         },
         travelers: {
           orderBy: { name: 'asc' }
+        },
+        gastos_estimados: {
+          include: {
+            category: true
+          }
         }
       }
     })
@@ -61,9 +66,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       terms_doctor,
       terms_distributor,
       enable_workshops,
+      global_budget,
       workshops,
       contacts,
-      catalog_ids
+      catalog_ids,
+      gastos_estimados
     } = body
     
     // Update main record and nested relations
@@ -95,6 +102,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         })
       }
 
+      // Sync gastos estimados
+      await tx.congreso_gastos_estimados.deleteMany({ where: { congreso_id: id } })
+      if (gastos_estimados && gastos_estimados.length > 0) {
+        await tx.congreso_gastos_estimados.createMany({
+          data: gastos_estimados.map((ge: any) => ({
+            congreso_id: id,
+            category_id: ge.category_id,
+            amount: Number(ge.amount)
+          }))
+        })
+      }
+
       // 2. Update congress and upsert related records
       return await tx.congresos.update({
         where: { id },
@@ -109,6 +128,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           terms_doctor,
           terms_distributor,
           enable_workshops: enable_workshops !== false,
+          global_budget: global_budget ? Number(global_budget) : null,
           workshops: {
             upsert: (workshops || []).filter((w: any) => w.id).map((w: any) => ({
               where: { id: w.id },
@@ -142,6 +162,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           congress_catalogos: {
             include: {
               catalog: true
+            }
+          },
+          gastos_estimados: {
+            include: {
+              category: true
             }
           }
         }

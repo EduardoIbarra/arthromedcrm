@@ -16,6 +16,20 @@ interface FacturaProducto {
   importe: number
 }
 
+interface RemisionProducto {
+  id: string
+  producto_nombre: string
+  cantidad: number
+}
+
+interface Remision {
+  id: string
+  numero_remision: string
+  fecha_remision: string
+  estado: string
+  remision_productos: RemisionProducto[]
+}
+
 interface Factura {
   id: string
   numero_factura: string
@@ -31,6 +45,7 @@ interface Factura {
   observaciones: string | null
   alegra_id: string | null
   factura_productos: FacturaProducto[]
+  remisiones?: Remision[]
   fecha_pago: string | null
   metodo_pago: string | null
 }
@@ -401,6 +416,62 @@ export default function FacturaDetailPage() {
           </div>
           
         </div>
+
+        {/* Remisiones Asociadas */}
+        {invoice.remisiones && invoice.remisiones.length > 0 && (
+          <div className="bg-white rounded-2xl border border-[#e8f1f9] shadow-sm overflow-hidden mt-6">
+            <div className="p-6 bg-gray-50/50 border-b border-[#e8f1f9]">
+              <h4 className="text-sm font-extrabold uppercase text-gray-800 tracking-wider flex items-center gap-2">
+                <span className="bg-[#0763a9] w-2 h-2 rounded-full"></span>
+                Remisiones Asociadas
+              </h4>
+            </div>
+            <div className="p-6 space-y-6">
+              {invoice.remisiones.map((remision) => (
+                <div key={remision.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                    <div>
+                      <span className="text-xs text-gray-400 uppercase font-bold tracking-wider mr-2">Remisión:</span>
+                      <span className="font-extrabold text-gray-900">{remision.numero_remision}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-gray-500 font-semibold flex items-center gap-1">
+                        <Calendar size={12} className="text-gray-400" />
+                        {formatDate(remision.fecha_remision)}
+                      </span>
+                      <span className="inline-flex px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+                        {remision.estado}
+                      </span>
+                    </div>
+                  </div>
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-white border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider">
+                        <th className="p-3 font-semibold">Producto</th>
+                        <th className="p-3 font-semibold text-right">Cantidad</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-gray-800">
+                      {remision.remision_productos && remision.remision_productos.length > 0 ? (
+                        remision.remision_productos.map((rp) => (
+                          <tr key={rp.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="p-3 font-medium text-gray-900">{rp.producto_nombre}</td>
+                            <td className="p-3 text-right font-semibold">{rp.cantidad}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="p-4 text-center text-gray-400 italic text-xs">No hay productos</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </AppShell>
   )

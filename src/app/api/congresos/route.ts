@@ -34,8 +34,10 @@ export async function POST(request: NextRequest) {
       terms_doctor,
       terms_distributor,
       enable_workshops,
+      global_budget,
       workshops,
-      contacts 
+      contacts,
+      gastos_estimados
     } = body
 
     if (!name || !start_date || !end_date || !location) {
@@ -54,6 +56,7 @@ export async function POST(request: NextRequest) {
         terms_doctor: terms_doctor || '',
         terms_distributor: terms_distributor || '',
         enable_workshops: enable_workshops !== false,
+        global_budget: global_budget ? Number(global_budget) : null,
         workshops: {
           create: (workshops || []).map((w: any) => ({
             name: w.name,
@@ -69,11 +72,18 @@ export async function POST(request: NextRequest) {
             number: c.number,
             email: c.email
           }))
+        },
+        gastos_estimados: {
+          create: (gastos_estimados || []).map((ge: any) => ({
+            category_id: ge.category_id,
+            amount: Number(ge.amount)
+          }))
         }
       },
       include: {
         workshops: true,
-        contacts: true
+        contacts: true,
+        gastos_estimados: true
       }
     })
 
