@@ -28,6 +28,8 @@ export default function UsersPage() {
   const [editingOverrides, setEditingOverrides] = useState<UserProfile | null>(null)
   const [editingWhatsapp, setEditingWhatsapp] = useState<string | null>(null)
   const [whatsappInput, setWhatsappInput] = useState('')
+  const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null)
+  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', position: '' })
 
   const supabase = createClient()
 
@@ -142,6 +144,31 @@ export default function UsersPage() {
     }
   }
 
+  const handleUpdateProfile = async () => {
+    if (!editingProfile) return
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          first_name: profileForm.first_name || null,
+          last_name: profileForm.last_name || null,
+          position: profileForm.position || null
+        })
+        .eq('id', editingProfile.id)
+
+      if (error) throw error
+      setUsers(users.map((u: UserProfile) => u.id === editingProfile.id ? { 
+        ...u, 
+        first_name: profileForm.first_name || null, 
+        last_name: profileForm.last_name || null, 
+        position: profileForm.position || null 
+      } : u))
+      setEditingProfile(null)
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
+
   const filteredUsers = users.filter((u: UserProfile) =>
     u.email.toLowerCase().includes(search.toLowerCase())
   )
@@ -213,11 +240,20 @@ export default function UsersPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center text-[#0763a9] font-bold text-sm">
-                            {user.email.charAt(0).toUpperCase()}
+                            {user.first_name ? user.first_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">{user.email}</p>
-                            <p className="text-[10px] text-gray-400 font-mono">{user.id}</p>
+                            <p className="text-sm font-semibold text-gray-800">
+                              {user.first_name || user.last_name 
+                                ? `${user.first_name || ''} ${user.last_name || ''}`.trim() 
+                                : user.email}
+                            </p>
+                            {(user.first_name || user.last_name) && (
+                              <p className="text-[10px] text-gray-400 font-mono">{user.email}</p>
+                            )}
+                            {user.position && (
+                              <p className="text-[10px] font-medium text-blue-600 mt-0.5">{user.position}</p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -285,7 +321,23 @@ export default function UsersPage() {
                         </p>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2 group/actions">
+                          {(isSuperAdmin || user.id === currentUser?.id) && (
+                            <button
+                              onClick={() => {
+                                setEditingProfile(user)
+                                setProfileForm({
+                                  first_name: user.first_name || '',
+                                  last_name: user.last_name || '',
+                                  position: user.position || ''
+                                })
+                              }}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100"
+                              title={t('edit')}
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          )}
                           {isSuperAdmin && user.id !== currentUser?.id && (
                             <>
                               <button
@@ -305,7 +357,7 @@ export default function UsersPage() {
                             </>
                           )}
                           {user.id === currentUser?.id && (
-                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter bg-blue-50 px-1.5 py-0.5 rounded">{t('you')}</span>
+                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter bg-blue-50 px-1.5 py-0.5 rounded ml-2">{t('you')}</span>
                           )}
                         </div>
                       </td>
@@ -365,6 +417,53 @@ export default function UsersPage() {
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button onClick={() => setEditingOverrides(null)} className="btn-ghost">{t('cancel')}</button>
                 <button onClick={handleUpdateOverrides} className="btn-primary">{t('saveChanges')}</button>
+              </div>
+            </div>
+          </Modal>
+        )}
+        
+        {/* Profile Edit Modal */}
+        {editingProfile && (
+          <Modal
+            open={!!editingProfile}
+            onClose={() => setEditingProfile(null)}
+            title={t('editProfile') || 'Editar Perfil'}
+          >
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">{t('firstName') || 'Nombre(s)'}</label>
+                <input
+                  type="text"
+                  value={profileForm.first_name}
+                  onChange={e => setProfileForm({ ...profileForm, first_name: e.target.value })}
+                  className="erp-input w-full"
+                  placeholder="Ej. Juan"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">{t('lastName') || 'Apellidos'}</label>
+                <input
+                  type="text"
+                  value={profileForm.last_name}
+                  onChange={e => setProfileForm({ ...profileForm, last_name: e.target.value })}
+                  className="erp-input w-full"
+                  placeholder="Ej. Pérez"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">{t('position') || 'Puesto en la Empresa'}</label>
+                <input
+                  type="text"
+                  value={profileForm.position}
+                  onChange={e => setProfileForm({ ...profileForm, position: e.target.value })}
+                  className="erp-input w-full"
+                  placeholder="Ej. Gerente de Ventas"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t mt-6">
+                <button onClick={() => setEditingProfile(null)} className="btn-ghost">{t('cancel')}</button>
+                <button onClick={handleUpdateProfile} className="btn-primary">{t('saveChanges')}</button>
               </div>
             </div>
           </Modal>

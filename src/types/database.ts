@@ -190,6 +190,9 @@ export interface Role {
 export interface UserProfile {
   id: string
   email: string
+  first_name: string | null
+  last_name: string | null
+  position: string | null
   whatsapp: string | null
   role: 'superadmin' | 'admin' | 'user'
   role_id: string | null
