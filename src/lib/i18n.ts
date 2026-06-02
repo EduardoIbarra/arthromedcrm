@@ -305,6 +305,10 @@ export const translations = {
     qty: 'Cant.',
     qtyAllocated: 'Cant. Asignada',
     qtyPending: 'Cant. Pendiente',
+    editProfile: 'Editar Perfil',
+    firstName: 'Nombre(s)',
+    lastName: 'Apellidos',
+    position: 'Puesto en la Empresa',
   },
   en: {
     appName: 'Arthromed ERP',
@@ -597,6 +601,10 @@ export const translations = {
     qty: 'Qty',
     qtyAllocated: 'Qty Allocated',
     qtyPending: 'Qty Pending',
+    editProfile: 'Edit Profile',
+    firstName: 'First Name',
+    lastName: 'Last Name',
+    position: 'Position / Job Title',
   },
   zh: {
     appName: 'Arthromed ERP',
@@ -889,6 +897,10 @@ export const translations = {
     qty: '数量',
     qtyAllocated: '已分配数量',
     qtyPending: '待处理数量',
+    editProfile: '编辑个人资料',
+    firstName: '名字',
+    lastName: '姓氏',
+    position: '职位',
   },
 } as const
 
