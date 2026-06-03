@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const RESPOND_API_TOKEN = process.env.RESPOND_API_TOKEN
-const RESPOND_CHANNEL_ID = process.env.RESPOND_CHANNEL_ID
-
 export async function POST(request: NextRequest) {
+  const RESPOND_API_TOKEN = process.env.RESPOND_API_TOKEN
+  const RESPOND_CHANNEL_ID = process.env.RESPOND_CHANNEL_ID
+
   const { to, template, language = 'es_MX', components = [], text } = await request.json()
 
   if (!to) {
