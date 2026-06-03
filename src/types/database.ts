@@ -194,6 +194,7 @@ export interface UserProfile {
   last_name: string | null
   position: string | null
   whatsapp: string | null
+  client_id?: string | null
   role: 'superadmin' | 'admin' | 'user'
   role_id: string | null
   roles?: Role // For joined queries
