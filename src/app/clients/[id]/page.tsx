@@ -199,7 +199,7 @@ export default function ClientDetailPage() {
           sub_type: 'url',
           index: 0,
           parameters: [
-            { type: 'text', text: congressLink.replace(/^https?:\/\//, '') }
+            { type: 'text', text: congressLink.split('/congresos/')[1] ? 'congresos/' + congressLink.split('/congresos/')[1].replace(/[()]/g, c => '%' + c.charCodeAt(0).toString(16)) : congressLink }
           ]
         })
       }

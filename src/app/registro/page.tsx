@@ -173,10 +173,10 @@ function RegistroContent() {
           const nameText = form.role === 'Distribuidor' ? form.name.split(' ')[0] : `Dr(a). ${form.name.split(' ')[0]}`
           const greetingText = `Hola ${nameText}`
 
-          // In Meta, if base URL is https:// we must include the host
-          const host = window.location.host
+          // Meta's base URL is https://erp.arthromed.com.mx/ so we only need the path
+          const safeGreeting = encodeURIComponent(greetingText).replace(/[()]/g, c => '%' + c.charCodeAt(0).toString(16))
           const urlSuffix = congressId
-            ? `${host}/congresos/${congressId}/landing?clientId=${clientId}&greeting=${encodeURIComponent(greetingText)}`
+            ? `congresos/${congressId}/landing?clientId=${clientId}&greeting=${safeGreeting}`
             : ''
 
           await fetch('/api/whatsapp/send', {
