@@ -173,9 +173,10 @@ function RegistroContent() {
           const nameText = form.role === 'Distribuidor' ? form.name.split(' ')[0] : `Dr(a). ${form.name.split(' ')[0]}`
           const greetingText = `Hola ${nameText}`
 
-          // In Meta, configure the button's Base URL as: https://erp.arthromed.com.mx/
+          // In Meta, if base URL is https:// we must include the host
+          const host = window.location.host
           const urlSuffix = congressId
-            ? `congresos/${congressId}/landing?clientId=${clientId}&greeting=${encodeURIComponent(greetingText)}`
+            ? `${host}/congresos/${congressId}/landing?clientId=${clientId}&greeting=${encodeURIComponent(greetingText)}`
             : ''
 
           await fetch('/api/whatsapp/send', {
@@ -195,7 +196,7 @@ function RegistroContent() {
                 ...(urlSuffix ? [{
                   type: 'button',
                   sub_type: 'url',
-                  index: '0',
+                  index: 0,
                   parameters: [
                     { type: 'text', text: urlSuffix }
                   ]
