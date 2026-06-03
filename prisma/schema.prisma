@@ -713,6 +713,7 @@ model clients {
   product_prices       product_prices[]
   workshop_enrollments congress_workshop_enrollments[]
   garantias            garantias[]
+  user_profiles        user_profiles[]
 
   @@index([status])
   @@index([distributor_id], map: "idx_clients_distributor_id")
@@ -1624,6 +1625,8 @@ model user_profiles {
   last_name            String?   @db.VarChar(255)
   position             String?   @db.VarChar(255)
   permission_overrides Json?     @default("{}")
+  client_id            String?   @db.Uuid
+  clients              clients?  @relation(fields: [client_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   users                users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   roles                roles?    @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   movimientos_hechos      inventario_movimientos[] @relation("movimiento_usuario")

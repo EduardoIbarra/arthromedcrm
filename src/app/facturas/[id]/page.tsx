@@ -27,6 +27,7 @@ interface Remision {
   numero_remision: string
   fecha_remision: string
   estado: string
+  observaciones?: string | null
   remision_productos: RemisionProducto[]
 }
 
@@ -444,6 +445,15 @@ export default function FacturaDetailPage() {
                       </span>
                     </div>
                   </div>
+                  {remision.observaciones && (
+                    <div className="bg-white px-4 py-3 border-b border-gray-100">
+                      <h4 className="text-xs font-bold uppercase text-gray-500 flex items-center gap-1.5 mb-1">
+                        <Info size={14} className="text-[#0763a9]" />
+                        Observaciones
+                      </h4>
+                      <p className="text-sm text-gray-700 italic">{remision.observaciones}</p>
+                    </div>
+                  )}
                   <table className="w-full text-left text-sm border-collapse">
                     <thead>
                       <tr className="bg-white border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider">

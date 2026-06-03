@@ -2,12 +2,12 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
-import { UserProfile, Role } from '@/types/database'
+import { UserProfile, Role, Client } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import {
   Users, Shield, ShieldCheck, User, Trash2,
   Search, X, Loader2, AlertCircle, Settings2,
-  CheckSquare, Square, MessageCircle, Edit2, Check
+  CheckSquare, Square, MessageCircle, Edit2, Check, UserPlus
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -29,7 +29,12 @@ export default function UsersPage() {
   const [editingWhatsapp, setEditingWhatsapp] = useState<string | null>(null)
   const [whatsappInput, setWhatsappInput] = useState('')
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null)
-  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', position: '' })
+  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', position: '', client_id: '' })
+  
+  const [clients, setClients] = useState<Client[]>([])
+  const [showCreateUser, setShowCreateUser] = useState(false)
+  const [creatingUser, setCreatingUser] = useState(false)
+  const [createUserForm, setCreateUserForm] = useState({ first_name: '', last_name: '', email: '', password: '', position: '', client_id: '' })
 
   const supabase = createClient()
 
@@ -43,9 +48,10 @@ export default function UsersPage() {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser()
 
-      const [usersRes, rolesRes] = await Promise.all([
+      const [usersRes, rolesRes, clientsRes] = await Promise.all([
         supabase.from('user_profiles').select('*, roles(*)').order('created_at', { ascending: false }),
-        supabase.from('roles').select('*').order('name', { ascending: true })
+        supabase.from('roles').select('*').order('name', { ascending: true }),
+        supabase.from('clients').select('id, name').order('name', { ascending: true })
       ])
 
       if (usersRes.error) throw usersRes.error
@@ -53,6 +59,7 @@ export default function UsersPage() {
 
       setUsers(usersRes.data || [])
       setRoles(rolesRes.data || [])
+      setClients(clientsRes.data || [])
 
       if (authUser) {
         setCurrentUser(usersRes.data?.find((u: UserProfile) => u.id === authUser.id) || null)
@@ -152,7 +159,8 @@ export default function UsersPage() {
         .update({
           first_name: profileForm.first_name || null,
           last_name: profileForm.last_name || null,
-          position: profileForm.position || null
+          position: profileForm.position || null,
+          client_id: profileForm.client_id || null
         })
         .eq('id', editingProfile.id)
 
@@ -161,11 +169,38 @@ export default function UsersPage() {
         ...u, 
         first_name: profileForm.first_name || null, 
         last_name: profileForm.last_name || null, 
-        position: profileForm.position || null 
+        position: profileForm.position || null,
+        client_id: profileForm.client_id || null
       } : u))
       setEditingProfile(null)
     } catch (err: any) {
       alert(err.message)
+    }
+  }
+
+  const handleCreateUser = async () => {
+    if (!createUserForm.email || !createUserForm.password) {
+      alert('Email y contraseña son obligatorios')
+      return
+    }
+    setCreatingUser(true)
+    try {
+      const res = await fetch('/api/users/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createUserForm)
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Error al crear usuario')
+      
+      alert('Usuario creado exitosamente')
+      setShowCreateUser(false)
+      setCreateUserForm({ first_name: '', last_name: '', email: '', password: '', position: '', client_id: '' })
+      fetchData()
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setCreatingUser(false)
     }
   }
 
@@ -196,10 +231,16 @@ export default function UsersPage() {
               />
             </div>
             {isSuperAdmin && (
-              <Link href="/users/roles" className="btn-ghost whitespace-nowrap">
-                <Shield size={18} />
-                {t('manageRoles')}
-              </Link>
+              <>
+                <button onClick={() => setShowCreateUser(true)} className="btn-primary whitespace-nowrap">
+                  <UserPlus size={18} />
+                  Crear Usuario
+                </button>
+                <Link href="/users/roles" className="btn-ghost whitespace-nowrap">
+                  <Shield size={18} />
+                  {t('manageRoles')}
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -329,7 +370,8 @@ export default function UsersPage() {
                                 setProfileForm({
                                   first_name: user.first_name || '',
                                   last_name: user.last_name || '',
-                                  position: user.position || ''
+                                  position: user.position || '',
+                                  client_id: user.client_id || ''
                                 })
                               }}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100"
@@ -461,9 +503,113 @@ export default function UsersPage() {
                 />
               </div>
 
+              {isSuperAdmin && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Cliente Asignado</label>
+                  <select
+                    value={profileForm.client_id}
+                    onChange={e => setProfileForm({ ...profileForm, client_id: e.target.value })}
+                    className="erp-input w-full"
+                  >
+                    <option value="">-- Sin Cliente --</option>
+                    {clients.map(client => (
+                      <option key={client.id} value={client.id}>{client.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-4 border-t mt-6">
                 <button onClick={() => setEditingProfile(null)} className="btn-ghost">{t('cancel')}</button>
                 <button onClick={handleUpdateProfile} className="btn-primary">{t('saveChanges')}</button>
+              </div>
+            </div>
+          </Modal>
+        )}
+        {/* Create User Modal */}
+        {showCreateUser && (
+          <Modal
+            open={showCreateUser}
+            onClose={() => setShowCreateUser(false)}
+            title="Crear Nuevo Usuario"
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Nombre(s)</label>
+                  <input
+                    type="text"
+                    value={createUserForm.first_name}
+                    onChange={e => setCreateUserForm({ ...createUserForm, first_name: e.target.value })}
+                    className="erp-input w-full"
+                    placeholder="Ej. Juan"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Apellidos</label>
+                  <input
+                    type="text"
+                    value={createUserForm.last_name}
+                    onChange={e => setCreateUserForm({ ...createUserForm, last_name: e.target.value })}
+                    className="erp-input w-full"
+                    placeholder="Ej. Pérez"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={createUserForm.email}
+                  onChange={e => setCreateUserForm({ ...createUserForm, email: e.target.value })}
+                  className="erp-input w-full"
+                  placeholder="usuario@ejemplo.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Contraseña *</label>
+                <input
+                  type="password"
+                  value={createUserForm.password}
+                  onChange={e => setCreateUserForm({ ...createUserForm, password: e.target.value })}
+                  className="erp-input w-full"
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Puesto en la Empresa</label>
+                <input
+                  type="text"
+                  value={createUserForm.position}
+                  onChange={e => setCreateUserForm({ ...createUserForm, position: e.target.value })}
+                  className="erp-input w-full"
+                  placeholder="Ej. Compras"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Vincular a Cliente (Opcional)</label>
+                <select
+                  value={createUserForm.client_id}
+                  onChange={e => setCreateUserForm({ ...createUserForm, client_id: e.target.value })}
+                  className="erp-input w-full"
+                >
+                  <option value="">-- Sin Cliente --</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>{client.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t mt-6">
+                <button onClick={() => setShowCreateUser(false)} className="btn-ghost">{t('cancel')}</button>
+                <button onClick={handleCreateUser} disabled={creatingUser || !createUserForm.email || !createUserForm.password} className="btn-primary">
+                  {creatingUser ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} 
+                  Crear Usuario
+                </button>
               </div>
             </div>
           </Modal>
