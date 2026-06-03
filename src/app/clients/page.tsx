@@ -218,11 +218,26 @@ function ClientsContent() {
                       <tr key={client.id} className="group hover:bg-blue-50/40 transition-colors" style={{ borderBottom: '1px solid #f0f5fa' }}>
                         <td className="px-4 py-3 text-xs font-mono font-bold" style={{ color: client.distributor_id ? '#0763a9' : '#c4c5c7' }}>{client.distributor_id || '—'}</td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0" style={{ background: '#e8f1f9', color: '#0763a9' }}>
-                              {client.name.charAt(0)}
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0" style={{ background: '#e8f1f9', color: '#0763a9' }}>
+                                {client.name.charAt(0)}
+                              </div>
+                              <span className="text-sm font-medium max-w-[200px] truncate" style={{ color: '#37383a' }}>{client.name}</span>
                             </div>
-                            <span className="text-sm font-medium max-w-[200px] truncate" style={{ color: '#37383a' }}>{client.name}</span>
+                            {client.tags && client.tags.some(t => typeof t === 'string' && t.startsWith('congreso:')) && (
+                              <div className="flex flex-wrap gap-1 ml-11">
+                                {client.tags.filter(t => typeof t === 'string' && t.startsWith('congreso:')).map(t => {
+                                  const cId = t.split(':')[1]
+                                  const cName = congresos.find(c => c.id === cId)?.name || 'Congreso'
+                                  return (
+                                    <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: '#fdf4ff', color: '#a21caf', border: '1px solid #f5d0fe' }}>
+                                      {cName}
+                                    </span>
+                                  )
+                                })}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm font-mono" style={{ color: '#5a5b5d' }}>{client.rfc || '—'}</td>
@@ -256,6 +271,19 @@ function ClientsContent() {
                         {client.states && client.states.length > 0 && <span className="flex items-center gap-1 text-xs" style={{ color: '#5a5b5d' }}><MapPin size={11} /> {client.states[0]}</span>}
                         {client.email_contact && <span className="flex items-center gap-1 text-xs" style={{ color: '#5a5b5d' }}><Mail size={11} /> {client.email_contact}</span>}
                       </div>
+                      {client.tags && client.tags.some(t => typeof t === 'string' && t.startsWith('congreso:')) && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {client.tags.filter(t => typeof t === 'string' && t.startsWith('congreso:')).map(t => {
+                            const cId = t.split(':')[1]
+                            const cName = congresos.find(c => c.id === cId)?.name || 'Congreso'
+                            return (
+                              <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: '#fdf4ff', color: '#a21caf', border: '1px solid #f5d0fe' }}>
+                                {cName}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                     <ChevronRight size={16} className="flex-shrink-0 mt-1" style={{ color: '#c4c5c7' }} />
                   </Link>

@@ -170,24 +170,26 @@ function RegistroContent() {
         setCreatedClientId(clientId)
 
         try {
+          const nameText = form.role === 'Distribuidor' ? form.name.split(' ')[0] : `Dr(a). ${form.name.split(' ')[0]}`
+          const greetingText = `Hola ${nameText}`
+
           // In Meta, configure the button's Base URL as: https://erp.arthromed.com.mx/
           const urlSuffix = congressId
-            ? `congresos/${congressId}/landing?clientId=${clientId}`
+            ? `congresos/${congressId}/landing?clientId=${clientId}&greeting=${encodeURIComponent(greetingText)}`
             : ''
-
-          const nameText = form.role === 'Distribuidor' ? form.name.split(' ')[0] : `Dr(a). ${form.name.split(' ')[0]}`
 
           await fetch('/api/whatsapp/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               to: form.phone.replace(/\D/g, ''),
-              template: 'arthromed_welcome_register', // Update this to match your Meta template name
+              template: congressId ? 'congress_welcome_custom' : 'arthromed_welcome_register', 
               components: [
                 {
                   type: 'body',
                   parameters: [
-                    { type: 'text', text: nameText }
+                    { type: 'text', text: nameText },
+                    { type: 'text', text: 'Equipo Arthromed' }
                   ]
                 },
                 ...(urlSuffix ? [{

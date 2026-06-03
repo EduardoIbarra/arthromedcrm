@@ -152,6 +152,8 @@ export default function ClientDetailPage() {
     load()
   }, [id])
 
+  const hasBeenContactedViaWA = activities.some(a => a.type === 'whatsapp')
+
   const save = async () => {
     setSaving(true)
     const res = await fetch(`/api/clients/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editData) })
@@ -207,7 +209,7 @@ export default function ClientDetailPage() {
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ 
           to: client.whatsapp_phone || client.phone, 
-          template: 'congress_welcome', 
+          template: 'congress_welcome_custom', 
           components 
         }) 
       })
@@ -314,8 +316,21 @@ export default function ClientDetailPage() {
           <div className="flex gap-2 flex-wrap">
             <button onClick={getAI} className="btn-secondary text-sm"><Bot size={15} /> {t('aiSummary')}</button>
             <PermissionGuard section="clients" action="edit">
-              <button onClick={() => setShowCongressWA(true)} className="btn-secondary text-sm" style={{ borderColor: '#0763a9', color: '#0763a9' }}><MessageCircle size={15} /> Bienvenida Congreso</button>
-              <button onClick={() => setShowWA(true)} className="btn-secondary text-sm"><MessageCircle size={15} /> {t('sendWhatsApp')}</button>
+              <button onClick={() => {
+                const cId = client?.tags?.find((t: any) => typeof t === 'string' && t.startsWith('congreso:'))?.split(':')[1]
+                const isDoctor = client?.tags?.some((t: any) => typeof t === 'string' && (t.toLowerCase() === 'médico' || t.toLowerCase() === 'medico'))
+                const title = isDoctor ? 'Dr. ' : ''
+                if (cId) {
+                  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://arthromed.com'
+                  setCongressLink(`${origin}/congresos/${cId}/landing?greeting=${encodeURIComponent('Hola ' + title + client.name)}`)
+                }
+                setShowCongressWA(true)
+              }} className="btn-secondary text-sm" style={{ borderColor: '#0763a9', color: '#0763a9' }}>
+                <MessageCircle size={15} /> Bienvenida Congreso
+              </button>
+              <button onClick={() => setShowWA(true)} className="btn-secondary text-sm">
+                <MessageCircle size={15} /> {t('sendWhatsApp')}
+              </button>
               <button onClick={() => setShowNote(true)} className="btn-secondary text-sm"><Plus size={15} /> {t('addNote')}</button>
             </PermissionGuard>
             {editing ? (
@@ -369,6 +384,11 @@ export default function ClientDetailPage() {
                 {client.registered_at && (
                   <span className="text-xs" style={{ color: '#c4c5c7' }}>
                     Registrado {formatDistanceToNow(new Date(client.registered_at), { addSuffix: true, locale: dfLocale })}
+                  </span>
+                )}
+                {hasBeenContactedViaWA && (
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }}>
+                    <CheckCircle size={12} /> Contactado por WhatsApp
                   </span>
                 )}
               </div>
@@ -635,6 +655,12 @@ export default function ClientDetailPage() {
       {/* WhatsApp modal */}
       <Modal open={showWA} onClose={() => { setShowWA(false); setWaResult(null) }} title={t('sendWhatsApp')}>
         <div className="space-y-4">
+          {hasBeenContactedViaWA && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm flex gap-2 items-start">
+              <span className="text-amber-500">⚠️</span>
+              <p>Este cliente <strong>ya ha sido contactado por WhatsApp</strong> anteriormente. Verifica el historial para evitar duplicar mensajes.</p>
+            </div>
+          )}
           <p className="text-sm" style={{ color: '#5a5b5d' }}>Enviar a: <span style={{ color: '#37383a', fontWeight: 500 }}>{client.whatsapp_phone || client.phone}</span></p>
           <div>
             <label className="text-xs font-medium block mb-1.5" style={{ color: '#5a5b5d' }}>{t('selectTemplate')}</label>
@@ -662,6 +688,12 @@ export default function ClientDetailPage() {
       {/* Congress WhatsApp Modal */}
       <Modal open={showCongressWA} onClose={() => setShowCongressWA(false)} title="Enviar Bienvenida Congreso">
         <div className="space-y-4">
+          {hasBeenContactedViaWA && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm flex gap-2 items-start">
+              <span className="text-amber-500">⚠️</span>
+              <p>Este cliente <strong>ya ha sido contactado por WhatsApp</strong> anteriormente. Verifica el historial para evitar duplicar mensajes.</p>
+            </div>
+          )}
           <p className="text-sm" style={{ color: '#5a5b5d' }}>Enviar a: <span style={{ color: '#37383a', fontWeight: 500 }}>{client.whatsapp_phone || client.phone}</span></p>
           <div className="p-3 bg-[#f8fafd] border border-[#d4e0ec] rounded-lg text-sm text-[#37383a] space-y-2">
             <p>Hola, <strong>{client.name}</strong>.</p>

@@ -149,6 +149,7 @@ export default function CongressLandingClient() {
   const [congress, setCongress] = useState<CongresoData | null>(null)
   const [products, setProducts] = useState<any[]>([])
   const [clientName, setClientName] = useState<string | null>(null)
+  const [greetingMsg, setGreetingMsg] = useState<string | null>(null)
   const [currentClientId, setCurrentClientId] = useState<string | null>(null)
   const [clientRole, setClientRole] = useState<'médico' | 'distribuidor' | null>(null)
   const [processingWorkshop, setProcessingWorkshop] = useState<string | null>(null)
@@ -288,6 +289,11 @@ export default function CongressLandingClient() {
   }, [id])
 
   useEffect(() => {
+    const greeting = searchParams.get('greeting')
+    if (greeting) {
+      setGreetingMsg(greeting)
+    }
+
     const cid = searchParams.get('clientId') || localStorage.getItem('arthromed_lead_client_id')
     if (cid) {
       localStorage.setItem('arthromed_lead_client_id', cid)
@@ -428,7 +434,16 @@ export default function CongressLandingClient() {
             />
           </motion.div>
 
-          {clientName && (
+          {greetingMsg ? (
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="text-2xl md:text-3xl font-medium text-[#5a5b5d] mb-4"
+            >
+              {greetingMsg}
+            </motion.h2>
+          ) : clientName ? (
             <motion.h2
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -437,7 +452,7 @@ export default function CongressLandingClient() {
             >
               ¡Bienvenido, Dr. {clientName}!
             </motion.h2>
-          )}
+          ) : null}
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }}

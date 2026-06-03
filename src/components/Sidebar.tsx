@@ -37,11 +37,11 @@ export default function Sidebar() {
       title: null,
       items: [
         { href: '/', icon: LayoutDashboard, label: t('dashboard'), section: 'dashboard' },
-        { href: '/chat', icon: Bot, label: 'Asistente AI', section: 'dashboard' },
+        { href: '/chat', icon: Bot, label: t('aiAssistant' as any) || 'Asistente AI', section: 'dashboard' },
       ],
     },
     {
-      title: 'Catálogos',
+      title: t('catalogos'),
       items: [
         { href: '/clients', icon: Users, label: t('clients'), section: 'clients' },
         { href: '/clients/new', icon: UserPlus, label: t('newClient'), section: 'clients', action: 'create' },
@@ -51,33 +51,33 @@ export default function Sidebar() {
       ],
     },
     {
-      title: 'Inventario',
+      title: t('inventory' as any) || 'Inventario',
       items: [
-        { href: '/inventario', icon: Warehouse, label: 'Inventario', section: 'products' },
+        { href: '/inventario', icon: Warehouse, label: t('inventory' as any) || 'Inventario', section: 'products' },
         { href: '/imports/repartition', icon: GitPullRequest, label: t('repartition' as any) || 'Repartición', section: 'clients', action: 'create' },
       ],
     },
     {
-      title: 'Operaciones',
+      title: t('operations' as any) || 'Operaciones',
       items: [
         { href: '/calendario', icon: CalendarDays, label: t('calendar'), section: 'congresos' },
         { href: '/congresos', icon: Calendar, label: t('congresos'), section: 'congresos' },
-        { href: '/cirugias', icon: Scissors, label: 'Cirugías', section: 'cirugias' },
+        { href: '/cirugias', icon: Scissors, label: t('surgeries' as any) || 'Cirugías', section: 'cirugias' },
         { href: '/garantias', icon: Wrench, label: t('warranties' as any) || 'Garantías', section: 'warranties' },
-        { href: '/tickets', icon: Ticket, label: 'Tickets', section: 'tickets' },
+        { href: '/tickets', icon: Ticket, label: t('ticketsSidebar' as any) || 'Tickets', section: 'tickets' },
       ],
     },
     {
-      title: 'Finanzas',
+      title: t('finances' as any) || 'Finanzas',
       items: [
         { href: '/ventas', icon: TrendingUp, label: t('ventas'), section: 'ventas' },
-        { href: '/facturas', icon: FileText, label: 'Facturas Clientes', section: 'ventas' },
+        { href: '/facturas', icon: FileText, label: t('customerInvoices' as any) || 'Facturas Clientes', section: 'ventas' },
         { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
-        { href: '/previos', icon: ClipboardList, label: 'Previos', section: 'gastos' },
+        { href: '/previos', icon: ClipboardList, label: t('previos' as any) || 'Previos', section: 'gastos' },
       ],
     },
     {
-      title: 'Configuración',
+      title: t('settings'),
       items: [
         { href: '/users', icon: ShieldCheck, label: t('users'), section: 'users' },
         { href: '/settings', icon: Settings, label: t('settings'), section: 'settings' },
@@ -203,10 +203,10 @@ export default function Sidebar() {
           href="/chat"
           onClick={() => setMobileOpen(false)}
           className="flex items-center justify-center gap-2 p-2 rounded-xl bg-gradient-to-r from-[#0763a9] to-[#054d85] text-white shadow-sm hover:shadow-md transition-all group"
-          title={collapsed ? "Asistente AI" : undefined}
+          title={collapsed ? (t('aiAssistant' as any) || "Asistente AI") : undefined}
         >
           <Sparkles size={18} className="group-hover:animate-pulse" />
-          {!collapsed && <span className="text-xs font-semibold">Asistente AI</span>}
+          {!collapsed && <span className="text-xs font-semibold">{t('aiAssistant' as any) || 'Asistente AI'}</span>}
         </Link>
 
         {/* Collapse button (desktop) */}

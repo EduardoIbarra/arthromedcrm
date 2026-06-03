@@ -47,11 +47,11 @@ interface UserProfile {
   email: string
 }
 
-const STATUS_OPTIONS = [
-  { value: 'open', label: 'Abierto', color: 'bg-amber-100 text-amber-800 border-amber-200' },
-  { value: 'in_progress', label: 'En Progreso', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  { value: 'resolved', label: 'Resuelto', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  { value: 'closed', label: 'Cerrado', color: 'bg-slate-100 text-slate-800 border-slate-200' },
+const STATUS_OPTIONS_BASE = [
+  { value: 'open', color: 'bg-amber-100 text-amber-800 border-amber-200' },
+  { value: 'in_progress', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { value: 'resolved', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  { value: 'closed', color: 'bg-slate-100 text-slate-800 border-slate-200' },
 ]
 
 export default function TicketsPage() {
@@ -72,6 +72,16 @@ export default function TicketsPage() {
   const [updateContent, setUpdateContent] = useState('')
   const [updateStatus, setUpdateStatus] = useState('')
   const [postingUpdate, setPostingUpdate] = useState(false)
+
+  const getStatusLabel = (val: string) => {
+    if (val === 'open') return t('openTickets')
+    if (val === 'in_progress') return t('inProgressTickets')
+    if (val === 'resolved') return t('resolvedClosedTickets') // could add specific translated keys if needed
+    if (val === 'closed') return t('resolvedClosedTickets')
+    return val
+  }
+
+  const STATUS_OPTIONS = STATUS_OPTIONS_BASE.map(s => ({ ...s, label: getStatusLabel(s.value) }))
 
   const fetchData = async () => {
     try {
@@ -114,7 +124,7 @@ export default function TicketsPage() {
       }
     } catch (err) {
       console.error(err)
-      alert('Error al actualizar el estado')
+      alert(t('errorUpdateStatus'))
     } finally {
       setUpdating(null)
     }
@@ -133,7 +143,7 @@ export default function TicketsPage() {
       }
     } catch (err) {
       console.error(err)
-      alert('Error al reasignar')
+      alert(t('errorReassign'))
     } finally {
       setUpdating(null)
     }
@@ -141,7 +151,7 @@ export default function TicketsPage() {
 
   const handleCreateTicket = async () => {
     if (!createForm.title || !createForm.reporter_id) {
-      alert('El título y el reportador son requeridos.')
+      alert(t('titleAndReporterRequired'))
       return
     }
     try {
@@ -151,14 +161,14 @@ export default function TicketsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(createForm)
       })
-      if (!res.ok) throw new Error('Error al crear ticket')
+      if (!res.ok) throw new Error(t('errorCreateTicket'))
       const newTicket = await res.json()
       setTickets(prev => [newTicket, ...prev])
       setShowCreateModal(false)
       setCreateForm({ title: '', description: '', reporter_id: '', assignee: '' })
     } catch (err) {
       console.error(err)
-      alert('Error al crear ticket')
+      alert(t('errorCreateTicket'))
     } finally {
       setCreating(false)
     }
@@ -214,7 +224,7 @@ export default function TicketsPage() {
       }
     } catch (err) {
       console.error(err)
-      alert('Error al agregar actualización')
+      alert(t('errorAddUpdate'))
     } finally {
       setPostingUpdate(false)
     }
@@ -224,7 +234,7 @@ export default function TicketsPage() {
     if (ticket.users?.user_profiles?.first_name) {
       return `${ticket.users.user_profiles.first_name} ${ticket.users.user_profiles.last_name || ''}`.trim()
     }
-    return ticket.users?.email || 'Usuario Desconocido'
+    return ticket.users?.email || t('unknownUser')
   }
 
   // Deduplicate and filter out users with identical names
@@ -235,7 +245,7 @@ export default function TicketsPage() {
 
   const assigneeOptions = [
     { value: 'BONSS', label: 'BONSS (Soporte Externo)' },
-    { value: 'Unassigned', label: '-- Sin Asignar --' },
+    { value: 'Unassigned', label: `-- ${t('unassigned')} --` },
     ...uniqueUsers.map(u => {
       const label = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
       return { value: label, label }
@@ -243,6 +253,13 @@ export default function TicketsPage() {
   ]
 
   const canEdit = hasPermission('tickets', 'edit') || profile?.role === 'superadmin' || true // Let all admins who can view the page edit for now, since it's an internal tool
+
+  const kpis = [
+    { label: t('totalTickets'), value: tickets.length, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+    { label: t('openTickets'), value: tickets.filter(t => t.status === 'open').length, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+    { label: t('inProgressTickets'), value: tickets.filter(t => t.status === 'in_progress').length, color: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-100' },
+    { label: t('resolvedClosedTickets'), value: tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+  ]
 
   return (
     <AppShell>
@@ -253,8 +270,8 @@ export default function TicketsPage() {
               <Ticket size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tickets de Soporte</h1>
-              <p className="text-sm text-slate-500 font-medium mt-0.5">Gestión de incidentes y requerimientos del sistema</p>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{t('ticketsTitle')}</h1>
+              <p className="text-sm text-slate-500 font-medium mt-0.5">{t('ticketsDesc')}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -263,13 +280,24 @@ export default function TicketsPage() {
               setShowCreateModal(true)
             }} className="btn-primary flex items-center gap-2 shadow-sm text-sm">
               <Plus size={16} />
-              <span>Nuevo Ticket</span>
+              <span>{t('newTicket')}</span>
             </button>
             <button onClick={fetchData} className="btn-secondary" title="Actualizar">
               <RefreshCw size={18} className={loading ? 'animate-spin text-[#0763a9]' : 'text-slate-500'} />
             </button>
           </div>
         </div>
+
+        {!loading && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {kpis.map((kpi, idx) => (
+              <div key={idx} className={`p-4 rounded-2xl border shadow-sm ${kpi.bg} ${kpi.border} flex flex-col justify-center items-center text-center transition-transform hover:scale-[1.02]`}>
+                <div className="text-sm font-semibold text-slate-600 mb-1">{kpi.label}</div>
+                <div className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {loading ? (
           <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-12 flex justify-center">
@@ -281,18 +309,18 @@ export default function TicketsPage() {
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-gray-50/50 border-b border-[#e8f1f9] text-gray-500 font-semibold text-xs uppercase tracking-wider">
                   <tr>
-                    <th className="px-6 py-4">Ticket / Descripción</th>
-                    <th className="px-6 py-4">Reportado Por</th>
-                    <th className="px-6 py-4">Fecha</th>
-                    <th className="px-6 py-4">Estado</th>
-                    <th className="px-6 py-4">Asignado A</th>
+                    <th className="px-6 py-4">{t('ticketOrDesc')}</th>
+                    <th className="px-6 py-4">{t('reportedBy')}</th>
+                    <th className="px-6 py-4">{t('date')}</th>
+                    <th className="px-6 py-4">{t('status')}</th>
+                    <th className="px-6 py-4">{t('assignedToHeader')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e8f1f9]">
                   {tickets.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
-                        No se encontraron tickets.
+                        {t('noTicketsFound')}
                       </td>
                     </tr>
                   ) : (
@@ -357,7 +385,7 @@ export default function TicketsPage() {
                             </select>
                           ) : (
                             <span className="text-slate-700 font-medium">
-                              {ticket.assignee || 'Sin Asignar'}
+                              {ticket.assignee || t('unassigned')}
                             </span>
                           )}
                         </td>
@@ -372,10 +400,10 @@ export default function TicketsPage() {
       </div>
 
       {showCreateModal && (
-        <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Crear Nuevo Ticket">
+        <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title={t('createTicketModal')}>
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Título *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('titleLabel')} *</label>
               <input
                 type="text"
                 value={createForm.title}
@@ -385,29 +413,28 @@ export default function TicketsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Descripción</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('descLabel')}</label>
               <textarea
                 value={createForm.description}
                 onChange={e => setCreateForm({ ...createForm, description: e.target.value })}
                 className="erp-input w-full min-h-[100px] py-2"
-                placeholder="Detalla el requerimiento o problema..."
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Reportado Por *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('reporterLabel')} *</label>
               <select
                 value={createForm.reporter_id}
                 onChange={e => setCreateForm({ ...createForm, reporter_id: e.target.value })}
                 className="erp-input w-full"
               >
-                <option value="">-- Seleccionar Reportador --</option>
+                <option value="">{t('selectReporter')}</option>
                 {uniqueUsers.map(u => (
                   <option key={u.id} value={u.id}>{`${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Asignar A</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('assignToLabel')}</label>
               <select
                 value={createForm.assignee}
                 onChange={e => setCreateForm({ ...createForm, assignee: e.target.value })}
@@ -419,9 +446,9 @@ export default function TicketsPage() {
               </select>
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6">
-              <button onClick={() => setShowCreateModal(false)} className="btn-ghost text-sm">Cancelar</button>
+              <button onClick={() => setShowCreateModal(false)} className="btn-ghost text-sm">{t('cancel')}</button>
               <button onClick={handleCreateTicket} disabled={creating} className="btn-primary text-sm shadow-md">
-                {creating ? 'Creando...' : 'Crear Ticket'}
+                {creating ? t('creating') : t('createTicketBtn')}
               </button>
             </div>
           </div>
@@ -429,7 +456,7 @@ export default function TicketsPage() {
       )}
 
       {selectedTicket && (
-        <Modal open={!!selectedTicket} onClose={() => setSelectedTicket(null)} title="Detalles del Ticket" maxWidth="700px">
+        <Modal open={!!selectedTicket} onClose={() => setSelectedTicket(null)} title={t('ticketDetails')} maxWidth="700px">
           <div className="flex flex-col h-[70vh]">
             <div className="flex-1 overflow-y-auto space-y-6 pr-2">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -454,13 +481,13 @@ export default function TicketsPage() {
 
               <div className="space-y-4">
                 <h4 className="font-bold text-slate-700 flex items-center gap-2">
-                  <Clock size={16} /> Historial de Actualizaciones
+                  <Clock size={16} /> {t('updateHistory')}
                 </h4>
                 
                 {loadingUpdates ? (
                   <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-[#0763a9]" size={24} /></div>
                 ) : ticketUpdates.length === 0 ? (
-                  <div className="text-sm text-slate-400 italic text-center p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">No hay actualizaciones aún.</div>
+                  <div className="text-sm text-slate-400 italic text-center p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">{t('noUpdatesYet')}</div>
                 ) : (
                   <div className="space-y-3">
                     {ticketUpdates.map(update => (
@@ -484,13 +511,13 @@ export default function TicketsPage() {
                 <textarea 
                   value={updateContent}
                   onChange={e => setUpdateContent(e.target.value)}
-                  placeholder="Escribe una actualización..."
+                  placeholder={t('writeUpdate')}
                   className="erp-input flex-1 min-h-[80px] resize-none text-sm"
                 />
               </div>
               <div className="flex items-center justify-between mt-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">Cambiar estado a:</span>
+                  <span className="text-xs font-medium text-slate-500">{t('changeStatusTo')}</span>
                   <select 
                     value={updateStatus} 
                     onChange={e => setUpdateStatus(e.target.value)}
@@ -507,7 +534,7 @@ export default function TicketsPage() {
                   className="btn-primary flex items-center gap-2 text-sm px-4 py-2"
                 >
                   {postingUpdate ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />}
-                  Publicar
+                  {t('postUpdate')}
                 </button>
               </div>
             </div>
