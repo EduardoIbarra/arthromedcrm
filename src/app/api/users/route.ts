@@ -8,6 +8,8 @@ export async function GET() {
         id: true,
         email: true,
         whatsapp: true,
+        first_name: true,
+        last_name: true,
       },
       orderBy: {
         email: 'asc'

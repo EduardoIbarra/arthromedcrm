@@ -28,11 +28,11 @@ declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
 }
 
-const hasAppSettings = globalThis.prisma && ('app_settings' in globalThis.prisma)
-const prisma = hasAppSettings ? globalThis.prisma! : prismaClientSingleton()
+const hasUpdates = globalThis.prisma && ('ticket_updates' in globalThis.prisma)
+const prisma = hasUpdates ? globalThis.prisma! : prismaClientSingleton()
 
 export default prisma
 
-// Hot reload trigger: 1
+// Hot reload trigger: 3
 
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma

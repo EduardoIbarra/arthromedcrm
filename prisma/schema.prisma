@@ -456,6 +456,8 @@ model users {
   gastos_legacy               gastos_legacy[]        @ignore
   ordenes_compra              ordenes_compra[]
   user_profiles               user_profiles?
+  tickets                     tickets[]
+  ticket_updates              ticket_updates[]
 
   @@index([created_at(sort: Desc)], map: "idx_users_created_at_desc")
   @@index([email], map: "idx_users_email")
@@ -1854,6 +1856,34 @@ model inventario_movimientos {
   tipos_inventario tipos_inventario @relation(fields: [tipo_inventario_id], references: [id], onDelete: Cascade)
   usuario          user_profiles?   @relation("movimiento_usuario", fields: [usuario_id], references: [id])
   autorizador      user_profiles?   @relation("movimiento_autorizador", fields: [autorizador_id], references: [id])
+
+  @@schema("public")
+}
+
+model tickets {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  title       String
+  description String?
+  reporter_id String   @db.Uuid
+  assignee    String?  @default("Unassigned")
+  status      String   @default("open")
+  users       users    @relation(fields: [reporter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ticket_updates ticket_updates[]
+
+  @@schema("public")
+}
+
+model ticket_updates {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id  String   @db.Uuid
+  user_id    String   @db.Uuid
+  content    String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  tickets    tickets  @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }
