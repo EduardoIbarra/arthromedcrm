@@ -7,9 +7,17 @@ import {
   Calendar, MapPin, Users, Clock, User, Phone, Mail,
   ChevronRight, Package, ArrowRight, Download, Globe,
   Shield, CheckCircle2, Tag, AlignLeft, Loader2, X,
-  ShoppingBag, Trash2, Plus, Minus, FileText, ExternalLink, Instagram
+  ShoppingBag, Trash2, Plus, Minus, FileText, ExternalLink
 } from 'lucide-react'
 import Link from 'next/link'
+
+const InstagramIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+)
 
 interface CatalogItem {
   catalog_id: string
@@ -1188,7 +1196,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
           
           <div className="relative z-10 flex flex-col items-center">
             <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-pink-500 mb-6 shadow-xl shadow-white/10">
-              <Instagram size={40} />
+              <InstagramIcon size={40} />
             </div>
             <h2 className="text-3xl md:text-4xl font-black mb-4">
               Síguenos en Instagram
@@ -1202,7 +1210,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
               rel="noopener noreferrer"
               className="bg-white text-pink-600 hover:text-pink-700 font-extrabold text-lg px-8 py-4 rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
             >
-              <Instagram size={22} />
+              <InstagramIcon size={22} />
               @arthromed.oficial
             </a>
           </div>
