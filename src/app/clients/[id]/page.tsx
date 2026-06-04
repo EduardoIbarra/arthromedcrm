@@ -199,6 +199,8 @@ export default function ClientDetailPage() {
           buttons: [
             {
               type: 'url',
+              text: 'Ver Información',
+              url: 'https://erp.arthromed.com.mx/{{1}}',
               parameters: [
                 { type: 'text', text: congressLink.split('/congresos/')[1] ? 'congresos/' + congressLink.split('/congresos/')[1].replace(/[()]/g, c => '%' + c.charCodeAt(0).toString(16)) : congressLink }
               ]

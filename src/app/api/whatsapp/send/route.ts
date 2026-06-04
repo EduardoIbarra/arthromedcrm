@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}/message`, {
+    let res = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}/message`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
@@ -65,9 +65,47 @@ export async function POST(request: NextRequest) {
     })
     
     if (!res.ok) {
-      const errorText = await res.text()
-      console.error('Respond.io error:', res.status, errorText)
-      return NextResponse.json({ error: errorText || 'Failed to send via Respond.io' }, { status: res.status })
+      let errorText = await res.text()
+      
+      // Auto-create contact if not found
+      if (res.status === 404 && errorText.includes('Contact not found')) {
+        console.log('Contact not found in Respond.io. Creating contact...', phone)
+        const createRes = await fetch('https://api.respond.io/v2/contact', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone: phone,
+            firstName: text || 'Prospecto'
+          })
+        })
+        
+        if (createRes.ok) {
+          console.log('Contact created successfully. Retrying message...')
+          // Retry send
+          res = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}/message`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) {
+            errorText = await res.text()
+          }
+        } else {
+          console.error('Failed to create contact:', await createRes.text())
+        }
+      }
+
+      if (!res.ok) {
+        console.error('Respond.io error:', res.status, errorText)
+        return NextResponse.json({ error: errorText || 'Failed to send via Respond.io' }, { status: res.status })
+      }
     }
     
     const data = await res.json().catch(() => ({}))

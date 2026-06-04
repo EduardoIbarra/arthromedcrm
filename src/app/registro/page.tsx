@@ -198,6 +198,8 @@ function RegistroContent() {
                   buttons: [
                     {
                       type: 'url',
+                      text: 'Ver Información',
+                      url: 'https://erp.arthromed.com.mx/{{1}}',
                       parameters: [
                         { type: 'text', text: urlSuffix }
                       ]
