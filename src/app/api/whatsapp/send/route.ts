@@ -98,7 +98,9 @@ export async function POST(request: NextRequest) {
             errorText = await res.text()
           }
         } else {
-          console.error('Failed to create contact:', await createRes.text())
+          const cErr = await createRes.text()
+          console.error('Failed to create contact:', cErr)
+          return NextResponse.json({ error: 'Auto-create failed: ' + cErr }, { status: createRes.status })
         }
       }
 
