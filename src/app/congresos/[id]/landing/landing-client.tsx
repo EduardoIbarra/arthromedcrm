@@ -7,7 +7,7 @@ import {
   Calendar, MapPin, Users, Clock, User, Phone, Mail,
   ChevronRight, Package, ArrowRight, Download, Globe,
   Shield, CheckCircle2, Tag, AlignLeft, Loader2, X,
-  ShoppingBag, Trash2, Plus, Minus, FileText, ExternalLink
+  ShoppingBag, Trash2, Plus, Minus, FileText, ExternalLink, Instagram
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -1173,6 +1173,41 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
           </>
         )}
       </AnimatePresence>
+
+      {/* Instagram Banner Section */}
+      <section className="max-w-6xl mx-auto px-6 pb-24 text-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          className="bg-gradient-to-br from-fuchsia-600 to-pink-500 rounded-[2rem] p-10 md:p-14 shadow-2xl shadow-pink-500/20 text-white overflow-hidden relative"
+        >
+          {/* Decorative shapes */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-3xl rounded-full translate-x-1/3 -translate-y-1/3 pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/30 blur-2xl rounded-full -translate-x-1/4 translate-y-1/4 pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-pink-500 mb-6 shadow-xl shadow-white/10">
+              <Instagram size={40} />
+            </div>
+            <h2 className="text-3xl md:text-4xl font-black mb-4">
+              Síguenos en Instagram
+            </h2>
+            <p className="text-pink-100 text-lg md:text-xl max-w-2xl mb-8 font-medium">
+              Únete a nuestra comunidad. Entérate de próximos congresos, talleres exclusivos, lanzamientos de productos de vanguardia y mucho más.
+            </p>
+            <a
+              href="https://www.instagram.com/arthromed.oficial/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white text-pink-600 hover:text-pink-700 font-extrabold text-lg px-8 py-4 rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+            >
+              <Instagram size={22} />
+              @arthromed.oficial
+            </a>
+          </div>
+        </motion.div>
+      </section>
 
       {/* Footer */}
       <footer className="py-12 border-t border-[#d4e0ec] text-center">
