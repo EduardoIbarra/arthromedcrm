@@ -39,11 +39,22 @@ async function run() {
         "languageCode": "es_MX",
         "components": [
           {
+            "type": "header",
+            "format": "text",
+            "text": "Bienvenido",
+            "parameters": []
+          },
+          {
             "type": "body",
             "parameters": [
               { "type": "text", "text": "Dr(a). Eduardo" },
               { "type": "text", "text": "Equipo Arthromed" }
             ]
+          },
+          {
+            "type": "footer",
+            "text": "Muchas Gracias",
+            "parameters": []
           },
           {
             "type": "buttons",

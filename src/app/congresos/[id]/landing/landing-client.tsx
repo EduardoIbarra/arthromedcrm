@@ -291,7 +291,14 @@ export default function CongressLandingClient() {
   useEffect(() => {
     const greeting = searchParams.get('greeting')
     if (greeting) {
-      setGreetingMsg(greeting)
+      let decoded = greeting
+      try {
+        decoded = decodeURIComponent(greeting)
+        if (decoded.includes('%')) {
+          decoded = decodeURIComponent(decoded)
+        }
+      } catch (e) {}
+      setGreetingMsg(decoded)
     }
 
     const cid = searchParams.get('clientId') || localStorage.getItem('arthromed_lead_client_id')
