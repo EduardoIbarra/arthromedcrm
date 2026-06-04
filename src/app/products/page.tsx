@@ -13,10 +13,14 @@ import {
   Download,
   X,
   AlertTriangle,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
 import PermissionGuard from '@/components/PermissionGuard'
+import { supabase } from '@/lib/supabase'
+import Image from 'next/image'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -77,6 +81,7 @@ type FormState = {
   type: string
   category: string
   specialty_ids: string[]
+  image_urls: string[]
 }
 
 const EMPTY_FORM: FormState = {
@@ -94,6 +99,7 @@ const EMPTY_FORM: FormState = {
   type: 'consumable',
   category: '',
   specialty_ids: [],
+  image_urls: [],
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -118,6 +124,7 @@ export default function ProductsPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   // ─── Data Fetching ──────────────────────────────────────────────────────
 
@@ -168,6 +175,7 @@ export default function ProductsPage() {
       type: product.type || 'consumable',
       category: product.category || '',
       specialty_ids: product.specialty_ids || [],
+      image_urls: product.image_urls || [],
     })
     setFormError(null)
     setModal('edit')
@@ -179,10 +187,50 @@ export default function ProductsPage() {
   }
 
   const closeModal = () => {
-    if (isSaving) return
+    if (isSaving || isUploading) return
     setModal(null)
     setSelectedProduct(null)
     setFormError(null)
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setIsUploading(true)
+    setFormError(null)
+
+    try {
+      const urls: string[] = []
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const ext = file.name.split('.').pop()
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
+        const filePath = `products/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('product_images')
+          .upload(filePath, file)
+
+        if (uploadError) throw uploadError
+
+        const { data } = supabase.storage.from('product_images').getPublicUrl(filePath)
+        urls.push(data.publicUrl)
+      }
+      setForm(prev => ({ ...prev, image_urls: [...prev.image_urls, ...urls] }))
+    } catch (err: any) {
+      setFormError(err.message || 'Error al subir imágenes')
+    } finally {
+      setIsUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setForm(prev => {
+      const newUrls = [...prev.image_urls]
+      newUrls.splice(index, 1)
+      return { ...prev, image_urls: newUrls }
+    })
   }
 
   const handleSave = async () => {
@@ -231,6 +279,7 @@ export default function ProductsPage() {
   }
 
   const handleSort = (field: SortField) => {
+    if (field === 'image_urls' as any) return // Cannot sort by image
     if (sortField === field) setSortAsc(!sortAsc)
     else { setSortField(field); setSortAsc(true) }
   }
@@ -289,13 +338,14 @@ export default function ProductsPage() {
 
   // ─── Table Column Config ─────────────────────────────────────────────────
 
-  const columns: { key: SortField; label: string }[] = [
-    { key: 'description', label: t('description') },
-    { key: 'model', label: t('model') },
-    { key: 'order_code', label: t('orderCode') },
-    { key: 'line', label: t('line') },
-    { key: 'sale_price', label: t('salePrice') },
-    { key: 'base_hospital_price', label: t('baseHospitalPrice') },
+  const columns: { key: SortField | 'image_urls'; label: string; sortable?: boolean }[] = [
+    { key: 'image_urls', label: 'Imagen', sortable: false },
+    { key: 'description', label: t('description'), sortable: true },
+    { key: 'model', label: t('model'), sortable: true },
+    { key: 'order_code', label: t('orderCode'), sortable: true },
+    { key: 'line', label: t('line'), sortable: true },
+    { key: 'sale_price', label: t('salePrice'), sortable: true },
+    { key: 'base_hospital_price', label: t('baseHospitalPrice'), sortable: true },
   ]
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -379,15 +429,17 @@ export default function ProductsPage() {
                     {columns.map(col => (
                       <th
                         key={col.key}
-                        onClick={() => handleSort(col.key)}
-                        className="p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap"
+                        onClick={() => col.sortable !== false ? handleSort(col.key as SortField) : undefined}
+                        className={`p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${col.sortable !== false ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
                       >
                         <div className="flex items-center gap-2">
                           {col.label}
-                          <ArrowUpDown
-                            size={14}
-                            className={sortField === col.key ? 'text-blue-600' : 'text-gray-300'}
-                          />
+                          {col.sortable !== false && (
+                            <ArrowUpDown
+                              size={14}
+                              className={sortField === col.key ? 'text-blue-600' : 'text-gray-300'}
+                            />
+                          )}
                         </div>
                       </th>
                     ))}
@@ -399,6 +451,17 @@ export default function ProductsPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredAndSorted.map(product => (
                     <tr key={product.id} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="p-4">
+                        {product.image_urls && product.image_urls.length > 0 ? (
+                          <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200 overflow-hidden relative">
+                            <Image src={product.image_urls[0]} alt={product.description} fill className="object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200">
+                            <ImageIcon size={20} />
+                          </div>
+                        )}
+                      </td>
                       <td className="p-4">
                         <div className="font-medium text-gray-900">{[product.description, product.model, product.order_code].filter(Boolean).join(' - ')}</div>
                         {product.generic_description && (
@@ -629,6 +692,43 @@ export default function ProductsPage() {
               </div>
             </div>
           )}
+
+          {/* Images */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Imágenes del Producto</label>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mb-3">
+              {form.image_urls.map((url, idx) => (
+                <div key={idx} className="relative aspect-square rounded-lg border border-gray-200 overflow-hidden group">
+                  <Image src={url} alt={`Imagen ${idx + 1}`} fill className="object-cover" />
+                  <button
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-1 right-1 bg-white rounded-full p-0.5 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                    title="Eliminar"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <label className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-blue-500 hover:text-blue-500 transition-colors cursor-pointer bg-gray-50 hover:bg-blue-50/30">
+                {isUploading ? (
+                  <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Upload size={20} className="mb-1" />
+                    <span className="text-xs font-medium">Subir</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                />
+              </label>
+            </div>
+          </div>
 
           {/* Error */}
           {formError && (

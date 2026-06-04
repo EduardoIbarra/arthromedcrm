@@ -76,6 +76,7 @@ export interface Product {
   type: string | null
   category: string | null
   specialty_ids: string[] | null
+  image_urls: string[] | null
   created_at: string
   updated_at: string
 }

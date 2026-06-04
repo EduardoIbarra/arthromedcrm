@@ -39,6 +39,7 @@ export async function PUT(
       type,
       category,
       specialty_ids,
+      image_urls,
     } = body
 
     if (!description) {
@@ -62,6 +63,7 @@ export async function PUT(
         type: type || 'consumable',
         category: category || null,
         specialty_ids: specialty_ids || [],
+        image_urls: image_urls || [],
         updated_at: new Date(),
       },
     })
