@@ -1,4 +1,4 @@
-const RESPOND_API_TOKEN = process.env.RESPOND_API_TOKEN
+const RESPOND_API_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjkwNDQsInNwYWNlSWQiOjQxNjYxNCwib3JnSWQiOjQwOTc5MywidHlwZSI6ImFwaSIsImlhdCI6MTc4MDI2NzA5MX0.3gEIGgZ6oLKgP8YobcMCoTxGpd_JD_0LXJnwacSoir0"
 
 async function run() {
   if (!RESPOND_API_TOKEN) {
@@ -10,18 +10,23 @@ async function run() {
   
   // 1. Create contact
   console.log("Creating contact...")
-  const createRes = await fetch('https://api.respond.io/v2/contact', {
+  const createRes = await fetch(`https://api.respond.io/v2/contact/phone:+${phone}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      phone: phone,
+      phone: '+' + phone,
       firstName: 'Test User 2'
     })
   })
   console.log("Create response:", createRes.status, await createRes.text())
+
+  if (createRes.ok) {
+    console.log("Waiting 3s for Respond.io queue...")
+    await new Promise(resolve => setTimeout(resolve, 3000))
+  }
 
   // 2. Send message
   console.log("Sending message...")

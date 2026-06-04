@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       // Auto-create contact if not found
       if (res.status === 404 && errorText.includes('Contact not found')) {
         console.log('Contact not found in Respond.io. Creating contact...', phone)
-        const createRes = await fetch('https://api.respond.io/v2/contact', {
+        const createRes = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
         
         if (createRes.ok) {
           console.log('Contact created successfully. Retrying message...')
+          // Wait 2 seconds because Respond.io might return 449 if we send immediately after creation
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          
           // Retry send
           res = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}/message`, {
             method: 'POST',
@@ -96,6 +99,23 @@ export async function POST(request: NextRequest) {
           })
           if (!res.ok) {
             errorText = await res.text()
+            // If it returns 449, let's retry once more
+            if (res.status === 449) {
+              console.log('Got 449 queue error. Waiting 3 seconds and retrying again...')
+              await new Promise(resolve => setTimeout(resolve, 3000))
+              res = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}/message`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                body: JSON.stringify(payload),
+              })
+              if (!res.ok) {
+                errorText = await res.text()
+              }
+            }
           }
         } else {
           const cErr = await createRes.text()
