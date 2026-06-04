@@ -98,8 +98,8 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
       renderPdf()
     }, 1500)
 
-    return () => { 
-      cancelled = true 
+    return () => {
+      cancelled = true
       clearTimeout(timer)
     }
   }, [canvasEl, catalog.pdf_url])
@@ -324,7 +324,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
         if (decoded.includes('%')) {
           decoded = decodeURIComponent(decoded)
         }
-      } catch (e) {}
+      } catch (e) { }
       setGreetingMsg(decoded)
     }
 
@@ -554,7 +554,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
           {congress.video_urls && congress.video_urls.length > 0 && (
             <section className="space-y-6">
               <h2 className="text-2xl font-bold text-[#37383a] flex items-center gap-3">
-                <Globe className="text-red-500" /> Videos del Evento
+                <Globe className="text-red-500" /> Videos Relacionados
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {congress.video_urls.map((url, idx) => {
@@ -564,7 +564,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
                   if (match && match[2].length === 11) {
                     videoId = match[2];
                   }
-                  
+
                   if (!videoId) return null;
 
                   return (
@@ -1229,7 +1229,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
           {/* Decorative shapes */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-3xl rounded-full translate-x-1/3 -translate-y-1/3 pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/30 blur-2xl rounded-full -translate-x-1/4 translate-y-1/4 pointer-events-none" />
-          
+
           <div className="relative z-10 flex flex-col items-center">
             <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-pink-500 mb-6 shadow-xl shadow-white/10">
               <InstagramIcon size={40} />
