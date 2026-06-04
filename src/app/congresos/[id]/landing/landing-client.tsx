@@ -84,8 +84,15 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
       }
     }
 
-    renderPdf()
-    return () => { cancelled = true }
+    // Defer the heavy PDF.js import and rendering so it doesn't block the initial page paint and animations
+    const timer = setTimeout(() => {
+      renderPdf()
+    }, 1500)
+
+    return () => { 
+      cancelled = true 
+      clearTimeout(timer)
+    }
   }, [canvasEl, catalog.pdf_url])
 
   return (
