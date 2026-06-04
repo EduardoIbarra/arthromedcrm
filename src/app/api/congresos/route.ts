@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       terms_distributor,
       enable_workshops,
       global_budget,
+      video_urls,
       workshops,
       contacts,
       gastos_estimados
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
         terms_distributor: terms_distributor || '',
         enable_workshops: enable_workshops !== false,
         global_budget: global_budget ? Number(global_budget) : null,
+        video_urls: video_urls || [],
         workshops: {
           create: (workshops || []).map((w: any) => ({
             name: w.name,

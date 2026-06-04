@@ -39,8 +39,11 @@ export default function EditCongresoPage() {
     terms_distributor: '',
     enable_workshops: true,
     flyer: '',
-    specialty_ids: [] as string[]
+    specialty_ids: [] as string[],
+    video_urls: [] as string[]
   })
+
+  const [videoInput, setVideoInput] = useState('')
 
   const [workshops, setWorkshops] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
@@ -107,7 +110,8 @@ export default function EditCongresoPage() {
           terms_distributor: data.terms_distributor || '',
           enable_workshops: data.enable_workshops !== false,
           flyer: data.flyer || '',
-          specialty_ids: data.specialty_ids || []
+          specialty_ids: data.specialty_ids || [],
+          video_urls: data.video_urls || []
         })
         setWorkshops(data.workshops || [])
         setContacts(data.contacts || [])
@@ -216,6 +220,16 @@ export default function EditCongresoPage() {
         return [...prev, { category_id: categoryId, amount }]
       }
     })
+  }
+
+  const addVideoUrl = () => {
+    if (!videoInput.trim()) return
+    setFormData(prev => ({ ...prev, video_urls: [...prev.video_urls, videoInput.trim()] }))
+    setVideoInput('')
+  }
+
+  const removeVideoUrl = (index: number) => {
+    setFormData(prev => ({ ...prev, video_urls: prev.video_urls.filter((_, i) => i !== index) }))
   }
 
   const totalGastos = gastosEstimados.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
@@ -443,6 +457,46 @@ export default function EditCongresoPage() {
                         <span className="truncate">{spec.name}</span>
                       </label>
                     ))}
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Videos de YouTube
+                  </label>
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="erp-input flex-1"
+                        value={videoInput}
+                        onChange={e => setVideoInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addVideoUrl())}
+                      />
+                      <button 
+                        type="button" 
+                        onClick={addVideoUrl}
+                        className="btn-secondary whitespace-nowrap"
+                      >
+                        <Plus size={16} /> Agregar URL
+                      </button>
+                    </div>
+                    {formData.video_urls.length > 0 && (
+                      <div className="space-y-2">
+                        {formData.video_urls.map((url, i) => (
+                          <div key={i} className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                            <span className="text-sm text-gray-600 truncate mr-2">{url}</span>
+                            <button 
+                              type="button" 
+                              onClick={() => removeVideoUrl(i)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>

@@ -107,6 +107,7 @@ export interface Congreso {
   description: string
   flyer: string | null
   specialty_ids: string[] | null
+  video_urls: string[] | null
   created_at: string
   updated_at: string
   workshops?: Workshop[]

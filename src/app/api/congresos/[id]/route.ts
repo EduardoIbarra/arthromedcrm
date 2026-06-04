@@ -67,6 +67,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       terms_distributor,
       enable_workshops,
       global_budget,
+      video_urls,
       workshops,
       contacts,
       catalog_ids,
@@ -129,6 +130,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           terms_distributor,
           enable_workshops: enable_workshops !== false,
           global_budget: global_budget ? Number(global_budget) : null,
+          video_urls: video_urls || [],
           workshops: {
             upsert: (workshops || []).filter((w: any) => w.id).map((w: any) => ({
               where: { id: w.id },

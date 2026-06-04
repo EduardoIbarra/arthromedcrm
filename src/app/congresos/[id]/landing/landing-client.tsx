@@ -44,6 +44,7 @@ interface CongresoData {
   enable_workshops?: boolean
   terms_doctor?: string | null
   terms_distributor?: string | null
+  video_urls?: string[]
 }
 
 // ─── CatalogCard component ─────────────────────────────────────────────────
@@ -548,6 +549,41 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
               {congress.description}
             </p>
           </section>
+
+          {/* Videos */}
+          {congress.video_urls && congress.video_urls.length > 0 && (
+            <section className="space-y-6">
+              <h2 className="text-2xl font-bold text-[#37383a] flex items-center gap-3">
+                <Globe className="text-red-500" /> Videos del Evento
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {congress.video_urls.map((url, idx) => {
+                  let videoId = '';
+                  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                  const match = url.match(regExp);
+                  if (match && match[2].length === 11) {
+                    videoId = match[2];
+                  }
+                  
+                  if (!videoId) return null;
+
+                  return (
+                    <div key={idx} className="bg-black rounded-3xl overflow-hidden aspect-video shadow-lg border border-[#d4e0ec]">
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={`https://www.youtube.com/embed/${videoId}`}
+                        title="YouTube video player"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      ></iframe>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Workshops */}
           {congress.workshops && congress.workshops.length > 0 && (
