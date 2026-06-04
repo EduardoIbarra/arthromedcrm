@@ -698,9 +698,14 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
                           key={p.id}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="bg-white border border-[#d4e0ec] rounded-3xl overflow-hidden hover:bg-[#f8fafc] transition-all group"
+                          className="bg-white border border-[#d4e0ec] rounded-3xl overflow-hidden hover:bg-[#f8fafc] transition-all group flex flex-col"
                         >
-                          <div className="p-6">
+                          {p.image_urls && p.image_urls.length > 0 && (
+                            <div className="w-full aspect-video relative bg-white border-b border-[#d4e0ec] flex items-center justify-center p-4">
+                              <img src={p.image_urls[0]} alt={p.description} className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500 mix-blend-multiply" />
+                            </div>
+                          )}
+                          <div className="p-6 flex flex-col flex-1">
                             <div className="flex justify-between items-start mb-4">
                               <span className="text-xs font-bold text-[#8a8b8d] uppercase tracking-widest">{p.type === 'equipment' ? 'EQUIPO' : 'CONSUMIBLE'}</span>
                               <div className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black">
@@ -708,9 +713,9 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
                               </div>
                             </div>
                             <h3 className="text-xl font-bold text-[#37383a] mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{[p.description, p.model, p.order_code].filter(Boolean).join(' - ')}</h3>
-                            <p className="text-sm text-[#8a8b8d] mb-6">{p.model || p.order_code || 'Referencia estándar'}</p>
+                            <p className="text-sm text-[#8a8b8d] mb-6 flex-1">{p.model || p.order_code || 'Referencia estándar'}</p>
 
-                            <div className="flex items-end gap-3">
+                            <div className="flex items-end gap-3 mt-auto">
                               <div>
                                 <p className="text-[10px] text-[#8a8b8d] line-through mb-1">{formatCurrency(p.sale_price || 0)}</p>
                                 <p className="text-2xl font-black text-[#37383a]">{formatCurrency(calculateDiscountedPrice(p.sale_price || 0, p.type || ''))}</p>
@@ -719,18 +724,18 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
                                 <div className="ml-auto flex items-center bg-blue-600 rounded-xl overflow-hidden shadow-lg shadow-blue-900/30">
                                   <button
                                     onClick={() => updateQuantity(p.id, cart[p.id] - 1)}
-                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-[#37383a] font-bold text-xs"
+                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-[#white] font-bold text-xs"
                                   >
-                                    -
+                                    <Minus size={14} className="text-white" />
                                   </button>
-                                  <span className="px-2 text-[#37383a] font-black text-xs min-w-[20px] text-center">
+                                  <span className="px-2 text-white font-black text-xs min-w-[20px] text-center">
                                     {cart[p.id]}
                                   </span>
                                   <button
                                     onClick={() => updateQuantity(p.id, cart[p.id] + 1)}
-                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-[#37383a] font-bold text-xs"
+                                    className="px-3 py-2 hover:bg-blue-500 transition-colors text-[#white] font-bold text-xs"
                                   >
-                                    +
+                                    <Plus size={14} className="text-white" />
                                   </button>
                                 </div>
                               ) : (
