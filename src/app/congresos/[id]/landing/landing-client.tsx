@@ -94,7 +94,7 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
       target="_blank"
       rel="noopener noreferrer"
       initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -6, scale: 1.02 }}
       transition={{ delay: index * 0.07, duration: 0.3 }}
       viewport={{ once: true }}
@@ -273,11 +273,10 @@ export default function CongressLandingClient() {
         if (data.specialty_ids?.length > 0) {
           const params = new URLSearchParams()
           data.specialty_ids.forEach((sid: string) => params.append('specialty_ids', sid))
-          const prodRes = await fetch(`/api/products/filter?${params.toString()}`)
-          if (prodRes.ok) {
-            const prodData = await prodRes.json()
-            setProducts(prodData.data)
-          }
+          fetch(`/api/products/filter?${params.toString()}`)
+            .then(r => r.json())
+            .then(d => { if (d.data) setProducts(d.data) })
+            .catch(console.error)
         }
       } catch (err: any) {
         setError(err.message)
@@ -542,7 +541,7 @@ export default function CongressLandingClient() {
                     <motion.div
                       key={w.id}
                       initial={{ opacity: 0, scale: 0.95 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
+                      animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.1 }}
                       className="group bg-white border border-[#d4e0ec] rounded-3xl p-6 hover:bg-[#f8fafc] transition-all hover:border-blue-500/30 flex flex-col"
                     >
@@ -635,7 +634,7 @@ export default function CongressLandingClient() {
                         <motion.div
                           key={p.id}
                           initial={{ opacity: 0, y: 20 }}
-                          whileInView={{ opacity: 1, y: 0 }}
+                          animate={{ opacity: 1, y: 0 }}
                           className="bg-white border border-[#d4e0ec] rounded-3xl overflow-hidden hover:bg-[#f8fafc] transition-all group"
                         >
                           <div className="p-6">
@@ -820,7 +819,7 @@ export default function CongressLandingClient() {
         >
           <motion.div
             initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             viewport={{ once: true }}
             className="mb-10 flex items-center gap-4"
