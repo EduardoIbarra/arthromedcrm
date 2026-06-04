@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            phone: phone,
+            phone: '+' + phone,
             firstName: text || 'Prospecto'
           })
         })
