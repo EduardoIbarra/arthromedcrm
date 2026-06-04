@@ -195,11 +195,14 @@ export default function ClientDetailPage() {
         // Meta requiere que los botones dinámicos pasen su variable.
         // Si el botón es estático en Meta, esto podría sobrar o ser ignorado.
         components.push({
-          type: 'button',
-          sub_type: 'url',
-          index: 0,
-          parameters: [
-            { type: 'text', text: congressLink.split('/congresos/')[1] ? 'congresos/' + congressLink.split('/congresos/')[1].replace(/[()]/g, c => '%' + c.charCodeAt(0).toString(16)) : congressLink }
+          type: 'buttons',
+          buttons: [
+            {
+              type: 'url',
+              parameters: [
+                { type: 'text', text: congressLink.split('/congresos/')[1] ? 'congresos/' + congressLink.split('/congresos/')[1].replace(/[()]/g, c => '%' + c.charCodeAt(0).toString(16)) : congressLink }
+              ]
+            }
           ]
         })
       }
