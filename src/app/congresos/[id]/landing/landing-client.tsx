@@ -150,17 +150,17 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
   )
 }
 
-export default function CongressLandingClient() {
+export default function CongressLandingClient({ initialCongress }: { initialCongress?: any }) {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
-  const [congress, setCongress] = useState<CongresoData | null>(null)
+  const [congress, setCongress] = useState<CongresoData | null>(initialCongress || null)
   const [products, setProducts] = useState<any[]>([])
   const [clientName, setClientName] = useState<string | null>(null)
   const [greetingMsg, setGreetingMsg] = useState<string | null>(null)
   const [currentClientId, setCurrentClientId] = useState<string | null>(null)
   const [clientRole, setClientRole] = useState<'médico' | 'distribuidor' | null>(null)
   const [processingWorkshop, setProcessingWorkshop] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!initialCongress)
   const [error, setError] = useState<string | null>(null)
 
   // Cart & Pre-order States
@@ -270,6 +270,18 @@ export default function CongressLandingClient() {
   }
 
   useEffect(() => {
+    if (initialCongress) {
+      if (initialCongress.specialty_ids?.length > 0) {
+        const params = new URLSearchParams()
+        initialCongress.specialty_ids.forEach((sid: string) => params.append('specialty_ids', sid))
+        fetch(`/api/products/filter?${params.toString()}`)
+          .then(r => r.json())
+          .then(d => { if (d.data) setProducts(d.data) })
+          .catch(console.error)
+      }
+      return
+    }
+
     async function loadData() {
       try {
         const res = await fetch(`/api/congresos/${id}`)
@@ -292,7 +304,7 @@ export default function CongressLandingClient() {
       }
     }
     loadData()
-  }, [id])
+  }, [id, initialCongress])
 
   useEffect(() => {
     const greeting = searchParams.get('greeting')

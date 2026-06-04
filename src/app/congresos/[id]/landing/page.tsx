@@ -56,8 +56,42 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function Page({ params }: Props) {
-  // We await params here to conform to Next.js API, but client component will also resolve its params using useParams()
-  await params
+  const { id } = await params
 
-  return <CongressLandingClient />
+  const congressData = await prisma.congresos.findUnique({
+    where: { id },
+    include: {
+      workshops: {
+        include: {
+          enrollments: {
+            select: { client_id: true }
+          }
+        }
+      },
+      contacts: true,
+      congress_catalogos: {
+        include: {
+          catalog: true
+        }
+      },
+      itinerary_items: {
+        orderBy: [
+          { date: 'asc' },
+          { time: 'asc' }
+        ]
+      },
+      travelers: {
+        orderBy: { name: 'asc' }
+      },
+      gastos_estimados: {
+        include: {
+          category: true
+        }
+      }
+    }
+  })
+
+  const initialCongress = congressData ? JSON.parse(JSON.stringify(congressData)) : null
+
+  return <CongressLandingClient initialCongress={initialCongress} />
 }
