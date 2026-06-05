@@ -117,6 +117,9 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState<SortField>('description')
   const [sortAsc, setSortAsc] = useState(true)
+  const [lineFilter, setLineFilter] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
 
   // Modal state
   const [modal, setModal] = useState<'create' | 'edit' | 'delete' | null>(null)
@@ -289,6 +292,14 @@ export default function ProductsPage() {
 
   // ─── Derived Data ───────────────────────────────────────────────────────
 
+  const uniqueLines = useMemo(() => {
+    const lines = new Set<string>()
+    products.forEach(p => {
+      if (p.line) lines.add(p.line)
+    })
+    return Array.from(lines).sort()
+  }, [products])
+
   const filteredAndSorted = useMemo(() => {
     let result = products
     if (search) {
@@ -300,6 +311,9 @@ export default function ProductsPage() {
         (p.line?.toLowerCase() || '').includes(q)
       )
     }
+    if (lineFilter) {
+      result = result.filter(p => p.line === lineFilter)
+    }
     return [...result].sort((a, b) => {
       const aVal = a[sortField]
       const bVal = b[sortField]
@@ -309,7 +323,16 @@ export default function ProductsPage() {
       const cmp = aVal < bVal ? -1 : 1
       return sortAsc ? cmp : -cmp
     })
-  }, [products, search, sortField, sortAsc])
+  }, [products, search, lineFilter, sortField, sortAsc])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, lineFilter, perPage])
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * perPage
+    return filteredAndSorted.slice(start, start + perPage)
+  }, [filteredAndSorted, currentPage, perPage])
 
   const formatCurrency = (val: number | null) => {
     if (val === null) return '-'
@@ -317,11 +340,10 @@ export default function ProductsPage() {
   }
 
   const exportToExcel = () => {
-    const headers = [t('description'), t('model'), t('orderCode'), t('line'), t('salePrice'), t('baseHospitalPrice')]
+    const headers = [t('description'), t('model'), t('line'), t('salePrice'), t('baseHospitalPrice')]
     const rows = filteredAndSorted.map(p => [
       p.description,
       p.model || '',
-      p.order_code || '',
       p.line || '',
       p.sale_price !== null ? p.sale_price : '',
       p.base_hospital_price !== null ? p.base_hospital_price : '',
@@ -342,7 +364,6 @@ export default function ProductsPage() {
     { key: 'image_urls', label: 'Imagen', sortable: false },
     { key: 'description', label: t('description'), sortable: true },
     { key: 'model', label: t('model'), sortable: true },
-    { key: 'order_code', label: t('orderCode'), sortable: true },
     { key: 'line', label: t('line'), sortable: true },
     { key: 'sale_price', label: t('salePrice'), sortable: true },
     { key: 'base_hospital_price', label: t('baseHospitalPrice'), sortable: true },
@@ -387,9 +408,9 @@ export default function ProductsPage() {
           </div>
         </header>
 
-        {/* Search */}
-        <div className="card p-4">
-          <div className="relative">
+        {/* Filters */}
+        <div className="card p-4 flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               id="product-search"
@@ -408,6 +429,18 @@ export default function ProductsPage() {
                 <X size={16} />
               </button>
             )}
+          </div>
+          <div className="w-full sm:w-64">
+            <select
+              value={lineFilter}
+              onChange={(e) => setLineFilter(e.target.value)}
+              className="erp-input"
+            >
+              <option value="">Todas las líneas</option>
+              {uniqueLines.map(l => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -449,7 +482,7 @@ export default function ProductsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredAndSorted.map(product => (
+                  {paginatedProducts.map(product => (
                     <tr key={product.id} className="hover:bg-blue-50/30 transition-colors">
                       <td className="p-4">
                         {product.image_urls && product.image_urls.length > 0 ? (
@@ -463,13 +496,12 @@ export default function ProductsPage() {
                         )}
                       </td>
                       <td className="p-4">
-                        <div className="font-medium text-gray-900">{[product.description, product.model, product.order_code].filter(Boolean).join(' - ')}</div>
+                        <div className="font-medium text-gray-900">{[product.description, product.model].filter(Boolean).join(' - ')}</div>
                         {product.generic_description && (
                           <div className="text-xs text-gray-500 mt-0.5">{product.generic_description}</div>
                         )}
                       </td>
                       <td className="p-4 text-sm text-gray-600 whitespace-nowrap">{product.model || '-'}</td>
-                      <td className="p-4 text-sm text-gray-600 whitespace-nowrap">{product.order_code || '-'}</td>
                       <td className="p-4 text-sm text-gray-600 whitespace-nowrap">{product.line || '-'}</td>
                       <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{formatCurrency(product.sale_price)}</td>
                       <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{formatCurrency(product.base_hospital_price)}</td>
@@ -497,7 +529,7 @@ export default function ProductsPage() {
                       </td>
                     </tr>
                   ))}
-                  {filteredAndSorted.length === 0 && (
+                  {paginatedProducts.length === 0 && (
                     <tr>
                       <td colSpan={7} className="p-8 text-center text-gray-500">
                         {t('noResults')}
@@ -507,9 +539,50 @@ export default function ProductsPage() {
                 </tbody>
               </table>
             </div>
-            <div className="p-4 border-t border-gray-100 bg-gray-50/30 text-xs text-gray-500 text-right">
-              {filteredAndSorted.length} {t('products').toLowerCase()}
-              {search && ` de ${products.length} total`}
+            
+            {/* Pagination Controls */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <span>Mostrar</span>
+                <select
+                  value={perPage}
+                  onChange={(e) => setPerPage(Number(e.target.value))}
+                  className="erp-input py-1 px-2 text-sm w-auto min-h-0"
+                >
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+                <span>por página</span>
+              </div>
+              
+              <div>
+                {filteredAndSorted.length > 0 ? (
+                  <span>
+                    Mostrando {(currentPage - 1) * perPage + 1} a {Math.min(currentPage * perPage, filteredAndSorted.length)} de {filteredAndSorted.length} {t('products').toLowerCase()}
+                  </span>
+                ) : (
+                  <span>0 {t('products').toLowerCase()}</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredAndSorted.length / perPage), p + 1))}
+                  disabled={currentPage === Math.ceil(filteredAndSorted.length / perPage) || filteredAndSorted.length === 0}
+                  className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Siguiente
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -648,7 +721,7 @@ export default function ProductsPage() {
                 className="erp-input"
               >
                 <option value="">-- Seleccionar --</option>
-                {PRODUCT_LINES.map(l => <option key={l} value={l}>{l}</option>)}
+                {uniqueLines.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
           </div>
@@ -763,7 +836,7 @@ export default function ProductsPage() {
               <p className="text-sm font-medium text-red-800">¿Estás seguro?</p>
               <p className="text-sm text-red-600 mt-0.5">
                 Eliminarás permanentemente el producto{' '}
-                <strong>"{[selectedProduct?.description, selectedProduct?.model, selectedProduct?.order_code].filter(Boolean).join(' - ')}"</strong>.
+                <strong>"{[selectedProduct?.description, selectedProduct?.model].filter(Boolean).join(' - ')}"</strong>.
                 Esta acción no se puede deshacer.
               </p>
             </div>

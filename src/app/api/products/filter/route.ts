@@ -8,17 +8,25 @@ export async function GET(request: NextRequest) {
   const specialtyIds = searchParams.getAll('specialty_ids')
 
   try {
-    const products = await prisma.products.findMany({
+    const products = await prisma.productos.findMany({
       where: specialtyIds.length > 0 ? {
         specialty_ids: {
           hasSome: specialtyIds
         }
       } : {},
       orderBy: {
-        description: 'asc'
+        nombre: 'asc'
       }
     })
-    return NextResponse.json({ data: products })
+    const mapped = products.map((p: any) => ({
+      ...p,
+      description: p.nombre,
+      sale_price: p.precio_unitario !== null ? Number(p.precio_unitario) : null,
+      base_hospital_price: p.base_hospital_price !== null ? Number(p.base_hospital_price) : null,
+      category: p.categoria,
+      type: p.tipo
+    }))
+    return NextResponse.json({ data: mapped })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

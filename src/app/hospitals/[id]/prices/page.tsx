@@ -53,7 +53,7 @@ export default function HospitalPricesPage({ params }: { params: Promise<{ id: s
 
       // Fetch products
       const { data: productsData, error: pErr } = await supabase
-        .from('products')
+        .from('productos')
         .select('*')
         
       if (pErr) throw pErr
@@ -75,6 +75,7 @@ export default function HospitalPricesPage({ params }: { params: Promise<{ id: s
         const hp = priceMap.get(p.id)
         return {
           ...p,
+          description: p.nombre,
           hospital_price: hp ? hp.price : null,
           price_id: hp ? hp.id : null,
           pending: hp ? hp.pending : false

@@ -453,11 +453,10 @@ model users {
   webauthn_credentials        webauthn_credentials[]
   cartas_distribucion         cartas_distribucion[]
   eventos                     eventos[]
-  gastos_legacy               gastos_legacy[]        @ignore
+  gastos_legacy               gastos_legacy[] @ignore
   ordenes_compra              ordenes_compra[]
-  user_profiles               user_profiles?
   tickets                     tickets[]
-  ticket_updates              ticket_updates[]
+  user_profiles               user_profiles?
 
   @@index([created_at(sort: Desc)], map: "idx_users_created_at_desc")
   @@index([email], map: "idx_users_email")
@@ -523,19 +522,19 @@ model cartas_distribucion {
 
 /// Cirugías — main surgery record
 model cirugias {
-  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nombre           String
-  medico           String
-  descripcion      String?
-  fecha            DateTime            @db.Timestamptz(6)
-  estado           String              @default("programada")
-  notas            String?
-  created_at       DateTime?           @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime?           @default(now()) @db.Timestamptz(6)
-  cirugia_equipo   cirugia_equipo[]
-  cirugia_productos cirugia_productos[]
-  cirugia_conceptos cirugia_conceptos[]
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre              String
+  medico              String
+  descripcion         String?
+  fecha               DateTime              @db.Timestamptz(6)
+  estado              String                @default("programada")
+  notas               String?
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  cirugia_conceptos   cirugia_conceptos[]
+  cirugia_equipo      cirugia_equipo[]
   cirugia_itinerarios cirugia_itinerarios[]
+  cirugia_productos   cirugia_productos[]
 
   @@index([fecha])
   @@schema("public")
@@ -543,12 +542,12 @@ model cirugias {
 
 /// Team members assisting in a surgery (linked to auth.users)
 model cirugia_equipo {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cirugia_id  String    @db.Uuid
-  user_id     String    @db.Uuid
-  rol         String?
-  created_at  DateTime? @default(now()) @db.Timestamptz(6)
-  cirugias    cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id String    @db.Uuid
+  user_id    String    @db.Uuid
+  rol        String?
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  cirugias   cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([cirugia_id, user_id])
   @@index([cirugia_id])
@@ -557,16 +556,16 @@ model cirugia_equipo {
 
 /// Products required for a surgery
 model cirugia_productos {
-  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cirugia_id       String     @db.Uuid
-  producto_id      String     @db.Uuid
-  cantidad         Int        @default(1)
-  es_consumible    Boolean    @default(false)
-  tipo_uso         String     @default("venta")
-  precio_unitario  Decimal?   @db.Decimal(12, 2)
-  created_at       DateTime?  @default(now()) @db.Timestamptz(6)
-  cirugias         cirugias   @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  productos        productos  @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id      String    @db.Uuid
+  producto_id     String    @db.Uuid
+  cantidad        Int       @default(1)
+  es_consumible   Boolean   @default(false)
+  tipo_uso        String    @default("venta")
+  precio_unitario Decimal?  @db.Decimal(12, 2)
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  cirugias        cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productos       productos @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([cirugia_id])
   @@schema("public")
@@ -589,15 +588,15 @@ model cirugia_conceptos {
 
 /// Itinerary / Activities for a surgery
 model cirugia_itinerarios {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cirugia_id  String    @db.Uuid
-  activity    String
-  date        DateTime  @db.Date
-  time        String?
-  notes       String?
-  created_at  DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
-  cirugias    cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id String    @db.Uuid
+  activity   String
+  date       DateTime  @db.Date
+  time       String?
+  notes      String?
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  cirugias   cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([cirugia_id])
   @@schema("public")
@@ -605,20 +604,20 @@ model cirugia_itinerarios {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model catalog_specialties {
-  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String      @unique
-  created_at DateTime    @default(now()) @db.Timestamptz(6)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @unique
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@schema("public")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model catalog_spending_categories {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String   @unique
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  gastos     gastos[]
+  id               String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String                      @unique
+  created_at       DateTime                    @default(now()) @db.Timestamptz(6)
   gastos_estimados congreso_gastos_estimados[]
+  gastos           gastos[]
 
   @@schema("public")
 }
@@ -682,9 +681,9 @@ model clientes {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model clients {
-  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  created_at           DateTime               @default(now()) @db.Timestamptz(6)
-  registered_at        DateTime?              @db.Timestamptz(6)
+  id                   String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at           DateTime                        @default(now()) @db.Timestamptz(6)
+  registered_at        DateTime?                       @db.Timestamptz(6)
   name                 String
   rfc                  String?
   zip_code             String?
@@ -698,24 +697,23 @@ model clients {
   hospitals            String[]
   specialties          String[]
   tax_regime           String?
-  status               String                 @default("Nuevo Prospecto")
+  status               String                          @default("Nuevo Prospecto")
   notes                String?
   tags                 String[]
   assigned_to          String?
-  last_contact_at      DateTime?              @db.Timestamptz(6)
-  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  last_contact_at      DateTime?                       @db.Timestamptz(6)
+  updated_at           DateTime                        @default(now()) @db.Timestamptz(6)
   source               String?
-  distributor_id       String?                @unique
-  letter_created_at    DateTime?              @db.Date
-  letter_expires_at    DateTime?              @db.Date
+  distributor_id       String?                         @unique
+  letter_created_at    DateTime?                       @db.Date
+  letter_expires_at    DateTime?                       @db.Date
   client_activities    client_activities[]
   client_custom_fields client_custom_fields[]
+  workshop_enrollments congress_workshop_enrollments[]
   distributor_letters  distributor_letters[]
+  garantias            garantias[]
   orders               orders[]
   product_prices       product_prices[]
-  workshop_enrollments congress_workshop_enrollments[]
-  garantias            garantias[]
-  user_profiles        user_profiles[]
 
   @@index([status])
   @@index([distributor_id], map: "idx_clients_distributor_id")
@@ -740,45 +738,44 @@ model congreso_files {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model congresos {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String
-  start_date          DateTime             @db.Date
-  end_date            DateTime             @db.Date
-  location            String
-  description         String
-  flyer               String?
-  specialty_ids       String[]
-  terms_doctor        String?
-  terms_distributor   String?
-  enable_workshops    Boolean              @default(true)
-  global_budget       Decimal?             @db.Decimal(10, 2)
-  video_urls          String[]             @default([])
-  created_at          DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime             @default(now()) @db.Timestamptz(6)
-  congreso_files      congreso_files[]
-  gastos              gastos[]
-  workshops           congress_workshops[]
-  contacts            congress_contacts[]
-  orders              orders[]
-  congress_catalogos  congress_catalogos[]
-  itinerary_items     congreso_itinerarios[]
-  travelers           congreso_viajeros[]
-  gastos_estimados    congreso_gastos_estimados[]
+  id                 String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  start_date         DateTime                    @db.Date
+  end_date           DateTime                    @db.Date
+  location           String
+  description        String
+  flyer              String?
+  created_at         DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime                    @default(now()) @db.Timestamptz(6)
+  specialty_ids      String[]
+  terms_distributor  String?
+  terms_doctor       String?
+  enable_workshops   Boolean                     @default(true)
+  global_budget      Decimal?                    @db.Decimal(10, 2)
+  video_urls         String[]                    @default([])
+  congreso_files     congreso_files[]
+  gastos_estimados   congreso_gastos_estimados[]
+  itinerary_items    congreso_itinerarios[]
+  travelers          congreso_viajeros[]
+  congress_catalogos congress_catalogos[]
+  contacts           congress_contacts[]
+  workshops          congress_workshops[]
+  gastos             gastos[]
+  orders             orders[]
 
   @@index([start_date])
   @@schema("public")
 }
 
 model congreso_gastos_estimados {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  congreso_id String   @db.Uuid
-  category_id String   @db.Uuid
-  amount      Decimal  @db.Decimal(10, 2)
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
-
-  congreso    congresos @relation(fields: [congreso_id], references: [id], onDelete: Cascade)
+  id          String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congreso_id String                      @db.Uuid
+  category_id String                      @db.Uuid
+  amount      Decimal                     @db.Decimal(10, 2)
+  created_at  DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime                    @default(now()) @db.Timestamptz(6)
   category    catalog_spending_categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  congreso    congresos                   @relation(fields: [congreso_id], references: [id], onDelete: Cascade)
 
   @@unique([congreso_id, category_id])
   @@schema("public")
@@ -805,12 +802,12 @@ model congreso_viajeros {
   congreso_id String    @db.Uuid
   name        String
   role        String?
-  user_id     String?   @db.Uuid
   has_pin     Boolean   @default(false)
   has_gafete  Boolean   @default(false)
   notes       String?
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
   updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  user_id     String?   @db.Uuid
   congresos   congresos @relation(fields: [congreso_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([congreso_id])
@@ -818,51 +815,50 @@ model congreso_viajeros {
 }
 
 model congress_workshops {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  congress_id     String    @db.Uuid
-  name            String
-  date_time       DateTime  @db.Timestamptz(6)
-  max_people      Int
-  cost            Decimal?  @db.Decimal(10, 2)
-  professor       String
-  congress        congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
-  enrollments     congress_workshop_enrollments[]
+  id          String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congress_id String                          @db.Uuid
+  name        String
+  date_time   DateTime                        @db.Timestamptz(6)
+  max_people  Int
+  cost        Decimal?                        @db.Decimal(10, 2)
+  professor   String
+  enrollments congress_workshop_enrollments[]
+  congress    congresos                       @relation(fields: [congress_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
 }
 
 model congress_workshop_enrollments {
-  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workshop_id     String             @db.Uuid
-  client_id       String             @db.Uuid
-  created_at      DateTime           @default(now()) @db.Timestamptz(6)
-
-  workshop        congress_workshops @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
-  client          clients            @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workshop_id String             @db.Uuid
+  client_id   String             @db.Uuid
+  created_at  DateTime           @default(now()) @db.Timestamptz(6)
+  client      clients            @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  workshop    congress_workshops @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
 
   @@unique([workshop_id, client_id])
   @@schema("public")
 }
 
 model congress_contacts {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  congress_id     String    @db.Uuid
-  name            String
-  number          String?
-  email           String?
-  congress        congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congress_id String    @db.Uuid
+  name        String
+  number      String?
+  email       String?
+  congress    congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
 }
 
 model catalogos {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String
-  pdf_url             String
-  description         String?
-  created_at          DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime             @default(now()) @db.Timestamptz(6)
-  congress_catalogos  congress_catalogos[]
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  pdf_url            String
+  description        String?
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  congress_catalogos congress_catalogos[]
 
   @@schema("public")
 }
@@ -871,8 +867,8 @@ model congress_catalogos {
   congress_id String    @db.Uuid
   catalog_id  String    @db.Uuid
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  congress    congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
   catalog     catalogos @relation(fields: [catalog_id], references: [id], onDelete: Cascade)
+  congress    congresos @relation(fields: [congress_id], references: [id], onDelete: Cascade)
 
   @@id([congress_id, catalog_id])
   @@schema("public")
@@ -996,24 +992,24 @@ model eventos {
   created_at        DateTime?           @default(now()) @db.Timestamptz(6)
   evento_inventario evento_inventario[]
   users             users?              @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  gastos_legacy     gastos_legacy[]     @ignore
+  gastos_legacy     gastos_legacy[] @ignore
 
   @@schema("public")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model factura_productos {
-  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  factura_id         String           @db.Uuid
-  producto_id        String?          @db.Uuid
-  producto_nombre    String
-  producto_codigo    String?
-  cantidad_facturada Int
-  cantidad_entregada Int              @default(0)
-  cantidad_pendiente Int?             @default(dbgenerated("(cantidad_facturada - cantidad_entregada)"))
-  precio_unitario    Decimal?         @default(0) @db.Decimal(12, 2)
-  importe            Decimal?         @default(0) @db.Decimal(12, 2)
-  created_at         DateTime?        @default(now()) @db.Timestamptz(6)
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  factura_id               String                     @db.Uuid
+  producto_id              String?                    @db.Uuid
+  producto_nombre          String
+  producto_codigo          String?
+  cantidad_facturada       Int
+  cantidad_entregada       Int                        @default(0)
+  cantidad_pendiente       Int?                       @default(dbgenerated("(cantidad_facturada - cantidad_entregada)"))
+  precio_unitario          Decimal?                   @default(0) @db.Decimal(12, 2)
+  importe                  Decimal?                   @default(0) @db.Decimal(12, 2)
+  created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
   facturas_cliente         facturas_cliente           @relation(fields: [factura_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   productos                productos?                 @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   importacion_asignaciones importacion_asignaciones[]
@@ -1033,7 +1029,6 @@ model facturas_cliente {
   fecha_vencimiento DateTime            @db.Date
   prioridad         String              @default("normal")
   estado            String              @default("pendiente")
-  estado_surtido    String              @default("no_surtida")
   subtotal          Decimal?            @default(0) @db.Decimal(12, 2)
   iva               Decimal?            @default(0) @db.Decimal(12, 2)
   total             Decimal?            @default(0) @db.Decimal(12, 2)
@@ -1041,9 +1036,10 @@ model facturas_cliente {
   observaciones     String?
   created_at        DateTime?           @default(now()) @db.Timestamptz(6)
   updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  alegra_id         String?             @unique
   fecha_pago        DateTime?           @db.Date
   metodo_pago       String?             @db.VarChar(100)
-  alegra_id         String?             @unique
+  estado_surtido    String              @default("no_surtida")
   factura_productos factura_productos[]
   clientes          clientes?           @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   remisiones        remisiones[]
@@ -1084,7 +1080,6 @@ model gastos {
   iva                         Decimal                      @default(0) @db.Decimal(10, 2)
   total                       Decimal                      @default(0) @db.Decimal(10, 2)
   comments                    String?
-  card                        String?
   congress_id                 String?                      @db.Uuid
   created_at                  DateTime                     @default(now()) @db.Timestamptz(6)
   updated_at                  DateTime                     @default(now()) @db.Timestamptz(6)
@@ -1095,6 +1090,7 @@ model gastos {
   is_billable                 Boolean                      @default(false)
   is_billed                   Boolean                      @default(false)
   expense_date                DateTime?                    @default(now()) @db.Timestamptz(6)
+  card                        String?
   gasto_attachments           gasto_attachments[]
   catalog_spending_categories catalog_spending_categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   congresos                   congresos?                   @relation(fields: [congress_id], references: [id], onUpdate: NoAction)
@@ -1272,7 +1268,6 @@ model orders {
   id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   client_id        String        @db.Uuid
   hospital_id      String?       @db.Uuid
-  congress_id      String?       @db.Uuid
   status           String        @default("pending")
   total_amount     Decimal       @db.Decimal(12, 2)
   currency         String?       @default("MXN")
@@ -1280,6 +1275,7 @@ model orders {
   shipping_address String?
   created_at       DateTime      @default(now()) @db.Timestamptz(6)
   updated_at       DateTime      @default(now()) @db.Timestamptz(6)
+  congress_id      String?       @db.Uuid
   order_items      order_items[]
   clients          clients       @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   congresos        congresos?    @relation(fields: [congress_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1398,11 +1394,11 @@ model product_prices {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model productos {
-  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre                 String
-  precio_unitario        Decimal              @db.Decimal
-  activo                 Boolean?             @default(true)
-  created_at             DateTime?            @default(now()) @db.Timestamp(6)
+  precio_unitario        Decimal                  @db.Decimal
+  activo                 Boolean?                 @default(true)
+  created_at             DateTime?                @default(now()) @db.Timestamp(6)
   categoria              String?
   tipo                   String?
   orden                  Int?
@@ -1410,19 +1406,30 @@ model productos {
   descripcion_angeles    String?
   descripcion_hospitales String?
   nombre_lista           String?
-  precio_lista           Decimal?             @db.Decimal
-  stock_actual           Int?                 @default(0)
-  stock_updated_at       DateTime?            @db.Timestamptz(6)
+  precio_lista           Decimal?                 @db.Decimal
+  stock_actual           Int?                     @default(0)
+  stock_updated_at       DateTime?                @db.Timestamptz(6)
+  alg_description        String?
+  base_hospital_price    Decimal?                 @db.Decimal(10, 2)
+  generic_description    String?
+  image_urls             String[]
+  invoice_concept        String?
+  line                   String?
+  measurements           String?
+  model                  String?
+  new_alg_description    String?
+  order_code             String?
+  specialty_ids          String[]
+  cirugia_productos      cirugia_productos[]
   detalle_plan_pago      detalle_plan_pago[]
   evento_inventario      evento_inventario[]
   factura_productos      factura_productos[]
+  garantias              garantias[]
   inventario_lotes       inventario_lotes[]
+  inventario_movimientos inventario_movimientos[]
+  inventario_productos   inventario_productos[]
   orden_productos        orden_productos[]
   remision_productos     remision_productos[]
-  cirugia_productos      cirugia_productos[]
-  garantias              garantias[]
-  inventario_productos   inventario_productos[]
-  inventario_movimientos inventario_movimientos[]
 
   @@schema("public")
 }
@@ -1442,11 +1449,11 @@ model products {
   base_hospital_price Decimal?          @db.Decimal(10, 2)
   line                String?
   type                String?
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime          @default(now()) @db.Timestamptz(6)
   category            String?
   specialty_ids       String[]
   image_urls          String[]
-  created_at          DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime          @default(now()) @db.Timestamptz(6)
   hospital_prices     hospital_prices[]
 
   @@schema("public")
@@ -1489,7 +1496,7 @@ model remisiones {
   paqueteria          String?
   editado_por_nombre  String?               @db.VarChar(255)
   fecha_edicion       DateTime?             @db.Timestamptz(6)
-  gastos_legacy       gastos_legacy[]       @ignore
+  gastos_legacy       gastos_legacy[] @ignore
   remision_productos  remision_productos[]
   clientes            clientes?             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   perfiles            perfiles?             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1617,24 +1624,23 @@ model unidades_inventario {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model user_profiles {
-  id                   String    @id @db.Uuid
-  email                String    @unique
-  role                 user_role @default(user)
-  permissions          Json?     @default("{}")
-  created_at           DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime? @default(now()) @db.Timestamptz(6)
-  role_id              String?   @db.Uuid
-  whatsapp             String?
-  first_name           String?   @db.VarChar(255)
-  last_name            String?   @db.VarChar(255)
-  position             String?   @db.VarChar(255)
-  permission_overrides Json?     @default("{}")
-  client_id            String?   @db.Uuid
-  clients              clients?  @relation(fields: [client_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  users                users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  roles                roles?    @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  movimientos_hechos      inventario_movimientos[] @relation("movimiento_usuario")
+  id                      String                   @id @db.Uuid
+  email                   String                   @unique
+  role                    user_role                @default(user)
+  permissions             Json?                    @default("{}")
+  created_at              DateTime?                @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime?                @default(now()) @db.Timestamptz(6)
+  role_id                 String?                  @db.Uuid
+  permission_overrides    Json?                    @default("{}")
+  whatsapp                String?
+  first_name              String?                  @db.VarChar(255)
+  last_name               String?                  @db.VarChar(255)
+  position                String?                  @db.VarChar(255)
+  client_id               String?                  @db.Uuid
   movimientos_autorizados inventario_movimientos[] @relation("movimiento_autorizador")
+  movimientos_hechos      inventario_movimientos[] @relation("movimiento_usuario")
+  users                   users                    @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  roles                   roles?                   @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -1667,26 +1673,139 @@ model whatsapp_messages {
 }
 
 model garantias {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cliente_id        String?   @db.Uuid
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id        String?    @db.Uuid
   cliente_nombre    String
-  producto_id       String?   @db.Uuid
+  producto_id       String?    @db.Uuid
   producto_nombre   String
   numero_serie      String?
   modelo            String?
   descripcion_falla String
-  estado            String    @default("recibido")
-  fecha_recepcion   DateTime  @default(now()) @db.Timestamptz(6)
-  fecha_resolucion  DateTime? @db.Timestamptz(6)
+  estado            String     @default("recibido")
+  fecha_recepcion   DateTime   @default(now()) @db.Timestamptz(6)
+  fecha_resolucion  DateTime?  @db.Timestamptz(6)
   diagnostico       String?
   resolucion        String?
-  costo_reparacion  Decimal?  @db.Decimal(12, 2)
+  costo_reparacion  Decimal?   @db.Decimal(12, 2)
   notas             String?
-  created_at        DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime  @default(now()) @db.Timestamptz(6) @updatedAt
+  created_at        DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+  clients           clients?   @relation(fields: [cliente_id], references: [id], onUpdate: NoAction)
+  productos         productos? @relation(fields: [producto_id], references: [id], onUpdate: NoAction)
 
-  clients           clients?   @relation(fields: [cliente_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  productos         productos? @relation(fields: [producto_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@schema("public")
+}
+
+model importaciones_recepcion {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fecha            DateTime            @default(now()) @db.Timestamptz(6)
+  status           String              @default("pending")
+  created_at       DateTime            @default(now()) @db.Timestamptz(6)
+  invoice_id_china String?
+  items            importacion_items[]
+
+  @@schema("public")
+}
+
+model importacion_items {
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  importacion_id    String                     @db.Uuid
+  producto_nombre   String
+  cantidad_recibida Int
+  cantidad_asignada Int                        @default(0)
+  created_at        DateTime                   @default(now()) @db.Timestamptz(6)
+  asignaciones      importacion_asignaciones[]
+  importacion       importaciones_recepcion    @relation(fields: [importacion_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model importacion_asignaciones {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id             String            @db.Uuid
+  factura_producto_id String            @db.Uuid
+  cantidad_asignada   Int
+  ai_reasoning        String?
+  manual_adjustment   Boolean           @default(false)
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  factura_producto    factura_productos @relation(fields: [factura_producto_id], references: [id], onDelete: Cascade)
+  importacion_item    importacion_items @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model app_settings {
+  key        String   @id
+  value      Json
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model tipos_inventario {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre                 String                   @unique
+  descripcion            String?
+  activo                 Boolean                  @default(true)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  inventario_movimientos inventario_movimientos[]
+  productos              inventario_productos[]
+
+  @@schema("public")
+}
+
+model inventario_productos {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo_inventario_id String           @db.Uuid
+  producto_id        String           @db.Uuid
+  stock_actual       Int              @default(0)
+  stock_updated_at   DateTime         @default(now()) @db.Timestamptz(6)
+  productos          productos        @relation(fields: [producto_id], references: [id], onDelete: Cascade)
+  tipos_inventario   tipos_inventario @relation(fields: [tipo_inventario_id], references: [id], onDelete: Cascade)
+
+  @@unique([tipo_inventario_id, producto_id])
+  @@schema("public")
+}
+
+model inventario_movimientos {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo_movimiento    String           @default("SALIDA_MANUAL")
+  producto_id        String           @db.Uuid
+  tipo_inventario_id String           @db.Uuid
+  cantidad           Int
+  motivo             String?
+  usuario_id         String?          @db.Uuid
+  autorizador_id     String?          @db.Uuid
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  autorizador        user_profiles?   @relation("movimiento_autorizador", fields: [autorizador_id], references: [id])
+  productos          productos        @relation(fields: [producto_id], references: [id], onDelete: Cascade)
+  tipos_inventario   tipos_inventario @relation(fields: [tipo_inventario_id], references: [id], onDelete: Cascade)
+  usuario            user_profiles?   @relation("movimiento_usuario", fields: [usuario_id], references: [id])
+
+  @@schema("public")
+}
+
+model tickets {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  title       String
+  description String?
+  reporter_id String   @db.Uuid
+  assignee    String?  @default("Unassigned")
+  status      String   @default("open")
+  users       users    @relation(fields: [reporter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model ticket_updates {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id  String   @db.Uuid
+  user_id    String   @db.Uuid
+  content    String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@schema("public")
 }
@@ -1765,127 +1884,6 @@ enum user_role {
   superadmin
   admin
   user
-
-  @@schema("public")
-}
-
-model importaciones_recepcion {
-  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fecha            DateTime            @default(now()) @db.Timestamptz(6)
-  status           String              @default("pending")
-  invoice_id_china String?
-  created_at       DateTime            @default(now()) @db.Timestamptz(6)
-  items            importacion_items[]
-
-  @@schema("public")
-}
-
-model importacion_items {
-  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  importacion_id    String                     @db.Uuid
-  producto_nombre   String
-  cantidad_recibida Int
-  cantidad_asignada Int                        @default(0)
-  created_at        DateTime                   @default(now()) @db.Timestamptz(6)
-  importacion       importaciones_recepcion    @relation(fields: [importacion_id], references: [id], onDelete: Cascade)
-  asignaciones      importacion_asignaciones[]
-
-  @@schema("public")
-}
-
-model importacion_asignaciones {
-  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  item_id             String            @db.Uuid
-  factura_producto_id String            @db.Uuid
-  cantidad_asignada   Int
-  ai_reasoning        String?
-  manual_adjustment   Boolean           @default(false)
-  created_at          DateTime          @default(now()) @db.Timestamptz(6)
-  importacion_item    importacion_items @relation(fields: [item_id], references: [id], onDelete: Cascade)
-  factura_producto    factura_productos @relation(fields: [factura_producto_id], references: [id], onDelete: Cascade)
-
-  @@schema("public")
-}
-
-model app_settings {
-  key        String   @id
-  value      Json
-  updated_at DateTime @default(now()) @db.Timestamptz(6)
-
-  @@schema("public")
-}
-
-model tipos_inventario {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nombre      String   @unique
-  descripcion String?
-  activo      Boolean  @default(true)
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
-
-  productos              inventario_productos[]
-  inventario_movimientos inventario_movimientos[]
-  
-  @@schema("public")
-}
-
-model inventario_productos {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tipo_inventario_id String   @db.Uuid
-  producto_id        String   @db.Uuid
-  stock_actual       Int      @default(0)
-  stock_updated_at   DateTime @default(now()) @db.Timestamptz(6)
-
-  tipos_inventario tipos_inventario @relation(fields: [tipo_inventario_id], references: [id], onDelete: Cascade)
-  productos        productos        @relation(fields: [producto_id], references: [id], onDelete: Cascade)
-
-  @@unique([tipo_inventario_id, producto_id])
-  @@schema("public")
-}
-
-model inventario_movimientos {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tipo_movimiento    String   @default("SALIDA_MANUAL")
-  producto_id        String   @db.Uuid
-  tipo_inventario_id String   @db.Uuid
-  cantidad           Int
-  motivo             String?
-  usuario_id         String?  @db.Uuid
-  autorizador_id     String?  @db.Uuid
-  created_at         DateTime @default(now()) @db.Timestamptz(6)
-
-  productos        productos        @relation(fields: [producto_id], references: [id], onDelete: Cascade)
-  tipos_inventario tipos_inventario @relation(fields: [tipo_inventario_id], references: [id], onDelete: Cascade)
-  usuario          user_profiles?   @relation("movimiento_usuario", fields: [usuario_id], references: [id])
-  autorizador      user_profiles?   @relation("movimiento_autorizador", fields: [autorizador_id], references: [id])
-
-  @@schema("public")
-}
-
-model tickets {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
-  title       String
-  description String?
-  reporter_id String   @db.Uuid
-  assignee    String?  @default("Unassigned")
-  status      String   @default("open")
-  users       users    @relation(fields: [reporter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  ticket_updates ticket_updates[]
-
-  @@schema("public")
-}
-
-model ticket_updates {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ticket_id  String   @db.Uuid
-  user_id    String   @db.Uuid
-  content    String
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-
-  tickets    tickets  @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
-  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }

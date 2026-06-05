@@ -29,16 +29,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     
     let productMap = new Map()
     if (productIds.length > 0) {
-      const products = await prisma.products.findMany({
+      const products = await prisma.productos.findMany({
         where: { id: { in: productIds } },
         select: {
           id: true,
-          description: true,
+          nombre: true,
           model: true,
           order_code: true
         }
       })
-      products.forEach((p: any) => productMap.set(p.id, p))
+      products.forEach((p: any) => productMap.set(p.id, { ...p, description: p.nombre }))
     }
 
     const decoratedOrders = orders.map((order: any) => ({

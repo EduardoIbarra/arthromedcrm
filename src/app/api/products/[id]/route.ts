@@ -9,9 +9,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const data = await prisma.products.findUnique({ where: { id } })
+    const data = await prisma.productos.findUnique({ where: { id } })
     if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: { ...data, description: data.nombre, sale_price: data.precio_unitario, category: data.categoria, type: data.tipo } })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -46,10 +46,10 @@ export async function PUT(
       return NextResponse.json({ error: 'La descripción es requerida' }, { status: 400 })
     }
 
-    const data = await prisma.products.update({
+    const data = await prisma.productos.update({
       where: { id },
       data: {
-        description,
+        nombre: description,
         model: model || null,
         order_code: order_code || null,
         invoice_concept: invoice_concept || null,
@@ -57,14 +57,13 @@ export async function PUT(
         new_alg_description: new_alg_description || null,
         measurements: measurements || null,
         alg_description: alg_description || null,
-        sale_price: sale_price !== '' && sale_price !== null ? Number(sale_price) : null,
+        precio_unitario: sale_price !== '' && sale_price !== null ? Number(sale_price) : null,
         base_hospital_price: base_hospital_price !== '' && base_hospital_price !== null ? Number(base_hospital_price) : null,
         line: line || null,
-        type: type || 'consumable',
-        category: category || null,
+        tipo: type || 'consumable',
+        categoria: category || null,
         specialty_ids: specialty_ids || [],
         image_urls: image_urls || [],
-        updated_at: new Date(),
       },
     })
 
@@ -81,7 +80,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    await prisma.products.delete({ where: { id } })
+    await prisma.productos.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('Error in DELETE /api/products/[id]:', err)

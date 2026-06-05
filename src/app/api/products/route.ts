@@ -5,10 +5,18 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const data = await prisma.products.findMany({
-      orderBy: { description: 'asc' },
+    const data = await prisma.productos.findMany({
+      orderBy: { nombre: 'asc' },
     })
-    return NextResponse.json({ data })
+    const mapped = data.map((p: any) => ({
+      ...p,
+      description: p.nombre,
+      sale_price: p.precio_unitario !== null ? Number(p.precio_unitario) : null,
+      base_hospital_price: p.base_hospital_price !== null ? Number(p.base_hospital_price) : null,
+      category: p.categoria,
+      type: p.tipo
+    }))
+    return NextResponse.json({ data: mapped })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -39,9 +47,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'La descripción es requerida' }, { status: 400 })
     }
 
-    const data = await prisma.products.create({
+    const data = await prisma.productos.create({
       data: {
-        description,
+        nombre: description,
         model: model || null,
         order_code: order_code || null,
         invoice_concept: invoice_concept || null,
@@ -49,11 +57,11 @@ export async function POST(request: NextRequest) {
         new_alg_description: new_alg_description || null,
         measurements: measurements || null,
         alg_description: alg_description || null,
-        sale_price: sale_price !== '' && sale_price !== null ? Number(sale_price) : null,
+        precio_unitario: sale_price !== '' && sale_price !== null ? Number(sale_price) : null,
         base_hospital_price: base_hospital_price !== '' && base_hospital_price !== null ? Number(base_hospital_price) : null,
         line: line || null,
-        type: type || 'consumable',
-        category: category || null,
+        tipo: type || 'consumable',
+        categoria: category || null,
         specialty_ids: specialty_ids || [],
         image_urls: image_urls || [],
       },
