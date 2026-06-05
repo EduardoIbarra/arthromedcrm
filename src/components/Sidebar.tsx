@@ -47,7 +47,7 @@ export default function Sidebar() {
         { href: '/clients/new', icon: UserPlus, label: t('newClient'), section: 'clients', action: 'create' },
         { href: '/products', icon: Package, label: t('products'), section: 'products' },
         { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
-        { href: '/doctors', icon: Stethoscope, label: t('doctors' as any) || 'Doctores', section: 'clients' },
+        { href: '/doctors', icon: Stethoscope, label: t('doctores'), section: 'clients' },
         { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'congresos' },
       ],
     },
@@ -63,7 +63,7 @@ export default function Sidebar() {
       items: [
         { href: '/calendario', icon: CalendarDays, label: t('calendar'), section: 'congresos' },
         { href: '/congresos', icon: Calendar, label: t('congresos'), section: 'congresos' },
-        { href: '/talleres', icon: BookOpen, label: t('talleres' as any) || 'Talleres', section: 'congresos' },
+        { href: '/talleres', icon: BookOpen, label: t('talleres'), section: 'congresos' },
         { href: '/cirugias', icon: Scissors, label: t('surgeries' as any) || 'Cirugías', section: 'cirugias' },
         { href: '/garantias', icon: Wrench, label: t('warranties' as any) || 'Garantías', section: 'warranties' },
         { href: '/tickets', icon: Ticket, label: t('ticketsSidebar' as any) || 'Tickets', section: 'tickets' },

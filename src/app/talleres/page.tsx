@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit } from 'lucide-react'
 import AppShell from '@/components/AppShell'
+import { useI18n } from '@/contexts/I18nContext'
 
 interface Workshop {
   id: string
@@ -18,6 +19,7 @@ interface Workshop {
 }
 
 export default function TalleresPage() {
+  const { t } = useI18n()
   const [workshops, setWorkshops] = useState<Workshop[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -65,12 +67,12 @@ export default function TalleresPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
               <BookOpen className="text-blue-600" size={28} />
-              Talleres
+              {t('talleres')}
             </h1>
-            <p className="text-sm text-gray-500 mt-1">Gestión de talleres y cursos</p>
+            <p className="text-sm text-gray-500 mt-1">{t('workshopsDirectory')}</p>
           </div>
           <Link href="/talleres/new" className="btn-primary flex items-center gap-2">
-            <Plus size={18} /> Crear Taller
+            <Plus size={18} /> {t('createWorkshop')}
           </Link>
         </header>
 
@@ -78,7 +80,7 @@ export default function TalleresPage() {
           <Search size={20} className="text-gray-400 shrink-0" />
           <input
             type="text"
-            placeholder="Buscar talleres o congresos..."
+            placeholder={t('searchWorkshop')}
             className="w-full bg-transparent border-none focus:outline-none text-sm"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -91,7 +93,7 @@ export default function TalleresPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="card p-16 text-center text-gray-500">
-            No se encontraron talleres.
+            {t('noWorkshopsFound')}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

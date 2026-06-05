@@ -168,14 +168,14 @@ export default function DoctorsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
               <User className="text-blue-600" size={28} />
-              Directorio de Doctores
+              {t('doctorsDirectory')}
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              {t('appName')} / Doctores
+              {t('appName')} / {t('doctores')}
             </p>
           </div>
           <button onClick={openNew} className="btn-primary">
-            <Plus size={18} /> Añadir Doctor
+            <Plus size={18} /> {t('addDoctor')}
           </button>
         </header>
 
@@ -184,7 +184,7 @@ export default function DoctorsPage() {
             <Search size={20} className="text-gray-400 flex-shrink-0" />
             <input
               type="text"
-              placeholder="Buscar por nombre o especialidad..."
+              placeholder={t('searchDoctor')}
               className="w-full bg-transparent border-none focus:outline-none text-sm"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -248,7 +248,7 @@ export default function DoctorsPage() {
             ))}
             {filteredDoctors.length === 0 && (
               <div className="col-span-full text-center p-12 text-gray-500 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                No se encontraron doctores.
+                {t('noDoctorsFound')}
               </div>
             )}
           </div>
