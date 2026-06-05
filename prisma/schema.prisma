@@ -1512,6 +1512,7 @@ model remision_productos {
 model remisiones {
   id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   numero_remision     String                @unique
+  numero_factura      String?
   factura_id          String?               @db.Uuid
   cliente_id          String?               @db.Uuid
   fecha_remision      DateTime              @default(dbgenerated("CURRENT_DATE")) @db.Date
