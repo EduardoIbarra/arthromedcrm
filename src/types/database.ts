@@ -114,14 +114,35 @@ export interface Congreso {
   contacts?: Contact[]
 }
 
+export interface Doctor {
+  id: string
+  name: string
+  specialty_ids: string[] | null
+  country: string | null
+  avatar_url: string | null
+  phone: string | null
+  email: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkshopDoctor {
+  workshop_id: string
+  doctor_id: string
+  workshop?: Workshop
+  doctor?: Doctor
+}
+
 export interface Workshop {
   id: string
-  congress_id: string
+  congress_id: string | null
   name: string
   date_time: string
   max_people: number
   cost: number | null
   professor: string
+  doctors?: WorkshopDoctor[]
 }
 
 export interface Contact {

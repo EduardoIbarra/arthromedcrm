@@ -13,6 +13,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       include: {
         workshops: {
           include: {
+            doctors: {
+              include: { doctor: true }
+            },
             enrollments: {
               select: { client_id: true }
             }
@@ -115,6 +118,48 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         })
       }
 
+      // Sync Workshops and doctors
+      const incomingWorkshopsWithId = (workshops || []).filter((w: any) => w.id)
+      const incomingWorkshopsWithoutId = (workshops || []).filter((w: any) => !w.id)
+
+      for (const w of incomingWorkshopsWithId) {
+        await tx.congress_workshops.update({
+          where: { id: w.id },
+          data: {
+            congress_id: id,
+            name: w.name,
+            date_time: new Date(w.date_time),
+            max_people: Number(w.max_people),
+            cost: w.cost ? Number(w.cost) : null,
+            professor: w.professor || 'N/A'
+          }
+        })
+        await tx.congress_workshop_doctors.deleteMany({ where: { workshop_id: w.id } })
+        if (w.doctorIds && w.doctorIds.length > 0) {
+          await tx.congress_workshop_doctors.createMany({
+            data: w.doctorIds.map((did: string) => ({ workshop_id: w.id, doctor_id: did }))
+          })
+        }
+      }
+
+      for (const w of incomingWorkshopsWithoutId) {
+        const createdWorkshop = await tx.congress_workshops.create({
+          data: {
+            congress_id: id,
+            name: w.name,
+            date_time: new Date(w.date_time),
+            max_people: Number(w.max_people),
+            cost: w.cost ? Number(w.cost) : null,
+            professor: w.professor || 'N/A'
+          }
+        })
+        if (w.doctorIds && w.doctorIds.length > 0) {
+          await tx.congress_workshop_doctors.createMany({
+            data: w.doctorIds.map((did: string) => ({ workshop_id: createdWorkshop.id, doctor_id: did }))
+          })
+        }
+      }
+
       // 2. Update congress and upsert related records
       return await tx.congresos.update({
         where: { id },
@@ -131,20 +176,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           enable_workshops: enable_workshops !== false,
           global_budget: global_budget ? Number(global_budget) : null,
           video_urls: video_urls || [],
-          workshops: {
-            upsert: (workshops || []).filter((w: any) => w.id).map((w: any) => ({
-              where: { id: w.id },
-              update: { name: w.name, date_time: new Date(w.date_time), max_people: Number(w.max_people), cost: w.cost ? Number(w.cost) : null, professor: w.professor },
-              create: { name: w.name, date_time: new Date(w.date_time), max_people: Number(w.max_people), cost: w.cost ? Number(w.cost) : null, professor: w.professor }
-            })),
-            create: (workshops || []).filter((w: any) => !w.id).map((w: any) => ({
-              name: w.name,
-              date_time: new Date(w.date_time),
-              max_people: Number(w.max_people),
-              cost: w.cost ? Number(w.cost) : null,
-              professor: w.professor
-            }))
-          },
           contacts: {
             upsert: (contacts || []).filter((c: any) => c.id).map((c: any) => ({
               where: { id: c.id },

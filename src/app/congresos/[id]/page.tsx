@@ -11,6 +11,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import DoctorSelector from '@/components/DoctorSelector'
+import Modal from '@/components/Modal'
 
 export default function EditCongresoPage() {
   const { id } = useParams<{ id: string }>()
@@ -46,6 +48,8 @@ export default function EditCongresoPage() {
   const [videoInput, setVideoInput] = useState('')
 
   const [workshops, setWorkshops] = useState<any[]>([])
+  const [independentWorkshops, setIndependentWorkshops] = useState<any[]>([])
+  const [isAddExistingModalOpen, setIsAddExistingModalOpen] = useState(false)
   const [contacts, setContacts] = useState<any[]>([])
   
   const [availableCatalogs, setAvailableCatalogs] = useState<any[]>([])
@@ -113,7 +117,10 @@ export default function EditCongresoPage() {
           specialty_ids: data.specialty_ids || [],
           video_urls: data.video_urls || []
         })
-        setWorkshops(data.workshops || [])
+        setWorkshops((data.workshops || []).map((w: any) => ({
+          ...w,
+          doctorIds: w.doctors ? w.doctors.map((d: any) => d.doctor_id) : []
+        })))
         setContacts(data.contacts || [])
         setGlobalBudget(data.global_budget ? data.global_budget.toString() : '')
         
@@ -149,7 +156,19 @@ export default function EditCongresoPage() {
         console.error('Error loading catalogs:', err)
       }
     }
+    const fetchIndependentWorkshops = async () => {
+      try {
+        const res = await fetch('/api/workshops')
+        if (res.ok) {
+          const { data } = await res.json()
+          setIndependentWorkshops(data.filter((w: any) => !w.congress_id))
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
     fetchAllCatalogs()
+    fetchIndependentWorkshops()
   }, [])
 
   const handleCatalogToggle = (catalogId: string) => {
@@ -175,7 +194,7 @@ export default function EditCongresoPage() {
   }
 
   const addWorkshop = () => {
-    setWorkshops([...workshops, { name: '', date_time: '', max_people: 20, cost: 0, professor: '' }])
+    setWorkshops([...workshops, { name: '', date_time: '', max_people: 20, cost: 0, professor: 'N/A', doctorIds: [] }])
   }
 
   const removeWorkshop = (index: number) => {
@@ -525,7 +544,10 @@ export default function EditCongresoPage() {
             <div className="card p-6 md:p-8 space-y-4 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <h2 className="text-lg font-semibold flex items-center gap-2"><Calendar className="text-purple-600" size={20} /> Talleres</h2>
-                <button type="button" onClick={addWorkshop} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Agregar Taller</button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setIsAddExistingModalOpen(true)} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Vincular Existente</button>
+                  <button type="button" onClick={addWorkshop} className="btn-secondary py-1.5 px-3 text-sm"><Plus size={16} /> Crear Taller</button>
+                </div>
               </div>
 
               <div className="flex items-center gap-3 p-4 bg-purple-50/50 rounded-2xl border border-purple-100 mb-2">
@@ -549,9 +571,13 @@ export default function EditCongresoPage() {
                       <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nombre</label>
                       <input required type="text" className="erp-input w-full bg-white" value={w.name} onChange={e => updateWorkshop(i, 'name', e.target.value)} />
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Profesor</label>
-                      <input required type="text" className="erp-input w-full bg-white" value={w.professor} onChange={e => updateWorkshop(i, 'professor', e.target.value)} />
+                    <div className="md:col-span-3">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Doctores / Docentes *</label>
+                      <DoctorSelector 
+                        selectedIds={w.doctorIds || []} 
+                        onChange={ids => updateWorkshop(i, 'doctorIds', ids)} 
+                        multiple={true} 
+                      />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha y Hora</label>
@@ -746,6 +772,32 @@ export default function EditCongresoPage() {
           </div>
         </div>
       </div>
+
+      <Modal open={isAddExistingModalOpen} onClose={() => setIsAddExistingModalOpen(false)} title="Vincular Taller Existente">
+        <div className="space-y-4">
+          {independentWorkshops.filter(w => !workshops.find(ew => ew.id === w.id)).map(w => (
+            <div key={w.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+              <div>
+                <div className="font-bold">{w.name}</div>
+                <div className="text-sm text-gray-500">{new Date(w.date_time).toLocaleString()}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setWorkshops([...workshops, { ...w, doctorIds: w.doctors?.map((d: any) => d.doctor_id) || [] }])
+                  setIsAddExistingModalOpen(false)
+                }}
+                className="btn-primary py-1 px-3 text-sm"
+              >
+                Vincular
+              </button>
+            </div>
+          ))}
+          {independentWorkshops.filter(w => !workshops.find(ew => ew.id === w.id)).length === 0 && (
+            <div className="text-center text-gray-500 py-4">No hay talleres independientes disponibles.</div>
+          )}
+        </div>
+      </Modal>
     </AppShell>
   )
 }

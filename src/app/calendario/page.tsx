@@ -50,6 +50,7 @@ export default function CalendarPage() {
   // Data State
   const [congresos, setCongresos] = useState<Congreso[]>([])
   const [eventos, setEventos] = useState<Evento[]>([])
+  const [workshops, setWorkshops] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -86,20 +87,23 @@ export default function CalendarPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const [resCongresos, resEventos] = await Promise.all([
+      const [resCongresos, resEventos, resWorkshops] = await Promise.all([
         fetch('/api/congresos'),
-        fetch('/api/eventos')
+        fetch('/api/eventos'),
+        fetch('/api/workshops')
       ])
 
-      if (!resCongresos.ok || !resEventos.ok) {
+      if (!resCongresos.ok || !resEventos.ok || !resWorkshops.ok) {
         throw new Error('Failed to fetch calendar data')
       }
 
       const { data: congressData } = await resCongresos.json()
       const { data: eventData } = await resEventos.json()
+      const { data: workshopData } = await resWorkshops.json()
 
       setCongresos(congressData || [])
       setEventos(eventData || [])
+      setWorkshops(workshopData || [])
     } catch (err: any) {
       console.error('Error fetching calendar data:', err)
       setError(err.message)
@@ -132,27 +136,29 @@ export default function CalendarPage() {
         rawEvent: c
       })
 
-      // Extract nested workshops from congresos
-      if (c.workshops && c.workshops.length > 0) {
-        c.workshops.forEach((w) => {
-          const wDate = new Date(w.date_time)
-          list.push({
-            id: `workshop-nested-${w.id}`,
-            title: `${c.name} - Workshop: ${w.name}`,
-            start: wDate,
-            end: wDate,
-            type: 'workshop',
-            location: c.location,
-            description: `Profesor: ${w.professor}. Cupo: ${w.max_people} personas. Costo: ${w.cost ? `$${w.cost}` : 'Gratuito'}`,
-            responsible: w.professor,
-            parentCongressId: c.id,
-            rawEvent: w
-          })
-        })
-      }
+      // Removed nested workshop parsing here since we fetch them separately
     })
 
-    // 2. Process Custom Eventos (Surgeries, Activities, etc)
+    // 2. Process Workshops
+    workshops.forEach((w) => {
+      const wDate = new Date(w.date_time)
+      const docNames = w.doctors?.map((d: any) => d.doctor?.name).join(', ') || w.professor || 'N/A'
+      const title = w.congress ? `${w.congress.name} - ${w.name}` : w.name
+      list.push({
+        id: `workshop-${w.id}`,
+        title,
+        start: wDate,
+        end: wDate,
+        type: 'workshop',
+        location: w.congress ? w.congress.location : 'Por definir',
+        description: `Docentes: ${docNames}. Cupo: ${w.max_people} personas. Costo: ${w.cost ? `$${w.cost}` : 'Gratuito'}`,
+        responsible: docNames,
+        parentCongressId: w.congress_id || undefined,
+        rawEvent: w
+      })
+    })
+
+    // 3. Process Custom Eventos (Surgeries, Activities, etc)
     eventos.forEach((e) => {
       const start = new Date(e.fecha_inicio)
       const end = e.fecha_fin ? new Date(e.fecha_fin) : new Date(e.fecha_inicio)
@@ -172,7 +178,7 @@ export default function CalendarPage() {
     })
 
     return list
-  }, [congresos, eventos])
+  }, [congresos, eventos, workshops])
 
   // Filter events
   const filteredEvents = useMemo(() => {

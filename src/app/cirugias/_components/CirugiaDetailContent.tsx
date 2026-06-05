@@ -25,6 +25,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
+import DoctorSelector from '@/components/DoctorSelector'
 
 interface Props {
   cirugiaId: string | null
@@ -93,6 +94,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   // ── Form state ──
   const [nombre, setNombre] = useState('')
   const [medico, setMedico] = useState('')
+  const [doctorId, setDoctorId] = useState<string | null>(null)
   const [descripcion, setDescripcion] = useState('')
   const [fecha, setFecha] = useState('')
   const [hora, setHora] = useState('08:00')
@@ -137,6 +139,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
         if (!data) return
         setNombre(data.nombre)
         setMedico(data.medico)
+        setDoctorId(data.doctor_id)
         setDescripcion(data.descripcion || '')
         const d = new Date(data.fecha)
         setFecha(d.toISOString().slice(0, 10))
@@ -290,7 +293,8 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
 
     const payload = {
       nombre: nombre.trim(),
-      medico: medico.trim(),
+      medico: medico.trim() || 'N/A',
+      doctor_id: doctorId,
       descripcion: descripcion.trim() || null,
       fecha: fechaISO,
       estado,
@@ -334,7 +338,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     } finally {
       setIsSaving(false)
     }
-  }, [nombre, medico, descripcion, fecha, hora, estado, notas, equipo, productos, conceptos, itinerarios, isNew, cirugiaId, router])
+  }, [nombre, medico, doctorId, descripcion, fecha, hora, estado, notas, equipo, productos, conceptos, itinerarios, isNew, cirugiaId, router])
 
   // ── Filtered lists for pickers ──
   const filteredUsers = usuarios.filter(u =>
@@ -461,18 +465,12 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                   Médico (Doctor) <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    id="cirugia-medico"
-                    type="text"
-                    value={medico}
-                    onChange={e => setMedico(e.target.value)}
-                    placeholder="Dr. Nombre Apellido"
-                    className="erp-input w-full"
-                    style={{ paddingLeft: '2.25rem' }}
-                  />
-                </div>
+                <DoctorSelector 
+                  selectedIds={doctorId ? [doctorId] : []} 
+                  onChange={ids => setDoctorId(ids[0] || null)} 
+                  multiple={false} 
+                />
+                {!doctorId && <p className="text-xs text-orange-500 mt-1">Por favor selecciona o crea un doctor.</p>}
               </div>
 
               {/* Estado */}

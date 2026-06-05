@@ -55,6 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       productos,
       conceptos,
       itinerarios,
+      doctor_id,
     } = body
 
     // Fetch existing team to notify only new members
@@ -72,6 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: {
         ...(nombre !== undefined && { nombre }),
         ...(medico !== undefined && { medico }),
+        ...(doctor_id !== undefined && { doctor_id }),
         ...(descripcion !== undefined && { descripcion }),
         ...(fecha !== undefined && { fecha: new Date(fecha) }),
         ...(estado !== undefined && { estado }),

@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       productos,    // [{ producto_id, cantidad, es_consumible, tipo_uso, precio_unitario }]
       conceptos,    // [{ concepto, cantidad, precio_unitario, subtotal }]
       itinerarios,  // [{ activity, date, time, notes }]
+      doctor_id,
     } = body
 
     if (!nombre || !medico || !fecha) {
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       data: {
         nombre,
         medico,
+        doctor_id: doctor_id || null,
         descripcion: descripcion || null,
         fecha: new Date(fecha),
         estado: estado || 'programada',
