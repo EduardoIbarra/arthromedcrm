@@ -28,7 +28,7 @@ declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
 }
 
-const hasUpdates = globalThis.prisma && ('ticket_updates' in globalThis.prisma)
+const hasUpdates = globalThis.prisma && ('ticket_updates' in globalThis.prisma) && ('landing_pages' in globalThis.prisma)
 const prisma = hasUpdates ? globalThis.prisma! : prismaClientSingleton()
 
 export default prisma

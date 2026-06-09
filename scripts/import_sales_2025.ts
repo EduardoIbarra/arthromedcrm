@@ -58,7 +58,7 @@ async function main() {
   prisma = (await import('../src/lib/prisma')).default;
   const args = process.argv.slice(2);
   const isCommit = args.includes('--commit');
-  const excelPath = '/Users/ed/Downloads/ventas2025.xlsx';
+  const excelPath = '/Users/ed/Downloads/ventas2025 (1).xlsx';
 
   console.log('--- 2025 SALES EXCEL INGESTION SCRIPT ---');
   console.log(`Mode: ${isCommit ? 'COMMIT (Writes to Database)' : 'DRY-RUN (No writes)'}`);
@@ -73,8 +73,14 @@ async function main() {
   console.log(`Reading Excel file: ${excelPath}...`);
   const workbook = XLSX.readFile(excelPath);
   const sheetName = workbook.SheetNames[0];
-  const rows = XLSX.utils.sheet_to_json<ExcelRow>(workbook.Sheets[sheetName]);
-  console.log(`Read ${rows.length} rows from sheet "${sheetName}".`);
+  const rawRows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[sheetName]);
+  console.log(`Read ${rawRows.length} rows from sheet "${sheetName}".`);
+
+  const rows = rawRows.filter(r => {
+    const app = String(r.APLICACION || '').toLowerCase().trim();
+    return app.includes('acumulabl');
+  });
+  console.log(`Filtered to ${rows.length} rows with APLICACION containing 'acumulabl'.`);
 
   // Load database lookup maps
   console.log('Loading lookups from Database...');
@@ -82,6 +88,11 @@ async function main() {
   const dbClients = await prisma.clients.findMany();
   const dbProducts = await prisma.productos.findMany();
   const dbExistingInvoices = await prisma.facturas_cliente.findMany({
+    where: {
+      observaciones: {
+        not: 'Importación histórica de ventas 2025'
+      }
+    },
     select: { numero_factura: true, id: true }
   });
 
@@ -165,7 +176,7 @@ async function main() {
     // Client details
     const rfc = firstRow.RFC ? String(firstRow.RFC).trim() : null;
     const razonSocial = firstRow['RAZON SOCIAL'] ? String(firstRow['RAZON SOCIAL']).trim() : null;
-    const clienteName = firstRow.CLIENTE ? String(firstRow.CLIENTE).trim() : null;
+    const clienteName = firstRow['CLIENTE.1'] ? String(firstRow['CLIENTE.1']).trim() : (firstRow.CLIENTE ? String(firstRow.CLIENTE).trim() : null);
     const estadoCliente = firstRow.ESTADO ? String(firstRow.ESTADO).trim() : 'Activo';
 
     // Best client identifier
@@ -254,7 +265,7 @@ async function main() {
     }
 
     // 3. Group calculations
-    const totalAmount = groupRows.reduce((sum, r) => sum + (Number(r.TOTAL) || 0), 0);
+    const totalAmount = groupRows.reduce((sum, r) => sum + (Number(r['AMOUNT (MXN)'] || r.TOTAL) || 0), 0);
     const subtotal = Number((totalAmount / 1.16).toFixed(2));
     const iva = Number((totalAmount - subtotal).toFixed(2));
     totalRevenueImported += totalAmount;
@@ -262,15 +273,15 @@ async function main() {
     // 4. Resolve products and prepare line items
     const lineItems: any[] = [];
     for (const r of groupRows) {
-      const prodId = String(r.PRODUCTOID || '').trim();
+      const prodId = String(r.ProductoID || r.PRODUCTOID || '').trim();
       const prodName = String(r.PRODUCTO || '').trim();
-      const model = r.MODELO ? String(r.MODELO).trim() : null;
-      const orderCode = r['CODIGO ORDEN'] ? String(r['CODIGO ORDEN']).trim() : null;
-      const line = r.LINEA ? String(r.LINEA).trim() : 'Otros';
-      const tipo = r['TIPO PRODUCTO'] ? String(r['TIPO PRODUCTO']).trim() : 'Producto';
+      const model = r.Modelo || r.MODELO ? String(r.Modelo || r.MODELO).trim() : null;
+      const orderCode = r['Ordering Code'] || r['CODIGO ORDEN'] ? String(r['Ordering Code'] || r['CODIGO ORDEN']).trim() : null;
+      const line = r.Linea || r.LINEA ? String(r.Linea || r.LINEA).trim() : 'Otros';
+      const tipo = r.Tipo || r['TIPO PRODUCTO'] ? String(r.Tipo || r['TIPO PRODUCTO']).trim() : 'Producto';
       const cantidad = Number(r.CANTIDAD) || 1;
       const precioUnitario = Number(r['PRECIO UNI']) || 0;
-      const totalItem = Number(r.TOTAL) || 0;
+      const totalItem = Number(r['AMOUNT (MXN)'] || r.TOTAL) || 0;
 
       let targetProductId: string | null = null;
       const productKey = prodId.toLowerCase();
@@ -352,6 +363,13 @@ async function main() {
 
   // 6. DB Execution
   if (isCommit) {
+    console.log('\nClearing previous historical imports...');
+    // Only delete if there are any remaining (though they should be cleared already if we run it again)
+    const deleted = await prisma.facturas_cliente.deleteMany({
+      where: { observaciones: 'Importación histórica de ventas 2025' }
+    });
+    console.log(`Deleted ${deleted.count} existing historical invoices.`);
+
     console.log(`\nInserting ${invoicesToCreate.length} invoices into database...`);
     
     // We execute inside a transaction

@@ -28,6 +28,9 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/users': { section: 'users', action: 'view' },
   '/users/roles': { section: 'roles', action: 'view' },
   '/tickets': { section: 'tickets', action: 'view' },
+  '/landing-pages': { section: 'landing_pages', action: 'view' },
+  '/landing-pages/new': { section: 'landing_pages', action: 'create' },
+  '/communication': { section: 'communication', action: 'view' },
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
