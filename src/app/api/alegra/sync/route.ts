@@ -109,7 +109,7 @@ export async function GET(_request: NextRequest) {
     // ── Step 2: Pre-load all lookup tables in parallel (3 queries total) ──────
     const [allClientes, allProductos, allExistingInvoices] = await Promise.all([
       prisma.clientes.findMany({ select: { id: true, rfc: true, nombre: true } }),
-      prisma.productos.findMany({ select: { id: true, consecutivo_alg: true, nombre: true } }),
+      prisma.productos.findMany({ select: { id: true, consecutivo_alg: true, nombre: true, line: true } }),
       prisma.facturas_cliente.findMany({ select: { id: true, alegra_id: true, numero_factura: true } })
     ])
 
@@ -123,9 +123,15 @@ export async function GET(_request: NextRequest) {
 
     const productByRef  = new Map<string, string>()
     const productByName = new Map<string, string>()
+    const productLineByRef  = new Map<string, string>()
+    const productLineByName = new Map<string, string>()
     for (const p of allProductos) {
       if (p.consecutivo_alg) productByRef.set(p.consecutivo_alg.toLowerCase(), p.id)
       if (p.nombre)          productByName.set(p.nombre.toLowerCase(), p.id)
+      if (p.line) {
+        if (p.consecutivo_alg) productLineByRef.set(p.consecutivo_alg.toLowerCase(), p.line)
+        if (p.nombre)          productLineByName.set(p.nombre.toLowerCase(), p.line)
+      }
     }
 
     const existingByAlegraId = new Map<string, string>()
@@ -222,6 +228,7 @@ export async function GET(_request: NextRequest) {
                 const rKey   = item.reference?.trim().toLowerCase()
                 const nKey   = iName.trim().toLowerCase()
                 const pid    = (rKey && productByRef.get(rKey)) ?? (nKey && productByName.get(nKey)) ?? null
+                const linea  = (rKey && productLineByRef.get(rKey)) ?? (nKey && productLineByName.get(nKey)) ?? null
                 return {
                   factura_id:         facturaUuid,
                   producto_id:        pid || null,
@@ -229,7 +236,8 @@ export async function GET(_request: NextRequest) {
                   producto_codigo:    item.reference || null,
                   cantidad_facturada: Math.round(item.quantity) || 1,
                   precio_unitario:    item.price || 0,
-                  importe:            (item.price || 0) * (item.quantity || 0)
+                  importe:            (item.price || 0) * (item.quantity || 0),
+                  linea:              linea || null
                 }
               })
             })

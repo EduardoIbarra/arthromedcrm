@@ -11,7 +11,7 @@ import AppShell from '@/components/AppShell'
 import StatCard from '@/components/StatCard'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, PieChart, Pie, Cell
+  BarChart, Bar, PieChart, Pie, Cell, ReferenceLine
 } from 'recharts'
 
 interface ReportData {
@@ -65,6 +65,34 @@ interface ReportData {
     current: string
     previous: string
   }
+  unitSalesByProduct: {
+    name: string
+    current: number
+    ly: number
+    delta: number
+    growth: number
+  }[]
+  unitSalesYears: {
+    current: number
+    prev: number
+  }
+  unitSalesByLine: {
+    linea: string
+    fullPrev: number
+    current: number
+    ly: number
+    growth: number
+  }[]
+  totalSalesByLine: {
+    linea: string
+    fullPrev: number
+    current: number
+    ly: number
+  }[]
+  lineYears?: {
+    prev: number
+    current: number
+  }
 }
 
 const ChartHeader = ({ title, tooltipText }: { title: string; tooltipText: string }) => (
@@ -78,6 +106,18 @@ const ChartHeader = ({ title, tooltipText }: { title: string; tooltipText: strin
     </div>
   </div>
 )
+
+// Official brand colors per product line
+const LINE_COLORS: Record<string, string> = {
+  'SPORTS MEDICINE': '#F8CBAD',
+  'UBE':            '#33CCCC',
+  'SPINE':          '#C6E0B4',
+  'ENT':            '#BDD7EE',
+  'URO & GYN':      '#FFE699',
+  'SHAVER&BUR':     '#D5D5D5',
+  'VISION':         '#E2D5F8',
+  'OTHER':          '#E8ECF0',
+}
 
 const getPresetDates = (preset: string) => {
   const today = new Date('2026-06-08')
@@ -116,10 +156,11 @@ const getPresetDates = (preset: string) => {
 
 export default function VentasReportPage() {
   const { t, locale } = useI18n()
-  const { formatCurrency } = useCurrency()
+  const { formatCurrency, formatChartTick } = useCurrency()
   const router = useRouter()
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [animate, setAnimate] = useState(false)
 
   // Date range filter state
   const [preset, setPreset] = useState('thisYear')
@@ -156,11 +197,14 @@ export default function VentasReportPage() {
   useEffect(() => {
     async function loadReport() {
       setLoading(true)
+      setAnimate(false)
       try {
         const res = await fetch(`/api/reports/ventas?startDate=${startDate}&endDate=${endDate}`)
         if (res.ok) {
           const json = await res.json()
           setData(json)
+          // Trigger entry transitions for bullet bars
+          setTimeout(() => setAnimate(true), 150)
         }
       } catch (err) {
         console.error('Error loading sales report:', err)
@@ -318,7 +362,493 @@ export default function VentasReportPage() {
           />
         </div>
 
-        {/* Forecasts Widgets */}
+        {/* Full-width widgets row — Unit Sales by Product */}
+        <div className="grid grid-cols-1 gap-6">
+          {/* Unit Sales by Product Table */}
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+            <ChartHeader
+              title={t('unitSalesByProductTitle' as any)}
+              tooltipText={t('unitSalesByProductDesc' as any).replace('{currentYear}', String(data.unitSalesYears?.current ?? '')).replace('{prevYear}', String(data.unitSalesYears?.prev ?? ''))}
+            />
+            <div className="overflow-y-auto max-h-[380px] rounded-lg border border-[#e8f1f9] text-xs">
+              <table className="min-w-full divide-y divide-[#e8f1f9]">
+                <thead className="sticky top-0 bg-[#f0f5fa] z-10">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[38%]">{t('colNombre' as any)}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units {data.unitSalesYears?.current ?? ''}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units LY YTD</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">{t('colDeltaUnits' as any)}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">{t('colUnitsGrowth' as any)}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f5fa] bg-white">
+                  {(data.unitSalesByProduct ?? []).map((row) => {
+                    const isPositive = row.delta >= 0
+                    const isStrongGrowth = row.growth >= 50
+                    const isStrongDecline = row.growth <= -50
+                    const growthBg = isStrongGrowth
+                      ? 'bg-[#dcfce7] text-[#15803d]'
+                      : isStrongDecline
+                      ? 'bg-[#fee2e2] text-[#b91c1c]'
+                      : row.growth > 0
+                      ? 'bg-[#f0fdf4] text-[#16a34a]'
+                      : row.growth < 0
+                      ? 'bg-[#fff7f7] text-[#dc2626]'
+                      : 'bg-[#f8fafc] text-[#64748b]'
+                    return (
+                      <tr key={row.name} className="hover:bg-[#f8fafc] transition-colors">
+                        <td className="px-3 py-2 font-medium text-[#37383a] truncate max-w-[160px]" title={row.name}>{row.name}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#37383a]">{row.current.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{row.ly.toLocaleString()}</td>
+                        <td className={`px-3 py-2 text-right font-semibold ${isPositive ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                          {isPositive ? '+' : ''}{row.delta.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${growthBg}`}>
+                            {row.ly === 0 ? (row.current > 0 ? t('newLabel' as any) : '—') : `${row.growth >= 0 ? '+' : ''}${row.growth.toFixed(2)}%`}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {/* Totals row */}
+                  {(() => {
+                    const rows = data.unitSalesByProduct ?? []
+                    const totalCurrent = rows.reduce((s, r) => s + r.current, 0)
+                    const totalLy = rows.reduce((s, r) => s + r.ly, 0)
+                    const totalDelta = totalCurrent - totalLy
+                    const totalGrowth = totalLy > 0 ? ((totalDelta / totalLy) * 100) : 0
+                    const isPos = totalDelta >= 0
+                    return (
+                      <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
+                        <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any)}</td>
+                        <td className="px-3 py-2 text-right text-[#37383a]">{totalCurrent.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{totalLy.toLocaleString()}</td>
+                        <td className={`px-3 py-2 text-right ${isPos ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                          {isPos ? '+' : ''}{totalDelta.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${isPos ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]'}`}>
+                            {totalGrowth >= 0 ? '+' : ''}{totalGrowth.toFixed(2)}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Línea widgets — Units Side by Side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Unidades Vendidas por Línea */}
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+            <ChartHeader
+              title={t('unitSalesByLineTitle' as any)}
+              tooltipText={t('unitSalesByLineDesc' as any)}
+            />
+            <div className="overflow-y-auto max-h-[380px] rounded-lg border border-[#e8f1f9] text-xs">
+              <table className="min-w-full divide-y divide-[#e8f1f9]">
+                <thead className="sticky top-0 bg-[#f0f5fa] z-10">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[32%]">{t('colLinea' as any)}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units {data.lineYears?.prev ?? ''}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units {data.lineYears?.current ?? ''}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">LY YTD</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">{t('colGrowthPct' as any)}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f5fa] bg-white">
+                  {(data.unitSalesByLine ?? []).map((row) => {
+                    const color = LINE_COLORS[row.linea] ?? LINE_COLORS['OTHER']
+                    const isPos = row.growth >= 0
+                    const growthBg = row.ly === 0
+                      ? 'bg-[#f8fafc] text-[#64748b]'
+                      : isPos ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]'
+                    return (
+                      <tr key={row.linea} className="hover:brightness-95 transition-all" style={{ backgroundColor: color + '22' }}>
+                        <td className="px-3 py-2 font-semibold" style={{ borderLeft: `3px solid ${color}`, color: '#37383a' }}>{row.linea}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{row.fullPrev.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#37383a]">{row.current.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{row.ly.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${growthBg}`}>
+                            {row.ly === 0 ? (row.current > 0 ? t('newLabel' as any) : '—') : `${isPos ? '+' : ''}${row.growth.toFixed(2)}%`}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {(() => {
+                    const rows = data.unitSalesByLine ?? []
+                    const totFP = rows.reduce((s, r) => s + r.fullPrev, 0)
+                    const totC  = rows.reduce((s, r) => s + r.current, 0)
+                    const totLY = rows.reduce((s, r) => s + r.ly, 0)
+                    const totG  = totLY > 0 ? ((totC - totLY) / totLY) * 100 : 0
+                    return (
+                      <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
+                        <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any)}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{totFP.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-[#37383a]">{totC.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{totLY.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${totG >= 0 ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]'}`}>
+                            {totG >= 0 ? '+' : ''}{totG.toFixed(2)}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Gráfica de Bala de Unidades por Línea */}
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+            <ChartHeader
+              title={t('bulletUnitsTitle' as any)}
+              tooltipText={t('bulletUnitsDesc' as any)}
+            />
+
+            {(() => {
+              const rows = data?.unitSalesByLine ?? []
+              const maxVal = Math.max(
+                ...rows.map(r => Math.max(r.fullPrev, r.current, r.ly)),
+                10 // safeguard
+              )
+              // We scale up to 82% of the container to leave 18% for labels and markers
+              const scale = 82 / maxVal
+              
+              // Generate 5 tick values
+              const tickPercentages = [0, 25, 50, 75, 100]
+              const ticks = tickPercentages.map(p => Math.round((maxVal * p) / 100))
+
+              return (
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Legend */}
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-5 text-[10px] sm:text-xs font-semibold text-[#5a5b5d]">
+                    <div className="flex items-center gap-1">
+                      <span className="w-3.5 h-2 rounded bg-slate-400 opacity-40" />
+                      <span>{t('legendLYYTD' as any)} ({data?.lineYears?.prev ?? 2025} YTD)</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-3.5 h-2 rounded bg-slate-600" />
+                      <span>{t('legendActual' as any)} ({data?.lineYears?.current ?? 2026})</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="flex items-center">
+                        <span className="w-5 h-[1.5px] bg-slate-400" />
+                        <span className="w-[1.5px] h-2.5 bg-slate-400 -ml-[1.5px]" />
+                      </div>
+                      <span>{t('legendTotalPrev' as any)} {data?.lineYears?.prev ?? 2025}</span>
+                    </div>
+                  </div>
+
+                  {/* Chart Body */}
+                  <div className="flex-1 overflow-y-auto pr-1 relative min-h-0">
+                    {/* Gridlines Background */}
+                    <div className="absolute top-0 bottom-6 left-24 right-0 pointer-events-none">
+                      {tickPercentages.map((pct, idx) => {
+                        const tickVal = ticks[idx]
+                        return (
+                          <div 
+                            key={pct} 
+                            className="absolute top-0 bottom-0 border-l border-dashed border-slate-200/50"
+                            style={{ left: `${pct * 0.82}%` }}
+                          >
+                            <span className="absolute bottom-0 -translate-x-1/2 translate-y-full text-[9px] font-bold text-slate-400">
+                              {tickVal >= 1000 ? `${(tickVal / 1000).toFixed(1).replace('.0', '')}K` : tickVal}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Rows */}
+                    <div className="relative z-10 space-y-3 pb-8">
+                      {rows.map((row) => {
+                        const color = LINE_COLORS[row.linea] ?? LINE_COLORS['OTHER']
+                        const lyPct = row.ly * scale
+                        const currentPct = row.current * scale
+                        const fullPrevPct = row.fullPrev * scale
+
+                        return (
+                          <div key={row.linea} className="group flex items-center gap-2 h-9 hover:bg-[#f8fafc]/55 rounded p-0.5 transition-colors">
+                            {/* Label */}
+                            <div className="w-24 font-bold text-slate-655 text-[10px] sm:text-xs truncate text-right pr-1" title={row.linea}>
+                              {row.linea}
+                            </div>
+                            
+                            {/* Bullet Graph Track */}
+                            <div className="flex-1 h-full relative flex flex-col justify-center gap-0.5">
+                              {/* Thin gray benchmark line for Total Prev Year */}
+                              {row.fullPrev > 0 && (
+                                <div className="absolute inset-0 pointer-events-none flex items-center">
+                                  <div className="relative w-full h-[1.5px]">
+                                    {/* Line */}
+                                    <div 
+                                      className="absolute h-[1.5px] bg-slate-300 top-1/2 -translate-y-1/2 left-0 transition-all duration-1000 ease-out" 
+                                      style={{ width: `${animate ? fullPrevPct : 0}%` }}
+                                    />
+                                    {/* Tick marker */}
+                                    <div 
+                                      className="absolute w-[1.5px] h-3 bg-slate-400 top-1/2 -translate-y-1/2 transition-all duration-1000 ease-out"
+                                      style={{ left: `${animate ? fullPrevPct : 0}%` }}
+                                    />
+                                    {/* Tick Label */}
+                                    <span 
+                                      className="absolute text-[8px] font-bold text-slate-500 -top-3.5 -translate-x-1/2 transition-all duration-1000 ease-out bg-white px-0.5 rounded shadow-sm border border-slate-105/50"
+                                      style={{ left: `${animate ? fullPrevPct : 0}%` }}
+                                    >
+                                      {row.fullPrev.toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Bar 1: LY YTD */}
+                              <div className="relative flex items-center h-2.5">
+                                <div 
+                                  className="h-1.5 rounded-sm transition-all duration-1000 ease-out"
+                                  style={{ 
+                                    width: `${animate ? lyPct : 0}%`, 
+                                    backgroundColor: color,
+                                    opacity: 0.45
+                                  }}
+                                />
+                                {row.ly > 0 && (
+                                  <span className="ml-1 text-[8px] font-semibold text-slate-500 whitespace-nowrap">
+                                    {row.ly.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Bar 2: Current */}
+                              <div className="relative flex items-center h-2.5">
+                                <div 
+                                  className="h-1.5 rounded-sm transition-all duration-1000 ease-out"
+                                  style={{ 
+                                    width: `${animate ? currentPct : 0}%`, 
+                                    backgroundColor: color
+                                  }}
+                                />
+                                {row.current > 0 && (
+                                  <span className="ml-1 text-[8px] font-bold text-slate-800 whitespace-nowrap">
+                                    {row.current.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+
+        {/* Línea widgets — Sales Side by Side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Total de Ventas por Línea */}
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+            <ChartHeader
+              title={t('totalSalesByLineTitle' as any)}
+              tooltipText={t('totalSalesByLineDesc' as any)}
+            />
+            <div className="overflow-y-auto max-h-[380px] rounded-lg border border-[#e8f1f9] text-xs">
+              <table className="min-w-full divide-y divide-[#e8f1f9]">
+                <thead className="sticky top-0 bg-[#f0f5fa] z-10">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[32%]">{t('colLinea' as any)}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Sales {data.lineYears?.prev ?? ''}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Sales {data.lineYears?.current ?? ''}</th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Sales LY YTD</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f5fa] bg-white">
+                  {(data.totalSalesByLine ?? []).map((row) => {
+                    const color = LINE_COLORS[row.linea] ?? LINE_COLORS['OTHER']
+                    return (
+                      <tr key={row.linea} className="hover:brightness-95 transition-all" style={{ backgroundColor: color + '22' }}>
+                        <td className="px-3 py-2 font-semibold" style={{ borderLeft: `3px solid ${color}`, color: '#37383a' }}>{row.linea}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{formatCurrency(row.fullPrev)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#37383a]">{formatCurrency(row.current)}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{formatCurrency(row.ly)}</td>
+                      </tr>
+                    )
+                  })}
+                  {(() => {
+                    const rows = data.totalSalesByLine ?? []
+                    const totFP = rows.reduce((s, r) => s + r.fullPrev, 0)
+                    const totC  = rows.reduce((s, r) => s + r.current, 0)
+                    const totLY = rows.reduce((s, r) => s + r.ly, 0)
+                    return (
+                      <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
+                        <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any)}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{formatCurrency(totFP)}</td>
+                        <td className="px-3 py-2 text-right text-[#37383a]">{formatCurrency(totC)}</td>
+                        <td className="px-3 py-2 text-right text-[#8a8b8d]">{formatCurrency(totLY)}</td>
+                      </tr>
+                    )
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Gráfica de Bala de Ventas por Línea */}
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+            <ChartHeader
+              title={t('bulletSalesTitle' as any)}
+              tooltipText={t('bulletSalesDesc' as any)}
+            />
+
+            {(() => {
+              const rows = data?.totalSalesByLine ?? []
+              const maxVal = Math.max(
+                ...rows.map(r => Math.max(r.fullPrev, r.current, r.ly)),
+                10000 // safeguard
+              )
+              // We scale up to 82% of the container to leave 18% for labels and markers
+              const scale = 82 / maxVal
+              
+              // Generate 5 tick values
+              const tickPercentages = [0, 25, 50, 75, 100]
+              const ticks = tickPercentages.map(p => Math.round((maxVal * p) / 100))
+
+              return (
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Legend */}
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-5 text-[10px] sm:text-xs font-semibold text-[#5a5b5d]">
+                    <div className="flex items-center gap-1">
+                      <span className="w-3.5 h-2 rounded bg-slate-400 opacity-40" />
+                      <span>{t('legendLYYTD' as any)} ({data?.lineYears?.prev ?? 2025} YTD)</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-3.5 h-2 rounded bg-slate-600" />
+                      <span>{t('legendActual' as any)} ({data?.lineYears?.current ?? 2026})</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="flex items-center">
+                        <span className="w-5 h-[1.5px] bg-slate-400" />
+                        <span className="w-[1.5px] h-2.5 bg-slate-400 -ml-[1.5px]" />
+                      </div>
+                      <span>{t('legendTotalPrev' as any)} {data?.lineYears?.prev ?? 2025}</span>
+                    </div>
+                  </div>
+
+                  {/* Chart Body */}
+                  <div className="flex-1 overflow-y-auto pr-1 relative min-h-0">
+                    {/* Gridlines Background */}
+                    <div className="absolute top-0 bottom-6 left-24 right-0 pointer-events-none">
+                      {tickPercentages.map((pct, idx) => {
+                        const tickVal = ticks[idx]
+                        return (
+                          <div 
+                            key={pct} 
+                            className="absolute top-0 bottom-0 border-l border-dashed border-slate-200/50"
+                            style={{ left: `${pct * 0.82}%` }}
+                          >
+                            <span className="absolute bottom-0 -translate-x-1/2 translate-y-full text-[9px] font-bold text-slate-400 whitespace-nowrap">
+                              {formatChartTick(tickVal)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Rows */}
+                    <div className="relative z-10 space-y-3 pb-8">
+                      {rows.map((row) => {
+                        const color = LINE_COLORS[row.linea] ?? LINE_COLORS['OTHER']
+                        const lyPct = row.ly * scale
+                        const currentPct = row.current * scale
+                        const fullPrevPct = row.fullPrev * scale
+
+                        return (
+                          <div key={row.linea} className="group flex items-center gap-2 h-9 hover:bg-[#f8fafc]/55 rounded p-0.5 transition-colors">
+                            {/* Label */}
+                            <div className="w-24 font-bold text-slate-650 text-[10px] sm:text-xs truncate text-right pr-1" title={row.linea}>
+                              {row.linea}
+                            </div>
+                            
+                            {/* Bullet Graph Track */}
+                            <div className="flex-1 h-full relative flex flex-col justify-center gap-0.5">
+                              {/* Thin gray benchmark line for Total Prev Year */}
+                              {row.fullPrev > 0 && (
+                                <div className="absolute inset-0 pointer-events-none flex items-center">
+                                  <div className="relative w-full h-[1.5px]">
+                                    {/* Line */}
+                                    <div 
+                                      className="absolute h-[1.5px] bg-slate-300 top-1/2 -translate-y-1/2 left-0 transition-all duration-1000 ease-out" 
+                                      style={{ width: `${animate ? fullPrevPct : 0}%` }}
+                                    />
+                                    {/* Tick marker */}
+                                    <div 
+                                      className="absolute w-[1.5px] h-3 bg-slate-400 top-1/2 -translate-y-1/2 transition-all duration-1000 ease-out"
+                                      style={{ left: `${animate ? fullPrevPct : 0}%` }}
+                                    />
+                                    {/* Tick Label */}
+                                    <span 
+                                      className="absolute text-[8px] font-bold text-slate-500 -top-3.5 -translate-x-1/2 transition-all duration-1000 ease-out bg-white px-0.5 rounded shadow-sm border border-slate-105/50 whitespace-nowrap"
+                                      style={{ left: `${animate ? fullPrevPct : 0}%` }}
+                                    >
+                                      {formatCurrency(row.fullPrev, true)}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Bar 1: LY YTD */}
+                              <div className="relative flex items-center h-2.5">
+                                <div 
+                                  className="h-1.5 rounded-sm transition-all duration-1000 ease-out"
+                                  style={{ 
+                                    width: `${animate ? lyPct : 0}%`, 
+                                    backgroundColor: color,
+                                    opacity: 0.45
+                                  }}
+                                />
+                                {row.ly > 0 && (
+                                  <span className="ml-1 text-[8px] font-semibold text-slate-500 whitespace-nowrap">
+                                    {formatCurrency(row.ly, true)}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Bar 2: Current */}
+                              <div className="relative flex items-center h-2.5">
+                                <div 
+                                  className="h-1.5 rounded-sm transition-all duration-1000 ease-out"
+                                  style={{ 
+                                    width: `${animate ? currentPct : 0}%`, 
+                                    backgroundColor: color
+                                  }}
+                                />
+                                {row.current > 0 && (
+                                  <span className="ml-1 text-[8px] font-bold text-slate-800 whitespace-nowrap">
+                                    {formatCurrency(row.current, true)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Card 1: Current Month Forecast */}
           <div className="rounded-2xl p-5 bg-white flex flex-col justify-between" style={CARD_STYLE}>
@@ -381,29 +911,84 @@ export default function VentasReportPage() {
             title={t('revenueTrend' as any) || 'Tendencia de Ingresos'} 
             tooltipText={t('revenueTrendDesc' as any) || 'Muestra los ingresos mensuales facturados del año en curso comparados con el año anterior.'} 
           />
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart 
-                data={data.salesTrends.map(item => {
-                  if (!item.date) return item
-                  const date = new Date(item.date)
-                  const monthLabel = diffDays <= 31
-                    ? date.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { day: 'numeric', month: 'short' })
-                    : date.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', year: '2-digit' })
-                  return { ...item, month: monthLabel }
-                })} 
-                margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e8f1f9" vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: '#5a5b5d', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={(val) => formatCurrency(val, true)} tick={{ fill: '#8a8b8d', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={CHART_TOOLTIP} formatter={(value) => formatCurrency(Number(value))} />
-                <Legend iconType="circle" />
-                <Line name={getPeriodLabel(startDate, endDate, false)} type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={3} activeDot={{ r: 8 }} />
-                <Line name={getPeriodLabel(startDate, endDate, true)} type="monotone" dataKey="prevRevenue" stroke="#9ca3af" strokeDasharray="5 5" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {(() => {
+            const todayDate = new Date()
+            const trendDataRaw = data.salesTrends ?? []
+
+            // For current period: average to date (exclude months in the future relative to today)
+            const currentTrendPoints = trendDataRaw.filter(item => {
+              if (!item.date) return true
+              const itemDate = new Date(item.date)
+              return itemDate <= todayDate
+            })
+            
+            const currentAverage = currentTrendPoints.length > 0
+              ? currentTrendPoints.reduce((sum, item) => sum + (item.revenue || 0), 0) / currentTrendPoints.length
+              : 0
+
+            // For previous period: average of the whole selected range (since it's in the past)
+            const prevAverage = trendDataRaw.length > 0
+              ? trendDataRaw.reduce((sum, item) => sum + (item.prevRevenue || 0), 0) / trendDataRaw.length
+              : 0
+
+            return (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart 
+                    data={data.salesTrends.map(item => {
+                      if (!item.date) return item
+                      const date = new Date(item.date)
+                      const monthLabel = diffDays <= 31
+                        ? date.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { day: 'numeric', month: 'short' })
+                        : date.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', year: '2-digit' })
+                      return { ...item, month: monthLabel }
+                    })} 
+                    margin={{ top: 15, right: 30, left: 10, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e8f1f9" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fill: '#5a5b5d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(val) => formatCurrency(val, true)} tick={{ fill: '#8a8b8d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={CHART_TOOLTIP} formatter={(value) => formatCurrency(Number(value))} />
+                    <Legend iconType="circle" />
+                    
+                    {currentAverage > 0 && (
+                      <ReferenceLine 
+                        y={currentAverage} 
+                        stroke="#0d9488" 
+                        strokeDasharray="3 3" 
+                        strokeWidth={1.5}
+                        label={{ 
+                          value: `${t('averageLabel' as any)}: ${formatCurrency(currentAverage, true)}`, 
+                          position: 'top', 
+                          fill: '#0d9488',
+                          fontSize: 9,
+                          fontWeight: 'bold'
+                        }} 
+                      />
+                    )}
+                    {prevAverage > 0 && (
+                      <ReferenceLine 
+                        y={prevAverage} 
+                        stroke="#9ca3af" 
+                        strokeDasharray="3 3" 
+                        strokeWidth={1.5}
+                        label={{ 
+                          value: `${t('averageLYLabel' as any)}: ${formatCurrency(prevAverage, true)}`, 
+                          position: 'top', 
+                          fill: '#5a5b5d',
+                          fontSize: 9,
+                          fontWeight: 'bold'
+                        }} 
+                      />
+                    )}
+
+                    <Line name={getPeriodLabel(startDate, endDate, false)} type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={3} activeDot={{ r: 8 }} />
+                    <Line name={getPeriodLabel(startDate, endDate, true)} type="monotone" dataKey="prevRevenue" stroke="#9ca3af" strokeDasharray="5 5" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )
+          })()}
         </div>
 
         {/* 3. Breakdown Analysis */}

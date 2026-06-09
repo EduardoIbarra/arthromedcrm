@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { buildProductMatcher, cleanProductName } from '@/lib/productFuzzyMatch'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,17 +23,37 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // 2. Fetch CRM clients for matching region and salesperson
-    const crmClients = await prisma.clients.findMany({
-      select: {
-        id: true,
-        name: true,
-        rfc: true,
-        states: true,
-        assigned_to: true,
-        created_at: true
+    // 2. Fetch CRM clients for matching region and salesperson,
+    //    AND the canonical productos list for fuzzy product name matching
+    const [crmClients, allProductos] = await Promise.all([
+      prisma.clients.findMany({
+        select: {
+          id: true,
+          name: true,
+          rfc: true,
+          states: true,
+          assigned_to: true,
+          created_at: true
+        }
+      }),
+      prisma.productos.findMany({
+        select: { nombre: true, line: true }
+      })
+    ])
+
+    // Build a fuzzy matcher from all canonical product names
+    const canonicalNames = Array.from(new Set(
+      allProductos.map((p: any) => p.nombre ? cleanProductName(p.nombre) : '').filter(Boolean)
+    )) as string[]
+    const matchProductName = buildProductMatcher(canonicalNames)
+
+    // Build name → line lookup for fuzzy-matched rows (no producto_id)
+    const nameToLine = new Map<string, string>()
+    for (const p of allProductos) {
+      if (p.nombre && p.line) {
+        nameToLine.set(cleanProductName(p.nombre), p.line)
       }
-    })
+    }
 
     // Setup client lookup maps
     const clientByRfc = new Map<string, any>()
@@ -67,12 +88,29 @@ export async function GET(request: NextRequest) {
     const startDateParam = searchParams.get('startDate')
     const endDateParam = searchParams.get('endDate')
 
-    const today = new Date('2026-06-08')
-    let rangeStart = startDateParam ? new Date(startDateParam) : new Date('2026-01-01')
-    let rangeEnd = endDateParam ? new Date(endDateParam) : new Date('2026-12-31')
+    // Helper: parse 'YYYY-MM-DD' strings as LOCAL midnight (not UTC midnight).
+    // new Date('2026-01-01') → UTC midnight → UTC-6 sees Dec 31 2025. Wrong!
+    // new Date(2026, 0, 1) → Local midnight → UTC-6 sees 2026-01-01 06:00 UTC. Correct.
+    const parseLocalDate = (s: string): Date => {
+      const [y, m, d] = s.split('-').map(Number)
+      return new Date(y, m - 1, d)
+    }
 
-    if (isNaN(rangeStart.getTime())) rangeStart = new Date('2026-01-01')
-    if (isNaN(rangeEnd.getTime())) rangeEnd = new Date('2026-12-31')
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
+
+    // Default: year-to-date (Jan 1 → today), so previous-year window is also YTD
+    const defaultRangeStart = new Date(today.getFullYear(), 0, 1)
+    const defaultRangeEnd = new Date(today)
+
+    let rangeStart = startDateParam ? parseLocalDate(startDateParam) : defaultRangeStart
+    let rangeEnd = endDateParam ? parseLocalDate(endDateParam) : defaultRangeEnd
+
+    if (isNaN(rangeStart.getTime())) rangeStart = defaultRangeStart
+    if (isNaN(rangeEnd.getTime())) rangeEnd = defaultRangeEnd
+
+    // Never compare against future dates — cap rangeEnd at today
+    if (rangeEnd > today) rangeEnd = new Date(today)
 
     // Standardize time bounds
     rangeStart.setHours(0, 0, 0, 0)
@@ -183,7 +221,20 @@ export async function GET(request: NextRequest) {
         const prevYearSales = matchedInvoices
           .filter((inv: any) => {
             const d = new Date(inv.fecha_expedicion)
-            return d.getFullYear() === (year - 1) && d.getMonth() === month
+            if (d.getFullYear() !== (year - 1) || d.getMonth() !== month) return false
+            // If this month/year is the current (partial) month, cap at equivalent day-of-month
+            const isCurrentPartialMonth = year === today.getFullYear() && month === today.getMonth()
+            if (isCurrentPartialMonth) {
+              const prevMonthCap = new Date(year - 1, month, today.getDate(), 23, 59, 59, 999)
+              return d <= prevMonthCap
+            }
+            // For the last month in the range when it extends into the current month boundary
+            const isRangeEndMonth = year === rangeEnd.getFullYear() && month === rangeEnd.getMonth()
+            if (isRangeEndMonth) {
+              const prevMonthCap = new Date(year - 1, month, rangeEnd.getDate(), 23, 59, 59, 999)
+              return d <= prevMonthCap
+            }
+            return true
           })
           .reduce((sum: number, inv: any) => sum + inv.totalNum, 0)
 
@@ -213,20 +264,121 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Helper: resolve canonical short name from an invoice line item.
+    // Priority: (1) linked/raw product name cleaned  (2) fuzzy match  (3) raw name
+    const resolveProductName = (fp: any): string => {
+      const initialName = fp.productos?.nombre || fp.producto_nombre || 'Desconocido'
+      const cleaned = cleanProductName(initialName)
+      return matchProductName(cleaned).canonicalName
+    }
+
+    // Helper: resolve product línea from an invoice line item.
+    // Priority: (1) fp.linea (DB column, backfilled from Excel + productos.line)
+    //           (2) linked productos.line  (3) name→line lookup  (4) 'OTHER'
+    const resolveProductLine = (fp: any): string => {
+      if (fp.linea) return fp.linea
+      if (fp.productos?.line) return fp.productos.line
+      const canonicalName = resolveProductName(fp)
+      return nameToLine.get(canonicalName) || 'OTHER'
+    }
+
+    // Full previous year — use calendar year comparison to avoid UTC offset issues.
+    // new Date(year, 0, 1) creates LOCAL midnight which shifts in UTC (e.g. UTC-6 → previous day).
+    // Comparing getFullYear() on the local Date is always correct.
+    const prevCalYear = prevRangeStart.getFullYear()
+    const fullPrevYearInvoices = matchedInvoices.filter((inv: any) => {
+      return new Date(inv.fecha_expedicion).getFullYear() === prevCalYear
+    })
+
     // 5. Product breakdowns in selection range
     const productRevenue: Record<string, number> = {}
     const categoryRevenue: Record<string, number> = {}
+    const productUnits: Record<string, { current: number; ly: number }> = {}
+
+    // By-line accumulators: { fullPrevYear, current (period), lyYTD }
+    type LineStats = { fullPrev: number; current: number; ly: number }
+    const lineUnits: Record<string, LineStats> = {}
+    const lineRevenue: Record<string, LineStats> = {}
+
+    const ensureLine = (map: Record<string, LineStats>, key: string) => {
+      if (!map[key]) map[key] = { fullPrev: 0, current: 0, ly: 0 }
+    }
+
+    // Full prev year — for the "Sales/Units YYYY" column
+    fullPrevYearInvoices.forEach((inv: any) => {
+      inv.factura_productos.forEach((fp: any) => {
+        const linea = resolveProductLine(fp)
+        ensureLine(lineUnits, linea)
+        ensureLine(lineRevenue, linea)
+        lineUnits[linea].fullPrev += Number(fp.cantidad_facturada) || 0
+        lineRevenue[linea].fullPrev += Number(fp.importe) || 0
+      })
+    })
 
     periodInvoices.forEach((inv: any) => {
       inv.factura_productos.forEach((fp: any) => {
-        const prodName = fp.producto_nombre || 'Desconocido'
+        const prodName = resolveProductName(fp)
+        const linea = resolveProductLine(fp)
         const revenue = Number(fp.importe) || 0
+        const quantity = Number(fp.cantidad_facturada) || 0
         productRevenue[prodName] = (productRevenue[prodName] || 0) + revenue
+        if (!productUnits[prodName]) productUnits[prodName] = { current: 0, ly: 0 }
+        productUnits[prodName].current += quantity
+        ensureLine(lineUnits, linea)
+        ensureLine(lineRevenue, linea)
+        lineUnits[linea].current += quantity
+        lineRevenue[linea].current += revenue
 
         const catName = fp.productos?.categoria || 'Otros'
         categoryRevenue[catName] = (categoryRevenue[catName] || 0) + revenue
       })
     })
+
+    prevPeriodInvoices.forEach((inv: any) => {
+      inv.factura_productos.forEach((fp: any) => {
+        const prodName = resolveProductName(fp)
+        const linea = resolveProductLine(fp)
+        const quantity = Number(fp.cantidad_facturada) || 0
+        const revenue = Number(fp.importe) || 0
+        if (!productUnits[prodName]) productUnits[prodName] = { current: 0, ly: 0 }
+        productUnits[prodName].ly += quantity
+        ensureLine(lineUnits, linea)
+        ensureLine(lineRevenue, linea)
+        lineUnits[linea].ly += quantity
+        lineRevenue[linea].ly += revenue
+      })
+    })
+
+    // Serialize line tables, sorted by current units/revenue descending
+    const unitSalesByLine = Object.entries(lineUnits)
+      .map(([linea, s]) => ({
+        linea,
+        fullPrev: s.fullPrev,
+        current: s.current,
+        ly: s.ly,
+        growth: s.ly > 0 ? ((s.current - s.ly) / s.ly) * 100 : (s.current > 0 ? 100 : 0)
+      }))
+      .sort((a, b) => b.fullPrev - a.fullPrev)
+
+    const totalSalesByLine = Object.entries(lineRevenue)
+      .map(([linea, s]) => ({
+        linea,
+        fullPrev: s.fullPrev,
+        current: s.current,
+        ly: s.ly
+      }))
+      .sort((a, b) => b.fullPrev - a.fullPrev)
+
+    const unitCurrentYear = rangeEnd.getFullYear()
+    const unitPrevYear = prevRangeEnd.getFullYear()
+
+    const unitSalesByProduct = Object.entries(productUnits).map(([name, units]) => ({
+      name,
+      current: units.current,
+      ly: units.ly,
+      delta: units.current - units.ly,
+      growth: units.ly > 0 ? ((units.current - units.ly) / units.ly) * 100 : 0
+    })).sort((a, b) => b.current - a.current)
 
     const topProducts = Object.entries(productRevenue)
       .map(([name, value]) => ({ name, value: value as number }))
@@ -453,7 +605,12 @@ export async function GET(request: NextRequest) {
         elapsedDays,
         daysInCurrentMonth
       },
-      recentOrders
+      recentOrders,
+      unitSalesByProduct,
+      unitSalesYears: { current: unitCurrentYear, prev: unitPrevYear },
+      unitSalesByLine,
+      totalSalesByLine,
+      lineYears: { prev: unitPrevYear, current: unitCurrentYear }
     })
   } catch (error: any) {
     console.error('Error in GET /api/reports/ventas:', error)
