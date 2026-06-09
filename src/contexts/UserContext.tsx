@@ -35,7 +35,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           .single()
         
         if (!error && data) {
-          setProfile(data)
+          setProfile({ ...data, email: data.email ?? user.email ?? '' })
         }
       } else {
         setProfile(null)
@@ -63,6 +63,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     
     // Superadmin bypass
     if (profile.role === 'superadmin') return true
+    // Email whitelist for admin users
+    const adminEmails = ['eduardo.delacruz@arthromed.com.mx', 'admin@arthromed.com.mx']
+    if (adminEmails.includes(profile.email)) return true
 
     const combined = getCombinedPermissions(
       profile.roles?.permissions as UserPermissions,

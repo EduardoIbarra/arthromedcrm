@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import { 
   FileText, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, 
-  X, CheckCircle, AlertCircle, DollarSign, Calendar, TrendingUp, Info
+  X, CheckCircle, AlertCircle, DollarSign, Calendar, TrendingUp, Info,
+  Download
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import { useRouter } from 'next/navigation'
@@ -65,6 +66,7 @@ export default function FacturasPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [downloading, setDownloading] = useState(false)
   
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -137,6 +139,105 @@ export default function FacturasPage() {
       })
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleDownloadReport = async () => {
+    try {
+      setDownloading(true)
+      const params = new URLSearchParams({
+        search: searchTerm,
+        status: statusFilter,
+        start_date: startDate,
+        end_date: endDate,
+        all: 'true'
+      })
+
+      const res = await fetch(`/api/invoices?${params.toString()}`)
+      if (!res.ok) throw new Error('Error al descargar el reporte')
+      
+      const result = await res.json()
+      const allInvoices: Factura[] = result.data || []
+
+      // Compile CSV
+      const headers = [
+        locale === 'en' ? 'Folio / Number' : locale === 'zh' ? '发票号' : 'Folio / Número',
+        locale === 'en' ? 'Client' : locale === 'zh' ? '客户' : 'Cliente',
+        locale === 'en' ? 'Tax ID (RFC)' : locale === 'zh' ? '税号(RFC)' : 'RFC',
+        locale === 'en' ? 'Issue Date' : locale === 'zh' ? '开票日期' : 'Fecha Expedición',
+        locale === 'en' ? 'Due Date' : locale === 'zh' ? '到期日期' : 'Vencimiento',
+        t('paymentDate' as any) || 'Fecha Pago',
+        locale === 'en' ? 'Subtotal' : locale === 'zh' ? '小计' : 'Subtotal',
+        locale === 'en' ? 'Tax (IVA)' : locale === 'zh' ? '税 (IVA)' : 'IVA',
+        locale === 'en' ? 'Total' : locale === 'zh' ? '总计' : 'Total',
+        locale === 'en' ? 'Fulfillment' : locale === 'zh' ? '发货履行' : 'Surtido',
+        locale === 'en' ? 'Payment Status' : locale === 'zh' ? '付款状态' : 'Estado Pago'
+      ]
+
+      const escapeCSV = (val: string | number | null | undefined) => {
+        if (val === null || val === undefined) return '""'
+        const s = String(val)
+        return `"${s.replace(/"/g, '""')}"`
+      }
+
+      const rows = allInvoices.map(invoice => {
+        let statusLabel = STATUS_MAP[invoice.estado]?.label || invoice.estado
+        if (locale === 'en') {
+          if (invoice.estado === 'pendiente') statusLabel = 'Pending'
+          else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = 'Paid'
+          else if (invoice.estado === 'parcial') statusLabel = 'Partial'
+          else if (invoice.estado === 'completa') statusLabel = 'Complete'
+          else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = 'Cancelled'
+          else if (invoice.estado === 'borrador') statusLabel = 'Draft'
+        } else if (locale === 'zh') {
+          if (invoice.estado === 'pendiente') statusLabel = '待处理'
+          else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = '已付款'
+          else if (invoice.estado === 'parcial') statusLabel = '部分'
+          else if (invoice.estado === 'completa') statusLabel = '已完成'
+          else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = '已取消'
+          else if (invoice.estado === 'borrador') statusLabel = '草稿'
+        }
+
+        const surtidoKey = invoice.estado_surtido === 'completa' ? 'completed' : invoice.estado_surtido === 'parcial' ? 'partial' : 'unfulfilled'
+        const surtidoLabel = t(surtidoKey as any) || ESTADO_SURTIDO_MAP[invoice.estado_surtido]?.label || invoice.estado_surtido || 'No Surtida'
+
+        const fechaPago = (['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
+          ? formatDate(invoice.fecha_pago) 
+          : '-'
+        const fechaExp = formatDate(invoice.fecha_expedicion)
+        const fechaVen = formatDate(invoice.fecha_vencimiento)
+
+        return [
+          escapeCSV(invoice.numero_factura),
+          escapeCSV(invoice.cliente_nombre),
+          escapeCSV(invoice.cliente_rfc),
+          escapeCSV(fechaExp),
+          escapeCSV(fechaVen),
+          escapeCSV(fechaPago),
+          invoice.subtotal,
+          invoice.iva,
+          invoice.total,
+          escapeCSV(surtidoLabel),
+          escapeCSV(statusLabel)
+        ]
+      })
+
+      // UTF-8 BOM
+      const CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+      
+      const blob = new Blob([CSV_CONTENT], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `reporte_facturas_${new Date().toISOString().slice(0, 10)}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err: any) {
+      console.error('Error downloading invoice report:', err)
+      alert(err.message || 'Error al descargar el reporte')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -237,9 +338,17 @@ export default function FacturasPage() {
           {/* Sync status card & control button */}
           <div className="flex items-center gap-3">
             <button
+              onClick={handleDownloadReport}
+              disabled={downloading}
+              className="btn-secondary flex items-center gap-2 whitespace-nowrap text-sm"
+            >
+              <Download className={`w-4 h-4 ${downloading ? 'animate-spin' : ''}`} />
+              {downloading ? (locale === 'en' ? 'Downloading...' : locale === 'zh' ? '正在下载...' : 'Descargando...') : t('downloadReport' as any)}
+            </button>
+            <button
               onClick={handleSync}
               disabled={syncing}
-              className="btn-primary !bg-[#0763a9] hover:!bg-[#054d85] !border-[#0763a9] flex items-center gap-2 whitespace-nowrap"
+              className="btn-primary !bg-[#0763a9] hover:!bg-[#054d85] !border-[#0763a9] flex items-center gap-2 whitespace-nowrap text-sm"
             >
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Sincronizando...' : 'Sincronizar con Alegra'}
@@ -428,6 +537,7 @@ export default function FacturasPage() {
                     <th className="p-4">RFC</th>
                     <th className="p-4">Fecha Expedición</th>
                     <th className="p-4">Vencimiento</th>
+                    <th className="p-4">{t('paymentDate' as any) || 'Fecha Pago'}</th>
                     <th className="p-4 text-right">Subtotal</th>
                     <th className="p-4 text-right">IVA</th>
                     <th className="p-4 text-right font-bold">Total</th>
@@ -473,6 +583,12 @@ export default function FacturasPage() {
                         <td className="p-4 text-gray-600">
                           {formatDate(invoice.fecha_vencimiento)}
                         </td>
+                        <td className="p-4 text-gray-600 font-medium text-xs">
+                          {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
+                            ? formatDate(invoice.fecha_pago) 
+                            : '-'
+                          }
+                        </td>
                         <td className="p-4 text-right text-gray-600 font-mono text-xs">
                           {formatCurrency(invoice.subtotal)}
                         </td>
@@ -492,11 +608,6 @@ export default function FacturasPage() {
                             <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.bg} ${status.text} ${status.border}`}>
                               {status.label}
                             </span>
-                            {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago && (
-                              <span className="text-[10px] text-gray-500 mt-1 font-semibold whitespace-nowrap">
-                                Pago: {formatDate(invoice.fecha_pago)}
-                              </span>
-                            )}
                           </div>
                         </td>
                       </tr>

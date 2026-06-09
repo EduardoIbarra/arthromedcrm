@@ -86,7 +86,19 @@ export interface Hospital {
   name: string
   created_at: string
   updated_at: string
+  notes?: string
+  admission_process?: string
+  billing_process?: string
+  group_id?: string
 }
+
+export interface HospitalGroup {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
 
 export interface HospitalPrice {
   id: string

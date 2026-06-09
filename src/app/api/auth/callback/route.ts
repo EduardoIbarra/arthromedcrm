@@ -16,6 +16,14 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (error) {
+      // Detailed logging when the code exchange fails
+      console.error('❌ Supabase exchangeCodeForSession error:', error)
+      // Forward the error message to the login page for visibility (URL‑encoded)
+      const errMsg = encodeURIComponent(error.message ?? 'unknown')
+      return NextResponse.redirect(`${origin}/login?error=${errMsg}`)
+    }
     
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser()

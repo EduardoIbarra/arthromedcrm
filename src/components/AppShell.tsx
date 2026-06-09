@@ -45,15 +45,21 @@ export default function AppShell({ children }: { children: ReactNode }) {
     // }
 
     // Find the matching route permission
-    const matchedRoute = Object.entries(ROUTE_PERMISSIONS).find(([route]) => 
-      pathname === route || (route !== '/' && pathname.startsWith(route))
-    )
+    // Email whitelist for admin users
+    const adminEmails = ['eduardo.delacruz@arthromed.com.mx', 'admin@arthromed.com.mx'];
+    if (profile?.email && adminEmails.includes(profile.email)) {
+      // Bypass all permission checks for admin emails
+    } else {
+      const matchedRoute = Object.entries(ROUTE_PERMISSIONS).find(([route]) => 
+        pathname === route || (route !== '/' && pathname.startsWith(route))
+      )
 
-    if (matchedRoute) {
-      const { section, action } = matchedRoute[1]
-      if (!hasPermission(section, action)) {
-        console.warn(`Access denied for ${pathname}. Required: ${section}:${action}`)
-        router.push('/') // Redirect to dashboard if no permission
+      if (matchedRoute) {
+        const { section, action } = matchedRoute[1]
+        if (!hasPermission(section, action)) {
+          console.warn(`Access denied for ${pathname}. Required: ${section}:${action}`)
+          router.push('/') // Redirect to dashboard if no permission
+        }
       }
     }
   }, [pathname, loading, hasPermission, router, profile])

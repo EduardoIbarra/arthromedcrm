@@ -6,12 +6,15 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const data = await prisma.congress_workshops.findMany({
-      include: {
-        congress: { select: { id: true, name: true } },
-        doctors: { include: { doctor: true } },
-        _count: { select: { enrollments: true } }
+      where: {
+        congress_id: null
       },
-      orderBy: { date_time: 'desc' }
+      include: {
+        congresos: true,
+        congress_workshop_doctors: { include: { doctors: true } },
+        _count: { select: { congress_workshop_enrollments: true } }
+      },
+      orderBy: { date_time: 'desc' },
     })
     return NextResponse.json({ data })
   } catch (err: any) {
@@ -38,15 +41,15 @@ export async function POST(req: NextRequest) {
         max_people: parseInt(max_people),
         cost: cost ? parseFloat(cost) : null,
         professor: professor || 'N/A', // Legacy field
-        doctors: {
+        congress_workshop_doctors: {
           create: docIds.map((docId: string) => ({
             doctor_id: docId
           }))
         }
       },
       include: {
-        doctors: { include: { doctor: true } },
-        congress: true
+        congress_workshop_doctors: { include: { doctors: true } },
+        congresos: true
       }
     })
 

@@ -1,6 +1,7 @@
 'use client'
 import { useI18n } from '@/contexts/I18nContext'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
+import CurrencySwitcher from '@/components/CurrencySwitcher'
 import { Bell, Search, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -46,6 +47,7 @@ export default function Header() {
       </Link>
 
       <div className="flex items-center gap-2 ml-auto">
+        <CurrencySwitcher />
         <LanguageSwitcher />
         <button
           className="p-2 rounded-xl transition-colors hover:bg-blue-50"

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import { TrendingUp, Plus, Edit2, Trash2, Calendar, DollarSign, LayoutGrid, List, Filter, Download, XCircle, Search, FileSpreadsheet, ChevronDown, Check, Loader2, Building2, Trophy, Award } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
@@ -30,6 +31,7 @@ const MONTH_NAMES = [
 
 export default function VentasPage() {
   const { t } = useI18n()
+  const { formatCurrency, formatChartTick } = useCurrency()
   const router = useRouter()
   const [ventas, setVentas] = useState<Venta[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -130,25 +132,7 @@ export default function VentasPage() {
     XLSX.writeFile(workbook, 'Reporte_Ventas_Mensuales.xlsx')
   }
 
-  const formatCurrency = (amount: number | string, compact = false) => {
-    const num = typeof amount === 'number' ? amount : parseFloat(amount as any) || 0
-    const absNum = Math.abs(num)
-    if (compact && absNum >= 1000000) {
-      return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
-    }
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN'
-    }).format(num)
-  }
-
-  const formatChartTick = (val: number) => {
-    const absVal = Math.abs(val)
-    if (absVal >= 1000000) {
-      return `${val < 0 ? '-' : ''}$${(absVal / 1000000).toFixed(2)}M`
-    }
-    return `${val < 0 ? '-' : ''}$${(absVal / 1000).toFixed(0)}k`
-  }
+  // Local formatCurrency and formatChartTick helpers removed in favor of global useCurrency context helpers
 
   // 1. Filtered lists for cross-filtering and rendering
   const searchFilter = (v: Venta) => {

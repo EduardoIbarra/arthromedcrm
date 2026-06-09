@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Gasto } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle, Search, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
@@ -25,6 +26,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function GastosPage() {
   const { t } = useI18n()
+  const { formatCurrency } = useCurrency()
   const router = useRouter()
   const [gastos, setGastos] = useState<GastoWithCongreso[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -242,17 +244,7 @@ export default function GastosPage() {
     }))
   }
 
-  const formatCurrency = (amount: number | string, compact = false) => {
-    const num = typeof amount === 'number' ? amount : parseFloat(amount as any) || 0
-    const absNum = Math.abs(num)
-    if (compact && absNum >= 1000000) {
-      return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
-    }
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN'
-    }).format(num)
-  }
+  // Local formatCurrency helper removed in favor of global useCurrency context helper
 
   // 1. Filtered lists for cross-filtering and rendering
   const searchFilter = (g: GastoWithCongreso) => {

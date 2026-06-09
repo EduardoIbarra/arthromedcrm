@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('end_date') || ''
     const page = parseInt(searchParams.get('page') || '1', 10)
     const pageSize = parseInt(searchParams.get('pageSize') || '15', 10)
+    const all = searchParams.get('all') === 'true'
 
     const where: any = {}
 
@@ -62,17 +63,22 @@ export async function GET(request: NextRequest) {
 
     const total = await prisma.facturas_cliente.count({ where })
     
-    const invoices = await prisma.facturas_cliente.findMany({
+    const queryOptions: any = {
       where,
       include: {
         factura_productos: true
       },
       orderBy: {
         fecha_expedicion: 'desc'
-      },
-      skip: (page - 1) * pageSize,
-      take: pageSize
-    })
+      }
+    }
+
+    if (!all) {
+      queryOptions.skip = (page - 1) * pageSize
+      queryOptions.take = pageSize
+    }
+
+    const invoices = await prisma.facturas_cliente.findMany(queryOptions)
 
     return NextResponse.json({
       data: invoices,

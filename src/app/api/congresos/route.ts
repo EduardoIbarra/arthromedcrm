@@ -7,8 +7,8 @@ export async function GET() {
   try {
     const data = await prisma.congresos.findMany({
       include: {
-        workshops: true,
-        contacts: true
+        congress_workshops: true,
+        congress_contacts: true
       },
       orderBy: {
         start_date: 'desc'
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         enable_workshops: enable_workshops !== false,
         global_budget: global_budget ? Number(global_budget) : null,
         video_urls: video_urls || [],
-        workshops: {
+        congress_workshops: {
           create: (workshops || []).map((w: any) => ({
             name: w.name,
             date_time: new Date(w.date_time),
@@ -68,14 +68,14 @@ export async function POST(request: NextRequest) {
             professor: w.professor
           }))
         },
-        contacts: {
+        congress_contacts: {
           create: (contacts || []).map((c: any) => ({
             name: c.name,
             number: c.number,
             email: c.email
           }))
         },
-        gastos_estimados: {
+        congreso_gastos_estimados: {
           create: (gastos_estimados || []).map((ge: any) => ({
             category_id: ge.category_id,
             amount: Number(ge.amount)
@@ -83,9 +83,9 @@ export async function POST(request: NextRequest) {
         }
       },
       include: {
-        workshops: true,
-        contacts: true,
-        gastos_estimados: true
+        congress_workshops: true,
+        congress_contacts: true,
+        congreso_gastos_estimados: true
       }
     })
 

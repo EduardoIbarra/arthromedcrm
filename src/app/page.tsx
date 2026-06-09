@@ -6,6 +6,7 @@ import {
   Trophy, Award
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import AppShell from '@/components/AppShell'
 import StatCard from '@/components/StatCard'
 import StatusBadge from '@/components/StatusBadge'
@@ -53,6 +54,7 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const { t, locale } = useI18n()
+  const { formatCurrency } = useCurrency()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -142,14 +144,7 @@ export default function DashboardPage() {
   const CARD_STYLE = { background: '#ffffff', border: '1px solid #d4e0ec' }
   const CHART_TOOLTIP = { background: '#ffffff', border: '1px solid #d4e0ec', borderRadius: 8, color: '#37383a' }
 
-  const formatCurrency = (amount: number | string, compact = false) => {
-    const num = typeof amount === 'number' ? amount : parseFloat(amount) || 0
-    const absNum = Math.abs(num)
-    if (compact && absNum >= 1000000) {
-      return `${num < 0 ? '-' : ''}$${(absNum / 1000000).toFixed(2)}M`
-    }
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(num)
-  }
+  // Local formatCurrency helper removed in favor of global useCurrency context helper
 
   // Upcoming congresos (end_date >= today)
   const today = new Date()

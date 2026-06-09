@@ -79,6 +79,12 @@ export default function Sidebar() {
       ],
     },
     {
+      title: t('reports' as any) || 'Reportes',
+      items: [
+        { href: '/reportes/ventas', icon: TrendingUp, label: t('ventas'), section: 'ventas' }
+      ],
+    },
+    {
       title: t('settings'),
       items: [
         { href: '/users', icon: ShieldCheck, label: t('users'), section: 'users' },

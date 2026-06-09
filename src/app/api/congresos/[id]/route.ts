@@ -11,34 +11,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const data = await prisma.congresos.findUnique({
       where: { id },
       include: {
-        workshops: {
+        congress_workshops: {
           include: {
-            doctors: {
-              include: { doctor: true }
+            congress_workshop_doctors: {
+              include: { doctors: true }
             },
-            enrollments: {
+            congress_workshop_enrollments: {
               select: { client_id: true }
             }
           }
         },
-        contacts: true,
+        congress_contacts: true,
         congress_catalogos: {
           include: {
-            catalog: true
+            catalogos: true
           }
         },
-        itinerary_items: {
+        congreso_itinerarios: {
           orderBy: [
             { date: 'asc' },
             { time: 'asc' }
           ]
         },
-        travelers: {
+        congreso_viajeros: {
           orderBy: { name: 'asc' }
         },
-        gastos_estimados: {
+        congreso_gastos_estimados: {
           include: {
-            category: true
+            catalog_spending_categories: true
           }
         }
       }
@@ -176,7 +176,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           enable_workshops: enable_workshops !== false,
           global_budget: global_budget ? Number(global_budget) : null,
           video_urls: video_urls || [],
-          contacts: {
+          congress_contacts: {
             upsert: (contacts || []).filter((c: any) => c.id).map((c: any) => ({
               where: { id: c.id },
               update: { name: c.name, number: c.number, email: c.email },
@@ -190,16 +190,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           }
         },
         include: {
-          workshops: true,
-          contacts: true,
+          congress_workshops: true,
+          congress_contacts: true,
           congress_catalogos: {
             include: {
-              catalog: true
+              catalogos: true
             }
           },
-          gastos_estimados: {
+          congreso_gastos_estimados: {
             include: {
-              category: true
+              catalog_spending_categories: true
             }
           }
         }

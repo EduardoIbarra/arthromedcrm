@@ -3,8 +3,9 @@ import { useState, useEffect } from 'react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
-import { Globe, Database, MessageCircle, Bot, FileText, X, Plus, Loader2 } from 'lucide-react'
+import { Globe, Database, MessageCircle, Bot, FileText, X, Plus, Loader2, DollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useCurrency } from '@/contexts/CurrencyContext'
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
@@ -31,12 +32,19 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function SettingsPage() {
   const { t } = useI18n()
+  const { exchangeRate, setExchangeRate } = useCurrency()
+  const [exchangeRateInput, setExchangeRateInput] = useState(exchangeRate.toString())
+  const [savingRate, setSavingRate] = useState(false)
   const [alegraConfig, setAlegraConfig] = useState<{ configured: boolean; email: string | null } | null>(null)
   const [garantiasUsers, setGarantiasUsers] = useState<string[]>([])
   const [inventarioUsers, setInventarioUsers] = useState<string[]>([])
   const [users, setUsers] = useState<{id: string, email: string, whatsapp: string}[]>([])
   const [savingNumbers, setSavingNumbers] = useState(false)
   const supabase = createClient()
+
+  useEffect(() => {
+    setExchangeRateInput(exchangeRate.toString())
+  }, [exchangeRate])
 
   useEffect(() => {
     fetch('/api/alegra/config')
@@ -89,6 +97,24 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSaveExchangeRate = async () => {
+    const val = parseFloat(exchangeRateInput)
+    if (isNaN(val) || val <= 0) {
+      alert('Por favor introduce un tipo de cambio válido mayor a 0.')
+      return
+    }
+    setSavingRate(true)
+    try {
+      await setExchangeRate(val)
+      alert('Tipo de cambio guardado exitosamente.')
+    } catch (err) {
+      console.error(err)
+      alert('Error al guardar el tipo de cambio.')
+    } finally {
+      setSavingRate(false)
+    }
+  }
+
   return (
     <AppShell>
       <div className="max-w-3xl mx-auto space-y-5">
@@ -114,6 +140,43 @@ export default function SettingsPage() {
                 <p className="text-xs" style={{ color: '#8a8b8d' }}>{l.desc}</p>
               </div>
             ))}
+          </div>
+        </SettingCard>
+
+        <SettingCard icon={<DollarSign size={16} />} iconColor="#0d9488" title="Divisa / Tipo de Cambio">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#37383a' }}>Tipo de Cambio USD / MXN</p>
+                <p className="text-xs" style={{ color: '#8a8b8d' }}>
+                  Define el tipo de cambio utilizado para los reportes cuando se selecciona la divisa USD.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={exchangeRateInput}
+                  onChange={(e) => setExchangeRateInput(e.target.value)}
+                  className="px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl text-sm font-mono w-28 text-right outline-none focus:border-brand-500/40"
+                  placeholder="20.00"
+                />
+                <span className="text-xs font-semibold text-gray-500">MXN</span>
+              </div>
+            </div>
+            
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveExchangeRate}
+                disabled={savingRate}
+                className="px-4 py-2 hover:opacity-90 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                style={{ background: '#0763a9' }}
+              >
+                {savingRate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Guardar Tipo de Cambio
+              </button>
+            </div>
           </div>
         </SettingCard>
 
