@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   const specialty = searchParams.get('specialty') || ''
   const congreso = searchParams.get('congreso') || ''
   const isProspect = searchParams.get('is_prospect') === 'true'
+  const source = searchParams.get('source') || ''
   const page = parseInt(searchParams.get('page') || '1')
   const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
@@ -38,6 +39,9 @@ export async function GET(request: NextRequest) {
   }
   if (congreso) {
     query = query.contains('tags', [`congreso:${congreso}`])
+  }
+  if (source) {
+    query = query.eq('source', source)
   }
 
   const { data, error, count } = await query

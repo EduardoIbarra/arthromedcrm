@@ -33,6 +33,7 @@ function ClientsContent() {
   const [stateFilter, setStateFilter] = useState('')
   const [congresoFilter, setCongresoFilter] = useState('')
   const [isProspectFilter, setIsProspectFilter] = useState(false)
+  const [sourceFilter, setSourceFilter] = useState('')
   const [page, setPage] = useState(1)
   const [showFilters, setShowFilters] = useState(false)
   const [congresos, setCongresos] = useState<Congreso[]>([])
@@ -42,6 +43,7 @@ function ClientsContent() {
     const status = searchParams.get('status')
     const isProspect = searchParams.get('is_prospect') === 'true'
     const congreso = searchParams.get('congreso')
+    const source = searchParams.get('source')
     if (status) {
       setStatusFilter(status)
       setShowFilters(true)
@@ -53,6 +55,10 @@ function ClientsContent() {
     }
     if (congreso) {
       setCongresoFilter(congreso)
+      setShowFilters(true)
+    }
+    if (source) {
+      setSourceFilter(source)
       setShowFilters(true)
     }
   }, [searchParams])
@@ -73,6 +79,7 @@ function ClientsContent() {
       ...(stateFilter && { state: stateFilter }),
       ...(congresoFilter && { congreso: congresoFilter }),
       ...(isProspectFilter && { is_prospect: 'true' }),
+      ...(sourceFilter && { source: sourceFilter }),
     })
     try {
       const res = await fetch(`/api/clients?${params}`)
@@ -80,10 +87,10 @@ function ClientsContent() {
       setClients(json.data || [])
       setTotal(json.count || 0)
     } finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, page])
+  }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, page])
 
   useEffect(() => { fetchClients() }, [fetchClients])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter])
 
   const exportCsv = () => {
     const headers = ['Nombre', 'RFC', 'Teléfono', 'Email Contacto', 'Estados', 'Especialidades', 'Estatus']
@@ -129,9 +136,9 @@ function ClientsContent() {
             style={showFilters ? { color: '#0763a9', borderColor: '#0763a9' } : {}}
           >
             <Filter size={15} /> {t('filter')}
-            {(statusFilter || stateFilter || congresoFilter || isProspectFilter) && (
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter) && (
               <span className="ml-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center" style={{ background: '#0763a9' }}>
-                {[statusFilter, stateFilter, congresoFilter, isProspectFilter].filter(Boolean).length}
+                {[statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -182,8 +189,15 @@ function ClientsContent() {
                 {congresos.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            {(statusFilter || stateFilter || congresoFilter || isProspectFilter) && (
-              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setCongresoFilter(''); setIsProspectFilter(false) }} className="btn-ghost text-xs self-end mb-0.5">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: '#5a5b5d' }}>Origen (Source)</label>
+              <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="erp-input text-sm py-1.5" style={{ minWidth: 160 }}>
+                <option value="">{t('all')}</option>
+                <option value="Formulario Público">Formulario Público</option>
+              </select>
+            </div>
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter) && (
+              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setCongresoFilter(''); setIsProspectFilter(false); setSourceFilter('') }} className="btn-ghost text-xs self-end mb-0.5">
                 <X size={13} /> Limpiar
               </button>
             )}
