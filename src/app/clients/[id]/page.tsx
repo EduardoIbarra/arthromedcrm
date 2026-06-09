@@ -43,6 +43,12 @@ const formatChartTick = (val: number) => {
   return `${val < 0 ? '-' : ''}$${(absVal / 1000).toFixed(0)}k`
 }
 
+const DhlLogo = () => (
+  <span className="inline-flex items-center gap-0.5 bg-[#FFCC00] text-[#D00000] font-black italic tracking-tighter px-1.5 py-0.5 rounded text-[9px] select-none h-4 shadow-xs" style={{ fontFamily: "'Outfit', 'Inter', sans-serif" }}>
+    DHL
+  </span>
+)
+
 const dfLocales: Record<Locale, typeof es> = { es, en: enUS, zh: zhCN }
 
 const ACTIVITY_ICON: Record<string, string> = {
@@ -432,6 +438,127 @@ export default function ClientDetailPage() {
             <InfoRow label={t('zipCode')}>{field('zip_code')}</InfoRow>
             <InfoRow label={t('fiscalAddress')}>{field('fiscal_address')}</InfoRow>
           </InfoCard>
+
+          {/* Direcciones de Entrega Adicionales */}
+          <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
+            <div className="flex items-center gap-2">
+              <MapPin size={15} style={{ color: '#0763a9' }} />
+              <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Direcciones de Entrega Adicionales</h2>
+            </div>
+            {editing ? (
+              <div className="space-y-4">
+                {/* List of current addresses to remove */}
+                {((editData.addresses || []) as any[]).length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {((editData.addresses || []) as any[]).map((addr, idx) => (
+                      <div key={idx} className="p-3 bg-[#f8fafd] border border-[#e8f1f9] rounded-xl flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-[#0763a9]">{addr.name}</span>
+                            {addr.is_dhl && <DhlLogo />}
+                            {addr.zip_code && <span className="text-[10px] text-gray-500 font-mono">CP {addr.zip_code}</span>}
+                          </div>
+                          <p className="text-xs text-[#37383a] mt-1">{addr.address}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = (editData.addresses || []).filter((_, i) => i !== idx)
+                            setEditData(p => ({ ...p, addresses: updated }))
+                          }}
+                          className="text-[#b91c1c] hover:bg-[#fee2e2] p-1 rounded transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#8a8b8d] italic">No hay direcciones adicionales registradas.</p>
+                )}
+
+                {/* Form to add a new one */}
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                  <p className="text-xs font-bold text-[#5a5b5d] uppercase tracking-wider">Agregar Nueva Dirección</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <input
+                      type="text"
+                      className="erp-input text-xs"
+                      placeholder="Alias (Ej. Sucursal GDL)"
+                      id="new-addr-name-admin"
+                    />
+                    <input
+                      type="text"
+                      className="erp-input text-xs"
+                      placeholder="Código Postal (Ej. 64000)"
+                      id="new-addr-zip-admin"
+                      maxLength={5}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nameEl = document.getElementById('new-addr-name-admin') as HTMLInputElement
+                        const zipEl = document.getElementById('new-addr-zip-admin') as HTMLInputElement
+                        const addrEl = document.getElementById('new-addr-val-admin') as HTMLInputElement
+                        const dhlEl = document.getElementById('new-addr-dhl-admin') as HTMLInputElement
+                        if (nameEl && addrEl && nameEl.value.trim() && addrEl.value.trim()) {
+                          const newAddr = {
+                            name: nameEl.value.trim(),
+                            zip_code: zipEl ? zipEl.value.trim() : '',
+                            address: addrEl.value.trim(),
+                            is_dhl: dhlEl ? dhlEl.checked : false
+                          }
+                          const updated = [...(editData.addresses || []), newAddr]
+                          setEditData(p => ({ ...p, addresses: updated }))
+                          nameEl.value = ''
+                          if (zipEl) zipEl.value = ''
+                          addrEl.value = ''
+                          if (dhlEl) dhlEl.checked = false
+                        }
+                      }}
+                      className="btn-secondary text-xs flex justify-center py-2"
+                    >
+                      <Plus size={13} /> Agregar
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    className="erp-input text-xs w-full"
+                    placeholder="Dirección Completa (Calle, Número, Colonia, Ciudad, Estado)"
+                    id="new-addr-val-admin"
+                  />
+                  <div className="flex items-center gap-2 px-1">
+                    <input
+                      type="checkbox"
+                      id="new-addr-dhl-admin"
+                      className="w-4 h-4 text-[#0763a9] border-gray-300 rounded focus:ring-[#0763a9] cursor-pointer"
+                    />
+                    <label htmlFor="new-addr-dhl-admin" className="text-xs font-bold text-[#5a5b5d] cursor-pointer flex items-center gap-1.5 selection:bg-transparent">
+                      Es una sucursal <DhlLogo /> Ocurre
+                    </label>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* View mode */
+              ((client.addresses || []) as any[]).length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {((client.addresses || []) as any[]).map((addr, idx) => (
+                    <div key={idx} className="p-3.5 bg-[#f8fafd] border border-[#e8f1f9] rounded-2xl flex flex-col gap-1 hover:border-[#b4d2ed] transition-colors">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-[#0763a9]">{addr.name}</span>
+                        {addr.is_dhl && <DhlLogo />}
+                        {addr.zip_code && <span className="text-[10px] bg-[#e8f1f9] px-1.5 py-0.5 rounded text-gray-500 font-mono">CP {addr.zip_code}</span>}
+                      </div>
+                      <p className="text-sm text-[#37383a] mt-1">{addr.address}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm italic" style={{ color: '#c4c5c7' }}>Sin direcciones de entrega adicionales registradas.</p>
+              )
+            )}
+          </div>
 
           <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
             <div className="flex items-center gap-2">

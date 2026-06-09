@@ -8,14 +8,16 @@ export async function proxy(request: NextRequest) {
                         request.nextUrl.pathname.startsWith('/favicon.ico') ||
                         request.nextUrl.pathname.startsWith('/distribuidores') || // Public directory
                         request.nextUrl.pathname === '/registro' ||
+                        request.nextUrl.pathname === '/registro-cliente' ||
                         request.nextUrl.pathname === '/qr' ||
                         (request.nextUrl.pathname.startsWith('/congresos/') && request.nextUrl.pathname.endsWith('/landing'))
 
   const isPublicApi = (request.nextUrl.pathname === '/api/catalog/specialties' && request.method === 'GET') ||
+                      (request.nextUrl.pathname === '/api/hospitals' && request.method === 'GET') ||
                       (request.nextUrl.pathname.startsWith('/api/congresos/') && request.method === 'GET') ||
                       (request.nextUrl.pathname === '/api/catalogos' && request.method === 'GET') ||
                       (request.nextUrl.pathname === '/api/clients' && request.method === 'POST') ||
-                      (request.nextUrl.pathname.startsWith('/api/clients/') && request.method === 'GET') ||
+                      (request.nextUrl.pathname.startsWith('/api/clients/') && (request.method === 'GET' || request.method === 'PATCH')) ||
                       (request.nextUrl.pathname === '/api/products/filter' && request.method === 'GET') ||
                       (request.nextUrl.pathname === '/api/orders' && request.method === 'POST') ||
                       (request.nextUrl.pathname === '/api/workshops' && request.method === 'GET') ||

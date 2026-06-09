@@ -724,6 +724,7 @@ model clients {
   distributor_id                String?                         @unique
   letter_created_at             DateTime?                       @db.Date
   letter_expires_at             DateTime?                       @db.Date
+  addresses                     Json?                           @default("[]")
   client_activities             client_activities[]
   client_custom_fields          client_custom_fields[]
   congress_workshop_enrollments congress_workshop_enrollments[]

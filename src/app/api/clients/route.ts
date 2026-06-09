@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import prisma from '@/lib/prisma'
 import { ClientInsert } from '@/types/database'
 import { generateDistributorId } from '@/lib/distributor-id'
 
@@ -57,15 +58,36 @@ export async function POST(request: NextRequest) {
     body.distributor_id = await generateDistributorId()
   }
 
-  const { data, error } = await supabase
-    .from('clients')
-    .insert(body)
-    .select()
-    .single()
-
-  if (error) {
+  try {
+    const data = await prisma.clients.create({
+      data: {
+        name: body.name,
+        rfc: body.rfc,
+        zip_code: body.zip_code,
+        fiscal_address: body.fiscal_address,
+        email_primary: body.email_primary,
+        email_billing: body.email_billing,
+        email_contact: body.email_contact,
+        phone: body.phone,
+        whatsapp_phone: body.whatsapp_phone,
+        states: body.states || [],
+        hospitals: body.hospitals || [],
+        specialties: body.specialties || [],
+        tax_regime: body.tax_regime,
+        status: body.status || 'Nuevo Prospecto',
+        notes: body.notes,
+        tags: body.tags || [],
+        assigned_to: body.assigned_to,
+        source: body.source,
+        distributor_id: body.distributor_id,
+        letter_created_at: body.letter_created_at ? new Date(body.letter_created_at) : null,
+        letter_expires_at: body.letter_expires_at ? new Date(body.letter_expires_at) : null,
+        letter_url: body.letter_url,
+        addresses: body.addresses || []
+      }
+    })
+    return NextResponse.json({ data }, { status: 201 })
+  } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ data }, { status: 201 })
 }

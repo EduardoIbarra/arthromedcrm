@@ -38,4 +38,4 @@ const nextConfig: NextConfig = {
 
 export default nextConfig
 
-// Trigger server reload to pick up updated Prisma Client schema changes (reload at 2026-05-25 11:32)
+// Trigger server reload to pick up updated Prisma Client schema changes (reload at 2026-06-09 10:28)
