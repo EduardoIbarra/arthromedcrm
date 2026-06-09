@@ -118,7 +118,7 @@ async function main() {
 
   // Set of existing invoice folios in DB (case-insensitive)
   const existingFolios = new Set<string>(
-    dbExistingInvoices.map(inv => inv.numero_factura.toLowerCase().trim())
+    dbExistingInvoices.map((inv: any) => inv.numero_factura.toLowerCase().trim())
   );
 
   // Group Excel rows by FOLIO
@@ -355,7 +355,7 @@ async function main() {
     console.log(`\nInserting ${invoicesToCreate.length} invoices into database...`);
     
     // We execute inside a transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       for (const inv of invoicesToCreate) {
         const { lineItems, ...invoiceData } = inv;
         
