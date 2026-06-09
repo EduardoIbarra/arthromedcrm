@@ -424,6 +424,7 @@ export default function ClientDetailPage() {
         {/* Info grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InfoCard icon={<Phone size={15} />} iconColor="#0763a9" title={t('contactInfo')}>
+            <InfoRow label="Directivo / Rep. Legal">{field('legal_representative')}</InfoRow>
             <InfoRow label={t('primaryPhone')}>{field('phone')}</InfoRow>
             <InfoRow label={t('whatsappPhone')}>{field('whatsapp_phone')}</InfoRow>
             <InfoRow label={t('primaryEmail')}>{field('email_primary')}</InfoRow>

@@ -20,6 +20,7 @@ export interface Client {
   tax_regime: string | null
   status: ClientStatus
   source: string | null
+  legal_representative: string | null
   notes: string | null
   tags: string[] | null
   assigned_to: string | null

@@ -47,6 +47,7 @@ interface FormState {
   name: string
   phone: string
   email_primary: string
+  legal_representative: string
   rfc: string
   tax_regime: string
   zip_code: string
@@ -85,6 +86,7 @@ function RegistroClienteContent() {
     name: '',
     phone: '',
     email_primary: '',
+    legal_representative: '',
     rfc: '',
     tax_regime: '',
     zip_code: '',
@@ -220,6 +222,7 @@ function RegistroClienteContent() {
       phone: form.phone.replace(/\D/g, ''),
       whatsapp_phone: form.phone.replace(/\D/g, ''),
       email_primary: form.email_primary.trim(),
+      legal_representative: form.legal_representative.trim() || null,
       rfc: form.rfc.trim() || null,
       tax_regime: form.tax_regime || null,
       zip_code: form.zip_code.trim() || null,
@@ -454,6 +457,20 @@ function RegistroClienteContent() {
                     value={form.name}
                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     autoComplete="organization"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#5a5b5d] uppercase tracking-wider mb-2" htmlFor="legal_representative">
+                    Nombre de Directivo o Representante Legal (Opcional)
+                  </label>
+                  <input
+                    id="legal_representative"
+                    type="text"
+                    className="w-full bg-[#f8fafd] border-2 border-[#d4e0ec] rounded-xl px-4 py-3 text-[#37383a] transition-all focus:outline-none focus:border-[#0763a9] focus:bg-white focus:shadow-[0_0_0_4px_rgba(7,99,169,0.1)] placeholder:text-[#b4b5b7]"
+                    placeholder="Ej. Ing. Juan Pérez Gómez"
+                    value={form.legal_representative}
+                    onChange={e => setForm(p => ({ ...p, legal_representative: e.target.value }))}
                   />
                 </div>
 
@@ -816,6 +833,7 @@ function RegistroClienteContent() {
             {step === 'confirm' && (
               <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
                 <ConfirmRow label="Nombre / Razón Social" value={form.name} />
+                {form.legal_representative && <ConfirmRow label="Representante / Directivo" value={form.legal_representative} />}
                 <ConfirmRow label="Teléfono" value={form.phone} />
                 <ConfirmRow label="Correo Electrónico" value={form.email_primary} />
 

@@ -721,6 +721,7 @@ model clients {
   last_contact_at               DateTime?                       @db.Timestamptz(6)
   updated_at                    DateTime                        @default(now()) @db.Timestamptz(6)
   source                        String?
+  legal_representative          String?
   distributor_id                String?                         @unique
   letter_created_at             DateTime?                       @db.Date
   letter_expires_at             DateTime?                       @db.Date

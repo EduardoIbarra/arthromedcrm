@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
         tags: body.tags || [],
         assigned_to: body.assigned_to,
         source: body.source,
+        legal_representative: body.legal_representative,
         distributor_id: body.distributor_id,
         letter_created_at: body.letter_created_at ? new Date(body.letter_created_at) : null,
         letter_expires_at: body.letter_expires_at ? new Date(body.letter_expires_at) : null,
