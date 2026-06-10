@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 // List of allowed admin emails
 const ADMIN_EMAILS = [
   'eduardo.delacruz@arthromed.com.mx',
+  'eduardo@arthromed.com.mx',
   'admin@arthromed.com.mx'
 ];
 

@@ -49,7 +49,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
     // Find the matching route permission
     // Email whitelist for admin users
-    const adminEmails = ['eduardo.delacruz@arthromed.com.mx', 'admin@arthromed.com.mx'];
+    const adminEmails = [
+      'eduardo.delacruz@arthromed.com.mx',
+      'eduardo@arthromed.com.mx',
+      'admin@arthromed.com.mx'
+    ];
     if (profile?.email && adminEmails.includes(profile.email)) {
       // Bypass all permission checks for admin emails
     } else {
