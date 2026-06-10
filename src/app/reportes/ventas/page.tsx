@@ -364,8 +364,8 @@ export default function VentasReportPage() {
           </div>
         </div>
 
-        {/* 1. Executive KPIs (Exactly 5 columns per row) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* 1. Executive KPIs (Exactly 3 columns per row) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <StatCard
             title={t('periodSales' as any) || 'Ventas del Periodo'}
             value={formatCurrency(data.kpis.salesMonth, true)}
@@ -386,20 +386,6 @@ export default function VentasReportPage() {
             icon={<ShoppingBag size={20} />}
             color="blue"
             subtitle={`AOV: ${formatCurrency(data.kpis.aov, true)}`}
-          />
-          <StatCard
-            title={t('averageSale') || 'Ticket Promedio (AOV)'}
-            value={formatCurrency(data.kpis.aov, true)}
-            icon={<Activity size={20} />}
-            color="amber"
-            subtitle={t('averageOrderValueSub' as any) || 'Valor promedio de orden'}
-          />
-          <StatCard
-            title={t('avgSalesPerActiveClient' as any) || 'Venta Promedio por Cliente Activo'}
-            value={formatAverageSales(data.kpis.avgSalesCurrent ?? 0)}
-            icon={<Users size={20} />}
-            color="blue"
-            subtitle={t('clientAvgPeriod' as any).replace('{period}', getYearSuffix(endDate))}
           />
         </div>
 
@@ -1159,75 +1145,96 @@ export default function VentasReportPage() {
           </div>
         </div>
 
-        {/* New Client Sales Widget */}
-        <div className="rounded-2xl p-5 bg-white flex flex-col h-[400px]" style={CARD_STYLE}>
-          <ChartHeader
-            title={t('newClientSalesTitle' as any) || 'Nuevas Ventas de Clientes'}
-            tooltipText={t('newClientSalesTooltip' as any) || 'Muestra las ventas de clientes registrados en el periodo seleccionado y su desviación respecto a la venta promedio general.'}
-          />
-          <div className="overflow-y-auto max-h-[300px] rounded-lg border border-[#e8f1f9] text-xs">
-            <table className="min-w-full divide-y divide-[#e8f1f9]">
-              <thead className="sticky top-0 bg-[#f0f5fa] z-10">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[40%]">
-                    {t('colClient' as any) || 'Cliente'}
-                  </th>
-                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
-                    {t('colSalesCurrentYear' as any).replace('{currentYear}', String(data.unitSalesYears?.current ?? 2026))}
-                  </th>
-                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
-                    Delta Avg %
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f0f5fa] bg-white">
-                {(data.newClientSales ?? []).map((row) => {
-                  return (
-                    <tr key={row.name} className="hover:bg-[#f8fafc] transition-colors">
-                      <td className="px-3 py-2 font-medium text-[#37383a] truncate max-w-[180px]" title={row.name}>
-                        {row.crmClientId ? (
-                          <span
-                            onClick={() => router.push(`/reportes/clientes/${row.crmClientId}`)}
-                            className="cursor-pointer text-teal-650 hover:underline font-semibold"
-                          >
-                            {row.name}
-                          </span>
-                        ) : (
-                          <span>{row.name}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold text-[#37383a]">
-                        {formatCurrency(row.salesCurrent)}
-                      </td>
-                      <td className={`px-3 py-2 text-right font-semibold ${row.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
-                        {row.deltaAvg >= 0 ? '+' : ''}{row.deltaAvg.toFixed(2)}%
-                      </td>
-                    </tr>
-                  )
-                })}
-                {(data.newClientSales ?? []).length === 0 && (
+        {/* New Client Sales & Stacked KPIs Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* New Client Sales Widget (75%) */}
+          <div className="lg:col-span-3 rounded-2xl p-5 bg-white flex flex-col h-[400px]" style={CARD_STYLE}>
+            <ChartHeader
+              title={t('newClientSalesTitle' as any) || 'Nuevas Ventas de Clientes'}
+              tooltipText={t('newClientSalesTooltip' as any) || 'Muestra las ventas de clientes registrados en el periodo seleccionado y su desviación respecto a la venta promedio general.'}
+            />
+            <div className="overflow-y-auto max-h-[300px] rounded-lg border border-[#e8f1f9] text-xs">
+              <table className="min-w-full divide-y divide-[#e8f1f9]">
+                <thead className="sticky top-0 bg-[#f0f5fa] z-10">
                   <tr>
-                    <td colSpan={3} className="px-3 py-6 text-center text-gray-400 font-semibold">
-                      {t('noFilteredSalesResults' as any) || 'No se encontraron ventas con los filtros aplicados.'}
-                    </td>
+                    <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[40%]">
+                      {t('colClient' as any) || 'Cliente'}
+                    </th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                      {t('colSalesCurrentYear' as any).replace('{currentYear}', String(data.unitSalesYears?.current ?? 2026))}
+                    </th>
+                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                      Delta Avg %
+                    </th>
                   </tr>
-                )}
-                {/* Totals row */}
-                {(() => {
-                  const tRow = data.newClientSalesTotal
-                  if (!tRow || (data.newClientSales ?? []).length === 0) return null
-                  return (
-                    <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
-                      <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any) || 'Total'}</td>
-                      <td className="px-3 py-2 text-right text-[#37383a]">{formatCurrency(tRow.salesCurrent)}</td>
-                      <td className={`px-3 py-2 text-right ${tRow.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
-                        {tRow.deltaAvg >= 0 ? '+' : ''}{tRow.deltaAvg.toFixed(2)}%
+                </thead>
+                <tbody className="divide-y divide-[#f0f5fa] bg-white">
+                  {(data.newClientSales ?? []).map((row) => {
+                    return (
+                      <tr key={row.name} className="hover:bg-[#f8fafc] transition-colors">
+                        <td className="px-3 py-2 font-medium text-[#37383a] truncate max-w-[180px]" title={row.name}>
+                          {row.crmClientId ? (
+                            <span
+                              onClick={() => router.push(`/reportes/clientes/${row.crmClientId}`)}
+                              className="cursor-pointer text-teal-650 hover:underline font-semibold"
+                            >
+                              {row.name}
+                            </span>
+                          ) : (
+                            <span>{row.name}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#37383a]">
+                          {formatCurrency(row.salesCurrent)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-semibold ${row.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                          {row.deltaAvg >= 0 ? '+' : ''}{row.deltaAvg.toFixed(2)}%
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {(data.newClientSales ?? []).length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-6 text-center text-gray-400 font-semibold">
+                        {t('noFilteredSalesResults' as any) || 'No se encontraron ventas con los filtros aplicados.'}
                       </td>
                     </tr>
-                  )
-                })()}
-              </tbody>
-            </table>
+                  )}
+                  {/* Totals row */}
+                  {(() => {
+                    const tRow = data.newClientSalesTotal
+                    if (!tRow || (data.newClientSales ?? []).length === 0) return null
+                    return (
+                      <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
+                        <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any) || 'Total'}</td>
+                        <td className="px-3 py-2 text-right text-[#37383a]">{formatCurrency(tRow.salesCurrent)}</td>
+                        <td className={`px-3 py-2 text-right ${tRow.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                          {tRow.deltaAvg >= 0 ? '+' : ''}{tRow.deltaAvg.toFixed(2)}%
+                        </td>
+                      </tr>
+                    )
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Stacked KPIs (25%) */}
+          <div className="lg:col-span-1 flex flex-col gap-4">
+            <StatCard
+              title={t('avgSalesPerActiveClient' as any) || 'Venta Promedio por Cliente Activo'}
+              value={formatAverageSales(data.kpis.avgSalesCurrent ?? 0)}
+              icon={<Users size={20} />}
+              color="blue"
+              subtitle={t('clientAvgPeriod' as any).replace('{period}', getYearSuffix(endDate))}
+            />
+            <StatCard
+              title={t('averageSale') || 'Ticket Promedio (AOV)'}
+              value={formatCurrency(data.kpis.aov, true)}
+              icon={<Activity size={20} />}
+              color="amber"
+              subtitle={t('averageOrderValueSub' as any) || 'Valor promedio de orden'}
+            />
           </div>
         </div>
 
