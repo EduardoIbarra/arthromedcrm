@@ -58,9 +58,9 @@ async function main() {
   prisma = (await import('../src/lib/prisma')).default;
   const args = process.argv.slice(2);
   const isCommit = args.includes('--commit');
-  const excelPath = '/Users/ed/Downloads/ventas2025 (2).xlsx';
+  const excelPath = '/Users/ed/Downloads/ventas2026.xlsx';
 
-  console.log('--- 2025 SALES EXCEL INGESTION SCRIPT ---');
+  console.log('--- 2026 SALES EXCEL INGESTION SCRIPT ---');
   console.log(`Mode: ${isCommit ? 'COMMIT (Writes to Database)' : 'DRY-RUN (No writes)'}`);
   console.log(`Database URL: ${process.env.DATABASE_URL ? 'Configured' : 'Missing!'}`);
   console.log(`Direct URL: ${process.env.DIRECT_URL ? 'Configured' : 'Missing!'}`);
@@ -76,23 +76,23 @@ async function main() {
   const rawRows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[sheetName]);
   console.log(`Read ${rawRows.length} rows from sheet "${sheetName}".`);
 
-  const rows = rawRows.filter(r => {
-    const app = String(r.APLICACION || '').toLowerCase().trim();
-    return app.includes('acumulabl');
-  });
-  console.log(`Filtered to ${rows.length} rows with APLICACION containing 'acumulabl'.`);
+  // No APLICACION filter mentioned for 2026
+  const rows = rawRows;
+  console.log(`Using ${rows.length} rows for 2026 import.`);
 
   // Load database lookup maps
   console.log('Loading lookups from Database...');
   const dbClientes = await prisma.clientes.findMany();
   const dbClients = await prisma.clients.findMany();
   const dbProducts = await prisma.productos.findMany();
+  console.log('\nClearing previous historical imports...');
+  // Delete previous imports first
+  const deleted = await prisma.facturas_cliente.deleteMany({
+    where: { observaciones: 'Importación histórica de ventas 2026' }
+  });
+  console.log(`Deleted ${deleted.count} existing historical invoices.`);
+
   const dbExistingInvoices = await prisma.facturas_cliente.findMany({
-    where: {
-      observaciones: {
-        not: 'Importación histórica de ventas 2025'
-      }
-    },
     select: { numero_factura: true, id: true }
   });
 
@@ -164,19 +164,15 @@ async function main() {
   console.log('\nProcessing invoices...');
 
   for (const [folio, groupRows] of invoiceGroups.entries()) {
-    // 1. Check for duplicates
-    if (existingFolios.has(folio.toLowerCase().trim())) {
-      skippedDuplicatesCount++;
-      continue;
-    }
+    // 1. We don't skip duplicates anymore since we upsert them.
 
     const firstRow = groupRows[0];
     const fechaExpedicion = firstRow.FECHA ? excelToDate(firstRow.FECHA) : new Date();
     
     // Client details
-    const rfc = firstRow.RFC ? String(firstRow.RFC).trim() : null;
+    const rfc = firstRow['CLIENTE - RFC'] || firstRow.RFC ? String(firstRow['CLIENTE - RFC'] || firstRow.RFC).trim() : null;
     const razonSocial = firstRow['RAZON SOCIAL'] ? String(firstRow['RAZON SOCIAL']).trim() : null;
-    const clienteName = firstRow['CLIENTE.1'] ? String(firstRow['CLIENTE.1']).trim() : (firstRow.CLIENTE ? String(firstRow.CLIENTE).trim() : null);
+    const clienteName = firstRow['CLIENTE - NOMBRE'] || firstRow.CLIENTE ? String(firstRow['CLIENTE - NOMBRE'] || firstRow.CLIENTE).trim() : null;
     const estadoCliente = firstRow.ESTADO ? String(firstRow.ESTADO).trim() : 'Activo';
 
     // Best client identifier
@@ -265,7 +261,11 @@ async function main() {
     }
 
     // 3. Group calculations
-    const totalAmount = groupRows.reduce((sum, r) => sum + (Number(r['AMOUNT (MXN)'] || r.TOTAL) || 0), 0);
+    const totalAmount = groupRows.reduce((sum, r) => {
+      const cantidad = Number(r.cantidad) || 1;
+      const precioUnitario = Number(r['precio unitario']) || 0;
+      return sum + (cantidad * precioUnitario);
+    }, 0);
     const subtotal = Number((totalAmount / 1.16).toFixed(2));
     const iva = Number((totalAmount - subtotal).toFixed(2));
     totalRevenueImported += totalAmount;
@@ -273,15 +273,15 @@ async function main() {
     // 4. Resolve products and prepare line items
     const lineItems: any[] = [];
     for (const r of groupRows) {
-      const prodId = String(r.ProductoID || r.PRODUCTOID || '').trim();
-      const prodName = String(r.PRODUCTO || '').trim();
-      const model = r.Modelo || r.MODELO ? String(r.Modelo || r.MODELO).trim() : null;
-      const orderCode = r['Ordering Code'] || r['CODIGO ORDEN'] ? String(r['Ordering Code'] || r['CODIGO ORDEN']).trim() : null;
-      const line = r.Linea || r.LINEA ? String(r.Linea || r.LINEA).trim() : 'Otros';
-      const tipo = r.Tipo || r['TIPO PRODUCTO'] ? String(r.Tipo || r['TIPO PRODUCTO']).trim() : 'Producto';
-      const cantidad = Number(r.CANTIDAD) || 1;
-      const precioUnitario = Number(r['PRECIO UNI']) || 0;
-      const totalItem = Number(r['AMOUNT (MXN)'] || r.TOTAL) || 0;
+      const prodId = String(r.PRODUCTOID || '').trim();
+      const prodName = String(r.Nombre || r['CONCEPTO ALEGRA'] || '').trim();
+      const model = r.Modelo ? String(r.Modelo).trim() : null;
+      const orderCode = r['Ordering Code'] ? String(r['Ordering Code']).trim() : null;
+      const line = r.Linea ? String(r.Linea).trim() : 'Otros';
+      const tipo = r.Tipo ? String(r.Tipo).trim() : 'Producto';
+      const cantidad = Number(r.cantidad) || 1;
+      const precioUnitario = Number(r['precio unitario']) || 0;
+      const totalItem = cantidad * precioUnitario;
 
       let targetProductId: string | null = null;
       const productKey = prodId.toLowerCase();
@@ -353,7 +353,7 @@ async function main() {
       iva,
       total: totalAmount,
       xml_original: null,
-      observaciones: 'Importación histórica de ventas 2025',
+      observaciones: 'Importación histórica de ventas 2026',
       fecha_pago: fechaExpedicion,
       metodo_pago: 'Transferencia SPEI',
       estado_surtido: 'surtida',
@@ -363,37 +363,72 @@ async function main() {
 
   // 6. DB Execution
   if (isCommit) {
-    console.log('\nClearing previous historical imports...');
-    // Only delete if there are any remaining (though they should be cleared already if we run it again)
-    const deleted = await prisma.facturas_cliente.deleteMany({
-      where: { observaciones: 'Importación histórica de ventas 2025' }
-    });
-    console.log(`Deleted ${deleted.count} existing historical invoices.`);
+    // Already deleted at the top
 
-    console.log(`\nInserting ${invoicesToCreate.length} invoices into database...`);
+    console.log(`\nUpserting ${invoicesToCreate.length} invoices into database...`);
     
-    // We execute inside a transaction
-    await prisma.$transaction(async (tx: any) => {
+    let created = 0;
+    let updated = 0;
+
+    await prisma.$transaction(async (tx) => {
       for (const inv of invoicesToCreate) {
         const { lineItems, ...invoiceData } = inv;
+        const folio = invoiceData.numero_factura;
         
-        // Create invoice header with nested line items
-        await tx.facturas_cliente.create({
-          data: {
-            ...invoiceData,
-            factura_productos: {
-              createMany: {
-                data: lineItems
+        const existing = await tx.facturas_cliente.findUnique({
+          where: { numero_factura: folio }
+        });
+
+        if (existing) {
+          // Update existing invoice
+          await tx.facturas_cliente.update({
+            where: { id: existing.id },
+            data: {
+              cliente_id: invoiceData.cliente_id,
+              cliente_nombre: invoiceData.cliente_nombre,
+              cliente_rfc: invoiceData.cliente_rfc,
+              // Optionally update totals if Excel is the source of truth
+              subtotal: invoiceData.subtotal,
+              iva: invoiceData.iva,
+              total: invoiceData.total,
+              // No need to overwrite observaciones if they are already null or alegra specific
+            }
+          });
+
+          // Replace line items
+          await tx.factura_productos.deleteMany({
+            where: { factura_id: existing.id }
+          });
+
+          for (const item of lineItems) {
+            await tx.factura_productos.create({
+              data: {
+                ...item,
+                factura_id: existing.id
+              }
+            });
+          }
+          updated++;
+        } else {
+          // Create new invoice header with nested line items
+          await tx.facturas_cliente.create({
+            data: {
+              ...invoiceData,
+              factura_productos: {
+                create: lineItems
               }
             }
-          }
-        });
+          });
+          created++;
+        }
       }
     }, {
-      maxWait: 30000,
-      timeout: 300000
+      timeout: 600000 // 600 seconds to allow for many inserts over network
     });
+
     console.log('Database transaction completed successfully!');
+    console.log(`Created: ${created}`);
+    console.log(`Updated: ${updated}`);
   }
 
   // Output stats
