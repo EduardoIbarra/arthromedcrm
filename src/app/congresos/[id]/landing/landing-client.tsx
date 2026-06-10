@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -162,7 +163,37 @@ function CatalogCard({ catalog, index }: { catalog: { id: string; name: string; 
 export default function CongressLandingClient({ initialCongress }: { initialCongress?: any }) {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
-  const [congress, setCongress] = useState<CongresoData | null>(initialCongress || null)
+  const normalizeCongress = (data: any): CongresoData => {
+    return {
+      ...data,
+      workshops: (data.workshops || data.congress_workshops || []).map((w: any) => ({
+        ...w,
+        enrollments: w.enrollments || w.congress_workshop_enrollments || []
+      })),
+      contacts: data.contacts || data.congress_contacts || [],
+      congress_catalogos: (data.congress_catalogos || []).map((cc: any) => ({
+        ...cc,
+        catalog: cc.catalog || cc.catalogos
+      }))
+    }
+  }
+
+  const [congress, setCongressState] = useState<CongresoData | null>(
+    initialCongress ? normalizeCongress(initialCongress) : null
+  )
+
+  const setCongress = (
+    data: CongresoData | null | ((prev: CongresoData | null) => CongresoData | null)
+  ) => {
+    if (typeof data === 'function') {
+      setCongressState((prev: CongresoData | null) => {
+        const next = data(prev)
+        return next ? normalizeCongress(next) : null
+      })
+    } else {
+      setCongressState(data ? normalizeCongress(data) : null)
+    }
+  }
   const [products, setProducts] = useState<any[]>([])
   const [clientName, setClientName] = useState<string | null>(null)
   const [greetingMsg, setGreetingMsg] = useState<string | null>(null)

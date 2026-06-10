@@ -61,31 +61,31 @@ export default async function Page({ params }: Props) {
   const congressData = await prisma.congresos.findUnique({
     where: { id },
     include: {
-      workshops: {
+      congress_workshops: {
         include: {
-          enrollments: {
+          congress_workshop_enrollments: {
             select: { client_id: true }
           }
         }
       },
-      contacts: true,
+      congress_contacts: true,
       congress_catalogos: {
         include: {
-          catalog: true
+          catalogos: true
         }
       },
-      itinerary_items: {
+      congreso_itinerarios: {
         orderBy: [
           { date: 'asc' },
           { time: 'asc' }
         ]
       },
-      travelers: {
+      congreso_viajeros: {
         orderBy: { name: 'asc' }
       },
-      gastos_estimados: {
+      congreso_gastos_estimados: {
         include: {
-          category: true
+          catalog_spending_categories: true
         }
       }
     }
