@@ -132,7 +132,7 @@ async function main() {
   // 1. Fetch existing congresses
   console.log('Fetching congresses from DB...');
   const dbCongresos = await prisma.congresos.findMany({
-    select: { id: true, name: true }
+    select: { id: true, name: true, start_date: true }
   });
   console.log(`Loaded ${dbCongresos.length} congresses.`);
   const congressMap = new Map<string, typeof dbCongresos[0]>(
@@ -374,6 +374,10 @@ async function main() {
           // Create new client
           newClientsCreated++;
           
+          const congressStartDate = (congressId && congressId !== 'DRY_RUN_CONGRESS_ID') 
+            ? (congressMap.get(congressKey)?.start_date || new Date()) 
+            : new Date();
+
           const newClientData: any = {
             name,
             phone: phone || null,
@@ -385,7 +389,8 @@ async function main() {
             tags: [tagToAdd],
             status: 'Nuevo Prospecto',
             source: 'Importación Congreso',
-            registered_at: new Date()
+            created_at: congressStartDate,
+            registered_at: congressStartDate
           };
 
           if (isCommit) {

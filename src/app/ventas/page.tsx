@@ -439,7 +439,7 @@ export default function VentasPage() {
               <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1 truncate" title={formatCurrency(kpiTotalSales)}>{formatCurrency(kpiTotalSales, true)}</span>
             </div>
             <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-blue-600 overflow-hidden">
-              <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('averageSale' as any) || 'Promedio Mensual'}</span>
+              <span className="text-xs sm:text-sm text-gray-500 font-medium">{t('averageSale' as any) || 'Ticket Promedio'}</span>
               <span className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1 truncate" title={formatCurrency(kpiAverageSale)}>{formatCurrency(kpiAverageSale, true)}</span>
             </div>
             <div className="card p-3 sm:p-4 flex flex-col justify-center border-l-4 border-l-orange-500">

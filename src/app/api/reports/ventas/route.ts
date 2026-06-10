@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
           rfc: true,
           states: true,
           assigned_to: true,
-          created_at: true
+          created_at: true,
+          registered_at: true
         }
       }),
       prisma.productos.findMany({
@@ -160,10 +161,17 @@ export async function GET(request: NextRequest) {
     const aov = orderCount > 0 ? salesPeriod / orderCount : 0
     
     // New CRM clients created in the selected range
-    const newClientsCount = crmClients.filter((c: any) => {
-      const date = new Date(c.created_at)
+    const newClients = crmClients.filter((c: any) => {
+      const date = c.registered_at ? new Date(c.registered_at) : new Date(c.created_at)
       return date >= rangeStart && date <= rangeEnd
-    }).length
+    })
+    const newClientsCount = newClients.length
+    const newClientIds = new Set(newClients.map((c: any) => c.id))
+
+    // Active clients with sales in this period
+    const activeClientsCount = new Set(
+      periodInvoices.map((inv: any) => inv.crmClientId || inv.cliente_rfc || inv.cliente_nombre).filter(Boolean)
+    ).size
 
     // Target scaled by the number of days (baseline $500K per 30 days)
     const goalTarget = Math.round((500000 / 30) * diffDays)
@@ -266,7 +274,10 @@ export async function GET(request: NextRequest) {
 
     // Helper: resolve canonical short name from an invoice line item.
     // Priority: (1) linked/raw product name cleaned  (2) fuzzy match  (3) raw name
-    const resolveProductName = (fp: any): string => {
+    const resolveProductName = (fp: any, inv?: any): string => {
+      if (inv?.observaciones && String(inv.observaciones).startsWith('Importación histórica')) {
+        return fp.producto_nombre || 'Desconocido'
+      }
       const initialName = fp.productos?.nombre || fp.producto_nombre || 'Desconocido'
       const cleaned = cleanProductName(initialName)
       return matchProductName(cleaned).canonicalName
@@ -275,10 +286,10 @@ export async function GET(request: NextRequest) {
     // Helper: resolve product línea from an invoice line item.
     // Priority: (1) fp.linea (DB column, backfilled from Excel + productos.line)
     //           (2) linked productos.line  (3) name→line lookup  (4) 'OTHER'
-    const resolveProductLine = (fp: any): string => {
+    const resolveProductLine = (fp: any, inv?: any): string => {
       if (fp.linea) return fp.linea
       if (fp.productos?.line) return fp.productos.line
-      const canonicalName = resolveProductName(fp)
+      const canonicalName = resolveProductName(fp, inv)
       return nameToLine.get(canonicalName) || 'OTHER'
     }
 
@@ -307,7 +318,7 @@ export async function GET(request: NextRequest) {
     // Full prev year — for the "Sales/Units YYYY" column
     fullPrevYearInvoices.forEach((inv: any) => {
       inv.factura_productos.forEach((fp: any) => {
-        const linea = resolveProductLine(fp)
+        const linea = resolveProductLine(fp, inv)
         ensureLine(lineUnits, linea)
         ensureLine(lineRevenue, linea)
         lineUnits[linea].fullPrev += Number(fp.cantidad_facturada) || 0
@@ -317,8 +328,8 @@ export async function GET(request: NextRequest) {
 
     periodInvoices.forEach((inv: any) => {
       inv.factura_productos.forEach((fp: any) => {
-        const prodName = resolveProductName(fp)
-        const linea = resolveProductLine(fp)
+        const prodName = resolveProductName(fp, inv)
+        const linea = resolveProductLine(fp, inv)
         const revenue = Number(fp.importe) || 0
         const quantity = Number(fp.cantidad_facturada) || 0
         productRevenue[prodName] = (productRevenue[prodName] || 0) + revenue
@@ -336,8 +347,8 @@ export async function GET(request: NextRequest) {
 
     prevPeriodInvoices.forEach((inv: any) => {
       inv.factura_productos.forEach((fp: any) => {
-        const prodName = resolveProductName(fp)
-        const linea = resolveProductLine(fp)
+        const prodName = resolveProductName(fp, inv)
+        const linea = resolveProductLine(fp, inv)
         const quantity = Number(fp.cantidad_facturada) || 0
         const revenue = Number(fp.importe) || 0
         if (!productUnits[prodName]) productUnits[prodName] = { current: 0, ly: 0 }
@@ -348,6 +359,8 @@ export async function GET(request: NextRequest) {
         lineRevenue[linea].ly += revenue
       })
     })
+
+    const totalUnitsSold = Object.values(productUnits).reduce((sum, u) => sum + u.current, 0)
 
     // Serialize line tables, sorted by current units/revenue descending
     const unitSalesByLine = Object.entries(lineUnits)
@@ -569,6 +582,98 @@ export async function GET(request: NextRequest) {
     const currentLabel = getPeriodLabel(rangeStart, rangeEnd)
     const prevLabel = getPeriodLabel(prevRangeStart, prevRangeEnd)
 
+    // Client sales comparison data aggregation
+    const clientSalesMap = new Map<string, {
+      name: string
+      salesPrevFull: number
+      salesPrevYTD: number
+      salesCurrent: number
+      crmClientId: string | null
+    }>()
+
+    const getOrCreateClientRecord = (name: string, crmId: string | null) => {
+      const key = name.toUpperCase().trim()
+      if (!clientSalesMap.has(key)) {
+        clientSalesMap.set(key, {
+          name,
+          salesPrevFull: 0,
+          salesPrevYTD: 0,
+          salesCurrent: 0,
+          crmClientId: crmId
+        })
+      }
+      const record = clientSalesMap.get(key)!
+      if (crmId && !record.crmClientId) {
+        record.crmClientId = crmId
+      }
+      return record
+    }
+
+    fullPrevYearInvoices.forEach((inv: any) => {
+      const record = getOrCreateClientRecord(inv.cliente_nombre, inv.crmClientId)
+      record.salesPrevFull += inv.totalNum
+    })
+
+    prevPeriodInvoices.forEach((inv: any) => {
+      const record = getOrCreateClientRecord(inv.cliente_nombre, inv.crmClientId)
+      record.salesPrevYTD += inv.totalNum
+    })
+
+    periodInvoices.forEach((inv: any) => {
+      const record = getOrCreateClientRecord(inv.cliente_nombre, inv.crmClientId)
+      record.salesCurrent += inv.totalNum
+    })
+
+    const clientSales = Array.from(clientSalesMap.values()).map((c) => {
+      const delta = c.salesCurrent - c.salesPrevYTD
+      const growth = c.salesPrevYTD > 0 ? (delta / c.salesPrevYTD) * 100 : (c.salesCurrent > 0 ? 100 : 0)
+      return {
+        ...c,
+        delta,
+        growth,
+        deltaAvg: 0
+      }
+    }).filter((c) => c.salesCurrent > 0)
+
+    const totalSalesCurrent = clientSales.reduce((sum, c) => sum + c.salesCurrent, 0)
+    const avgSalesCurrent = activeClientsCount > 0 ? totalSalesCurrent / activeClientsCount : 0
+
+    clientSales.forEach((c: any) => {
+      c.deltaAvg = c.salesCurrent > 0 ? ((c.salesCurrent - avgSalesCurrent) / c.salesCurrent) * 100 : 0
+    })
+
+    clientSales.sort((a: any, b: any) => b.salesCurrent - a.salesCurrent)
+
+    const totalSalesPrevFull = clientSales.reduce((sum, c) => sum + c.salesPrevFull, 0)
+    const totalSalesPrevYTD = clientSales.reduce((sum, c) => sum + c.salesPrevYTD, 0)
+    const totalDelta = totalSalesCurrent - totalSalesPrevYTD
+    const totalGrowth = totalSalesPrevYTD > 0 ? (totalDelta / totalSalesPrevYTD) * 100 : 0
+    const totalDeltaAvg = totalSalesCurrent > 0 ? ((totalSalesCurrent - avgSalesCurrent) / totalSalesCurrent) * 100 : 0
+
+    const clientSalesTotal = {
+      salesPrevFull: totalSalesPrevFull,
+      salesPrevYTD: totalSalesPrevYTD,
+      salesCurrent: totalSalesCurrent,
+      delta: totalDelta,
+      growth: totalGrowth,
+      deltaAvg: totalDeltaAvg
+    }
+
+    const newClientSales = clientSales.filter((c) => c.salesCurrent > 0 && c.salesPrevFull === 0)
+    newClientSales.sort((a, b) => b.salesCurrent - a.salesCurrent)
+
+    const newClientSalesCurrentTotal = newClientSales.reduce((sum, c) => sum + c.salesCurrent, 0)
+    const newClientCount = newClientSales.length
+    const newClientAvgSales = newClientCount > 0 ? newClientSalesCurrentTotal / newClientCount : 0
+    const newClientTotalDeltaAvg = newClientAvgSales > 0 
+      ? ((newClientAvgSales - avgSalesCurrent) / newClientAvgSales) * 100 
+      : 0
+
+    const newClientSalesTotal = {
+      salesCurrent: newClientSalesCurrentTotal,
+      deltaAvg: newClientTotalDeltaAvg
+    }
+
     return NextResponse.json({
       kpis: {
         salesToday,
@@ -579,7 +684,10 @@ export async function GET(request: NextRequest) {
         newClientsCount,
         aov,
         goalProgress,
-        goalTarget
+        goalTarget,
+        activeClientsCount,
+        totalUnitsSold,
+        avgSalesCurrent
       },
       salesTrends: trendData,
       trendLabels: {
@@ -610,7 +718,11 @@ export async function GET(request: NextRequest) {
       unitSalesYears: { current: unitCurrentYear, prev: unitPrevYear },
       unitSalesByLine,
       totalSalesByLine,
-      lineYears: { prev: unitPrevYear, current: unitCurrentYear }
+      lineYears: { prev: unitPrevYear, current: unitCurrentYear },
+      clientSales,
+      clientSalesTotal,
+      newClientSales,
+      newClientSalesTotal
     })
   } catch (error: any) {
     console.error('Error in GET /api/reports/ventas:', error)

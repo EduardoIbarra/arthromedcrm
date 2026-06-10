@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   TrendingUp, TrendingDown, DollarSign, FileText, Users, ShoppingBag, 
-  Target, BarChart2, UserCheck, MapPin, ArrowRight, Activity, Calendar, HelpCircle
+  Target, BarChart2, UserCheck, MapPin, ArrowRight, Activity, Calendar, HelpCircle,
+  ArrowUp, ArrowDown, ArrowUpRight
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
@@ -25,6 +26,9 @@ interface ReportData {
     aov: number
     goalProgress: number
     goalTarget?: number
+    activeClientsCount?: number
+    totalUnitsSold?: number
+    avgSalesCurrent?: number
   }
   salesTrends: {
     month: string
@@ -93,6 +97,34 @@ interface ReportData {
     prev: number
     current: number
   }
+  clientSales: {
+    name: string
+    salesPrevFull: number
+    salesPrevYTD: number
+    salesCurrent: number
+    delta: number
+    growth: number
+    deltaAvg: number
+    crmClientId: string | null
+  }[]
+  clientSalesTotal: {
+    salesPrevFull: number
+    salesPrevYTD: number
+    salesCurrent: number
+    delta: number
+    growth: number
+    deltaAvg: number
+  }
+  newClientSales: {
+    name: string
+    salesCurrent: number
+    deltaAvg: number
+    crmClientId: string | null
+  }[]
+  newClientSalesTotal: {
+    salesCurrent: number
+    deltaAvg: number
+  }
 }
 
 const ChartHeader = ({ title, tooltipText }: { title: string; tooltipText: string }) => (
@@ -156,7 +188,23 @@ const getPresetDates = (preset: string) => {
 
 export default function VentasReportPage() {
   const { t, locale } = useI18n()
-  const { formatCurrency, formatChartTick } = useCurrency()
+  const { formatCurrency, formatChartTick, currency, exchangeRate } = useCurrency()
+  
+  const formatAverageSales = (val: number) => {
+    let num = val
+    if (currency === 'USD') {
+      num = num / exchangeRate
+    }
+    return `${(num / 1000).toFixed(2)}K`
+  }
+
+  const getYearSuffix = (dateStr: string) => {
+    const parts = dateStr.split('-')
+    if (parts.length > 0 && parts[0].length === 4) {
+      return parts[0].slice(-2)
+    }
+    return ''
+  }
   const router = useRouter()
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -316,8 +364,8 @@ export default function VentasReportPage() {
           </div>
         </div>
 
-        {/* 1. Executive KPIs (Exactly 3 columns per row) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* 1. Executive KPIs (Exactly 5 columns per row) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             title={t('periodSales' as any) || 'Ventas del Periodo'}
             value={formatCurrency(data.kpis.salesMonth, true)}
@@ -340,13 +388,6 @@ export default function VentasReportPage() {
             subtitle={`AOV: ${formatCurrency(data.kpis.aov, true)}`}
           />
           <StatCard
-            title={t('newClientsPeriod' as any) || 'Nuevos Clientes (Periodo)'}
-            value={data.kpis.newClientsCount}
-            icon={<Users size={20} />}
-            color="blue"
-            subtitle={t('registeredInPeriod' as any) || 'Registrados en el periodo'}
-          />
-          <StatCard
             title={t('averageSale') || 'Ticket Promedio (AOV)'}
             value={formatCurrency(data.kpis.aov, true)}
             icon={<Activity size={20} />}
@@ -354,11 +395,11 @@ export default function VentasReportPage() {
             subtitle={t('averageOrderValueSub' as any) || 'Valor promedio de orden'}
           />
           <StatCard
-            title={t('salesTarget' as any) || 'Meta de Ventas'}
-            value={`${data.kpis.goalProgress.toFixed(1)}%`}
-            icon={<Target size={20} />}
-            color="green"
-            subtitle={`${t('targetForPeriod' as any) || 'Meta del periodo'}: ${formatCurrency(data.kpis.goalTarget || 500000, true)}`}
+            title={t('avgSalesPerActiveClient' as any) || 'Venta Promedio por Cliente Activo'}
+            value={formatAverageSales(data.kpis.avgSalesCurrent ?? 0)}
+            icon={<Users size={20} />}
+            color="blue"
+            subtitle={t('clientAvgPeriod' as any).replace('{period}', getYearSuffix(endDate))}
           />
         </div>
 
@@ -989,6 +1030,205 @@ export default function VentasReportPage() {
               </div>
             )
           })()}
+        </div>
+
+        {/* Client Sales Widget */}
+        <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+          <ChartHeader
+            title={t('clientSalesTitle' as any) || 'Ventas por Cliente'}
+            tooltipText={t('clientSalesTooltip' as any)
+              .replace('{prevYear}', String(data.unitSalesYears?.prev ?? 2025))
+              .replace('{currentYear}', String(data.unitSalesYears?.current ?? 2026))
+            }
+          />
+          <div className="overflow-y-auto max-h-[380px] rounded-lg border border-[#e8f1f9] text-xs">
+            <table className="min-w-full divide-y divide-[#e8f1f9]">
+              <thead className="sticky top-0 bg-[#f0f5fa] z-10">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[30%]">
+                    {t('colClient' as any) || 'Client'}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    {t('colSalesPrevYear' as any).replace('{prevYear}', String(data.unitSalesYears?.prev ?? 2025))}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    {t('colSalesLYYTD' as any) || 'Sales LY YTD'}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    {t('colSalesCurrentYear' as any).replace('{currentYear}', String(data.unitSalesYears?.current ?? 2026))}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    {t('colDeltaSales' as any) || 'Delta Sales'}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    {t('colYTDGrowth' as any) || 'YTD Growth %'}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    {t('colDeltaAvg' as any) || 'Delta Avg %'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f0f5fa] bg-white">
+                {(data.clientSales ?? []).map((row) => {
+                  const isPositiveDelta = row.delta >= 0
+                  
+                  // Arrow logic:
+                  // - vertical green up-arrow if YTD Growth % >= 100%
+                  // - diagonal orange up-right arrow if YTD Growth % is positive and < 100%
+                  // - vertical red down-arrow if YTD Growth % is negative
+                  let ArrowIcon = null
+                  let arrowColor = ''
+                  if (row.growth >= 100) {
+                    ArrowIcon = ArrowUp
+                    arrowColor = 'text-green-600'
+                  } else if (row.growth > 0) {
+                    ArrowIcon = ArrowUpRight
+                    arrowColor = 'text-amber-500'
+                  } else if (row.growth < 0) {
+                    ArrowIcon = ArrowDown
+                    arrowColor = 'text-red-600'
+                  }
+
+                  return (
+                    <tr key={row.name} className="hover:bg-[#f8fafc] transition-colors">
+                      <td className="px-3 py-2 font-medium text-[#37383a] truncate max-w-[180px]" title={row.name}>
+                        {row.crmClientId ? (
+                          <span
+                            onClick={() => router.push(`/reportes/clientes/${row.crmClientId}`)}
+                            className="cursor-pointer text-teal-650 hover:underline font-semibold"
+                          >
+                            {row.name}
+                          </span>
+                        ) : (
+                          <span>{row.name}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-[#37383a]">
+                        {formatCurrency(row.salesPrevFull)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-[#8a8b8d]">
+                        {formatCurrency(row.salesPrevYTD)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold text-[#37383a]">
+                        {formatCurrency(row.salesCurrent)}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${isPositiveDelta ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                        {isPositiveDelta ? '+' : ''}{formatCurrency(row.delta)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1 font-bold">
+                          {ArrowIcon && <ArrowIcon size={14} className={arrowColor} />}
+                          <span className={row.growth >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}>
+                            {row.growth >= 0 ? '+' : ''}{row.growth.toFixed(2)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${row.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                        {row.deltaAvg >= 0 ? '+' : ''}{row.deltaAvg.toFixed(2)}%
+                      </td>
+                    </tr>
+                  )
+                })}
+                {/* Totals row */}
+                {(() => {
+                  const tRow = data.clientSalesTotal
+                  if (!tRow) return null
+                  const isPositiveDelta = tRow.delta >= 0
+                  return (
+                    <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
+                      <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any) || 'Total'}</td>
+                      <td className="px-3 py-2 text-right text-[#37383a]">{formatCurrency(tRow.salesPrevFull)}</td>
+                      <td className="px-3 py-2 text-right text-[#8a8b8d]">{formatCurrency(tRow.salesPrevYTD)}</td>
+                      <td className="px-3 py-2 text-right text-[#37383a]">{formatCurrency(tRow.salesCurrent)}</td>
+                      <td className={`px-3 py-2 text-right ${isPositiveDelta ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                        {isPositiveDelta ? '+' : ''}{formatCurrency(tRow.delta)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <span className={tRow.growth >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}>
+                          {tRow.growth >= 0 ? '+' : ''}{tRow.growth.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className={`px-3 py-2 text-right ${tRow.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                        {tRow.deltaAvg >= 0 ? '+' : ''}{tRow.deltaAvg.toFixed(2)}%
+                      </td>
+                    </tr>
+                  )
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* New Client Sales Widget */}
+        <div className="rounded-2xl p-5 bg-white flex flex-col h-[400px]" style={CARD_STYLE}>
+          <ChartHeader
+            title={t('newClientSalesTitle' as any) || 'Nuevas Ventas de Clientes'}
+            tooltipText={t('newClientSalesTooltip' as any) || 'Muestra las ventas de clientes registrados en el periodo seleccionado y su desviación respecto a la venta promedio general.'}
+          />
+          <div className="overflow-y-auto max-h-[300px] rounded-lg border border-[#e8f1f9] text-xs">
+            <table className="min-w-full divide-y divide-[#e8f1f9]">
+              <thead className="sticky top-0 bg-[#f0f5fa] z-10">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[40%]">
+                    {t('colClient' as any) || 'Cliente'}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    {t('colSalesCurrentYear' as any).replace('{currentYear}', String(data.unitSalesYears?.current ?? 2026))}
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">
+                    Delta Avg %
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f0f5fa] bg-white">
+                {(data.newClientSales ?? []).map((row) => {
+                  return (
+                    <tr key={row.name} className="hover:bg-[#f8fafc] transition-colors">
+                      <td className="px-3 py-2 font-medium text-[#37383a] truncate max-w-[180px]" title={row.name}>
+                        {row.crmClientId ? (
+                          <span
+                            onClick={() => router.push(`/reportes/clientes/${row.crmClientId}`)}
+                            className="cursor-pointer text-teal-650 hover:underline font-semibold"
+                          >
+                            {row.name}
+                          </span>
+                        ) : (
+                          <span>{row.name}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold text-[#37383a]">
+                        {formatCurrency(row.salesCurrent)}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${row.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                        {row.deltaAvg >= 0 ? '+' : ''}{row.deltaAvg.toFixed(2)}%
+                      </td>
+                    </tr>
+                  )
+                })}
+                {(data.newClientSales ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-6 text-center text-gray-400 font-semibold">
+                      {t('noFilteredSalesResults' as any) || 'No se encontraron ventas con los filtros aplicados.'}
+                    </td>
+                  </tr>
+                )}
+                {/* Totals row */}
+                {(() => {
+                  const tRow = data.newClientSalesTotal
+                  if (!tRow || (data.newClientSales ?? []).length === 0) return null
+                  return (
+                    <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
+                      <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any) || 'Total'}</td>
+                      <td className="px-3 py-2 text-right text-[#37383a]">{formatCurrency(tRow.salesCurrent)}</td>
+                      <td className={`px-3 py-2 text-right ${tRow.deltaAvg >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                        {tRow.deltaAvg >= 0 ? '+' : ''}{tRow.deltaAvg.toFixed(2)}%
+                      </td>
+                    </tr>
+                  )
+                })()}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* 3. Breakdown Analysis */}

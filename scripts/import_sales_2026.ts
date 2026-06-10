@@ -33,25 +33,7 @@ function excelToDate(serial: number): Date {
 }
 
 interface ExcelRow {
-  FOLIO?: string;
-  FECHA?: number;
-  CLIENTEID?: string;
-  PRODUCTOID?: string;
-  PRODUCTO?: string;
-  MODELO?: string;
-  'CODIGO ORDEN'?: string;
-  CANTIDAD?: number;
-  'PRECIO UNI'?: number;
-  TOTAL?: number;
-  APLICACION?: string;
-  LINEA?: string;
-  'TIPO PRODUCTO'?: string;
-  'RAZON SOCIAL'?: string;
-  CLIENTE?: string;
-  'TIPO CLIENTE'?: string;
-  RFC?: string;
-  ANTIGUEDAD?: string;
-  ESTADO?: string;
+  [key: string]: any;
 }
 
 async function main() {
@@ -172,11 +154,11 @@ async function main() {
     // Client details
     const rfc = firstRow['CLIENTE - RFC'] || firstRow.RFC ? String(firstRow['CLIENTE - RFC'] || firstRow.RFC).trim() : null;
     const razonSocial = firstRow['RAZON SOCIAL'] ? String(firstRow['RAZON SOCIAL']).trim() : null;
-    const clienteName = firstRow['CLIENTE - NOMBRE'] || firstRow.CLIENTE ? String(firstRow['CLIENTE - NOMBRE'] || firstRow.CLIENTE).trim() : null;
+    const clienteName = firstRow.CLIENTE ? String(firstRow.CLIENTE).trim() : (firstRow['CLIENTE - NOMBRE'] ? String(firstRow['CLIENTE - NOMBRE']).trim() : null);
     const estadoCliente = firstRow.ESTADO ? String(firstRow.ESTADO).trim() : 'Activo';
 
     // Best client identifier
-    const clientNameForMatching = razonSocial || clienteName || 'Cliente sin nombre';
+    const clientNameForMatching = clienteName || razonSocial || 'Cliente sin nombre';
 
     // 2. Client matching & resolution
     let targetClienteId: string | null = null;
@@ -370,7 +352,7 @@ async function main() {
     let created = 0;
     let updated = 0;
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       for (const inv of invoicesToCreate) {
         const { lineItems, ...invoiceData } = inv;
         const folio = invoiceData.numero_factura;
@@ -391,7 +373,7 @@ async function main() {
               subtotal: invoiceData.subtotal,
               iva: invoiceData.iva,
               total: invoiceData.total,
-              // No need to overwrite observaciones if they are already null or alegra specific
+              observaciones: invoiceData.observaciones
             }
           });
 
