@@ -303,7 +303,7 @@ export default function CongresoViewPage() {
                                     {order.order_items.map((item: any) => (
                                       <div key={item.id} className="p-4 flex items-center justify-between text-sm">
                                         <div className="space-y-1">
-                                          <p className="font-semibold text-gray-800">{[item.product?.description, item.product?.model, item.product?.order_code].filter(Boolean).join(' - ')}</p>
+                                          <p className="font-semibold text-gray-800">{item.product?.nombre_lista || item.product?.description}</p>
                                           <p className="text-xs text-gray-400 font-medium">
                                             Mod: {item.product?.model || 'Estándar'} | Cód: {item.product?.order_code || 'N/A'}
                                           </p>

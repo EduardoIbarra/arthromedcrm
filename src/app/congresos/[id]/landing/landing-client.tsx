@@ -743,7 +743,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
                                 -{p.type === 'equipment' ? '5%' : '4%'}
                               </div>
                             </div>
-                            <h3 className="text-xl font-bold text-[#37383a] mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{[p.description, p.model, p.order_code].filter(Boolean).join(' - ')}</h3>
+                            <h3 className="text-xl font-bold text-[#37383a] mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{p.nombre_lista || p.description}</h3>
                             <p className="text-sm text-[#8a8b8d] mb-6 flex-1">{p.model || p.order_code || 'Referencia estándar'}</p>
 
                             <div className="flex items-end gap-3 mt-auto">
@@ -1015,7 +1015,7 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
                       className="bg-white border border-[#d4e0ec] p-4 rounded-2xl flex gap-4 items-center justify-between"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-[#37383a] text-sm truncate">{[product.description, product.model, product.order_code].filter(Boolean).join(' - ')}</p>
+                        <p className="font-bold text-[#37383a] text-sm truncate">{product.nombre_lista || product.description}</p>
                         <p className="text-xs text-[#8a8b8d] mt-1">{product.model || product.order_code}</p>
                         <p className="text-sm font-bold text-blue-400 mt-2">{formatCurrency(discountedPrice)}</p>
                       </div>

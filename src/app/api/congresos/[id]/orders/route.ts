@@ -35,7 +35,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           id: true,
           nombre: true,
           model: true,
-          order_code: true
+          order_code: true,
+          nombre_lista: true
         }
       })
       products.forEach((p: any) => productMap.set(p.id, { ...p, description: p.nombre }))

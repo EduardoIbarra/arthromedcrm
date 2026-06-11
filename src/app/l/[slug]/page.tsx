@@ -51,6 +51,7 @@ export default async function PublicLandingPage({ params, searchParams }: Public
   const serializedProducts = products.map((p: any) => ({
     id: p.id,
     nombre: p.nombre,
+    nombre_lista: p.nombre_lista,
     precio_unitario: p.precio_unitario !== null ? Number(p.precio_unitario) : null,
     categoria: p.categoria,
     tipo: p.tipo,

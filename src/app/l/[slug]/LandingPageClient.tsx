@@ -22,6 +22,7 @@ interface Specialty {
 interface Product {
   id: string
   nombre: string
+  nombre_lista: string | null
   precio_unitario: number | null
   categoria: string | null
   tipo: string | null
@@ -289,7 +290,7 @@ export default function LandingPageClient({
                           </span>
                         )}
                       </div>
-                      <h3 className="font-bold text-gray-950 text-sm pt-1">{product.nombre}</h3>
+                      <h3 className="font-bold text-gray-950 text-sm pt-1">{product.nombre_lista || product.nombre}</h3>
                       {product.generic_description && (
                         <p className="text-xs text-gray-500 pt-1 line-clamp-3 leading-relaxed">
                           {product.generic_description}
