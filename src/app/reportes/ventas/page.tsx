@@ -532,9 +532,9 @@ export default function VentasReportPage() {
         </div>
 
         {/* Full-width widgets row — Unit Sales by Product & Grouped Bar Chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Unit Sales by Product Table */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px] lg:col-span-2" style={CARD_STYLE}>
             <ChartHeader
               title={t('unitSalesByProductTitle' as any)}
               tooltipText={t('unitSalesByProductDesc' as any).replace('{currentYear}', String(data.unitSalesYears?.current ?? '')).replace('{prevYear}', String(data.unitSalesYears?.prev ?? ''))}
@@ -762,7 +762,7 @@ export default function VentasReportPage() {
           </div>
 
           {/* New Grouped Bar Chart by Year and Line */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px] lg:col-span-1" style={CARD_STYLE}>
             <ChartHeader
               title={t('unitsByYearAndLineTitle' as any)}
               tooltipText={t('unitsByYearAndLineDesc' as any)}
@@ -1883,7 +1883,7 @@ export default function VentasReportPage() {
           </div>
 
           {/* Top Customers Rank */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col h-[360px] lg:col-span-2" style={CARD_STYLE}>
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[360px]" style={CARD_STYLE}>
             <ChartHeader 
               title={t('clientRanking' as any) || 'Ranking de Clientes'} 
               tooltipText={t('customerRankingDesc2' as any) || 'Listado de clientes con mayor volumen de compras acumuladas.'} 
@@ -1908,7 +1908,7 @@ export default function VentasReportPage() {
                       </div>
                       <span className="font-bold text-teal-650">{formatCurrency(client.value)}</span>
                     </div>
-                    <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                    <div className="w-full bg-gray-150 h-1 rounded-full overflow-hidden">
                       <div className="bg-teal-650 h-full rounded-full" style={{ width: `${percent}%` }} />
                     </div>
                   </div>
@@ -1916,31 +1916,31 @@ export default function VentasReportPage() {
               })}
             </div>
           </div>
-        </div>
 
-        {/* Recent Orders List */}
-        <div className="rounded-2xl p-5 bg-white flex flex-col h-[300px] justify-between" style={CARD_STYLE}>
-          <ChartHeader 
-            title={t('lastSales' as any) || 'Últimas Ventas'} 
-            tooltipText={t('lastSalesDesc' as any) || 'Muestra los 15 registros de facturación más recientes del sistema.'} 
-          />
-          <div className="flex-1 overflow-y-auto pr-1 space-y-0.5">
-            {data.recentOrders.map((order, idx) => {
-              const orderDateStr = order.date ? new Date(order.date).toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' }) : '-'
-              return (
-                <div 
-                  key={idx}
-                  onClick={() => order.crmClientId && router.push(`/reportes/clientes/${order.crmClientId}`)}
-                  className={`flex items-center justify-between text-xs py-2 border-b border-gray-50 transition-colors ${order.crmClientId ? 'cursor-pointer hover:bg-slate-50 px-1 rounded hover:text-teal-600' : ''}`}
-                >
-                  <div className="min-w-0 flex-1 pr-2">
-                    <p className="font-semibold text-gray-850 truncate">{order.customer}</p>
-                    <p className="text-[10px] text-[#8a8b8d]">{orderDateStr}</p>
+          {/* Recent Orders List */}
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[360px] justify-between" style={CARD_STYLE}>
+            <ChartHeader 
+              title={t('lastSales' as any) || 'Últimas Ventas'} 
+              tooltipText={t('lastSalesDesc' as any) || 'Muestra los 15 registros de facturación más recientes del sistema.'} 
+            />
+            <div className="flex-1 overflow-y-auto pr-1 space-y-0.5">
+              {data.recentOrders.map((order, idx) => {
+                const orderDateStr = order.date ? new Date(order.date).toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' }) : '-'
+                return (
+                  <div 
+                    key={idx}
+                    onClick={() => order.crmClientId && router.push(`/reportes/clientes/${order.crmClientId}`)}
+                    className={`flex items-center justify-between text-xs py-2 border-b border-gray-50 transition-colors ${order.crmClientId ? 'cursor-pointer hover:bg-slate-50 px-1 rounded hover:text-teal-600' : ''}`}
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <p className="font-semibold text-gray-850 truncate">{order.customer}</p>
+                      <p className="text-[10px] text-[#8a8b8d]">{orderDateStr}</p>
+                    </div>
+                    <span className="font-bold text-[#0d9488]">{formatCurrency(order.amount)}</span>
                   </div>
-                  <span className="font-bold text-[#0d9488]">{formatCurrency(order.amount)}</span>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
