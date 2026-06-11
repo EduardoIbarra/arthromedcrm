@@ -301,10 +301,34 @@ export async function GET(request: NextRequest) {
       return new Date(inv.fecha_expedicion).getFullYear() === prevCalYear
     })
 
+    // Helper: resolve product line according to new rules for the 4 line charts
+    const getLineChartLine = (fp: any): string | null => {
+      const tipo = (fp.tipo || fp.productos?.tipo || '').toUpperCase().trim();
+      const subtipo = (fp.subtipo || fp.productos?.subtipo || '').toUpperCase().trim();
+      
+      if (tipo === 'EQUIPO' && subtipo !== 'TORRE') {
+        return 'Systems';
+      }
+      
+      const rawLine = (fp.linea || fp.productos?.line || 'OTHER').toUpperCase().trim();
+      
+      if (rawLine === 'SHAVER&BUR' || rawLine === 'SHAVER & BUR') {
+        return null;
+      }
+      
+      if (tipo === 'CONSUMIBLE') {
+        if (rawLine === 'SPORTS MEDICINE') return 'SPORTS MEDICINE';
+        if (rawLine === 'URO & GYN') return 'URO & GYN';
+        return rawLine;
+      }
+      
+      return null;
+    }
+
     // 5. Product breakdowns in selection range
     const productRevenue: Record<string, number> = {}
     const categoryRevenue: Record<string, number> = {}
-    const productUnits: Record<string, { current: number; ly: number }> = {}
+    const productUnits: Record<string, { current: number; ly: number; subtipo: string | null }> = {}
 
     // By-line accumulators: { fullPrevYear, current (period), lyYTD }
     type LineStats = { fullPrev: number; current: number; ly: number }
@@ -318,27 +342,35 @@ export async function GET(request: NextRequest) {
     // Full prev year — for the "Sales/Units YYYY" column
     fullPrevYearInvoices.forEach((inv: any) => {
       inv.factura_productos.forEach((fp: any) => {
-        const linea = resolveProductLine(fp, inv)
-        ensureLine(lineUnits, linea)
-        ensureLine(lineRevenue, linea)
-        lineUnits[linea].fullPrev += Number(fp.cantidad_facturada) || 0
-        lineRevenue[linea].fullPrev += Number(fp.importe) || 0
+        const linea = getLineChartLine(fp)
+        if (linea) {
+          ensureLine(lineUnits, linea)
+          ensureLine(lineRevenue, linea)
+          lineUnits[linea].fullPrev += Number(fp.cantidad_facturada) || 0
+          lineRevenue[linea].fullPrev += Number(fp.importe) || 0
+        }
       })
     })
 
     periodInvoices.forEach((inv: any) => {
       inv.factura_productos.forEach((fp: any) => {
         const prodName = resolveProductName(fp, inv)
-        const linea = resolveProductLine(fp, inv)
         const revenue = Number(fp.importe) || 0
         const quantity = Number(fp.cantidad_facturada) || 0
         productRevenue[prodName] = (productRevenue[prodName] || 0) + revenue
-        if (!productUnits[prodName]) productUnits[prodName] = { current: 0, ly: 0 }
+        
+        if (!productUnits[prodName]) {
+          productUnits[prodName] = { current: 0, ly: 0, subtipo: fp.subtipo || fp.productos?.subtipo || null }
+        }
         productUnits[prodName].current += quantity
-        ensureLine(lineUnits, linea)
-        ensureLine(lineRevenue, linea)
-        lineUnits[linea].current += quantity
-        lineRevenue[linea].current += revenue
+
+        const linea = getLineChartLine(fp)
+        if (linea) {
+          ensureLine(lineUnits, linea)
+          ensureLine(lineRevenue, linea)
+          lineUnits[linea].current += quantity
+          lineRevenue[linea].current += revenue
+        }
 
         const catName = fp.productos?.categoria || 'Otros'
         categoryRevenue[catName] = (categoryRevenue[catName] || 0) + revenue
@@ -348,15 +380,21 @@ export async function GET(request: NextRequest) {
     prevPeriodInvoices.forEach((inv: any) => {
       inv.factura_productos.forEach((fp: any) => {
         const prodName = resolveProductName(fp, inv)
-        const linea = resolveProductLine(fp, inv)
         const quantity = Number(fp.cantidad_facturada) || 0
         const revenue = Number(fp.importe) || 0
-        if (!productUnits[prodName]) productUnits[prodName] = { current: 0, ly: 0 }
+        
+        if (!productUnits[prodName]) {
+          productUnits[prodName] = { current: 0, ly: 0, subtipo: fp.subtipo || fp.productos?.subtipo || null }
+        }
         productUnits[prodName].ly += quantity
-        ensureLine(lineUnits, linea)
-        ensureLine(lineRevenue, linea)
-        lineUnits[linea].ly += quantity
-        lineRevenue[linea].ly += revenue
+
+        const linea = getLineChartLine(fp)
+        if (linea) {
+          ensureLine(lineUnits, linea)
+          ensureLine(lineRevenue, linea)
+          lineUnits[linea].ly += quantity
+          lineRevenue[linea].ly += revenue
+        }
       })
     })
 
@@ -382,11 +420,35 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.fullPrev - a.fullPrev)
 
+    // Compute units sold by year and line for all available years (grouped bar chart)
+    const unitsByYearAndLineMap = new Map<number, Record<string, number>>()
+    matchedInvoices.forEach((inv: any) => {
+      const year = new Date(inv.fecha_expedicion).getFullYear()
+      if (!unitsByYearAndLineMap.has(year)) {
+        unitsByYearAndLineMap.set(year, {})
+      }
+      const lineMap = unitsByYearAndLineMap.get(year)!
+      inv.factura_productos.forEach((fp: any) => {
+        const linea = getLineChartLine(fp)
+        if (linea) {
+          lineMap[linea] = (lineMap[linea] || 0) + (Number(fp.cantidad_facturada) || 0)
+        }
+      })
+    })
+
+    const unitsByYearAndLine = Array.from(unitsByYearAndLineMap.entries())
+      .map(([year, lineMap]) => ({
+        year,
+        ...lineMap
+      }))
+      .sort((a, b) => a.year - b.year)
+
     const unitCurrentYear = rangeEnd.getFullYear()
     const unitPrevYear = prevRangeEnd.getFullYear()
 
     const unitSalesByProduct = Object.entries(productUnits).map(([name, units]) => ({
       name,
+      subtipo: units.subtipo || '',
       current: units.current,
       ly: units.ly,
       delta: units.current - units.ly,
@@ -722,7 +784,8 @@ export async function GET(request: NextRequest) {
       clientSales,
       clientSalesTotal,
       newClientSales,
-      newClientSalesTotal
+      newClientSalesTotal,
+      unitsByYearAndLine
     })
   } catch (error: any) {
     console.error('Error in GET /api/reports/ventas:', error)

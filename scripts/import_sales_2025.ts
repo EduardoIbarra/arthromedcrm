@@ -40,7 +40,7 @@ async function main() {
   prisma = (await import('../src/lib/prisma')).default;
   const args = process.argv.slice(2);
   const isCommit = args.includes('--commit');
-  const excelPath = '/Users/ed/Downloads/ventas2025 (2).xlsx';
+  const excelPath = '/Users/ed/Downloads/ventas2025 (3).xlsx';
 
   console.log('--- 2025 SALES EXCEL INGESTION SCRIPT ---');
   console.log(`Mode: ${isCommit ? 'COMMIT (Writes to Database)' : 'DRY-RUN (No writes)'}`);
@@ -259,8 +259,9 @@ async function main() {
       const prodName = String(r.PRODUCTO || '').trim();
       const model = r.Modelo || r.MODELO ? String(r.Modelo || r.MODELO).trim() : null;
       const orderCode = r['Ordering Code'] || r['CODIGO ORDEN'] ? String(r['Ordering Code'] || r['CODIGO ORDEN']).trim() : null;
-      const line = r.Linea || r.LINEA ? String(r.Linea || r.LINEA).trim() : 'Otros';
-      const tipo = r.Tipo || r['TIPO PRODUCTO'] ? String(r.Tipo || r['TIPO PRODUCTO']).trim() : 'Producto';
+      const line = r.Linea ? String(r.Linea).trim() : 'Otros';
+      const tipo = r.Tipo ? String(r.Tipo).trim() : 'Producto';
+      const subtipo = r.Subtipo ? String(r.Subtipo).trim() : null;
       const cantidad = Number(r.CANTIDAD) || 1;
       const precioUnitario = Number(r['PRECIO UNI']) || 0;
       const totalItem = Number(r['AMOUNT (MXN)'] || r.TOTAL) || 0;
@@ -291,7 +292,9 @@ async function main() {
                 model: model,
                 order_code: orderCode,
                 categoria: line,
+                line: line,
                 tipo: tipo,
+                subtipo: subtipo,
                 activo: true
               }
             });
@@ -317,7 +320,9 @@ async function main() {
         cantidad_entregada: cantidad, // default fully delivered for historical records
         precio_unitario: precioUnitario,
         importe: totalItem,
-        linea: line
+        linea: line,
+        tipo: tipo,
+        subtipo: subtipo
       });
     }
 
@@ -346,6 +351,18 @@ async function main() {
   // 6. DB Execution
   if (isCommit) {
     console.log('\nClearing previous historical imports...');
+    // Nullify linked remisiones first to avoid FK constraint violations
+    const invoiceIdsToDelete = await prisma.facturas_cliente.findMany({
+      where: { observaciones: 'Importación histórica de ventas 2025' },
+      select: { id: true }
+    });
+    const ids = invoiceIdsToDelete.map((inv: any) => inv.id);
+    if (ids.length > 0) {
+      await prisma.remisiones.updateMany({
+        where: { factura_id: { in: ids } },
+        data: { factura_id: null }
+      });
+    }
     // Only delete if there are any remaining (though they should be cleared already if we run it again)
     const deleted = await prisma.facturas_cliente.deleteMany({
       where: { observaciones: 'Importación histórica de ventas 2025' }

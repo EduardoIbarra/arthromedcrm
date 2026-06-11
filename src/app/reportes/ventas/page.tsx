@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   TrendingUp, TrendingDown, DollarSign, FileText, Users, ShoppingBag, 
@@ -14,6 +14,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, ReferenceLine
 } from 'recharts'
+
+const SortIndicator = ({ active, asc }: { active: boolean; asc: boolean }) => {
+  if (!active) return <span className="text-gray-300 ml-1 text-[10px]">↕</span>
+  return <span className="text-teal-650 ml-1 text-[10px] font-bold">{asc ? '▲' : '▼'}</span>
+}
 
 interface ReportData {
   kpis: {
@@ -71,6 +76,7 @@ interface ReportData {
   }
   unitSalesByProduct: {
     name: string
+    subtipo?: string
     current: number
     ly: number
     delta: number
@@ -125,6 +131,10 @@ interface ReportData {
     salesCurrent: number
     deltaAvg: number
   }
+  unitsByYearAndLine: {
+    year: number
+    [key: string]: any
+  }[]
 }
 
 const ChartHeader = ({ title, tooltipText }: { title: string; tooltipText: string }) => (
@@ -146,7 +156,7 @@ const LINE_COLORS: Record<string, string> = {
   'SPINE':          '#C6E0B4',
   'ENT':            '#BDD7EE',
   'URO & GYN':      '#FFE699',
-  'SHAVER&BUR':     '#D5D5D5',
+  'Systems':        '#38bdf8',
   'VISION':         '#E2D5F8',
   'OTHER':          '#E8ECF0',
 }
@@ -214,6 +224,138 @@ export default function VentasReportPage() {
   const [preset, setPreset] = useState('thisYear')
   const [startDate, setStartDate] = useState('2026-01-01')
   const [endDate, setEndDate] = useState('2026-12-31')
+
+  // Product Sales Sorting and Filtering
+  const [productSortField, setProductSortField] = useState<string>('current')
+  const [productSortAsc, setProductSortAsc] = useState<boolean>(false)
+  const [productFilters, setProductFilters] = useState({
+    name: '',
+    subtipo: '',
+    current: '',
+    ly: '',
+    delta: '',
+    growth: ''
+  })
+
+  // Line Units Sorting and Filtering
+  const [lineUnitsSortField, setLineUnitsSortField] = useState<string>('current')
+  const [lineUnitsSortAsc, setLineUnitsSortAsc] = useState<boolean>(false)
+  const [lineUnitsFilters, setLineUnitsFilters] = useState({
+    linea: '',
+    fullPrev: '',
+    current: '',
+    ly: '',
+    growth: ''
+  })
+
+  // Line Sales Sorting and Filtering
+  const [lineSalesSortField, setLineSalesSortField] = useState<string>('current')
+  const [lineSalesSortAsc, setLineSalesSortAsc] = useState<boolean>(false)
+  const [lineSalesFilters, setLineSalesFilters] = useState({
+    linea: '',
+    fullPrev: '',
+    current: '',
+    ly: ''
+  })
+
+  const filteredProducts = useMemo(() => {
+    if (!data?.unitSalesByProduct) return []
+    let items = [...data.unitSalesByProduct]
+
+    // Filter
+    items = items.filter(item => {
+      const matchName = !productFilters.name || item.name.toLowerCase().includes(productFilters.name.toLowerCase())
+      const matchSubtipo = !productFilters.subtipo || (item.subtipo || '').toLowerCase().includes(productFilters.subtipo.toLowerCase())
+      const matchCurrent = !productFilters.current || String(item.current).includes(productFilters.current)
+      const matchLy = !productFilters.ly || String(item.ly).includes(productFilters.ly)
+      const matchDelta = !productFilters.delta || String(item.delta).includes(productFilters.delta)
+      const matchGrowth = !productFilters.growth || String(item.growth.toFixed(2)).includes(productFilters.growth)
+      return matchName && matchSubtipo && matchCurrent && matchLy && matchDelta && matchGrowth
+    })
+
+    // Sort
+    items.sort((a: any, b: any) => {
+      const valA = a[productSortField] ?? ''
+      const valB = b[productSortField] ?? ''
+      
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return productSortAsc ? valA - valB : valB - valA
+      }
+      
+      const strA = String(valA).toLowerCase()
+      const strB = String(valB).toLowerCase()
+      if (strA < strB) return productSortAsc ? -1 : 1
+      if (strA > strB) return productSortAsc ? 1 : -1
+      return 0
+    })
+
+    return items
+  }, [data?.unitSalesByProduct, productSortField, productSortAsc, productFilters])
+
+  const filteredLineUnits = useMemo(() => {
+    if (!data?.unitSalesByLine) return []
+    let items = [...data.unitSalesByLine]
+
+    // Filter
+    items = items.filter(item => {
+      const matchLinea = !lineUnitsFilters.linea || item.linea.toLowerCase().includes(lineUnitsFilters.linea.toLowerCase())
+      const matchFullPrev = !lineUnitsFilters.fullPrev || String(item.fullPrev).includes(lineUnitsFilters.fullPrev)
+      const matchCurrent = !lineUnitsFilters.current || String(item.current).includes(lineUnitsFilters.current)
+      const matchLy = !lineUnitsFilters.ly || String(item.ly).includes(lineUnitsFilters.ly)
+      const matchGrowth = !lineUnitsFilters.growth || String(item.growth.toFixed(2)).includes(lineUnitsFilters.growth)
+      return matchLinea && matchFullPrev && matchCurrent && matchLy && matchGrowth
+    })
+
+    // Sort
+    items.sort((a: any, b: any) => {
+      const valA = a[lineUnitsSortField] ?? ''
+      const valB = b[lineUnitsSortField] ?? ''
+      
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return lineUnitsSortAsc ? valA - valB : valB - valA
+      }
+      
+      const strA = String(valA).toLowerCase()
+      const strB = String(valB).toLowerCase()
+      if (strA < strB) return lineUnitsSortAsc ? -1 : 1
+      if (strA > strB) return lineUnitsSortAsc ? 1 : -1
+      return 0
+    })
+
+    return items
+  }, [data?.unitSalesByLine, lineUnitsSortField, lineUnitsSortAsc, lineUnitsFilters])
+
+  const filteredLineSales = useMemo(() => {
+    if (!data?.totalSalesByLine) return []
+    let items = [...data.totalSalesByLine]
+
+    // Filter
+    items = items.filter(item => {
+      const matchLinea = !lineSalesFilters.linea || item.linea.toLowerCase().includes(lineSalesFilters.linea.toLowerCase())
+      const matchFullPrev = !lineSalesFilters.fullPrev || String(item.fullPrev).includes(lineSalesFilters.fullPrev)
+      const matchCurrent = !lineSalesFilters.current || String(item.current).includes(lineSalesFilters.current)
+      const matchLy = !lineSalesFilters.ly || String(item.ly).includes(lineSalesFilters.ly)
+      return matchLinea && matchFullPrev && matchCurrent && matchLy
+    })
+
+    // Sort
+    items.sort((a: any, b: any) => {
+      const valA = a[lineSalesSortField] ?? ''
+      const valB = b[lineSalesSortField] ?? ''
+      
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return lineSalesSortAsc ? valA - valB : valB - valA
+      }
+      
+      const strA = String(valA).toLowerCase()
+      const strB = String(valB).toLowerCase()
+      if (strA < strB) return lineSalesSortAsc ? -1 : 1
+      if (strA > strB) return lineSalesSortAsc ? 1 : -1
+      return 0
+    })
+
+    return items
+  }, [data?.totalSalesByLine, lineSalesSortField, lineSalesSortAsc, lineSalesFilters])
 
   const getLocalizedMonthName = (monthNameES: string) => {
     const monthsMap: Record<string, string> = {
@@ -389,8 +531,8 @@ export default function VentasReportPage() {
           />
         </div>
 
-        {/* Full-width widgets row — Unit Sales by Product */}
-        <div className="grid grid-cols-1 gap-6">
+        {/* Full-width widgets row — Unit Sales by Product & Grouped Bar Chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Unit Sales by Product Table */}
           <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
             <ChartHeader
@@ -401,15 +543,166 @@ export default function VentasReportPage() {
               <table className="min-w-full divide-y divide-[#e8f1f9]">
                 <thead className="sticky top-0 bg-[#f0f5fa] z-10">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[38%]">{t('colNombre' as any)}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units {data.unitSalesYears?.current ?? ''}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units LY YTD</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">{t('colDeltaUnits' as any)}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">{t('colUnitsGrowth' as any)}</th>
+                    <th 
+                      className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[28%] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (productSortField === 'name') {
+                          setProductSortAsc(!productSortAsc)
+                        } else {
+                          setProductSortField('name')
+                          setProductSortAsc(true)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{t('colNombre' as any)}</span>
+                          <SortIndicator active={productSortField === 'name'} asc={productSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500"
+                          value={productFilters.name}
+                          onChange={(e) => setProductFilters({ ...productFilters, name: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[15%] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (productSortField === 'subtipo') {
+                          setProductSortAsc(!productSortAsc)
+                        } else {
+                          setProductSortField('subtipo')
+                          setProductSortAsc(true)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{t('colSubtipo' as any)}</span>
+                          <SortIndicator active={productSortField === 'subtipo'} asc={productSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500"
+                          value={productFilters.subtipo}
+                          onChange={(e) => setProductFilters({ ...productFilters, subtipo: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (productSortField === 'current') {
+                          setProductSortAsc(!productSortAsc)
+                        } else {
+                          setProductSortField('current')
+                          setProductSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('unitsYear' as any).replace('{year}', String(data.unitSalesYears?.current ?? ''))}</span>
+                          <SortIndicator active={productSortField === 'current'} asc={productSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={productFilters.current}
+                          onChange={(e) => setProductFilters({ ...productFilters, current: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (productSortField === 'ly') {
+                          setProductSortAsc(!productSortAsc)
+                        } else {
+                          setProductSortField('ly')
+                          setProductSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('unitsLYYTD' as any)}</span>
+                          <SortIndicator active={productSortField === 'ly'} asc={productSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={productFilters.ly}
+                          onChange={(e) => setProductFilters({ ...productFilters, ly: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (productSortField === 'delta') {
+                          setProductSortAsc(!productSortAsc)
+                        } else {
+                          setProductSortField('delta')
+                          setProductSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('colDeltaUnits' as any)}</span>
+                          <SortIndicator active={productSortField === 'delta'} asc={productSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={productFilters.delta}
+                          onChange={(e) => setProductFilters({ ...productFilters, delta: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (productSortField === 'growth') {
+                          setProductSortAsc(!productSortAsc)
+                        } else {
+                          setProductSortField('growth')
+                          setProductSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('colUnitsGrowth' as any)}</span>
+                          <SortIndicator active={productSortField === 'growth'} asc={productSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={productFilters.growth}
+                          onChange={(e) => setProductFilters({ ...productFilters, growth: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f5fa] bg-white">
-                  {(data.unitSalesByProduct ?? []).map((row) => {
+                  {filteredProducts.map((row) => {
                     const isPositive = row.delta >= 0
                     const isStrongGrowth = row.growth >= 50
                     const isStrongDecline = row.growth <= -50
@@ -425,6 +718,7 @@ export default function VentasReportPage() {
                     return (
                       <tr key={row.name} className="hover:bg-[#f8fafc] transition-colors">
                         <td className="px-3 py-2 font-medium text-[#37383a] truncate max-w-[160px]" title={row.name}>{row.name}</td>
+                        <td className="px-3 py-2 font-medium text-slate-500 truncate max-w-[100px]" title={row.subtipo}>{row.subtipo || '—'}</td>
                         <td className="px-3 py-2 text-right font-semibold text-[#37383a]">{row.current.toLocaleString()}</td>
                         <td className="px-3 py-2 text-right text-[#8a8b8d]">{row.ly.toLocaleString()}</td>
                         <td className={`px-3 py-2 text-right font-semibold ${isPositive ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
@@ -440,7 +734,7 @@ export default function VentasReportPage() {
                   })}
                   {/* Totals row */}
                   {(() => {
-                    const rows = data.unitSalesByProduct ?? []
+                    const rows = filteredProducts
                     const totalCurrent = rows.reduce((s, r) => s + r.current, 0)
                     const totalLy = rows.reduce((s, r) => s + r.ly, 0)
                     const totalDelta = totalCurrent - totalLy
@@ -448,7 +742,7 @@ export default function VentasReportPage() {
                     const isPos = totalDelta >= 0
                     return (
                       <tr className="font-bold bg-[#f0f5fa] border-t-2 border-[#d4e0ec]">
-                        <td className="px-3 py-2 text-[#37383a]">{t('rowTotal' as any)}</td>
+                        <td className="px-3 py-2 text-[#37383a]" colSpan={2}>{t('rowTotal' as any)}</td>
                         <td className="px-3 py-2 text-right text-[#37383a]">{totalCurrent.toLocaleString()}</td>
                         <td className="px-3 py-2 text-right text-[#8a8b8d]">{totalLy.toLocaleString()}</td>
                         <td className={`px-3 py-2 text-right ${isPos ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
@@ -466,6 +760,41 @@ export default function VentasReportPage() {
               </table>
             </div>
           </div>
+
+          {/* New Grouped Bar Chart by Year and Line */}
+          <div className="rounded-2xl p-5 bg-white flex flex-col h-[480px]" style={CARD_STYLE}>
+            <ChartHeader
+              title={t('unitsByYearAndLineTitle' as any)}
+              tooltipText={t('unitsByYearAndLineDesc' as any)}
+            />
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={data.unitsByYearAndLine ?? []}
+                  margin={{ top: 20, right: 10, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e8f1f9" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fill: '#5a5b5d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={(val) => val.toLocaleString()} tick={{ fill: '#8a8b8d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={CHART_TOOLTIP} formatter={(value) => Number(value).toLocaleString()} />
+                  <Legend 
+                    iconType="circle" 
+                    wrapperStyle={{ fontSize: 11 }} 
+                    formatter={(value) => <span style={{ color: '#37383a', fontWeight: 600 }}>{value}</span>}
+                  />
+                  {Object.keys(LINE_COLORS).map((lineName) => (
+                    <Bar
+                      key={lineName}
+                      dataKey={lineName}
+                      name={lineName}
+                      fill={LINE_COLORS[lineName]}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         {/* Línea widgets — Units Side by Side */}
@@ -480,15 +809,140 @@ export default function VentasReportPage() {
               <table className="min-w-full divide-y divide-[#e8f1f9]">
                 <thead className="sticky top-0 bg-[#f0f5fa] z-10">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[32%]">{t('colLinea' as any)}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units {data.lineYears?.prev ?? ''}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Units {data.lineYears?.current ?? ''}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">LY YTD</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">{t('colGrowthPct' as any)}</th>
+                    <th 
+                      className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[32%] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (lineUnitsSortField === 'linea') {
+                          setLineUnitsSortAsc(!lineUnitsSortAsc)
+                        } else {
+                          setLineUnitsSortField('linea')
+                          setLineUnitsSortAsc(true)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{t('colLinea' as any)}</span>
+                          <SortIndicator active={lineUnitsSortField === 'linea'} asc={lineUnitsSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500"
+                          value={lineUnitsFilters.linea}
+                          onChange={(e) => setLineUnitsFilters({ ...lineUnitsFilters, linea: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (lineUnitsSortField === 'fullPrev') {
+                          setLineUnitsSortAsc(!lineUnitsSortAsc)
+                        } else {
+                          setLineUnitsSortField('fullPrev')
+                          setLineUnitsSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('unitsYear' as any).replace('{year}', String(data.lineYears?.prev ?? ''))}</span>
+                          <SortIndicator active={lineUnitsSortField === 'fullPrev'} asc={lineUnitsSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={lineUnitsFilters.fullPrev}
+                          onChange={(e) => setLineUnitsFilters({ ...lineUnitsFilters, fullPrev: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (lineUnitsSortField === 'current') {
+                          setLineUnitsSortAsc(!lineUnitsSortAsc)
+                        } else {
+                          setLineUnitsSortField('current')
+                          setLineUnitsSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('unitsYear' as any).replace('{year}', String(data.lineYears?.current ?? ''))}</span>
+                          <SortIndicator active={lineUnitsSortField === 'current'} asc={lineUnitsSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={lineUnitsFilters.current}
+                          onChange={(e) => setLineUnitsFilters({ ...lineUnitsFilters, current: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (lineUnitsSortField === 'ly') {
+                          setLineUnitsSortAsc(!lineUnitsSortAsc)
+                        } else {
+                          setLineUnitsSortField('ly')
+                          setLineUnitsSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('unitsLYYTD' as any)}</span>
+                          <SortIndicator active={lineUnitsSortField === 'ly'} asc={lineUnitsSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={lineUnitsFilters.ly}
+                          onChange={(e) => setLineUnitsFilters({ ...lineUnitsFilters, ly: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (lineUnitsSortField === 'growth') {
+                          setLineUnitsSortAsc(!lineUnitsSortAsc)
+                        } else {
+                          setLineUnitsSortField('growth')
+                          setLineUnitsSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('colGrowthPct' as any)}</span>
+                          <SortIndicator active={lineUnitsSortField === 'growth'} asc={lineUnitsSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={lineUnitsFilters.growth}
+                          onChange={(e) => setLineUnitsFilters({ ...lineUnitsFilters, growth: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f5fa] bg-white">
-                  {(data.unitSalesByLine ?? []).map((row) => {
+                  {filteredLineUnits.map((row) => {
                     const color = LINE_COLORS[row.linea] ?? LINE_COLORS['OTHER']
                     const isPos = row.growth >= 0
                     const growthBg = row.ly === 0
@@ -509,7 +963,7 @@ export default function VentasReportPage() {
                     )
                   })}
                   {(() => {
-                    const rows = data.unitSalesByLine ?? []
+                    const rows = filteredLineUnits
                     const totFP = rows.reduce((s, r) => s + r.fullPrev, 0)
                     const totC  = rows.reduce((s, r) => s + r.current, 0)
                     const totLY = rows.reduce((s, r) => s + r.ly, 0)
@@ -541,7 +995,7 @@ export default function VentasReportPage() {
             />
 
             {(() => {
-              const rows = data?.unitSalesByLine ?? []
+              const rows = filteredLineUnits
               const maxVal = Math.max(
                 ...rows.map(r => Math.max(r.fullPrev, r.current, r.ly)),
                 10 // safeguard
@@ -692,14 +1146,114 @@ export default function VentasReportPage() {
               <table className="min-w-full divide-y divide-[#e8f1f9]">
                 <thead className="sticky top-0 bg-[#f0f5fa] z-10">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[32%]">{t('colLinea' as any)}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Sales {data.lineYears?.prev ?? ''}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Sales {data.lineYears?.current ?? ''}</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[#5a5b5d]">Sales LY YTD</th>
+                    <th 
+                      className="px-3 py-2 text-left font-semibold text-[#5a5b5d] w-[32%] cursor-pointer select-none hover:bg-slate-100/50 transition-colors"
+                      onClick={() => {
+                        if (lineSalesSortField === 'linea') {
+                          setLineSalesSortAsc(!lineSalesSortAsc)
+                        } else {
+                          setLineSalesSortField('linea')
+                          setLineSalesSortAsc(true)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{t('colLinea' as any)}</span>
+                          <SortIndicator active={lineSalesSortField === 'linea'} asc={lineSalesSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500"
+                          value={lineSalesFilters.linea}
+                          onChange={(e) => setLineSalesFilters({ ...lineSalesFilters, linea: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-150 transition-colors"
+                      onClick={() => {
+                        if (lineSalesSortField === 'fullPrev') {
+                          setLineSalesSortAsc(!lineSalesSortAsc)
+                        } else {
+                          setLineSalesSortField('fullPrev')
+                          setLineSalesSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('salesYear' as any).replace('{year}', String(data.lineYears?.prev ?? ''))}</span>
+                          <SortIndicator active={lineSalesSortField === 'fullPrev'} asc={lineSalesSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={lineSalesFilters.fullPrev}
+                          onChange={(e) => setLineSalesFilters({ ...lineSalesFilters, fullPrev: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-150 transition-colors"
+                      onClick={() => {
+                        if (lineSalesSortField === 'current') {
+                          setLineSalesSortAsc(!lineSalesSortAsc)
+                        } else {
+                          setLineSalesSortField('current')
+                          setLineSalesSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('salesYear' as any).replace('{year}', String(data.lineYears?.current ?? ''))}</span>
+                          <SortIndicator active={lineSalesSortField === 'current'} asc={lineSalesSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={lineSalesFilters.current}
+                          onChange={(e) => setLineSalesFilters({ ...lineSalesFilters, current: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-3 py-2 text-right font-semibold text-[#5a5b5d] cursor-pointer select-none hover:bg-slate-150 transition-colors"
+                      onClick={() => {
+                        if (lineSalesSortField === 'ly') {
+                          setLineSalesSortAsc(!lineSalesSortAsc)
+                        } else {
+                          setLineSalesSortField('ly')
+                          setLineSalesSortAsc(false)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{t('salesLYYTD' as any)}</span>
+                          <SortIndicator active={lineSalesSortField === 'ly'} asc={lineSalesSortAsc} />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={t('filter' as any) || "Filtrar..."}
+                          className="w-full px-1.5 py-0.5 text-[10px] border border-[#d4e0ec] rounded font-normal bg-white focus:outline-none focus:border-teal-500 text-right"
+                          value={lineSalesFilters.ly}
+                          onChange={(e) => setLineSalesFilters({ ...lineSalesFilters, ly: e.target.value })}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f5fa] bg-white">
-                  {(data.totalSalesByLine ?? []).map((row) => {
+                  {filteredLineSales.map((row) => {
                     const color = LINE_COLORS[row.linea] ?? LINE_COLORS['OTHER']
                     return (
                       <tr key={row.linea} className="hover:brightness-95 transition-all" style={{ backgroundColor: color + '22' }}>
@@ -711,7 +1265,7 @@ export default function VentasReportPage() {
                     )
                   })}
                   {(() => {
-                    const rows = data.totalSalesByLine ?? []
+                    const rows = filteredLineSales
                     const totFP = rows.reduce((s, r) => s + r.fullPrev, 0)
                     const totC  = rows.reduce((s, r) => s + r.current, 0)
                     const totLY = rows.reduce((s, r) => s + r.ly, 0)
@@ -737,7 +1291,7 @@ export default function VentasReportPage() {
             />
 
             {(() => {
-              const rows = data?.totalSalesByLine ?? []
+              const rows = filteredLineSales
               const maxVal = Math.max(
                 ...rows.map(r => Math.max(r.fullPrev, r.current, r.ly)),
                 10000 // safeguard

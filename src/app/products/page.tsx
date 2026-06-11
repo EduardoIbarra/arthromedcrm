@@ -64,7 +64,7 @@ const PRODUCT_CATEGORIES = [
   'Sistema > Lentes > Lente de 30°',
 ]
 
-type SortField = keyof Pick<Product, 'description' | 'model' | 'order_code' | 'line' | 'sale_price' | 'base_hospital_price'>
+type SortField = keyof Pick<Product, 'description' | 'model' | 'order_code' | 'line' | 'sale_price' | 'base_hospital_price' | 'type' | 'subtipo'>
 
 type FormState = {
   description: string
@@ -79,6 +79,7 @@ type FormState = {
   base_hospital_price: number | ''
   line: string
   type: string
+  subtipo: string
   category: string
   specialty_ids: string[]
   image_urls: string[]
@@ -97,6 +98,7 @@ const EMPTY_FORM: FormState = {
   base_hospital_price: '',
   line: '',
   type: 'consumable',
+  subtipo: '',
   category: '',
   specialty_ids: [],
   image_urls: [],
@@ -118,6 +120,8 @@ export default function ProductsPage() {
   const [sortField, setSortField] = useState<SortField>('description')
   const [sortAsc, setSortAsc] = useState(true)
   const [lineFilter, setLineFilter] = useState('')
+  const [tipoFilter, setTipoFilter] = useState('')
+  const [subtipoFilter, setSubtipoFilter] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
 
@@ -176,6 +180,7 @@ export default function ProductsPage() {
       base_hospital_price: product.base_hospital_price !== null ? product.base_hospital_price : '',
       line: product.line || '',
       type: product.type || 'consumable',
+      subtipo: (product as any).subtipo || '',
       category: product.category || '',
       specialty_ids: product.specialty_ids || [],
       image_urls: product.image_urls || [],
@@ -300,6 +305,38 @@ export default function ProductsPage() {
     return Array.from(lines).sort()
   }, [products])
 
+  const uniqueTipos = useMemo(() => {
+    const tipos = new Set<string>()
+    products.forEach(p => {
+      if (lineFilter && p.line !== lineFilter) return
+      if (p.type) tipos.add(p.type)
+    })
+    return Array.from(tipos).sort()
+  }, [products, lineFilter])
+
+  const uniqueSubtipos = useMemo(() => {
+    const subtipos = new Set<string>()
+    products.forEach(p => {
+      if (lineFilter && p.line !== lineFilter) return
+      if (tipoFilter && p.type?.toLowerCase() !== tipoFilter.toLowerCase()) return
+      if ((p as any).subtipo) subtipos.add((p as any).subtipo)
+    })
+    return Array.from(subtipos).sort()
+  }, [products, lineFilter, tipoFilter])
+
+  // Reset dependent filters if they are no longer available in the active lists
+  useEffect(() => {
+    if (tipoFilter && !uniqueTipos.map(t => t.toLowerCase()).includes(tipoFilter.toLowerCase())) {
+      setTipoFilter('')
+    }
+  }, [lineFilter, uniqueTipos, tipoFilter])
+
+  useEffect(() => {
+    if (subtipoFilter && !uniqueSubtipos.map(s => s.toLowerCase()).includes(subtipoFilter.toLowerCase())) {
+      setSubtipoFilter('')
+    }
+  }, [lineFilter, tipoFilter, uniqueSubtipos, subtipoFilter])
+
   const filteredAndSorted = useMemo(() => {
     let result = products
     if (search) {
@@ -314,6 +351,12 @@ export default function ProductsPage() {
     if (lineFilter) {
       result = result.filter(p => p.line === lineFilter)
     }
+    if (tipoFilter) {
+      result = result.filter(p => p.type?.toLowerCase() === tipoFilter.toLowerCase())
+    }
+    if (subtipoFilter) {
+      result = result.filter(p => (p as any).subtipo?.toLowerCase() === subtipoFilter.toLowerCase())
+    }
     return [...result].sort((a, b) => {
       const aVal = a[sortField]
       const bVal = b[sortField]
@@ -323,11 +366,11 @@ export default function ProductsPage() {
       const cmp = aVal < bVal ? -1 : 1
       return sortAsc ? cmp : -cmp
     })
-  }, [products, search, lineFilter, sortField, sortAsc])
+  }, [products, search, lineFilter, tipoFilter, subtipoFilter, sortField, sortAsc])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, lineFilter, perPage])
+  }, [search, lineFilter, tipoFilter, subtipoFilter, perPage])
 
   const paginatedProducts = useMemo(() => {
     const start = (currentPage - 1) * perPage
@@ -340,11 +383,13 @@ export default function ProductsPage() {
   }
 
   const exportToExcel = () => {
-    const headers = [t('description'), t('model'), t('line'), t('salePrice'), t('baseHospitalPrice')]
+    const headers = [t('description'), t('model'), t('line'), 'Tipo', 'Subtipo', t('salePrice'), t('baseHospitalPrice')]
     const rows = filteredAndSorted.map(p => [
       p.description,
       p.model || '',
       p.line || '',
+      p.type || '',
+      (p as any).subtipo || '',
       p.sale_price !== null ? p.sale_price : '',
       p.base_hospital_price !== null ? p.base_hospital_price : '',
     ])
@@ -365,6 +410,8 @@ export default function ProductsPage() {
     { key: 'description', label: t('description'), sortable: true },
     { key: 'model', label: t('model'), sortable: true },
     { key: 'line', label: t('line'), sortable: true },
+    { key: 'type', label: 'Tipo', sortable: true },
+    { key: 'subtipo', label: 'Subtipo', sortable: true },
     { key: 'sale_price', label: t('salePrice'), sortable: true },
     { key: 'base_hospital_price', label: t('baseHospitalPrice'), sortable: true },
   ]
@@ -409,9 +456,9 @@ export default function ProductsPage() {
         </header>
 
         {/* Filters */}
-        <div className="card p-4 flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <div className="card p-4 flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1 bg-white rounded-xl shadow-xs">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               id="product-search"
               type="text"
@@ -424,23 +471,49 @@ export default function ProductsPage() {
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
               >
                 <X size={16} />
               </button>
             )}
           </div>
-          <div className="w-full sm:w-64">
-            <select
-              value={lineFilter}
-              onChange={(e) => setLineFilter(e.target.value)}
-              className="erp-input"
-            >
-              <option value="">Todas las líneas</option>
-              {uniqueLines.map(l => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto md:min-w-[550px]">
+            <div>
+              <select
+                value={lineFilter}
+                onChange={(e) => setLineFilter(e.target.value)}
+                className="erp-input w-full"
+              >
+                <option value="">Todas las líneas</option>
+                {uniqueLines.map(l => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <select
+                value={tipoFilter}
+                onChange={(e) => setTipoFilter(e.target.value)}
+                className="erp-input w-full"
+              >
+                <option value="">Todos los tipos</option>
+                {uniqueTipos.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <select
+                value={subtipoFilter}
+                onChange={(e) => setSubtipoFilter(e.target.value)}
+                className="erp-input w-full"
+              >
+                <option value="">Todos los subtipos</option>
+                {uniqueSubtipos.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -501,8 +574,10 @@ export default function ProductsPage() {
                           <div className="text-xs text-gray-500 mt-0.5">{product.generic_description}</div>
                         )}
                       </td>
-                      <td className="p-4 text-sm text-gray-600 whitespace-nowrap">{product.model || '-'}</td>
-                      <td className="p-4 text-sm text-gray-600 whitespace-nowrap">{product.line || '-'}</td>
+                      <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{product.model || '-'}</td>
+                      <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{product.line || '-'}</td>
+                      <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{product.type || '-'}</td>
+                      <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{(product as any).subtipo || '-'}</td>
                       <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{formatCurrency(product.sale_price)}</td>
                       <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{formatCurrency(product.base_hospital_price)}</td>
                       <td className="p-4">
@@ -531,7 +606,7 @@ export default function ProductsPage() {
                   ))}
                   {paginatedProducts.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-gray-500">
+                      <td colSpan={9} className="p-8 text-center text-gray-500">
                         {t('noResults')}
                       </td>
                     </tr>
@@ -700,29 +775,37 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          {/* Type + Line */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-              <select
-                value={form.type}
-                onChange={e => setField('type', e.target.value)}
-                className="erp-input"
-              >
-                <option value="equipment">Equipo</option>
-                <option value="consumable">Consumible</option>
-              </select>
-            </div>
+          {/* Type + Line + Subtipo */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Línea</label>
-              <select
+              <input
+                type="text"
                 value={form.line}
                 onChange={e => setField('line', e.target.value)}
                 className="erp-input"
-              >
-                <option value="">-- Seleccionar --</option>
-                {uniqueLines.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
+                placeholder="ej. ENT"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+              <input
+                type="text"
+                value={form.type}
+                onChange={e => setField('type', e.target.value)}
+                className="erp-input"
+                placeholder="ej. CONSUMIBLE"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subtipo</label>
+              <input
+                type="text"
+                value={form.subtipo}
+                onChange={e => setField('subtipo', e.target.value)}
+                className="erp-input"
+                placeholder="ej. ELECTRODO"
+              />
             </div>
           </div>
 

@@ -76,6 +76,7 @@ export interface Product {
   base_hospital_price: number | null
   line: string | null
   type: string | null
+  subtipo: string | null
   category: string | null
   specialty_ids: string[] | null
   image_urls: string[] | null
