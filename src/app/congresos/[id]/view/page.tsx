@@ -127,7 +127,7 @@ export default function CongresoViewPage() {
               target="_blank"
               className="btn-secondary"
             >
-              <Globe size={18} /> Ver Landing
+              <Globe size={18} /> {t('viewLanding')}
             </Link>
             <PermissionGuard section="congresos" action="edit">
               <Link 
@@ -147,10 +147,10 @@ export default function CongresoViewPage() {
             <section className="card p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <AlignLeft size={18} className="text-blue-600" />
-                Descripción
+                {t('description')}
               </h2>
               <div className="text-gray-600 whitespace-pre-wrap leading-relaxed text-sm">
-                {congreso.description || 'Sin descripción...'}
+                {congreso.description || t('noDescription')}
               </div>
             </section>
 
@@ -158,7 +158,7 @@ export default function CongresoViewPage() {
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <Users size={20} className="text-blue-600" />
-                  Talleres ({congreso.workshops?.length || 0})
+                  {t('talleres')} ({congreso.workshops?.length || 0})
                 </h2>
               </div>
 
@@ -191,7 +191,7 @@ export default function CongresoViewPage() {
                         <div className="mt-auto border-t border-gray-100 pt-3 flex items-center justify-between">
                           <div className="flex flex-col w-2/3 pr-4">
                             <div className="flex justify-between text-xs mb-1">
-                              <span className="font-medium text-gray-600">Cupo: {enrolledCount} / {w.max_people}</span>
+                              <span className="font-medium text-gray-600">{t('spots')}: {enrolledCount} / {w.max_people}</span>
                               <span className={isFull ? 'text-red-500 font-bold' : 'text-blue-600 font-bold'}>
                                 {capacityPercentage}%
                               </span>
@@ -204,7 +204,7 @@ export default function CongresoViewPage() {
                             </div>
                           </div>
                           <span className="text-sm font-medium text-blue-600 flex items-center">
-                            Ver Inscritos <ChevronRight size={16} />
+                            {t('viewEnrolled')} <ChevronRight size={16} />
                           </span>
                         </div>
                       </Link>
@@ -213,7 +213,7 @@ export default function CongresoViewPage() {
                 </div>
               ) : (
                 <div className="card p-8 text-center text-gray-500 bg-gray-50/50">
-                  No hay talleres configurados para este congreso.
+                  {t('noWorkshopsConfigured')}
                 </div>
               )}
             </section>
@@ -223,7 +223,7 @@ export default function CongresoViewPage() {
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <ShoppingBag size={20} className="text-blue-600" />
-                  Pre-órdenes de Productos ({orders.length})
+                  {t('preOrdersTitle')} ({orders.length})
                 </h2>
               </div>
 
@@ -253,7 +253,7 @@ export default function CongresoViewPage() {
                           className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none hover:bg-gray-50/40 transition-colors"
                         >
                           <div className="space-y-1">
-                            <h3 className="font-bold text-gray-900">Dr. {order.clients?.name || 'Prospecto Anónimo'}</h3>
+                            <h3 className="font-bold text-gray-900">Dr. {order.clients?.name || t('anonymousProspect')}</h3>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                               {order.clients?.email_primary && (
                                 <span className="flex items-center gap-1">
@@ -273,7 +273,7 @@ export default function CongresoViewPage() {
 
                           <div className="flex items-center justify-between sm:justify-end gap-6">
                             <div className="text-right">
-                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Pre-orden</p>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{t('totalPreOrder')}</p>
                               <p className="text-lg font-black text-blue-600">
                                 {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(order.total_amount)}
                               </p>
@@ -298,20 +298,20 @@ export default function CongresoViewPage() {
                             >
                               <div className="p-5 space-y-4">
                                 <div className="space-y-2">
-                                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Productos de Interés</h4>
+                                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('productsOfInterest')}</h4>
                                   <div className="divide-y divide-gray-100 border border-gray-200/60 rounded-xl bg-white overflow-hidden shadow-sm">
                                     {order.order_items.map((item: any) => (
                                       <div key={item.id} className="p-4 flex items-center justify-between text-sm">
                                         <div className="space-y-1">
                                           <p className="font-semibold text-gray-800">{item.product?.nombre_lista || item.product?.description}</p>
                                           <p className="text-xs text-gray-400 font-medium">
-                                            Mod: {item.product?.model || 'Estándar'} | Cód: {item.product?.order_code || 'N/A'}
+                                            {t('modelAbbreviation')}: {item.product?.model || t('standardModel')} | {t('codeAbbreviation')}: {item.product?.order_code || 'N/A'}
                                           </p>
                                         </div>
                                         <div className="text-right">
-                                          <p className="font-mono text-gray-600">Cant: <strong className="text-gray-900">{item.quantity}</strong></p>
+                                          <p className="font-mono text-gray-600">{t('quantityAbbreviation')}: <strong className="text-gray-900">{item.quantity}</strong></p>
                                           <p className="text-xs text-gray-500 mt-0.5">
-                                            {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(item.unit_price)} c/u
+                                            {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(item.unit_price)} {t('eachUnit')}
                                           </p>
                                         </div>
                                       </div>
@@ -321,7 +321,7 @@ export default function CongresoViewPage() {
 
                                 {order.notes && (
                                   <div className="bg-blue-50/20 border border-blue-100/50 p-4 rounded-xl space-y-1">
-                                    <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wider">Notas del Médico</h4>
+                                    <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wider">{t('doctorNotes')}</h4>
                                     <p className="text-sm text-gray-600 whitespace-pre-wrap">{order.notes}</p>
                                   </div>
                                 )}
@@ -335,7 +335,7 @@ export default function CongresoViewPage() {
                 </div>
               ) : (
                 <div className="card p-8 text-center text-gray-500 bg-gray-50/50">
-                  Aún no se han registrado pre-órdenes en este congreso.
+                  {t('noPreOrdersYet')}
                 </div>
               )}
             </section>
@@ -346,10 +346,10 @@ export default function CongresoViewPage() {
             {congreso.flyer && (
               <section className="card overflow-hidden">
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                  <h2 className="font-bold text-gray-900 text-sm">Flyer del Evento</h2>
+                  <h2 className="font-bold text-gray-900 text-sm">{t('eventFlyer')}</h2>
                 </div>
                 <div className="aspect-[3/4] bg-gray-900 flex items-center justify-center">
-                  <img src={congreso.flyer} alt="Flyer" className="w-full h-full object-cover" />
+                  <img src={congreso.flyer} alt={t('flyer')} className="w-full h-full object-cover" />
                 </div>
               </section>
             )}
@@ -357,7 +357,7 @@ export default function CongresoViewPage() {
             {congreso.contacts?.length > 0 && (
               <section className="card">
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                  <h2 className="font-bold text-gray-900 text-sm">Contactos</h2>
+                  <h2 className="font-bold text-gray-900 text-sm">{t('contacts')}</h2>
                 </div>
                 <div className="p-4 space-y-4">
                   {congreso.contacts.map((c: any, i: number) => (
