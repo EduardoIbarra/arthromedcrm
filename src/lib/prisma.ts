@@ -3,7 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
 const prismaClientSingleton = () => {
-  const connectionString = process.env.DIRECT_URL
+  const connectionString = process.env.DATABASE_URL || process.env.DIRECT_URL
   
   if (!connectionString) {
     console.warn('Warning: DATABASE_URL is not defined. Prisma will fail at runtime.')
