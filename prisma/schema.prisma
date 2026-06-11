@@ -886,6 +886,8 @@ model congress_workshops {
   max_people                    Int
   cost                          Decimal?                        @db.Decimal(10, 2)
   professor                     String
+  flyer                         String?
+  description                   String?
   congress_workshop_doctors     congress_workshop_doctors[]
   congress_workshop_enrollments congress_workshop_enrollments[]
   congresos                     congresos?                      @relation(fields: [congress_id], references: [id], onDelete: Cascade)

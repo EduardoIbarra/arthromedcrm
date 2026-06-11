@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Loader2, BookOpen } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
+import { createClient } from '@/lib/supabase/client'
 
 interface TallerFormProps {
   tallerId: string | null
@@ -16,6 +17,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const isNew = tallerId === null
   const [isLoading, setIsLoading] = useState(!isNew)
   const [isSaving, setIsSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [congresos, setCongresos] = useState<{id: string, name: string}[]>([])
 
   const [formData, setFormData] = useState({
@@ -23,9 +25,13 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     date_time: '',
     max_people: 20,
     cost: '',
-    congress_id: ''
+    congress_id: '',
+    description: '',
+    flyer: ''
   })
   const [doctorIds, setDoctorIds] = useState<string[]>([])
+
+  const supabase = createClient()
 
   useEffect(() => {
     // Fetch congresos for optional linking
@@ -45,16 +51,38 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               date_time: d.toISOString().slice(0, 16),
               max_people: data.max_people,
               cost: data.cost !== null ? String(data.cost) : '',
-              congress_id: data.congress_id || ''
+              congress_id: data.congress_id || '',
+              description: data.description || '',
+              flyer: data.flyer || ''
             })
-            if (data.doctors) {
-              setDoctorIds(data.doctors.map((d: any) => d.doctor_id))
+            if (data.congress_workshop_doctors) {
+              setDoctorIds(data.congress_workshop_doctors.map((d: any) => d.doctor_id))
             }
           }
           setIsLoading(false)
         })
     }
   }, [isNew, tallerId])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop() || 'pdf'
+      const fileName = `workshop_flyer_${Date.now()}.${ext}`
+      const { data, error: uploadError } = await supabase.storage.from('documents').upload(`talleres/${fileName}`, file)
+      if (uploadError) throw uploadError
+      
+      const { data: publicUrlData } = supabase.storage.from('documents').getPublicUrl(data.path)
+      setFormData(p => ({ ...p, flyer: publicUrlData.publicUrl }))
+    } catch (err: any) {
+      console.error(err)
+      alert('Error al subir el archivo: ' + err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,6 +147,11 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               <input required type="text" className="erp-input w-full" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
             </div>
 
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Descripción (Opcional)</label>
+              <textarea rows={3} className="erp-input w-full" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Escribe los detalles o temas que cubrirá este taller..." />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Fecha y Hora *</label>
@@ -150,6 +183,27 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
             </div>
 
             <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Volante / Flyer (Opcional)</label>
+              <div className="space-y-2">
+                {formData.flyer && (
+                  <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-100 rounded-xl">
+                    <a href={formData.flyer} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1 truncate flex-1">
+                      <FileText size={16} /> Ver flyer actual
+                    </a>
+                    <button type="button" onClick={() => setFormData(p => ({ ...p, flyer: '' }))} className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+                <label className="btn-secondary w-full justify-center cursor-pointer text-sm py-3 border-dashed border-2">
+                  {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                  {uploading ? 'Subiendo...' : (formData.flyer ? 'Reemplazar Flyer' : 'Subir Imagen o PDF')}
+                  <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                </label>
+              </div>
+            </div>
+
+            <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Doctores / Docentes *</label>
               <DoctorSelector selectedIds={doctorIds} onChange={setDoctorIds} multiple={true} />
               {doctorIds.length === 0 && <p className="text-xs text-orange-500 mt-1">Debes seleccionar al menos un doctor.</p>}
@@ -157,7 +211,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           </div>
 
           <div className="flex justify-end pt-4 border-t border-gray-100">
-            <button type="submit" disabled={isSaving || doctorIds.length === 0} className="btn-primary flex items-center gap-2">
+            <button type="submit" disabled={isSaving || doctorIds.length === 0 || uploading} className="btn-primary flex items-center gap-2">
               {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               {isSaving ? 'Guardando...' : 'Guardar Taller'}
             </button>

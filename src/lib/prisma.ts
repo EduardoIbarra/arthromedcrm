@@ -15,7 +15,21 @@ const prismaClientSingleton = () => {
     }) as any
   }
 
-  const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } })
+  // Strip conflicting SSL query params from connection string so options.ssl is respected by node-postgres Pool
+  let cleanUrl = connectionString
+  try {
+    const parsedUrl = new URL(connectionString)
+    parsedUrl.searchParams.delete('sslmode')
+    parsedUrl.searchParams.delete('sslaccept')
+    parsedUrl.searchParams.delete('sslcert')
+    parsedUrl.searchParams.delete('sslkey')
+    parsedUrl.searchParams.delete('sslrootcert')
+    cleanUrl = parsedUrl.toString()
+  } catch (e) {
+    console.warn('Warning: Failed to parse connectionString as URL, using raw string.', e)
+  }
+
+  const pool = new Pool({ connectionString: cleanUrl, ssl: { rejectUnauthorized: false } })
   const adapter = new PrismaPg(pool)
   
   return new PrismaClient({
@@ -24,15 +38,23 @@ const prismaClientSingleton = () => {
   })
 }
 
+const TRIGGER_VERSION = 5
+
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
+  var prismaTriggerVersion: number | undefined
 }
 
-const hasUpdates = globalThis.prisma && ('ticket_updates' in globalThis.prisma) && ('landing_pages' in globalThis.prisma)
+const hasUpdates = globalThis.prisma && 
+  ('ticket_updates' in globalThis.prisma) && 
+  ('landing_pages' in globalThis.prisma) &&
+  globalThis.prismaTriggerVersion === TRIGGER_VERSION
+
 const prisma = hasUpdates ? globalThis.prisma! : prismaClientSingleton()
 
 export default prisma
 
-// Hot reload trigger: 4
-
-if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.prisma = prisma
+  globalThis.prismaTriggerVersion = TRIGGER_VERSION
+}

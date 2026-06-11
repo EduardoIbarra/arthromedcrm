@@ -10,15 +10,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const data = await prisma.congress_workshops.findUnique({
       where: { id },
       include: {
-        congress: {
+        congresos: {
           select: { id: true, name: true }
         },
-        doctors: {
-          include: { doctor: true }
+        congress_workshop_doctors: {
+          include: { doctors: true }
         },
-        enrollments: {
+        congress_workshop_enrollments: {
           include: {
-            client: {
+            clients: {
               select: { id: true, name: true, email_primary: true, phone: true }
             }
           },
@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await req.json()
-    const { name, congress_id, date_time, max_people, cost, professor, doctorIds } = body
+    const { name, congress_id, date_time, max_people, cost, professor, doctorIds, flyer, description } = body
 
     if (doctorIds && Array.isArray(doctorIds)) {
       await prisma.congress_workshop_doctors.deleteMany({ where: { workshop_id: id } })
@@ -51,13 +51,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       where: { id },
       data: {
         ...(name && { name }),
-        ...(congress_id !== undefined && { congress_id: congress_id || null }),
+        ...(congress_id !== undefined && {
+          congresos: congress_id
+            ? { connect: { id: congress_id } }
+            : { disconnect: true }
+        }),
         ...(date_time && { date_time: new Date(date_time) }),
         ...(max_people && { max_people: parseInt(max_people) }),
         ...(cost !== undefined && { cost: cost ? parseFloat(cost) : null }),
         ...(professor && { professor }),
+        ...(flyer !== undefined && { flyer }),
+        ...(description !== undefined && { description }),
         ...(doctorIds && Array.isArray(doctorIds) && {
-          doctors: {
+          congress_workshop_doctors: {
             create: doctorIds.map((docId: string) => ({
               doctor_id: docId
             }))
@@ -65,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         })
       },
       include: {
-        doctors: { include: { doctor: true } }
+        congress_workshop_doctors: { include: { doctors: true } }
       }
     })
 
