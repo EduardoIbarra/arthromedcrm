@@ -372,7 +372,7 @@ export async function GET(request: NextRequest) {
           lineRevenue[linea].current += revenue
         }
 
-        const catName = fp.productos?.categoria || 'Otros'
+        const catName = getLineChartLine(fp) || 'Otros'
         categoryRevenue[catName] = (categoryRevenue[catName] || 0) + revenue
       })
     })

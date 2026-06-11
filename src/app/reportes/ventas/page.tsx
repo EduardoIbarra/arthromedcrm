@@ -1918,186 +1918,29 @@ export default function VentasReportPage() {
           </div>
         </div>
 
-        {/* 5. NEW WIDGETS: Fulfillment & Payment Methods */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Fulfillment Status Widget */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col h-[340px]" style={CARD_STYLE}>
-            <ChartHeader 
-              title={t('fulfillmentRate' as any) || 'Fulfillment de Entregas'} 
-              tooltipText={t('fulfillmentRateDesc' as any) || 'Muestra la tasa de surtido de las facturas de clientes (Completa, Parcial, No Surtida).'} 
-            />
-            <div className="flex-1 flex flex-col md:flex-row items-center justify-around gap-4">
-              <div className="w-full md:w-1/2 h-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={data.fulfillmentRates} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2}>
-                      {data.fulfillmentRates.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={entry.name === 'completa' ? '#0d9488' : entry.name === 'parcial' ? '#b45309' : '#b91c1c'} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={CHART_TOOLTIP} formatter={(value) => formatCurrency(Number(value))} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="w-full md:w-1/2 space-y-3">
-                {data.fulfillmentRates.map((entry) => (
-                  <div key={entry.name} className="flex justify-between items-center text-xs">
-                    <span className="font-medium text-gray-700 capitalize">{getFulfillmentName(entry.name)}</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(entry.value, true)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Method Distribution */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col h-[340px]" style={CARD_STYLE}>
-            <ChartHeader 
-              title={t('paymentMethods' as any) || 'Métodos de Pago'} 
-              tooltipText={t('paymentMethodsDesc' as any) || 'Distribución de ingresos por método de pago registrado en las facturas.'} 
-            />
-            <div className="flex-1 flex flex-col justify-around">
-              {data.paymentMethods.map((method, idx) => {
-                const maxVal = data.paymentMethods[0]?.value || 1
-                const percent = (method.value / maxVal) * 100
-                return (
-                  <div key={method.name} className="space-y-1">
-                    <div className="flex justify-between items-center text-xs font-semibold">
-                      <span className="text-gray-700">{method.name}</span>
-                      <span className="text-[#0763a9]">{formatCurrency(method.value)}</span>
-                    </div>
-                    <div className="w-full bg-gray-150 h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#f0f5fa' }}>
-                      <div className="h-full rounded-full" style={{ width: `${percent}%`, backgroundColor: COLORS[idx % COLORS.length] }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* 6. NEW WIDGET: Congress Sales ROI Dashboard */}
-        <div className="rounded-2xl p-5 bg-white flex flex-col" style={CARD_STYLE}>
+        {/* Recent Orders List */}
+        <div className="rounded-2xl p-5 bg-white flex flex-col h-[300px] justify-between" style={CARD_STYLE}>
           <ChartHeader 
-            title={t('congressRoiTitle' as any) || 'Retorno de Inversión (ROI) de Congresos'} 
-            tooltipText={t('congressRoiDesc' as any) || 'Compara los gastos totales realizados para cada congreso contra las ventas facturadas a los clientes que asistieron a sus talleres.'} 
+            title={t('lastSales' as any) || 'Últimas Ventas'} 
+            tooltipText={t('lastSalesDesc' as any) || 'Muestra los 15 registros de facturación más recientes del sistema.'} 
           />
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-700">{t('congresos')}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-700">{t('spentByCongress' as any)}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-700">{t('salesGenerated' as any) || 'Ventas Generadas'}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-700">ROI (%)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y bg-white">
-                {data.congressRoi.map((cong, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-gray-800">{cong.name}</td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(cong.expenses)}</td>
-                    <td className="px-4 py-3 text-right text-teal-600 font-bold">{formatCurrency(cong.sales)}</td>
-                    <td className={`px-4 py-3 text-right font-bold ${cong.roi >= 100 ? 'text-green-600' : 'text-amber-600'}`}>
-                      {cong.roi > 0 ? `${cong.roi.toFixed(1)}%` : '0.0%'}
-                    </td>
-                  </tr>
-                ))}
-                {data.congressRoi.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-gray-400">
-                      {t('noCongressesForAnalysis' as any) || 'No hay congresos registrados para análisis'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 7. Funnel, budget, and recent orders row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sales Funnel */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col justify-between" style={CARD_STYLE}>
-            <ChartHeader 
-              title={t('salesFunnel' as any) || 'Embudo de Ventas'} 
-              tooltipText={t('salesFunnelDesc' as any) || 'Muestra la conversión de prospectos a través de las etapas del proceso comercial.'} 
-            />
-            <div className="space-y-3">
-              {[
-                { stage: t('prospects'), count: 180, val: '$5.4M', pct: 100, color: 'bg-blue-600' },
-                { stage: t('opportunities' as any) || 'Oportunidades', count: 110, val: '$3.2M', pct: 61, color: 'bg-indigo-600' },
-                { stage: t('quotations' as any) || 'Cotizaciones', count: 68, val: '$1.9M', pct: 37, color: 'bg-purple-600' },
-                { stage: t('closedSales' as any) || 'Ventas Cerradas', count: 34, val: '$1.2M', pct: 18, color: 'bg-[#0d9488]' }
-              ].map((step) => (
-                <div key={step.stage} className="space-y-1">
-                  <div className="flex justify-between items-center text-xs font-semibold text-gray-750">
-                    <span>{step.stage} ({step.count})</span>
-                    <span>{step.val} ({step.pct}%)</span>
+          <div className="flex-1 overflow-y-auto pr-1 space-y-0.5">
+            {data.recentOrders.map((order, idx) => {
+              const orderDateStr = order.date ? new Date(order.date).toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' }) : '-'
+              return (
+                <div 
+                  key={idx}
+                  onClick={() => order.crmClientId && router.push(`/reportes/clientes/${order.crmClientId}`)}
+                  className={`flex items-center justify-between text-xs py-2 border-b border-gray-50 transition-colors ${order.crmClientId ? 'cursor-pointer hover:bg-slate-50 px-1 rounded hover:text-teal-600' : ''}`}
+                >
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="font-semibold text-gray-850 truncate">{order.customer}</p>
+                    <p className="text-[10px] text-[#8a8b8d]">{orderDateStr}</p>
                   </div>
-                  <div className="w-full bg-gray-150 h-4 rounded-lg overflow-hidden relative" style={{ backgroundColor: '#f0f5fa' }}>
-                    <div className={`h-full ${step.color} transition-all duration-500`} style={{ width: `${step.pct}%` }} />
-                  </div>
+                  <span className="font-bold text-[#0d9488]">{formatCurrency(order.amount)}</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Goal tracker */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col" style={CARD_STYLE}>
-            <div className="space-y-4">
-              <ChartHeader 
-                title={t('budgetControl' as any) || 'Control de Presupuesto'} 
-                tooltipText={t('budgetControlDesc' as any) || 'Monitorea el avance de la facturación mensual contra la meta establecida de la empresa.'} 
-              />
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs text-gray-500">
-                  <span>{t('monthlyTarget' as any) || 'Meta Mensual'}:</span>
-                  <span className="font-bold text-gray-800">$500,000.00</span>
-                </div>
-                <div className="flex justify-between items-center text-xs text-gray-500">
-                  <span>{t('accumulatedSales' as any) || 'Ventas Acumuladas'}:</span>
-                  <span className="font-bold text-teal-650">{formatCurrency(data.kpis.salesMonth)}</span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden border border-gray-200">
-                  <div 
-                    className="bg-[#0d9488] h-full rounded-full transition-all duration-500" 
-                    style={{ width: `${Math.min(data.kpis.goalProgress, 100)}%` }} 
-                  />
-                </div>
-                <p className="text-[11px] text-[#8a8b8d] font-semibold text-right">
-                  {t('progress' as any) || 'Progreso'}: {data.kpis.goalProgress.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Orders List */}
-          <div className="rounded-2xl p-5 bg-white flex flex-col h-[300px] justify-between" style={CARD_STYLE}>
-            <ChartHeader 
-              title={t('lastSales' as any) || 'Últimas Ventas'} 
-              tooltipText={t('lastSalesDesc' as any) || 'Muestra los 15 registros de facturación más recientes del sistema.'} 
-            />
-            <div className="flex-1 overflow-y-auto pr-1 space-y-0.5">
-              {data.recentOrders.map((order, idx) => {
-                const orderDateStr = order.date ? new Date(order.date).toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' }) : '-'
-                return (
-                  <div 
-                    key={idx}
-                    onClick={() => order.crmClientId && router.push(`/reportes/clientes/${order.crmClientId}`)}
-                    className={`flex items-center justify-between text-xs py-2 border-b border-gray-50 transition-colors ${order.crmClientId ? 'cursor-pointer hover:bg-slate-50 px-1 rounded hover:text-teal-600' : ''}`}
-                  >
-                    <div className="min-w-0 flex-1 pr-2">
-                      <p className="font-semibold text-gray-850 truncate">{order.customer}</p>
-                      <p className="text-[10px] text-[#8a8b8d]">{orderDateStr}</p>
-                    </div>
-                    <span className="font-bold text-[#0d9488]">{formatCurrency(order.amount)}</span>
-                  </div>
-                )
-              })}
-            </div>
+              )
+            })}
           </div>
         </div>
       </div>
