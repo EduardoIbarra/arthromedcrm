@@ -1632,6 +1632,7 @@ model remisiones {
   editado_por_nombre  String?               @db.VarChar(255)
   fecha_edicion       DateTime?             @db.Timestamptz(6)
   numero_factura      String?
+  almacen_propio_id   String?               @db.Uuid
   gastos_legacy       gastos_legacy[]       @ignore
   remision_productos  remision_productos[]
   clientes            clientes?             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1639,6 +1640,7 @@ model remisiones {
   facturas_cliente    facturas_cliente?     @relation(fields: [factura_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   unidades_inventario unidades_inventario[]
 
+  @@index([almacen_propio_id], map: "idx_remisiones_almacen_propio")
   @@schema("public")
 }
 
@@ -1944,6 +1946,22 @@ enum user_role {
   superadmin
   admin
   user
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model almacen_propio {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre      String
+  lote        String?
+  lotes       Json?
+  cantidad    Int      @default(1)
+  descripcion String?
+  ubicacion   String?
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
 
   @@schema("public")
 }
