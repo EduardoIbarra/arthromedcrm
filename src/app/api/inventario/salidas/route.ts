@@ -40,52 +40,33 @@ export async function POST(req: Request) {
       const processed = []
 
       for (const item of items) {
-        const { producto_id, inventario_id, cantidad } = item
+        const { producto_id, cantidad } = item
         const cant = parseInt(cantidad, 10)
 
-        if (!producto_id || !inventario_id || isNaN(cant) || cant <= 0) {
+        if (!producto_id || isNaN(cant) || cant <= 0) {
           throw new Error('Datos inválidos. La cantidad debe ser mayor a 0.')
         }
 
-        const inventarioProducto = await tx.inventario_productos.findUnique({
-          where: {
-            tipo_inventario_id_producto_id: {
-              tipo_inventario_id: inventario_id,
-              producto_id: producto_id,
-            }
-          },
-          include: {
-            productos: true,
-            tipos_inventario: true,
-          }
+        const almacenItem = await tx.almacen_propio.findUnique({
+          where: { id: producto_id }
         })
 
-        if (!inventarioProducto || inventarioProducto.stock_actual < cant) {
-          throw new Error(`Stock insuficiente para el producto ${inventarioProducto?.productos.nombre || producto_id} en el inventario seleccionado.`)
+        if (!almacenItem || almacenItem.cantidad < cant) {
+          throw new Error(`Stock insuficiente para el producto ${almacenItem?.nombre || producto_id} en el almacén propio.`)
         }
 
-        // 1. Decrement stock
-        await tx.inventario_productos.update({
-          where: { id: inventarioProducto.id },
-          data: { stock_actual: { decrement: cant }, stock_updated_at: new Date() }
-        })
-
-        // 2. Log movement
-        await tx.inventario_movimientos.create({
+        // 1. Decrement quantity
+        await tx.almacen_propio.update({
+          where: { id: producto_id },
           data: {
-            tipo_movimiento: 'SALIDA_MANUAL',
-            producto_id,
-            tipo_inventario_id: inventario_id,
-            cantidad: cant,
-            motivo,
-            usuario_id: user.id,
-            autorizador_id: autorizador_id || null,
+            cantidad: { decrement: cant },
+            updated_at: new Date()
           }
         })
 
         processed.push({
-          producto: inventarioProducto.productos.nombre,
-          inventario: inventarioProducto.tipos_inventario.nombre,
+          producto: almacenItem.nombre,
+          inventario: 'Almacén Propio',
           cantidad: cant
         })
       }
@@ -98,7 +79,7 @@ export async function POST(req: Request) {
     const autorizador = autorizador_id ? await prisma.user_profiles.findUnique({ where: { id: autorizador_id }, select: { email: true } }) : null
 
     // Build notification message
-    let msg = `🚨 *Salida Global de Inventario*\nRegistró: ${profile?.email || user.email}\nAutorizó: ${autorizador?.email || 'N/A'}\nMotivo: ${motivo || 'N/A'}\n\n*Productos:*`
+    let msg = `🚨 *Salida Global de Inventario (Almacén Propio)*\nRegistró: ${profile?.email || user.email}\nAutorizó: ${autorizador?.email || 'N/A'}\nMotivo: ${motivo || 'N/A'}\n\n*Productos:*`
     results.forEach((r: any) => {
       msg += `\n- ${r.cantidad}x ${r.producto} (${r.inventario})`
     })

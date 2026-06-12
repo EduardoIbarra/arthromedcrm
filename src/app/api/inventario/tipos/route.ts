@@ -3,10 +3,11 @@ import prisma from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const tipos = await prisma.tipos_inventario.findMany({
-      orderBy: { nombre: 'asc' },
+    return NextResponse.json({
+      data: [
+        { id: 'almacen-propio', nombre: 'Almacén Propio' }
+      ]
     })
-    return NextResponse.json({ data: tipos })
   } catch (err: any) {
     console.error('[GET /api/inventario/tipos]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
