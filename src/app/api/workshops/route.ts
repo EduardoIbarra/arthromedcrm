@@ -6,9 +6,6 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const data = await prisma.congress_workshops.findMany({
-      where: {
-        congress_id: null
-      },
       include: {
         congresos: true,
         congress_workshop_doctors: { include: { doctors: true } },

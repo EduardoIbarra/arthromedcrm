@@ -23,6 +23,14 @@ const DAY_NAMES = {
   en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
   zh: ['日', '一', '二', '三', '四', '五', '六']
 }
+
+// Helper to parse date strings without timezone shifts
+const parseLocalDate = (dateStr: string | null | undefined, timeStr: string) => {
+  if (!dateStr) return new Date()
+  const baseDate = typeof dateStr === 'string' ? dateStr.split('T')[0] : new Date(dateStr).toISOString().split('T')[0]
+  return new Date(`${baseDate}T${timeStr}`)
+}
+
 interface UnifiedEvent {
   id: string
   title: string
@@ -51,6 +59,7 @@ export default function CalendarPage() {
   const [congresos, setCongresos] = useState<Congreso[]>([])
   const [eventos, setEventos] = useState<Evento[]>([])
   const [workshops, setWorkshops] = useState<any[]>([])
+  const [cirugias, setCirugias] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -87,23 +96,26 @@ export default function CalendarPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const [resCongresos, resEventos, resWorkshops] = await Promise.all([
+      const [resCongresos, resEventos, resWorkshops, resCirugias] = await Promise.all([
         fetch('/api/congresos'),
         fetch('/api/eventos'),
-        fetch('/api/workshops')
+        fetch('/api/workshops'),
+        fetch('/api/cirugias')
       ])
 
-      if (!resCongresos.ok || !resEventos.ok || !resWorkshops.ok) {
+      if (!resCongresos.ok || !resEventos.ok || !resWorkshops.ok || !resCirugias.ok) {
         throw new Error('Failed to fetch calendar data')
       }
 
       const { data: congressData } = await resCongresos.json()
       const { data: eventData } = await resEventos.json()
       const { data: workshopData } = await resWorkshops.json()
+      const { data: cirugiaData } = await resCirugias.json()
 
       setCongresos(congressData || [])
       setEventos(eventData || [])
       setWorkshops(workshopData || [])
+      setCirugias(cirugiaData || [])
     } catch (err: any) {
       console.error('Error fetching calendar data:', err)
       setError(err.message)
@@ -122,8 +134,8 @@ export default function CalendarPage() {
 
     // 1. Process Congresos
     congresos.forEach((c) => {
-      const start = new Date(c.start_date + 'T00:00:00')
-      const end = new Date(c.end_date + 'T23:59:59')
+      const start = parseLocalDate(c.start_date, '00:00:00')
+      const end = parseLocalDate(c.end_date, '23:59:59')
       list.push({
         id: `congreso-${c.id}`,
         title: c.name,
@@ -143,14 +155,15 @@ export default function CalendarPage() {
     workshops.forEach((w) => {
       const wDate = new Date(w.date_time)
       const docNames = w.doctors?.map((d: any) => d.doctor?.name).join(', ') || w.professor || 'N/A'
-      const title = w.congress ? `${w.congress.name} - ${w.name}` : w.name
+      const congressInfo = w.congress || w.congresos
+      const title = congressInfo ? `${congressInfo.name} - ${w.name}` : w.name
       list.push({
         id: `workshop-${w.id}`,
         title,
         start: wDate,
         end: wDate,
         type: 'workshop',
-        location: w.congress ? w.congress.location : 'Por definir',
+        location: congressInfo ? congressInfo.location : 'Por definir',
         description: `Docentes: ${docNames}. Cupo: ${w.max_people} personas. Costo: ${w.cost ? `$${w.cost}` : 'Gratuito'}`,
         responsible: docNames,
         parentCongressId: w.congress_id || undefined,
@@ -160,8 +173,8 @@ export default function CalendarPage() {
 
     // 3. Process Custom Eventos (Surgeries, Activities, etc)
     eventos.forEach((e) => {
-      const start = new Date(e.fecha_inicio)
-      const end = e.fecha_fin ? new Date(e.fecha_fin) : new Date(e.fecha_inicio)
+      const start = parseLocalDate(e.fecha_inicio, '00:00:00')
+      const end = e.fecha_fin ? parseLocalDate(e.fecha_fin, '23:59:59') : parseLocalDate(e.fecha_inicio, '23:59:59')
       list.push({
         id: `custom-${e.id}`,
         title: e.nombre,
@@ -177,8 +190,24 @@ export default function CalendarPage() {
       })
     })
 
+    // 4. Process Cirugias
+    cirugias.forEach((c) => {
+      const cDate = new Date(c.fecha)
+      list.push({
+        id: `cirugia-${c.id}`,
+        title: c.nombre,
+        start: cDate,
+        end: cDate,
+        type: 'cirugia',
+        description: `Médico: ${c.medico}. Estado: ${c.estado}. ${c.descripcion || c.notas || ''}`,
+        responsible: c.medico,
+        status: c.estado,
+        rawEvent: c
+      })
+    })
+
     return list
-  }, [congresos, eventos, workshops])
+  }, [congresos, eventos, workshops, cirugias])
 
   // Filter events
   const filteredEvents = useMemo(() => {
@@ -674,7 +703,32 @@ export default function CalendarPage() {
                   <CalendarDays size={24} className={selectedEvent.type === 'cirugia' ? 'text-emerald-600' : selectedEvent.type === 'congreso' ? 'text-purple-600' : 'text-blue-600'} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 leading-snug">{selectedEvent.title}</h3>
+                  <h3 className="text-xl font-bold text-gray-900 leading-snug">
+                    {selectedEvent.type === 'cirugia' ? (
+                      <Link 
+                        href={`/cirugias/${selectedEvent.id.replace('cirugia-', '')}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                      >
+                        {selectedEvent.title}
+                      </Link>
+                    ) : selectedEvent.type === 'workshop' ? (
+                      <Link 
+                        href={`/talleres/${selectedEvent.id.replace('workshop-', '')}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                      >
+                        {selectedEvent.title}
+                      </Link>
+                    ) : selectedEvent.parentCongressId ? (
+                      <Link 
+                        href={`/congresos/${selectedEvent.parentCongressId}/view`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                      >
+                        {selectedEvent.title}
+                      </Link>
+                    ) : (
+                      selectedEvent.title
+                    )}
+                  </h3>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className={`px-2 py-0.5 rounded-md text-xs font-semibold uppercase tracking-wide border ${getEventBadgeStyle(selectedEvent.type)}`}>
                       {getEventTypeName(selectedEvent.type)}
@@ -738,10 +792,37 @@ export default function CalendarPage() {
 
               {/* Action Buttons inside Details */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
-                {/* Parents Links */}
-                {selectedEvent.parentCongressId ? (
+                {/* Action Links */}
+                {selectedEvent.type === 'cirugia' ? (
                   <Link
-                    href={`/congresos/${selectedEvent.parentCongressId}`}
+                    href={`/cirugias/${selectedEvent.id.replace('cirugia-', '')}`}
+                    className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1.5 group/link"
+                  >
+                    <span>Ver detalle de la cirugía</span>
+                    <ArrowRight size={14} className="group-hover/link:translate-x-0.5 transition-transform" />
+                  </Link>
+                ) : selectedEvent.type === 'workshop' ? (
+                  <div className="flex flex-wrap items-center gap-4">
+                    <Link
+                      href={`/talleres/${selectedEvent.id.replace('workshop-', '')}`}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1.5 group/link"
+                    >
+                      <span>Ver detalle del taller</span>
+                      <ArrowRight size={14} className="group-hover/link:translate-x-0.5 transition-transform" />
+                    </Link>
+                    {selectedEvent.parentCongressId && (
+                      <Link
+                        href={`/congresos/${selectedEvent.parentCongressId}/view`}
+                        className="text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors flex items-center gap-1.5 group/link"
+                      >
+                        <span>{t('viewParentCongress')}</span>
+                        <ArrowRight size={14} className="group-hover/link:translate-x-0.5 transition-transform" />
+                      </Link>
+                    )}
+                  </div>
+                ) : selectedEvent.parentCongressId ? (
+                  <Link
+                    href={`/congresos/${selectedEvent.parentCongressId}/view`}
                     className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1.5 group/link"
                   >
                     <span>{t('viewParentCongress')}</span>
@@ -752,7 +833,7 @@ export default function CalendarPage() {
                 )}
 
                 {/* Edit / Delete custom events */}
-                {!selectedEvent.parentCongressId && (
+                {selectedEvent.id.startsWith('custom-') && (
                   <div className="flex items-center gap-2">
                     <PermissionGuard section="congresos" action="edit">
                       <button
