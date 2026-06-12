@@ -17,7 +17,19 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       }
     })
     if (!data) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
-    return NextResponse.json({ data })
+
+    // Fetch matching cartas_distribucion records by RFC or Name
+    const cartas = await prisma.cartas_distribucion.findMany({
+      where: {
+        OR: [
+          ...(data.rfc ? [{ rfc: { equals: data.rfc, mode: 'insensitive' } }] : []),
+          { empresa_nombre: { contains: data.name, mode: 'insensitive' } }
+        ]
+      },
+      orderBy: { vigencia: 'desc' }
+    })
+
+    return NextResponse.json({ data, cartas })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

@@ -8,7 +8,8 @@ import { useI18n } from '@/contexts/I18nContext'
 import { Client, ClientActivity } from '@/types/database'
 import {
   Phone, Mail, MapPin, Building2, FileText, Edit3, Save, X,
-  MessageCircle, Bot, ChevronLeft, Trash2, Plus, Tag, Loader2, CheckCircle, Upload, Calendar
+  MessageCircle, Bot, ChevronLeft, Trash2, Plus, Tag, Loader2, CheckCircle, Upload, Calendar,
+  HelpCircle, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Activity
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { es, enUS, zhCN } from 'date-fns/locale'
@@ -16,7 +17,8 @@ import { Locale } from '@/lib/i18n'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import PermissionGuard from '@/components/PermissionGuard'
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, Legend } from 'recharts'
+import StatCard from '@/components/StatCard'
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -75,6 +77,70 @@ const MEXICAN_STATES = [
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
+const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  pendiente: { label: 'Pendiente',  bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-100'  },
+  pagada:    { label: 'Pagada',     bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+  pagado:    { label: 'Pagado',     bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+  parcial:   { label: 'Parcial',   bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-100'   },
+  completa:  { label: 'Completa',  bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-100'  },
+  cancelada: { label: 'Cancelada', bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-100'   },
+  anulado:   { label: 'Anulado',   bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-100'   },
+  borrador:  { label: 'Borrador',  bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-100'  }
+}
+
+const ESTADO_SURTIDO_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  no_surtida: { label: 'No Surtida', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100' },
+  parcial: { label: 'Parcial', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
+  completa: { label: 'Completa', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' }
+}
+
+const ChartHeader = ({ title, tooltipText }: { title: string; tooltipText: string }) => (
+  <div className="flex items-center gap-2 mb-4 flex-shrink-0">
+    <h2 className="text-sm font-semibold text-[#37383a]">{title}</h2>
+    <div className="group relative cursor-pointer">
+      <HelpCircle size={14} className="text-gray-400 hover:text-gray-650 transition-colors" />
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 bg-slate-800 text-white text-[11px] p-2.5 rounded-lg shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 leading-normal font-normal">
+        {tooltipText}
+      </div>
+    </div>
+  </div>
+)
+
+const getPresetDates = (preset: string) => {
+  const today = new Date('2026-06-08')
+  let start = new Date('2026-01-01')
+  let end = new Date('2026-12-31')
+
+  switch (preset) {
+    case 'thisMonth':
+      start = new Date('2026-06-01')
+      end = new Date('2026-06-30')
+      break
+    case 'lastMonth':
+      start = new Date('2026-05-01')
+      end = new Date('2026-05-31')
+      break
+    case 'last30Days':
+      start = new Date('2026-05-09')
+      end = new Date('2026-06-08')
+      break
+    case 'thisYear':
+      start = new Date('2026-01-01')
+      end = new Date('2026-12-31')
+      break
+    case 'lastYear':
+      start = new Date('2025-01-01')
+      end = new Date('2025-12-31')
+      break
+    default:
+      break
+  }
+  return {
+    start: start.toISOString().split('T')[0],
+    end: end.toISOString().split('T')[0]
+  }
+}
+
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -90,6 +156,16 @@ export default function ClientDetailPage() {
   const [uploading, setUploading] = useState(false)
   const [sales, setSales] = useState<any[]>([])
   const [loadingSales, setLoadingSales] = useState(true)
+
+  const [activeTab, setActiveTab] = useState<'info' | 'cartas' | 'facturas' | 'analytics'>('info')
+  const [cartasDistribucion, setCartasDistribucion] = useState<any[]>([])
+
+  // Analytics/Reports Tab States
+  const [reportData, setReportData] = useState<any | null>(null)
+  const [loadingReport, setLoadingReport] = useState(false)
+  const [preset, setPreset] = useState('thisYear')
+  const [startDate, setStartDate] = useState('2026-01-01')
+  const [endDate, setEndDate] = useState('2026-12-31')
 
   const clientYearlyMap = sales.reduce((acc, curr) => {
     const yr = curr.anio
@@ -141,6 +217,7 @@ export default function ClientDetailPage() {
         
         setClient(cJson.data)
         setEditData(cJson.data)
+        setCartasDistribucion(cJson.cartas || [])
         setActivities(aJson.data || [])
         setStaffUsers(staffJson.data || [])
         
@@ -158,7 +235,97 @@ export default function ClientDetailPage() {
     load()
   }, [id])
 
+  useEffect(() => {
+    async function loadReport() {
+      if (!id) return
+      setLoadingReport(true)
+      try {
+        const res = await fetch(`/api/reports/clientes/${id}?startDate=${startDate}&endDate=${endDate}`)
+        if (res.ok) {
+          const json = await res.json()
+          setReportData(json)
+        }
+      } catch (err) {
+        console.error('Error loading client report:', err)
+      } finally {
+        setLoadingReport(false)
+      }
+    }
+    loadReport()
+  }, [id, startDate, endDate])
+
   const hasBeenContactedViaWA = activities.some(a => a.type === 'whatsapp')
+
+  const handlePresetChange = (val: string) => {
+    setPreset(val)
+    if (val !== 'custom') {
+      const dates = getPresetDates(val)
+      setStartDate(dates.start)
+      setEndDate(dates.end)
+    }
+  }
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-'
+    const date = new Date(dateStr)
+    return date.toLocaleDateString(locale === 'es' ? 'es-MX' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  const getLocalizedMonthName = (monthNameES: string) => {
+    const monthsMap: Record<string, string> = {
+      'Enero': 'monthJan', 'Febrero': 'monthFeb', 'Marzo': 'monthMar', 'Abril': 'monthApr',
+      'Mayo': 'monthMay', 'Junio': 'monthJun', 'Julio': 'monthJul', 'Agosto': 'monthAug',
+      'Septiembre': 'monthSep', 'Octubre': 'monthOct', 'Noviembre': 'monthNov', 'Diciembre': 'monthDec'
+    }
+    const key = monthsMap[monthNameES]
+    return key ? t(key as any) : monthNameES
+  }
+
+  const getPeriodLabel = (startStr: string, endStr: string, isPrev = false) => {
+    const start = new Date(startStr)
+    const end = new Date(endStr)
+    if (isPrev) {
+      start.setFullYear(start.getFullYear() - 1)
+      end.setFullYear(end.getFullYear() - 1)
+    }
+    if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+      const monthStr = start.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short' })
+      return `${monthStr.charAt(0).toUpperCase()}${monthStr.slice(1)} ${start.getFullYear()}`
+    }
+    if (start.getFullYear() === end.getFullYear()) {
+      return `${start.getFullYear()}`
+    }
+    return `${start.getFullYear()} - ${end.getFullYear()}`
+  }
+
+  const getLocalStatusLabel = (status: string) => {
+    let statusLabel = STATUS_MAP[status]?.label || status
+    if (locale === 'en') {
+      if (status === 'pendiente') statusLabel = 'Pending'
+      else if (['pagada', 'pagado'].includes(status)) statusLabel = 'Paid'
+      else if (status === 'parcial') statusLabel = 'Partial'
+      else if (status === 'completa') statusLabel = 'Complete'
+      else if (status === 'cancelada' || status === 'anulado') statusLabel = 'Cancelled'
+      else if (status === 'borrador') statusLabel = 'Draft'
+    } else if (locale === 'zh') {
+      if (status === 'pendiente') statusLabel = '待处理'
+      else if (['pagada', 'pagado'].includes(status)) statusLabel = '已付款'
+      else if (status === 'parcial') statusLabel = '部分'
+      else if (status === 'completa') statusLabel = '已完成'
+      else if (status === 'cancelada' || status === 'anulado') statusLabel = '已取消'
+      else if (status === 'borrador') statusLabel = '草稿'
+    }
+    return statusLabel
+  }
+
+  const getLocalSurtidoLabel = (surtido: string) => {
+    const key = surtido === 'completa' ? 'completed' : surtido === 'parcial' ? 'partial' : 'unfulfilled'
+    return t(key as any) || ESTADO_SURTIDO_MAP[surtido]?.label || surtido
+  }
 
   const save = async () => {
     setSaving(true)
@@ -421,368 +588,739 @@ export default function ClientDetailPage() {
           </div>
         )}
 
-        {/* Info grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoCard icon={<Phone size={15} />} iconColor="#0763a9" title={t('contactInfo')}>
-            <InfoRow label="Directivo / Rep. Legal">{field('legal_representative')}</InfoRow>
-            <InfoRow label={t('primaryPhone')}>{field('phone')}</InfoRow>
-            <InfoRow label={t('whatsappPhone')}>{field('whatsapp_phone')}</InfoRow>
-            <InfoRow label={t('primaryEmail')}>{field('email_primary')}</InfoRow>
-            <InfoRow label={t('contactEmail')}>{field('email_contact')}</InfoRow>
-            <InfoRow label={t('billingEmail')}>{field('email_billing')}</InfoRow>
-          </InfoCard>
-
-          <InfoCard icon={<FileText size={15} />} iconColor="#b45309" title={t('fiscalInfo')}>
-            <InfoRow label={t('taxId')}>{field('rfc')}</InfoRow>
-            <InfoRow label={t('taxRegime')}>{field('tax_regime')}</InfoRow>
-            <InfoRow label="Origen (Source)">{field('source' as any)}</InfoRow>
-            <InfoRow label={t('zipCode')}>{field('zip_code')}</InfoRow>
-            <InfoRow label={t('fiscalAddress')}>{field('fiscal_address')}</InfoRow>
-          </InfoCard>
-
-          {/* Direcciones de Entrega Adicionales */}
-          <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
-            <div className="flex items-center gap-2">
-              <MapPin size={15} style={{ color: '#0763a9' }} />
-              <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Direcciones de Entrega Adicionales</h2>
-            </div>
-            {editing ? (
-              <div className="space-y-4">
-                {/* List of current addresses to remove */}
-                {((editData.addresses || []) as any[]).length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {((editData.addresses || []) as any[]).map((addr, idx) => (
-                      <div key={idx} className="p-3 bg-[#f8fafd] border border-[#e8f1f9] rounded-xl flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-bold text-[#0763a9]">{addr.name}</span>
-                            {addr.is_dhl && <DhlLogo />}
-                            {addr.zip_code && <span className="text-[10px] text-gray-500 font-mono">CP {addr.zip_code}</span>}
-                          </div>
-                          <p className="text-xs text-[#37383a] mt-1">{addr.address}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = (editData.addresses || []).filter((_, i) => i !== idx)
-                            setEditData(p => ({ ...p, addresses: updated }))
-                          }}
-                          className="text-[#b91c1c] hover:bg-[#fee2e2] p-1 rounded transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-[#8a8b8d] italic">No hay direcciones adicionales registradas.</p>
-                )}
-
-                {/* Form to add a new one */}
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
-                  <p className="text-xs font-bold text-[#5a5b5d] uppercase tracking-wider">Agregar Nueva Dirección</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <input
-                      type="text"
-                      className="erp-input text-xs"
-                      placeholder="Alias (Ej. Sucursal GDL)"
-                      id="new-addr-name-admin"
-                    />
-                    <input
-                      type="text"
-                      className="erp-input text-xs"
-                      placeholder="Código Postal (Ej. 64000)"
-                      id="new-addr-zip-admin"
-                      maxLength={5}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nameEl = document.getElementById('new-addr-name-admin') as HTMLInputElement
-                        const zipEl = document.getElementById('new-addr-zip-admin') as HTMLInputElement
-                        const addrEl = document.getElementById('new-addr-val-admin') as HTMLInputElement
-                        const dhlEl = document.getElementById('new-addr-dhl-admin') as HTMLInputElement
-                        if (nameEl && addrEl && nameEl.value.trim() && addrEl.value.trim()) {
-                          const newAddr = {
-                            name: nameEl.value.trim(),
-                            zip_code: zipEl ? zipEl.value.trim() : '',
-                            address: addrEl.value.trim(),
-                            is_dhl: dhlEl ? dhlEl.checked : false
-                          }
-                          const updated = [...(editData.addresses || []), newAddr]
-                          setEditData(p => ({ ...p, addresses: updated }))
-                          nameEl.value = ''
-                          if (zipEl) zipEl.value = ''
-                          addrEl.value = ''
-                          if (dhlEl) dhlEl.checked = false
-                        }
-                      }}
-                      className="btn-secondary text-xs flex justify-center py-2"
-                    >
-                      <Plus size={13} /> Agregar
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    className="erp-input text-xs w-full"
-                    placeholder="Dirección Completa (Calle, Número, Colonia, Ciudad, Estado)"
-                    id="new-addr-val-admin"
-                  />
-                  <div className="flex items-center gap-2 px-1">
-                    <input
-                      type="checkbox"
-                      id="new-addr-dhl-admin"
-                      className="w-4 h-4 text-[#0763a9] border-gray-300 rounded focus:ring-[#0763a9] cursor-pointer"
-                    />
-                    <label htmlFor="new-addr-dhl-admin" className="text-xs font-bold text-[#5a5b5d] cursor-pointer flex items-center gap-1.5 selection:bg-transparent">
-                      Es una sucursal <DhlLogo /> Ocurre
-                    </label>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* View mode */
-              ((client.addresses || []) as any[]).length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {((client.addresses || []) as any[]).map((addr, idx) => (
-                    <div key={idx} className="p-3.5 bg-[#f8fafd] border border-[#e8f1f9] rounded-2xl flex flex-col gap-1 hover:border-[#b4d2ed] transition-colors">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-[#0763a9]">{addr.name}</span>
-                        {addr.is_dhl && <DhlLogo />}
-                        {addr.zip_code && <span className="text-[10px] bg-[#e8f1f9] px-1.5 py-0.5 rounded text-gray-500 font-mono">CP {addr.zip_code}</span>}
-                      </div>
-                      <p className="text-sm text-[#37383a] mt-1">{addr.address}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm italic" style={{ color: '#c4c5c7' }}>Sin direcciones de entrega adicionales registradas.</p>
-              )
-            )}
-          </div>
-
-          <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
-            <div className="flex items-center gap-2">
-              <Calendar size={15} style={{ color: '#0763a9' }} />
-              <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Carta de Distribución</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <InfoRow label="Fecha de Emisión">{dateField('letter_created_at')}</InfoRow>
-              <InfoRow label="Fecha de Vencimiento">{dateField('letter_expires_at')}</InfoRow>
-              <InfoRow label="Archivo Adjunto">
-                {editing ? (
-                  <div className="space-y-2">
-                    {editData.letter_url && (
-                      <a href={editData.letter_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block truncate">
-                        Ver archivo actual
-                      </a>
-                    )}
-                    <label className="btn-secondary text-sm w-full justify-center cursor-pointer">
-                      {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                      {uploading ? 'Subiendo...' : (editData.letter_url ? 'Reemplazar Carta' : 'Subir Carta')}
-                      <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                    </label>
-                  </div>
-                ) : (
-                  <p className="text-sm" style={{ color: '#37383a' }}>
-                    {client?.letter_url ? (
-                      <a href={client.letter_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
-                        <FileText size={14} /> Ver Documento
-                      </a>
-                    ) : (
-                      <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>
-                    )}
-                  </p>
-                )}
-              </InfoRow>
-            </div>
-          </div>
-
-          <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
-            <div className="flex items-center gap-2">
-              <Building2 size={15} style={{ color: '#15803d' }} />
-              <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('commercialInfo')}</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <InfoRow label={t('operatingStates')}>
-                {editing ? (
-                  <div className="max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#9bbfdf] scrollbar-track-[#f0f5fa] border border-[#d4e0ec] rounded-lg p-1 bg-[#f8fafd] flex flex-col gap-1">
-                    {MEXICAN_STATES.map(st => {
-                      const isSelected = (editData.states || []).includes(st)
-                      return (
-                        <button
-                          type="button"
-                          key={st}
-                          className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-all ${
-                            isSelected 
-                              ? 'bg-[#e8f1f9] text-[#0763a9] font-semibold border border-[#0763a9]' 
-                              : 'text-[#37383a] hover:bg-[#e8f1f9] border border-transparent'
-                          }`}
-                          onClick={() => {
-                            const current = editData.states || []
-                            const next = isSelected ? current.filter(s => s !== st) : [...current, st]
-                            setEditData(p => ({ ...p, states: next }))
-                          }}
-                        >
-                          {st}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm" style={{ color: '#37383a' }}>
-                    {(client?.states as string[])?.join(', ') || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
-                  </p>
-                )}
-              </InfoRow>
-              <InfoRow label={t('hospitalChains')}>{arrayField('hospitals')}</InfoRow>
-              <InfoRow label={t('medicalSpecialties')}>{arrayField('specialties')}</InfoRow>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <InfoRow label={t('assignedTo')}>
-                {editing
-                  ? (
-                    <select className="erp-input text-sm" value={editData.assigned_to || ''} onChange={e => setEditData(p => ({ ...p, assigned_to: e.target.value }))}>
-                      <option value="">{t('none') || 'Sin asignar'}</option>
-                      {staffUsers.map(user => (
-                        <option key={user.id} value={user.id}>{user.email}</option>
-                      ))}
-                    </select>
-                  )
-                  : <p className="text-sm" style={{ color: '#37383a' }}>
-                      {client?.assigned_to ? staffUsers.find(u => u.id === client.assigned_to)?.email || client.assigned_to : <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
-                    </p>
-                }
-              </InfoRow>
-              <InfoRow label={t('tags')}>
-                {editing
-                  ? <input className="erp-input text-sm" value={(editData.tags || []).join(', ')} onChange={e => setEditData(p => ({ ...p, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
-                  : <div className="flex flex-wrap gap-1">
-                      {client.tags?.map(tag => (
-                        <span key={tag} className="px-2 py-0.5 rounded-full text-xs" style={{ background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }}>
-                          <Tag size={10} className="inline mr-1" />{tag}
-                        </span>
-                      )) || <span className="text-sm" style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
-                    </div>
-                }
-              </InfoRow>
-            </div>
-            <InfoRow label={t('notes')}>
-              {editing
-                ? <textarea className="erp-input text-sm" rows={3} value={editData.notes || ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} />
-                : <p className="text-sm whitespace-pre-wrap" style={{ color: '#37383a' }}>{client.notes || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
-              }
-            </InfoRow>
-          </div>
+        {/* Tab Navigation Bar */}
+        <div className="flex items-center gap-2 border-b border-[#d4e0ec] overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'info'
+                ? 'border-[#0763a9] text-[#0763a9]'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            onClick={() => setActiveTab('info')}
+          >
+            <Building2 size={16} /> Información General
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'cartas'
+                ? 'border-[#0763a9] text-[#0763a9]'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            onClick={() => setActiveTab('cartas')}
+          >
+            <FileText size={16} /> Cartas de Distribución
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'facturas'
+                ? 'border-[#0763a9] text-[#0763a9]'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            onClick={() => setActiveTab('facturas')}
+          >
+            <DollarSign size={16} /> Facturas
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'analytics'
+                ? 'border-[#0763a9] text-[#0763a9]'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            onClick={() => setActiveTab('analytics')}
+          >
+            <Activity size={16} /> Análisis / Reportes
+          </button>
         </div>
 
-        {/* Sales History Card */}
-        {!loadingSales && sales.length > 0 && (
-          <div className="rounded-2xl p-5 space-y-6 bg-white" style={CARD}>
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <Building2 size={18} style={{ color: '#0d9488' }} />
-                <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>
-                  {t('salesHistory' as any) || 'Historial de Ventas'}
-                </h2>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 font-mono">
-                {t('totalSales' as any) || 'Total Ventas'}: {formatCurrency(sales.reduce((acc, curr) => acc + Number(curr.monto || 0), 0), true)}
-              </span>
+        {/* Date Filters Header (Shared for Facturas & Analytics tabs) */}
+        {(activeTab === 'facturas' || activeTab === 'analytics') && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-[#d4e0ec] animate-fade-in">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Filtro de Fecha</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Define el periodo para reportes y listado de facturas.</p>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Chart */}
-              <div className="p-4 bg-gray-50/30 rounded-xl border border-gray-100 flex flex-col justify-between">
-                <h3 className="text-xs font-bold text-gray-500 uppercase mb-4">
-                  {t('yearlyComparison' as any) || 'Comparativa por Año'}
-                </h3>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={clientYearlyData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" />
-                      <YAxis tickFormatter={formatChartTick} />
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
-                      <Bar dataKey="value" fill="#0d9488" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+            
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+              {/* Preset Date selector */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] uppercase font-bold text-[#8a8b8d] tracking-wider">{t('period' as any) || 'Periodo'}</span>
+                <select
+                  value={preset}
+                  onChange={(e) => handlePresetChange(e.target.value)}
+                  className="text-xs font-semibold px-3 py-2 bg-[#f0f5fa] border border-[#d4e0ec] rounded-lg text-slate-700 outline-none focus:border-[#0763a9] transition-colors cursor-pointer"
+                >
+                  <option value="thisMonth">{t('thisMonthPreset' as any) || 'Este Mes'}</option>
+                  <option value="lastMonth">{t('lastMonthPreset' as any) || 'Mes Anterior'}</option>
+                  <option value="last30Days">{t('last30DaysPreset' as any) || 'Últimos 30 días'}</option>
+                  <option value="thisYear">{t('thisYearPreset' as any) || 'Este Año'}</option>
+                  <option value="lastYear">{t('lastYearPreset' as any) || 'Año Anterior'}</option>
+                  <option value="custom">{t('customPreset' as any) || 'Personalizado'}</option>
+                </select>
               </div>
 
-              {/* Table */}
-              <div className="space-y-2">
-                <h3 className="text-xs font-bold text-gray-500 uppercase">
-                  {t('transactions' as any) || 'Transacciones'}
-                </h3>
-                <div className="border border-gray-150 rounded-xl overflow-hidden bg-white max-h-56 overflow-y-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-semibold sticky top-0">
-                        <th className="p-3">{t('period' as any) || 'Periodo'}</th>
-                        <th className="p-3">{t('monto' as any) || 'Monto'}</th>
-                        <th className="p-3 text-right">{t('actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-sm">
-                      {sales
-                        .sort((a, b) => b.anio !== a.anio ? b.anio - a.anio : b.mes - a.mes)
-                        .map(sale => (
-                          <tr key={sale.id} className="hover:bg-gray-50/50">
-                            <td className="p-3 font-medium text-gray-700">
-                              {MONTH_NAMES[sale.mes - 1]} / {sale.anio}
-                            </td>
-                            <td className="p-3 font-semibold text-teal-650">
-                              {formatCurrency(sale.monto)}
-                            </td>
-                            <td className="p-3 text-right">
-                              <Link
-                                href={`/ventas/${sale.id}`}
-                                className="inline-flex items-center text-teal-600 hover:underline hover:text-teal-700"
-                              >
-                                {t('edit') || 'Editar'}
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+              {/* Custom Dates */}
+              {preset === 'custom' && (
+                <div className="flex flex-row items-center gap-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase font-bold text-[#8a8b8d] tracking-wider">{t('fromLabel' as any) || 'Desde'}</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="text-xs font-semibold px-2 py-1.5 bg-[#f0f5fa] border border-[#d4e0ec] rounded-lg text-slate-700 outline-none focus:border-[#0763a9] transition-colors cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase font-bold text-[#8a8b8d] tracking-wider">{t('toLabel' as any) || 'Hasta'}</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="text-xs font-semibold px-2 py-1.5 bg-[#f0f5fa] border border-[#d4e0ec] rounded-lg text-slate-700 outline-none focus:border-[#0763a9] transition-colors cursor-pointer"
+                    />
+                  </div>
                 </div>
+              )}
+              
+              <div className="flex flex-col text-xs pl-4 border-l border-[#e8f1f9] hidden sm:flex h-9 justify-center">
+                <span className="text-[10px] uppercase font-bold text-[#8a8b8d] tracking-wider">{t('activeFilters' as any) || 'Filtro Activo'}</span>
+                <span className="font-semibold text-slate-700">{startDate} al {endDate}</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Timeline */}
-        <div className="rounded-2xl p-5 bg-white" style={CARD}>
-          <h2 className="text-sm font-semibold mb-4" style={{ color: '#37383a' }}>{t('timeline')}</h2>
-          {activities.length === 0
-            ? <p className="text-sm" style={{ color: '#c4c5c7', fontStyle: 'italic' }}>Sin actividad registrada</p>
-            : (
-              <div className="space-y-3">
-                {activities.map((act) => (
-                  <div key={act.id} className="flex gap-3">
-                    <div className="flex flex-col items-center">
-                      <span className="text-base">{ACTIVITY_ICON[act.type] || '📌'}</span>
-                      <div className="w-px flex-1 mt-1" style={{ background: '#e8f1f9' }} />
-                    </div>
-                    <div className="pb-3 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold uppercase" style={{ color: ACTIVITY_COLOR[act.type] || '#5a5b5d' }}>
-                          {t(act.type as Parameters<typeof t>[0])}
-                        </span>
-                        <span className="text-xs" style={{ color: '#c4c5c7' }}>
-                          {format(new Date(act.created_at), 'd MMM yyyy, HH:mm', { locale: dfLocale })}
-                        </span>
+        {/* Tab 1: General Info */}
+        {activeTab === 'info' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InfoCard icon={<Phone size={15} />} iconColor="#0763a9" title={t('contactInfo')}>
+                <InfoRow label="Directivo / Rep. Legal">{field('legal_representative')}</InfoRow>
+                <InfoRow label={t('primaryPhone')}>{field('phone')}</InfoRow>
+                <InfoRow label={t('whatsappPhone')}>{field('whatsapp_phone')}</InfoRow>
+                <InfoRow label={t('primaryEmail')}>{field('email_primary')}</InfoRow>
+                <InfoRow label={t('contactEmail')}>{field('email_contact')}</InfoRow>
+                <InfoRow label={t('billingEmail')}>{field('email_billing')}</InfoRow>
+              </InfoCard>
+
+              <InfoCard icon={<FileText size={15} />} iconColor="#b45309" title={t('fiscalInfo')}>
+                <InfoRow label={t('taxId')}>{field('rfc')}</InfoRow>
+                <InfoRow label={t('taxRegime')}>{field('tax_regime')}</InfoRow>
+                <InfoRow label="Origen (Source)">{field('source' as any)}</InfoRow>
+                <InfoRow label={t('zipCode')}>{field('zip_code')}</InfoRow>
+                <InfoRow label={t('fiscalAddress')}>{field('fiscal_address')}</InfoRow>
+              </InfoCard>
+
+              {/* Direcciones de Entrega Adicionales */}
+              <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
+                <div className="flex items-center gap-2">
+                  <MapPin size={15} style={{ color: '#0763a9' }} />
+                  <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Direcciones de Entrega Adicionales</h2>
+                </div>
+                {editing ? (
+                  <div className="space-y-4">
+                    {/* List of current addresses to remove */}
+                    {((editData.addresses || []) as any[]).length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {((editData.addresses || []) as any[]).map((addr, idx) => (
+                          <div key={idx} className="p-3 bg-[#f8fafd] border border-[#e8f1f9] rounded-xl flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-[#0763a9]">{addr.name}</span>
+                                {addr.is_dhl && <DhlLogo />}
+                                {addr.zip_code && <span className="text-[10px] text-gray-500 font-mono">CP {addr.zip_code}</span>}
+                              </div>
+                              <p className="text-xs text-[#37383a] mt-1">{addr.address}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = (editData.addresses || []).filter((_, i) => i !== idx)
+                                setEditData(p => ({ ...p, addresses: updated }))
+                              }}
+                              className="text-[#b91c1c] hover:bg-[#fee2e2] p-1 rounded transition-colors"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                      <p className="text-sm mt-0.5" style={{ color: '#37383a' }}>{act.content}</p>
+                    ) : (
+                      <p className="text-xs text-[#8a8b8d] italic">No hay direcciones adicionales registradas.</p>
+                    )}
+
+                    {/* Form to add a new one */}
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-250 space-y-3">
+                      <p className="text-xs font-bold text-[#5a5b5d] uppercase tracking-wider">Agregar Nueva Dirección</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <input
+                          type="text"
+                          className="erp-input text-xs"
+                          placeholder="Alias (Ej. Sucursal GDL)"
+                          id="new-addr-name-admin"
+                        />
+                        <input
+                          type="text"
+                          className="erp-input text-xs"
+                          placeholder="Código Postal (Ej. 64000)"
+                          id="new-addr-zip-admin"
+                          maxLength={5}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nameEl = document.getElementById('new-addr-name-admin') as HTMLInputElement
+                            const zipEl = document.getElementById('new-addr-zip-admin') as HTMLInputElement
+                            const addrEl = document.getElementById('new-addr-val-admin') as HTMLInputElement
+                            const dhlEl = document.getElementById('new-addr-dhl-admin') as HTMLInputElement
+                            if (nameEl && addrEl && nameEl.value.trim() && addrEl.value.trim()) {
+                              const newAddr = {
+                                name: nameEl.value.trim(),
+                                zip_code: zipEl ? zipEl.value.trim() : '',
+                                address: addrEl.value.trim(),
+                                is_dhl: dhlEl ? dhlEl.checked : false
+                              }
+                              const updated = [...(editData.addresses || []), newAddr]
+                              setEditData(p => ({ ...p, addresses: updated }))
+                              nameEl.value = ''
+                              if (zipEl) zipEl.value = ''
+                              addrEl.value = ''
+                              if (dhlEl) dhlEl.checked = false
+                            }
+                          }}
+                          className="btn-secondary text-xs flex justify-center py-2"
+                        >
+                          <Plus size={13} /> Agregar
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        className="erp-input text-xs w-full"
+                        placeholder="Dirección Completa (Calle, Número, Colonia, Ciudad, Estado)"
+                        id="new-addr-val-admin"
+                      />
+                      <div className="flex items-center gap-2 px-1">
+                        <input
+                          type="checkbox"
+                          id="new-addr-dhl-admin"
+                          className="w-4 h-4 text-[#0763a9] border-gray-300 rounded focus:ring-[#0763a9] cursor-pointer"
+                        />
+                        <label htmlFor="new-addr-dhl-admin" className="text-xs font-bold text-[#5a5b5d] cursor-pointer flex items-center gap-1.5 selection:bg-transparent">
+                          Es una sucursal <DhlLogo /> Ocurre
+                        </label>
+                      </div>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  /* View mode */
+                  ((client.addresses || []) as any[]).length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {((client.addresses || []) as any[]).map((addr, idx) => (
+                        <div key={idx} className="p-3.5 bg-[#f8fafd] border border-[#e8f1f9] rounded-2xl flex flex-col gap-1 hover:border-[#b4d2ed] transition-colors">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-[#0763a9]">{addr.name}</span>
+                            {addr.is_dhl && <DhlLogo />}
+                            {addr.zip_code && <span className="text-[10px] bg-[#e8f1f9] px-1.5 py-0.5 rounded text-gray-500 font-mono">CP {addr.zip_code}</span>}
+                          </div>
+                          <p className="text-sm text-[#37383a] mt-1">{addr.address}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm italic" style={{ color: '#c4c5c7' }}>Sin direcciones de entrega adicionales registradas.</p>
+                  )
+                )}
               </div>
-            )
-          }
-        </div>
+
+              {/* Commercial Info */}
+              <div className="rounded-2xl p-5 space-y-4 md:col-span-2 bg-white" style={CARD}>
+                <div className="flex items-center gap-2">
+                  <Building2 size={15} style={{ color: '#15803d' }} />
+                  <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>{t('commercialInfo')}</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <InfoRow label={t('operatingStates')}>
+                    {editing ? (
+                      <div className="max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#9bbfdf] scrollbar-track-[#f0f5fa] border border-[#d4e0ec] rounded-lg p-1 bg-[#f8fafd] flex flex-col gap-1">
+                        {MEXICAN_STATES.map(st => {
+                          const isSelected = (editData.states || []).includes(st)
+                          return (
+                            <button
+                              type="button"
+                              key={st}
+                              className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-all ${
+                                isSelected 
+                                  ? 'bg-[#e8f1f9] text-[#0763a9] font-semibold border border-[#0763a9]' 
+                                  : 'text-[#37383a] hover:bg-[#e8f1f9] border border-transparent'
+                              }`}
+                              onClick={() => {
+                                const current = editData.states || []
+                                const next = isSelected ? current.filter(s => s !== st) : [...current, st]
+                                setEditData(p => ({ ...p, states: next }))
+                              }}
+                            >
+                              {st}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm" style={{ color: '#37383a' }}>
+                        {(client?.states as string[])?.join(', ') || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
+                      </p>
+                    )}
+                  </InfoRow>
+                  <InfoRow label={t('hospitalChains')}>{arrayField('hospitals')}</InfoRow>
+                  <InfoRow label={t('medicalSpecialties')}>{arrayField('specialties')}</InfoRow>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <InfoRow label={t('assignedTo')}>
+                    {editing
+                      ? (
+                        <select className="erp-input text-sm" value={editData.assigned_to || ''} onChange={e => setEditData(p => ({ ...p, assigned_to: e.target.value }))}>
+                          <option value="">{t('none') || 'Sin asignar'}</option>
+                          {staffUsers.map(user => (
+                            <option key={user.id} value={user.id}>{user.email}</option>
+                          ))}
+                        </select>
+                      )
+                      : <p className="text-sm" style={{ color: '#37383a' }}>
+                          {client?.assigned_to ? staffUsers.find(u => u.id === client.assigned_to)?.email || client.assigned_to : <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
+                        </p>
+                    }
+                  </InfoRow>
+                  <InfoRow label={t('tags')}>
+                    {editing
+                      ? <input className="erp-input text-sm" value={(editData.tags || []).join(', ')} onChange={e => setEditData(p => ({ ...p, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
+                      : <div className="flex flex-wrap gap-1">
+                          {client.tags?.map(tag => (
+                            <span key={tag} className="px-2 py-0.5 rounded-full text-xs" style={{ background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }}>
+                              <Tag size={10} className="inline mr-1" />{tag}
+                            </span>
+                          )) || <span className="text-sm" style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}
+                        </div>
+                    }
+                  </InfoRow>
+                </div>
+                <InfoRow label={t('notes')}>
+                  {editing
+                    ? <textarea className="erp-input text-sm" rows={3} value={editData.notes || ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} />
+                    : <p className="text-sm whitespace-pre-wrap" style={{ color: '#37383a' }}>{client.notes || <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>}</p>
+                  }
+                </InfoRow>
+              </div>
+            </div>
+
+            {/* Sales History Card */}
+            {!loadingSales && sales.length > 0 && (
+              <div className="rounded-2xl p-5 space-y-6 bg-white" style={CARD}>
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Building2 size={18} style={{ color: '#0d9488' }} />
+                    <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>
+                      {t('salesHistory' as any) || 'Historial de Ventas'}
+                    </h2>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 font-mono">
+                    {t('totalSales' as any) || 'Total Ventas'}: {formatCurrency(sales.reduce((acc, curr) => acc + Number(curr.monto || 0), 0), true)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Chart */}
+                  <div className="p-4 bg-gray-50/30 rounded-xl border border-gray-100 flex flex-col justify-between">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase mb-4">
+                      {t('yearlyComparison' as any) || 'Comparativa por Año'}
+                    </h3>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={clientYearlyData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="name" />
+                          <YAxis tickFormatter={formatChartTick} />
+                          <Tooltip formatter={(value: any) => formatCurrency(Number(value), true)} />
+                          <Bar dataKey="value" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase">
+                      {t('transactions' as any) || 'Transacciones'}
+                    </h3>
+                    <div className="border border-gray-150 rounded-xl overflow-hidden bg-white max-h-56 overflow-y-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-semibold sticky top-0">
+                            <th className="p-3">{t('period' as any) || 'Periodo'}</th>
+                            <th className="p-3">{t('monto' as any) || 'Monto'}</th>
+                            <th className="p-3 text-right">{t('actions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-sm">
+                          {sales
+                            .sort((a, b) => b.anio !== a.anio ? b.anio - a.anio : b.mes - a.mes)
+                            .map(sale => (
+                              <tr key={sale.id} className="hover:bg-gray-50/50">
+                                <td className="p-3 font-medium text-gray-700">
+                                  {MONTH_NAMES[sale.mes - 1]} / {sale.anio}
+                                </td>
+                                <td className="p-3 font-semibold text-teal-650">
+                                  {formatCurrency(sale.monto)}
+                                </td>
+                                <td className="p-3 text-right">
+                                  <Link
+                                    href={`/ventas/${sale.id}`}
+                                    className="inline-flex items-center text-teal-600 hover:underline hover:text-teal-700"
+                                  >
+                                    {t('edit') || 'Editar'}
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Timeline */}
+            <div className="rounded-2xl p-5 bg-white" style={CARD}>
+              <h2 className="text-sm font-semibold mb-4" style={{ color: '#37383a' }}>{t('timeline')}</h2>
+              {activities.length === 0
+                ? <p className="text-sm" style={{ color: '#c4c5c7', fontStyle: 'italic' }}>Sin actividad registrada</p>
+                : (
+                  <div className="space-y-3">
+                    {activities.map((act) => (
+                      <div key={act.id} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <span className="text-base">{ACTIVITY_ICON[act.type] || '📌'}</span>
+                          <div className="w-px flex-1 mt-1" style={{ background: '#e8f1f9' }} />
+                        </div>
+                        <div className="pb-3 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold uppercase" style={{ color: ACTIVITY_COLOR[act.type] || '#5a5b5d' }}>
+                              {t(act.type as Parameters<typeof t>[0])}
+                            </span>
+                            <span className="text-xs" style={{ color: '#c4c5c7' }}>
+                              {format(new Date(act.created_at), 'd MMM yyyy, HH:mm', { locale: dfLocale })}
+                            </span>
+                          </div>
+                          <p className="text-sm mt-0.5" style={{ color: '#37383a' }}>{act.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Cartas de Distribución */}
+        {activeTab === 'cartas' && (
+          <div className="space-y-5 animate-fade-in">
+            {/* PDF Letter Card */}
+            <div className="rounded-2xl p-5 space-y-4 bg-white" style={CARD}>
+              <div className="flex items-center gap-2">
+                <Calendar size={15} style={{ color: '#0763a9' }} />
+                <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Carta de Distribución (PDF)</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <InfoRow label="Fecha de Emisión">{dateField('letter_created_at')}</InfoRow>
+                <InfoRow label="Fecha de Vencimiento">{dateField('letter_expires_at')}</InfoRow>
+                <InfoRow label="Archivo Adjunto">
+                  {editing ? (
+                    <div className="space-y-2">
+                      {editData.letter_url && (
+                        <a href={editData.letter_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block truncate">
+                          Ver archivo actual
+                        </a>
+                      )}
+                      <label className="btn-secondary text-sm w-full justify-center cursor-pointer">
+                        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                        {uploading ? 'Subiendo...' : (editData.letter_url ? 'Reemplazar Carta' : 'Subir Carta')}
+                        <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: '#37383a' }}>
+                      {client?.letter_url ? (
+                        <a href={client.letter_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
+                          <FileText size={14} /> Ver Documento
+                        </a>
+                      ) : (
+                        <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>
+                      )}
+                    </p>
+                  )}
+                </InfoRow>
+              </div>
+            </div>
+
+            {/* DB Cartas list */}
+            <div className="bg-white rounded-2xl border border-[#d4e0ec] overflow-hidden">
+              <div className="p-5 border-b border-[#e8f1f9] flex justify-between items-center bg-gray-50/50">
+                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                  <span className="bg-[#0763a9] w-2 h-2 rounded-full"></span>
+                  Cartas de Distribución Relacionadas (Base de Datos)
+                </h3>
+                <span className="text-xs font-semibold text-gray-500 bg-white border px-2 py-0.5 rounded-full shadow-xs">
+                  {cartasDistribucion.length} {cartasDistribucion.length === 1 ? 'registro' : 'registros'}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-[#e8f1f9] text-xs font-semibold uppercase text-gray-500">
+                      <th className="p-4 pl-6">Código</th>
+                      <th className="p-4">Destinatario</th>
+                      <th className="p-4">Región / Estado</th>
+                      <th className="p-4">Líneas de Producto</th>
+                      <th className="p-4">Vigencia</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e8f1f9] text-sm">
+                    {cartasDistribucion.map((carta) => (
+                      <tr key={carta.id} className="hover:bg-blue-50/50 transition-colors">
+                        <td className="p-4 pl-6 font-semibold text-gray-900 font-mono">
+                          {carta.codigo || '—'}
+                        </td>
+                        <td className="p-4 text-gray-700 font-medium">
+                          {carta.destinatario || '—'}
+                        </td>
+                        <td className="p-4 text-gray-600">
+                          {carta.estado_region || '—'}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-wrap gap-1">
+                            {carta.lineas_producto?.map((linea: string) => (
+                              <span key={linea} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#e8f1f9] text-[#0763a9] border border-[#c5d9ee]">
+                                {linea}
+                              </span>
+                            )) || <span className="text-xs text-gray-400 italic">—</span>}
+                          </div>
+                        </td>
+                        <td className="p-4 text-gray-650">
+                          {carta.vigencia ? formatDate(carta.vigencia) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                    {cartasDistribucion.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-16 text-center text-gray-400 font-medium">
+                          No hay cartas de distribución vinculadas a este cliente.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Facturas */}
+        {activeTab === 'facturas' && (
+          <div className="space-y-4 animate-fade-in">
+            {loadingReport ? (
+              <div className="flex items-center justify-center min-h-48">
+                <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#0763a9', borderTopColor: 'transparent' }} />
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-[#d4e0ec] overflow-hidden">
+                <div className="p-5 border-b border-[#e8f1f9] flex justify-between items-center bg-gray-50/50">
+                  <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                    <span className="bg-[#0763a9] w-2 h-2 rounded-full"></span>
+                    Listado de Facturas
+                  </h3>
+                  <span className="text-xs font-semibold text-gray-500 bg-white border px-2 py-0.5 rounded-full shadow-xs">
+                    {reportData?.recentOrders?.length || 0} {reportData?.recentOrders?.length === 1 ? 'factura' : 'facturas'}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-[#e8f1f9] text-xs font-semibold uppercase text-gray-500">
+                        <th className="p-4 pl-6">Folio / Número</th>
+                        <th className="p-4">Fecha Expedición</th>
+                        <th className="p-4">{t('paymentDate') || 'Fecha Pago'}</th>
+                        <th className="p-4 text-right">Subtotal</th>
+                        <th className="p-4 text-right">IVA</th>
+                        <th className="p-4 text-right font-bold">Total</th>
+                        <th className="p-4 text-center">Surtido</th>
+                        <th className="p-4 text-center">Estado Pago</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e8f1f9] text-sm">
+                      {reportData?.recentOrders?.map((invoice: any) => {
+                        const status = STATUS_MAP[invoice.estado] || { label: invoice.estado, bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-100' }
+                        const surtido = ESTADO_SURTIDO_MAP[invoice.estado_surtido] || ESTADO_SURTIDO_MAP['no_surtida']
+                        return (
+                          <tr
+                            key={invoice.id}
+                            onClick={() => router.push(`/facturas/${invoice.id}`)}
+                            className="hover:bg-[#f0f5fa] cursor-pointer transition-colors group"
+                          >
+                            <td className="p-4 pl-6 font-semibold text-[#0763a9] group-hover:underline">
+                              {invoice.numero_factura}
+                            </td>
+                            <td className="p-4 text-gray-600">
+                              {formatDate(invoice.fecha_expedicion)}
+                            </td>
+                            <td className="p-4 text-gray-600 font-medium text-xs">
+                              {invoice.fecha_pago ? formatDate(invoice.fecha_pago) : '-'}
+                            </td>
+                            <td className="p-4 text-right text-gray-600 font-mono text-xs">
+                              {formatCurrency(invoice.subtotal)}
+                            </td>
+                            <td className="p-4 text-right text-gray-600 font-mono text-xs">
+                              {formatCurrency(invoice.iva)}
+                            </td>
+                            <td className="p-4 text-right font-bold text-gray-900 font-mono">
+                              {formatCurrency(invoice.total)}
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${surtido.bg} ${surtido.text} ${surtido.border}`}>
+                                {getLocalSurtidoLabel(invoice.estado_surtido)}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.bg} ${status.text} ${status.border}`}>
+                                {getLocalStatusLabel(invoice.estado)}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {(!reportData || reportData.recentOrders?.length === 0) && (
+                        <tr>
+                          <td colSpan={8} className="p-16 text-center text-gray-400 font-medium">
+                            No hay registros de facturación para este periodo.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Analytics */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-5 animate-fade-in">
+            {loadingReport ? (
+              <div className="flex items-center justify-center min-h-48">
+                <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#0763a9', borderTopColor: 'transparent' }} />
+              </div>
+            ) : reportData ? (
+              <>
+                {/* KPIs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  <StatCard
+                    title={t('periodSales' as any) || 'Ventas del Periodo'}
+                    value={formatCurrency(reportData.kpis.salesPeriod, true)}
+                    icon={<DollarSign size={20} />}
+                    color="green"
+                    subtitle={`${t('growthvsPrev') || 'Crecimiento vs prev'}: ${reportData.kpis.growthPercent >= 0 ? '+' : ''}${reportData.kpis.growthPercent.toFixed(1)}%`}
+                  />
+                  <StatCard
+                    title={t('growthVsPrevPeriod' as any) || 'Crecimiento vs Periodo Anterior'}
+                    value={`${reportData.kpis.growthPercent >= 0 ? '+' : ''}${reportData.kpis.growthPercent.toFixed(1)}%`}
+                    icon={reportData.kpis.growthPercent >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                    color={reportData.kpis.growthPercent >= 0 ? 'green' : 'red'}
+                    subtitle={t('vsPreviousPeriod' as any) || 'vs Periodo Anterior'}
+                  />
+                  <StatCard
+                    title={t('totalOrders' as any) || 'Total Pedidos'}
+                    value={reportData.kpis.orderCount}
+                    icon={<ShoppingBag size={20} />}
+                    color="blue"
+                    subtitle={`AOV: ${formatCurrency(reportData.kpis.aov, true)}`}
+                  />
+                  <StatCard
+                    title={t('firstPurchaseDate' as any) || 'Fecha de Primer Compra'}
+                    value={reportData.kpis.firstPurchaseDate ? formatDate(reportData.kpis.firstPurchaseDate) : '—'}
+                    icon={<Calendar size={20} />}
+                    color="amber"
+                    subtitle="Fecha del primer registro"
+                  />
+                </div>
+
+                {/* Charts Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Line Chart: Purchase Trend */}
+                  <div className="rounded-2xl p-5 bg-white space-y-4" style={CARD}>
+                    <ChartHeader 
+                      title={t('salesTrend' as any) || 'Tendencia de Ventas'} 
+                      tooltipText="Tendencia histórica de facturación mensual o diaria de este cliente." 
+                    />
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart 
+                          data={reportData.salesTrends.map((item: any) => {
+                            if (!item.date) return item
+                            const date = new Date(item.date)
+                            const diffTime = Math.abs(new Date(endDate).getTime() - new Date(startDate).getTime())
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1
+                            const monthLabel = diffDays <= 31
+                              ? date.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { day: 'numeric', month: 'short' })
+                              : date.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', year: '2-digit' })
+                            return { ...item, month: monthLabel }
+                          })} 
+                          margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e8f1f9" vertical={false} />
+                          <XAxis dataKey="month" tick={{ fill: '#5a5b5d', fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <YAxis tickFormatter={(val) => formatCurrency(val, true)} tick={{ fill: '#8a8b8d', fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #d4e0ec', borderRadius: 8, color: '#37383a' }} formatter={(value) => formatCurrency(Number(value))} />
+                          <Legend iconType="circle" />
+                          <Line name={getPeriodLabel(startDate, endDate, false)} type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={3} activeDot={{ r: 6 }} />
+                          <Line name={getPeriodLabel(startDate, endDate, true)} type="monotone" dataKey="prevRevenue" stroke="#9ca3af" strokeDasharray="5 5" strokeWidth={2} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Bar Chart: Top Products */}
+                  <div className="rounded-2xl p-5 bg-white space-y-4" style={CARD}>
+                    <ChartHeader 
+                      title={t('topProductsPurchased' as any) || 'Productos Más Comprados'} 
+                      tooltipText="Productos más comprados por volumen de ingresos acumulados en el periodo." 
+                    />
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={reportData.breakdown.topProducts} layout="vertical" margin={{ left: 10, right: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e8f1f9" horizontal={false} />
+                          <XAxis type="number" tickFormatter={(val) => formatCurrency(val, true)} tick={{ fill: '#8a8b8d', fontSize: 9 }} axisLine={false} tickLine={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fill: '#5a5b5d', fontSize: 9 }} width={100} axisLine={false} tickLine={false} />
+                          <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #d4e0ec', borderRadius: 8, color: '#37383a' }} formatter={(value) => formatCurrency(Number(value))} />
+                          <Bar dataKey="value" fill="#0763a9" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-20 text-gray-500 border border-dashed rounded-2xl bg-white">
+                No hay datos disponibles para este periodo.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* WhatsApp modal */}
