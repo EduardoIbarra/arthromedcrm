@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const body = JSON.parse(rawBody)
     console.log('Respond.io webhook received:', JSON.stringify(body))
 
-    const messageText = body.message?.content?.text || body.message?.text || ""
+    const messageText = body.message?.message?.text || body.message?.content?.text || body.message?.text || ""
     const phone = body.contact?.phone
 
     if (!phone) {
