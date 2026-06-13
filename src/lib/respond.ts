@@ -136,3 +136,50 @@ export async function sendNotificationToUser(userId: string, message: string) {
     console.error('Error sending direct message to respond.io:', error);
   }
 }
+
+export async function sendRespondMessage(targetPhone: string, messagePayload: any): Promise<boolean> {
+  const RESPOND_API_TOKEN = process.env.RESPOND_API_TOKEN;
+  const RESPOND_CHANNEL_ID = process.env.RESPOND_CHANNEL_ID;
+
+  if (!RESPOND_API_TOKEN) {
+    console.warn('RESPOND_API_TOKEN is not set. Skipping respond.io message.');
+    return false;
+  }
+
+  // Ensure + sign in the phone
+  const cleanPhone = targetPhone.replace(/\D/g, '');
+  const formattedPhone = cleanPhone.startsWith('52') ? cleanPhone : `52${cleanPhone}`;
+  const targetNumber = `phone:+${formattedPhone}`;
+
+  const payload: any = {
+    message: messagePayload
+  };
+
+  if (RESPOND_CHANNEL_ID) {
+    payload.channelId = parseInt(RESPOND_CHANNEL_ID, 10);
+  }
+
+  try {
+    const response = await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(targetNumber)}/message`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'ERP-Arthromed/1.0',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to send respond.io message to ${targetNumber}: ${response.status} ${errorText}`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error sending message to respond.io:', error);
+    return false;
+  }
+}
+
