@@ -23,12 +23,59 @@ interface TextSegment {
   font: PDFFont
 }
 
-function hexToRgb(hex: string): RGB {
+function hexToDarkerRgb(hex: string): RGB {
   const cleanHex = hex.replace('#', '')
-  if (cleanHex.length !== 6) return rgb(0.07, 0.39, 0.66) // default blue
-  const r = parseInt(cleanHex.substring(0, 2), 16) / 255
-  const g = parseInt(cleanHex.substring(2, 4), 16) / 255
-  const b = parseInt(cleanHex.substring(4, 6), 16) / 255
+  if (cleanHex.length !== 6) return rgb(0.07, 0.39, 0.66)
+  let r = parseInt(cleanHex.substring(0, 2), 16) / 255
+  let g = parseInt(cleanHex.substring(2, 4), 16) / 255
+  let b = parseInt(cleanHex.substring(4, 6), 16) / 255
+
+  // Convert to HSL
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h = 0
+  let s = 0
+  let l = (max + min) / 2
+
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0)
+        break
+      case g:
+        h = (b - r) / d + 2
+        break
+      case b:
+        h = (r - g) / d + 4
+        break
+    }
+    h /= 6
+  }
+
+  // Force lightness to a lower range (e.g. 0.22) for high readability on white background
+  l = 0.22
+  // Ensure we maintain/boost saturation so colors remain vibrant
+  s = Math.max(s, 0.75)
+
+  // Convert HSL back to RGB
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1/6) return p + (q - p) * 6 * t
+    if (t < 1/2) return q
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+    return p
+  }
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+  const p = 2 * l - q
+
+  r = hue2rgb(p, q, h + 1/3)
+  g = hue2rgb(p, q, h)
+  b = hue2rgb(p, q, h - 1/3)
+
   return rgb(r, g, b)
 }
 
@@ -63,13 +110,70 @@ function wrapText(text: string, font: PDFFont, size: number, maxW: number): stri
   return lines
 }
 
-function drawMixedLine(
+function drawJustifiedLine(
+  page: PDFPage,
+  text: string,
+  font: PDFFont,
+  size: number,
+  x: number,
+  y: number,
+  maxW: number,
+  color: RGB
+) {
+  const words = text.split(' ').filter(Boolean)
+  if (words.length <= 1) {
+    page.drawText(text, { x, y, size, font, color })
+    return
+  }
+
+  let totalWordsWidth = 0
+  for (const word of words) {
+    totalWordsWidth += font.widthOfTextAtSize(word, size)
+  }
+
+  const remainingSpace = maxW - totalWordsWidth
+  const spaceWidth = remainingSpace / (words.length - 1)
+
+  let currentX = x
+  for (const word of words) {
+    page.drawText(word, { x: currentX, y, size, font, color })
+    currentX += font.widthOfTextAtSize(word, size) + spaceWidth
+  }
+}
+
+function drawJustifiedParagraph(
+  page: PDFPage,
+  text: string,
+  font: PDFFont,
+  size: number,
+  x: number,
+  y: number,
+  maxW: number,
+  lineHeight: number,
+  color: RGB
+): number {
+  const lines = wrapText(text, font, size, maxW)
+  let currentY = y
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const isLastLine = i === lines.length - 1
+    if (isLastLine || line.split(' ').filter(Boolean).length <= 1) {
+      page.drawText(line, { x, y: currentY, size, font, color })
+    } else {
+      drawJustifiedLine(page, line, font, size, x, currentY, maxW, color)
+    }
+    currentY -= lineHeight
+  }
+  return currentY
+}
+
+function drawJustifiedMixedParagraph(
   page: PDFPage,
   segments: TextSegment[],
   x: number,
   y: number,
   size: number,
-  maxWidth: number,
+  maxW: number,
   lineHeight: number,
   color: RGB
 ): number {
@@ -84,26 +188,64 @@ function drawMixedLine(
     }
   }
 
-  let lineX = x
-  let curY = y
+  // Wrap words into lines based on visual width
+  const lines: { text: string; font: PDFFont }[][] = []
+  let currentLine: { text: string; font: PDFFont }[] = []
+  let currentLineWidth = 0
 
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i]
-    const ww = word.font.widthOfTextAtSize(word.text, size)
+  for (const word of words) {
+    const wordW = word.font.widthOfTextAtSize(word.text, size)
     const spaceW = word.font.widthOfTextAtSize(' ', size)
+    const testWidth = currentLineWidth === 0 ? wordW : currentLineWidth + spaceW + wordW
 
-    if (lineX + ww > x + maxWidth && lineX > x) {
-      curY -= lineHeight
-      lineX = x
+    if (testWidth > maxW && currentLine.length > 0) {
+      lines.push(currentLine)
+      currentLine = [word]
+      currentLineWidth = wordW
+    } else {
+      currentLine.push(word)
+      currentLineWidth = testWidth
     }
-
-    if (word.text) {
-      page.drawText(word.text, { x: lineX, y: curY, size, font: word.font, color })
-    }
-    lineX += ww + spaceW
+  }
+  if (currentLine.length > 0) {
+    lines.push(currentLine)
   }
 
-  return curY
+  let currentY = y
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const isLastLine = i === lines.length - 1
+
+    if (isLastLine || line.length <= 1) {
+      // Draw standard left-aligned for last line
+      let currentX = x
+      for (const word of line) {
+        if (word.text) {
+          page.drawText(word.text, { x: currentX, y: currentY, size, font: word.font, color })
+        }
+        currentX += word.font.widthOfTextAtSize(word.text, size) + word.font.widthOfTextAtSize(' ', size)
+      }
+    } else {
+      // Draw justified
+      let totalWordsWidth = 0
+      for (const word of line) {
+        totalWordsWidth += word.font.widthOfTextAtSize(word.text, size)
+      }
+      const remainingSpace = maxW - totalWordsWidth
+      const spaceWidth = remainingSpace / (line.length - 1)
+
+      let currentX = x
+      for (const word of line) {
+        if (word.text) {
+          page.drawText(word.text, { x: currentX, y: currentY, size, font: word.font, color })
+        }
+        currentX += word.font.widthOfTextAtSize(word.text, size) + spaceWidth
+      }
+    }
+    currentY -= lineHeight
+  }
+
+  return currentY
 }
 
 export interface GenerateLetterParams {
@@ -275,7 +417,7 @@ export async function generateClientLetter({
     color: DARK
   })
 
-  // Paragraph 1
+  // Paragraph 1 (Justified)
   y -= 30
   const p1Segments = [
     { text: 'ARTHROMED SA DE CV', font: bold },
@@ -286,9 +428,9 @@ export async function generateClientLetter({
     { text: ' Registros sanitarios ', font: regular },
     { text: '1903E2019 SSA y 1790E2025 SSA.', font: bold }
   ]
-  y = drawMixedLine(page, p1Segments, LEFT, y, 10, CONTENT_W, 14, DARK)
+  y = drawJustifiedMixedParagraph(page, p1Segments, LEFT, y, 10, CONTENT_W, 14, DARK)
 
-  // Paragraph 2
+  // Paragraph 2 (Justified)
   y -= 20
   const p2Segments = [
     { text: 'Por medio de la presente, hacemos constar que la empresa ', font: regular },
@@ -299,42 +441,57 @@ export async function generateClientLetter({
     { text: 'Distribuidor Autorizado', font: bold },
     { text: ' ante su institución.', font: regular }
   ]
-  y = drawMixedLine(page, p2Segments, LEFT, y, 10, CONTENT_W, 14, DARK)
+  y = drawJustifiedMixedParagraph(page, p2Segments, LEFT, y, 10, CONTENT_W, 14, DARK)
 
-  // Paragraph 3
+  // Paragraph 3 (Justified)
   y -= 20
   const p3 = 'Le otorgamos facultades para la distribución, venta y comercialización de los productos BONSS Medical correspondientes a las siguientes líneas:'
-  const p3Lines = wrapText(p3, regular, 10, CONTENT_W)
-  for (const line of p3Lines) {
-    page.drawText(line, { x: LEFT, y, size: 10, font: regular, color: DARK })
-    y -= 14
-  }
+  y = drawJustifiedParagraph(page, p3, regular, 10, LEFT, y, CONTENT_W, 14, DARK)
 
   // Selected product lines
+  // Align name right-aligned and description left-aligned in a mathematically centered table block
   y -= 8
+  const gap = 15
+  let maxNameW = 0
+  let maxDescW = 0
+
   for (const line of lines) {
     const lineName = line.name.toUpperCase()
     const lineDesc = line.description ? ` (${line.description})` : ''
     
     const nameW = bold.widthOfTextAtSize(lineName, 9.5)
-    const descW = regular.widthOfTextAtSize(lineDesc, 9.5)
-    const totalW = nameW + descW
-    const startX = (PAGE_W - totalW) / 2
+    const descW = lineDesc ? regular.widthOfTextAtSize(lineDesc, 9.5) : 0
+    
+    if (nameW > maxNameW) maxNameW = nameW
+    if (descW > maxDescW) maxDescW = descW
+  }
 
-    // Draw line name in its custom color
-    const lineColor = hexToRgb(line.color)
+  const tableW = maxNameW + gap + maxDescW
+  const tableX = (PAGE_W - tableW) / 2
+  const splitX = tableX + maxNameW
+
+  for (const line of lines) {
+    const lineName = line.name.toUpperCase()
+    const lineDesc = line.description ? ` (${line.description})` : ''
+    
+    const nameW = bold.widthOfTextAtSize(lineName, 9.5)
+    
+    // Convert hex color to HSL-darkened high-contrast RGB
+    const lineColor = hexToDarkerRgb(line.color)
+    
+    // Draw Name: right-aligned to splitX
     page.drawText(lineName, {
-      x: startX,
+      x: splitX - nameW,
       y,
       size: 9.5,
       font: bold,
       color: lineColor
     })
 
-    // Draw description
+    // Draw Description: left-aligned to splitX + gap
     if (lineDesc) {
       page.drawText(lineDesc, {
-        x: startX + nameW,
+        x: splitX + gap,
         y,
         size: 9.5,
         font: regular,
@@ -345,32 +502,20 @@ export async function generateClientLetter({
     y -= 15
   }
 
-  // Paragraph 4
+  // Paragraph 4 (Justified)
   y -= 5
   const p4 = 'El Distribuidor Autorizado no tiene la facultad de negociar ni modificar los precios de venta establecidos por el Importador.'
-  const p4Lines = wrapText(p4, regular, 10, CONTENT_W)
-  for (const line of p4Lines) {
-    page.drawText(line, { x: LEFT, y, size: 10, font: regular, color: DARK })
-    y -= 14
-  }
+  y = drawJustifiedParagraph(page, p4, regular, 10, LEFT, y, CONTENT_W, 14, DARK)
 
-  // Paragraph 5
+  // Paragraph 5 (Justified)
   y -= 5
   const p5 = 'La presente autorización permanecerá vigente durante el periodo señalado en esta carta. No obstante, el Importador se reserva el derecho de revocarla de manera anticipada.'
-  const p5Lines = wrapText(p5, regular, 10, CONTENT_W)
-  for (const line of p5Lines) {
-    page.drawText(line, { x: LEFT, y, size: 10, font: regular, color: DARK })
-    y -= 14
-  }
+  y = drawJustifiedParagraph(page, p5, regular, 10, LEFT, y, CONTENT_W, 14, DARK)
 
-  // Paragraph 6
+  // Paragraph 6 (Justified)
   y -= 5
   const p6 = 'Agradeciendo de antemano la atención prestada a la presente, quedo a sus órdenes para cualquier duda y/o aclaración.'
-  const p6Lines = wrapText(p6, regular, 10, CONTENT_W)
-  for (const line of p6Lines) {
-    page.drawText(line, { x: LEFT, y, size: 10, font: regular, color: DARK })
-    y -= 14
-  }
+  y = drawJustifiedParagraph(page, p6, regular, 10, LEFT, y, CONTENT_W, 14, DARK)
 
   // Expiration date
   y -= 15
@@ -407,12 +552,15 @@ export async function generateClientLetter({
   page.drawText('Director General', { x: RIGHT - 138, y: labelY1, size: 8.5, font: regular, color: GRAY })
   page.drawText('ARTHROMED', { x: RIGHT - 128, y: labelY2, size: 8.5, font: regular, color: GRAY })
 
-  // Draw Ricardo's signature
+  // Draw Ricardo's signature - bigger while preserving aspect ratio
+  const rWidth = 140
+  const rHeight = (imgRicardo.height / imgRicardo.width) * rWidth
+  
   page.drawImage(imgRicardo, {
-    x: RIGHT - 150,
-    y: nameY + 15,
-    width: 80,
-    height: 40
+    x: RIGHT - 175, // Adjust positioning so it's centered nicely above his name
+    y: nameY + 10,
+    width: rWidth,
+    height: rHeight
   })
 
   // 5. Save PDF bytes

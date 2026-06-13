@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import prisma from '@/lib/prisma'
 import { generateClientLetter } from '@/lib/services/letter'
 import { sendRespondMessage } from '@/lib/respond'
@@ -63,11 +63,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Empty text, skipped' })
     }
 
-    // 3. Fetch all available product lines for the parser
-    const allLines = await prisma.catalog_lines.findMany()
+    const host = request.headers.get('host') || 'erp.arthromed.com.mx'
 
-    // 4. Query Gemini to parse the message
-    const prompt = `Un miembro del personal de Arthromed está enviando un mensaje de WhatsApp en lenguaje natural para solicitar la generación de una Carta de Distribución para un distribuidor.
+    // Schedule heavy operations to run in the background after returning the response
+    after(async () => {
+      try {
+        // 3. Fetch all available product lines for the parser
+        const allLines = await prisma.catalog_lines.findMany()
+
+        // 4. Query Gemini to parse the message
+        const prompt = `Un miembro del personal de Arthromed está enviando un mensaje de WhatsApp en lenguaje natural para solicitar la generación de una Carta de Distribución para un distribuidor.
 
 Mensaje del usuario:
 "${messageText}"
@@ -85,146 +90,142 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
 7. "expirationDate": Fecha de vencimiento específica en formato YYYY-MM-DD si se menciona en el mensaje. De lo contrario, pon null.
 8. "missingInformation": Si "isLetterRequest" es true pero falta el distribuidor ("distributorQuery"), la institución ("institutionName") o las líneas de producto, escribe un mensaje explicativo y amigable en español solicitando los datos faltantes.`
 
-    const parsed = await generateObject({
-      model: google('gemini-2.5-flash'),
-      schema: z.object({
-        isLetterRequest: z.boolean(),
-        distributorQuery: z.string().nullable(),
-        institutionName: z.string().nullable(),
-        distributorName: z.string().nullable(),
-        rfc: z.string().nullable(),
-        selectedLinesIds: z.array(z.string()),
-        expirationDate: z.string().nullable(),
-        missingInformation: z.string().nullable()
-      }),
-      prompt
-    })
+        const parsed = await generateObject({
+          model: google('gemini-2.5-flash'),
+          schema: z.object({
+            isLetterRequest: z.boolean(),
+            distributorQuery: z.string().nullable(),
+            institutionName: z.string().nullable(),
+            distributorName: z.string().nullable(),
+            rfc: z.string().nullable(),
+            selectedLinesIds: z.array(z.string()),
+            expirationDate: z.string().nullable(),
+            missingInformation: z.string().nullable()
+          }),
+          prompt
+        })
 
-    const extraction = parsed.object
+        const extraction = parsed.object
 
-    // 5. Handle cases based on extraction result
-    if (!extraction.isLetterRequest) {
-      console.log('Message is not a letter request. Sending general instructions.')
-      await sendRespondMessage(phone, {
-        type: 'text',
-        text: `¡Hola! Soy el asistente inteligente de Arthromed ERP. Puedo ayudarte a generar Cartas de Distribución directamente desde aquí.\n\nPara generar una, pídeme lo siguiente en un solo mensaje:\n1. El distribuidor (ej. Juan Pérez, o su código de distribuidor).\n2. La institución o destinatario (ej. Hospital Ángeles).\n3. Las líneas de producto (ej. Plasma, Shaver).\n\nEjemplo: 'Por favor genérame la carta para el distribuidor Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver.'`
-      })
-      return NextResponse.json({ success: true, message: 'General instructions sent' })
-    }
+        // 5. Handle cases based on extraction result
+        if (!extraction.isLetterRequest) {
+          console.log('Message is not a letter request. Sending general instructions.')
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: `¡Hola! Soy el asistente inteligente de Arthromed ERP. Puedo ayudarte a generar Cartas de Distribución directamente desde aquí.\n\nPara generar una, pídeme lo siguiente en un solo mensaje:\n1. El distribuidor (ej. Juan Pérez, o su código de distribuidor).\n2. La institución o destinatario (ej. Hospital Ángeles).\n3. Las líneas de producto (ej. Plasma, Shaver).\n\nEjemplo: 'Por favor genérame la carta para el distribuidor Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver.'`
+          })
+          return
+        }
 
-    if (!extraction.distributorQuery) {
-      console.log('Distributor name or query is missing.')
-      const replyText = extraction.missingInformation || 'Por favor, confírmame el nombre o código del distribuidor para el cual deseas generar la carta.'
-      await sendRespondMessage(phone, {
-        type: 'text',
-        text: replyText
-      })
-      return NextResponse.json({ success: true, message: 'Missing distributor name request sent' })
-    }
+        if (!extraction.distributorQuery) {
+          console.log('Distributor name or query is missing.')
+          const replyText = extraction.missingInformation || 'Por favor, confírmame el nombre o código del distribuidor para el cual deseas generar la carta.'
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: replyText
+          })
+          return
+        }
 
-    // 6. Look up client/distributor in the database based on the query
-    const client = await prisma.clients.findFirst({
-      where: {
-        OR: [
-          { name: { contains: extraction.distributorQuery, mode: 'insensitive' } },
-          { distributor_id: { contains: extraction.distributorQuery, mode: 'insensitive' } },
-          { rfc: { contains: extraction.distributorQuery, mode: 'insensitive' } }
-        ]
-      }
-    })
+        // 6. Look up client/distributor in the database based on the query
+        const client = await prisma.clients.findFirst({
+          where: {
+            OR: [
+              { name: { contains: extraction.distributorQuery, mode: 'insensitive' } },
+              { distributor_id: { contains: extraction.distributorQuery, mode: 'insensitive' } },
+              { rfc: { contains: extraction.distributorQuery, mode: 'insensitive' } }
+            ]
+          }
+        })
 
-    if (!client) {
-      console.log(`No registered client found matching query "${extraction.distributorQuery}". Replying...`)
-      await sendRespondMessage(phone, {
-        type: 'text',
-        text: `No pudimos encontrar ningún distribuidor en nuestro sistema que coincida con "${extraction.distributorQuery}". Por favor, verifica el nombre o código e intenta nuevamente.`
-      })
-      return NextResponse.json({ success: true, message: 'Client not found, reply sent' })
-    }
+        if (!client) {
+          console.log(`No registered client found matching query "${extraction.distributorQuery}". Replying...`)
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: `No pudimos encontrar ningún distribuidor en nuestro sistema que coincida con "${extraction.distributorQuery}". Por favor, verifica el nombre o código e intenta nuevamente.`
+          })
+          return
+        }
 
-    // 7. Verify other required fields
-    if (!extraction.institutionName || extraction.selectedLinesIds.length === 0) {
-      console.log('Letter request is missing required fields (institution or lines). Replying to ask for info.')
-      const replyText = extraction.missingInformation || `Encontré al distribuidor **${client.name}**, pero necesito que me confirmes la institución destinataria y las líneas de producto que deseas incluir (ej. Plasma, Shaver).`
-      await sendRespondMessage(phone, {
-        type: 'text',
-        text: replyText
-      })
-      return NextResponse.json({ success: true, message: 'Missing institution or lines request sent' })
-    }
+        // 7. Verify other required fields
+        if (!extraction.institutionName || extraction.selectedLinesIds.length === 0) {
+          console.log('Letter request is missing required fields (institution or lines). Replying to ask for info.')
+          const replyText = extraction.missingInformation || `Encontré al distribuidor **${client.name}**, pero necesito que me confirmes la institución destinataria y las líneas de producto que deseas incluir (ej. Plasma, Shaver).`
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: replyText
+          })
+          return
+        }
 
-    // 8. Calculate final expiration date
-    let finalExpDate: string
-    if (extraction.expirationDate) {
-      finalExpDate = extraction.expirationDate
-    } else {
-      // Default validity is last day of next January
-      const now = new Date()
-      const nextYear = now.getFullYear() + 1
-      const lastDay = new Date(nextYear, 1, 0)
-      const yyyy = lastDay.getFullYear()
-      const mm = String(lastDay.getMonth() + 1).padStart(2, '0')
-      const dd = String(lastDay.getDate()).padStart(2, '0')
-      finalExpDate = `${yyyy}-${mm}-${dd}`
-    }
+        // 8. Calculate final expiration date
+        let finalExpDate: string
+        if (extraction.expirationDate) {
+          finalExpDate = extraction.expirationDate
+        } else {
+          // Default validity is last day of next January
+          const now = new Date()
+          const nextYear = now.getFullYear() + 1
+          const lastDay = new Date(nextYear, 1, 0)
+          const yyyy = lastDay.getFullYear()
+          const mm = String(lastDay.getMonth() + 1).padStart(2, '0')
+          const dd = String(lastDay.getDate()).padStart(2, '0')
+          finalExpDate = `${yyyy}-${mm}-${dd}`
+        }
 
-    // 9. Generate and send the letter
-    console.log(`Generating letter for client ${client.id} addressed to ${extraction.institutionName}...`)
-    
-    const host = request.headers.get('host') || 'erp.arthromed.com.mx'
-    
-    const letterResult = await generateClientLetter({
-      clientId: client.id,
-      institutionName: extraction.institutionName,
-      distributorName: extraction.distributorName || client.name,
-      rfc: extraction.rfc || client.rfc || undefined,
-      selectedLines: extraction.selectedLinesIds,
-      expirationDate: finalExpDate,
-      createdBy: null,
-      host
-    })
+        // 9. Generate and send the letter
+        console.log(`Generating letter for client ${client.id} addressed to ${extraction.institutionName}...`)
+        
+        const letterResult = await generateClientLetter({
+          clientId: client.id,
+          institutionName: extraction.institutionName,
+          distributorName: extraction.distributorName || client.name,
+          rfc: extraction.rfc || client.rfc || undefined,
+          selectedLines: extraction.selectedLinesIds,
+          expirationDate: finalExpDate,
+          createdBy: null,
+          host
+        })
 
-    // Log the activity on the client profile
-    await prisma.client_activities.create({
-      data: {
-        client_id: client.id,
-        type: 'whatsapp',
-        content: `Carta de Distribución generada vía WhatsApp por personal para ${extraction.institutionName} (Líneas: ${extraction.selectedLinesIds.join(', ')})`
-      }
-    })
+        // Log the activity on the client profile
+        await prisma.client_activities.create({
+          data: {
+            client_id: client.id,
+            type: 'whatsapp',
+            content: `Carta de Distribución generada vía WhatsApp por personal para ${extraction.institutionName} (Líneas: ${extraction.selectedLinesIds.join(', ')})`
+          }
+        })
 
-    // Reply with text and attachment
-    console.log('Sending letter PDF link and attachment back to respond.io...')
-    await sendRespondMessage(phone, {
-      type: 'text',
-      text: `¡Hola! La Carta de Distribución de **${client.name}** para **${extraction.institutionName}** ha sido generada exitosamente. Puedes descargarla en el siguiente enlace:\n${letterResult.pdfUrl}`
-    })
-
-    await sendRespondMessage(phone, {
-      type: 'attachment',
-      fileUrl: letterResult.pdfUrl,
-      fileName: `Carta_Distribucion_${(extraction.distributorName || client.name).replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
-    })
-
-    return NextResponse.json({ success: true, message: 'Letter successfully generated and sent' })
-
-  } catch (err: any) {
-    console.error('Error processing WhatsApp webhook:', err)
-    
-    // Attempt to notify user of failure if phone is known
-    try {
-      const parsedBody = rawBody ? JSON.parse(rawBody) : null
-      const phone = parsedBody?.contact?.phone
-      if (phone) {
+        // Reply with text and attachment
+        console.log('Sending letter PDF link and attachment back to respond.io...')
         await sendRespondMessage(phone, {
           type: 'text',
-          text: `Hubo un error al generar la carta: ${err.message || err}. Por favor intenta de nuevo o comunícate con soporte.`
+          text: `¡Hola! La Carta de Distribución de **${client.name}** para **${extraction.institutionName}** ha sido generada exitosamente. Puedes descargarla en el siguiente enlace:\n${letterResult.pdfUrl}`
         })
-      }
-    } catch (e) {
-      console.error('Failed to send error notification:', e)
-    }
 
+        await sendRespondMessage(phone, {
+          type: 'attachment',
+          fileUrl: letterResult.pdfUrl,
+          fileName: `Carta_Distribucion_${(extraction.distributorName || client.name).replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+        })
+
+      } catch (err: any) {
+        console.error('Error processing WhatsApp webhook in background:', err)
+        try {
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: `Hubo un error al generar la carta: ${err.message || err}. Por favor intenta de nuevo o comunícate con soporte.`
+          })
+        } catch (e) {
+          console.error('Failed to send error notification:', e)
+        }
+      }
+    })
+
+    return NextResponse.json({ success: true, message: 'Request accepted, processing in background' })
+
+  } catch (err: any) {
+    console.error('Error in POST request validation:', err)
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
 }
