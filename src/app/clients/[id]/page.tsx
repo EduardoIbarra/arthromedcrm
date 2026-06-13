@@ -200,26 +200,128 @@ export default function ClientDetailPage() {
   const [congressSenderName, setCongressSenderName] = useState('Equipo Arthromed')
   const [congressSending, setCongressSending] = useState(false)
 
+  // Letter generation states
+  const [showGenerateLetterModal, setShowGenerateLetterModal] = useState(false)
+  const [generatingLetter, setGeneratingLetter] = useState(false)
+  const [letterInstitutionName, setLetterInstitutionName] = useState('')
+  const [letterDistributorName, setLetterDistributorName] = useState('')
+  const [letterRfc, setLetterRfc] = useState('')
+  const [letterSelectedLines, setLetterSelectedLines] = useState<string[]>([])
+  const [letterExpirationDate, setLetterExpirationDate] = useState('')
+  const [productLines, setProductLines] = useState<any[]>([])
+
+  const getLastDayOfNextJanuary = () => {
+    const now = new Date()
+    const nextYear = now.getFullYear() + 1
+    const lastDay = new Date(nextYear, 1, 0)
+    const yyyy = lastDay.getFullYear()
+    const mm = String(lastDay.getMonth() + 1).padStart(2, '0')
+    const dd = String(lastDay.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
+
+  const handleOpenGenerateLetterModal = () => {
+    setLetterInstitutionName('')
+    setLetterDistributorName(client?.name || '')
+    setLetterRfc(client?.rfc || '')
+    setLetterSelectedLines([])
+    setLetterExpirationDate(getLastDayOfNextJanuary())
+    setShowGenerateLetterModal(true)
+  }
+
+  const handleGenerateLetter = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!letterInstitutionName || letterSelectedLines.length === 0) {
+      alert('Por favor selecciona la institución y al menos una línea de producto.')
+      return
+    }
+    setGeneratingLetter(true)
+    try {
+      const res = await fetch(`/api/clients/${id}/letter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          institutionName: letterInstitutionName,
+          distributorName: letterDistributorName,
+          rfc: letterRfc,
+          selectedLines: letterSelectedLines,
+          expirationDate: letterExpirationDate,
+          createdBy: null
+        })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error al generar carta')
+      }
+
+      const resJson = await res.json()
+      
+      // Update local client states
+      if (resJson.client) {
+        setClient(resJson.client)
+        setEditData(resJson.client)
+      }
+
+      // Download the PDF
+      const pdfRes = await fetch(resJson.pdfUrl)
+      const blob = await pdfRes.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Carta_Distribucion_${(letterDistributorName || client?.name || 'Distribuidor').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      // Reload client letters and activities
+      const [cRes, aRes] = await Promise.all([
+        fetch(`/api/clients/${id}`),
+        fetch(`/api/clients/${id}/activities`)
+      ])
+      if (cRes.ok) {
+        const cJson = await cRes.json()
+        setCartasDistribucion(cJson.cartas || [])
+      }
+      if (aRes.ok) {
+        const aJson = await aRes.json()
+        setActivities(aJson.data || [])
+      }
+
+      setShowGenerateLetterModal(false)
+    } catch (err: any) {
+      console.error(err)
+      alert('Error: ' + err.message)
+    } finally {
+      setGeneratingLetter(false)
+    }
+  }
+
+
   useEffect(() => {
     async function load() {
       try {
         setLoading(true)
         setLoadingSales(true)
-        const [cRes, aRes, sRes, staffRes] = await Promise.all([
+        const [cRes, aRes, sRes, staffRes, linesRes] = await Promise.all([
           fetch(`/api/clients/${id}`),
           fetch(`/api/clients/${id}/activities`),
           fetch(`/api/ventas?cliente_id=${id}`),
-          fetch('/api/users')
+          fetch('/api/users'),
+          fetch('/api/catalogos/lineas')
         ])
         const cJson = await cRes.json()
         const aJson = await aRes.json()
         const staffJson = await staffRes.json()
+        const linesJson = linesRes.ok ? await linesRes.json() : { data: [] }
         
         setClient(cJson.data)
         setEditData(cJson.data)
         setCartasDistribucion(cJson.cartas || [])
         setActivities(aJson.data || [])
         setStaffUsers(staffJson.data || [])
+        setProductLines(linesJson.data || [])
         
         if (sRes.ok) {
           const sJson = await sRes.json()
@@ -1030,9 +1132,18 @@ export default function ClientDetailPage() {
           <div className="space-y-5 animate-fade-in">
             {/* PDF Letter Card */}
             <div className="rounded-2xl p-5 space-y-4 bg-white" style={CARD}>
-              <div className="flex items-center gap-2">
-                <Calendar size={15} style={{ color: '#0763a9' }} />
-                <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Carta de Distribución (PDF)</h2>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Calendar size={15} style={{ color: '#0763a9' }} />
+                  <h2 className="text-sm font-semibold" style={{ color: '#37383a' }}>Carta de Distribución (PDF)</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenGenerateLetterModal}
+                  className="btn-primary text-xs flex items-center gap-1 py-1.5 px-3 bg-[#0763a9] text-white hover:bg-[#064d85]"
+                >
+                  <Plus size={14} /> Generar Carta de Distribución
+                </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <InfoRow label="Fecha de Emisión">{dateField('letter_created_at')}</InfoRow>
@@ -1421,6 +1532,124 @@ export default function ClientDetailPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Generar Carta de Distribución Modal */}
+      <Modal open={showGenerateLetterModal} onClose={() => !generatingLetter && setShowGenerateLetterModal(false)} title="Generar Carta de Distribución">
+        <form onSubmit={handleGenerateLetter} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
+              Institución / Destinatario *
+            </label>
+            <input
+              required
+              type="text"
+              placeholder="Ej. OPERADORA DE HOSPITALES ANGELES."
+              className="erp-input text-sm w-full font-medium"
+              value={letterInstitutionName}
+              onChange={e => setLetterInstitutionName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
+                Distribuidor (Nombre)
+              </label>
+              <input
+                type="text"
+                className="erp-input text-sm w-full font-medium"
+                value={letterDistributorName}
+                onChange={e => setLetterDistributorName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
+                RFC del Distribuidor
+              </label>
+              <input
+                type="text"
+                className="erp-input text-sm w-full font-medium font-mono"
+                value={letterRfc}
+                onChange={e => setLetterRfc(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider font-bold">
+              Líneas de Producto *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+              {productLines.map(line => {
+                const isSelected = letterSelectedLines.includes(line.id)
+                return (
+                  <button
+                    type="button"
+                    key={line.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setLetterSelectedLines(letterSelectedLines.filter(id => id !== line.id))
+                      } else {
+                        setLetterSelectedLines([...letterSelectedLines, line.id])
+                      }
+                    }}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left text-xs transition-all ${
+                      isSelected
+                        ? 'bg-blue-50/50 border-blue-500 font-semibold'
+                        : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span
+                      className="w-3.5 h-3.5 rounded-full border border-gray-200 flex-shrink-0"
+                      style={{ backgroundColor: line.color }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-900 truncate">{line.name}</p>
+                      {line.description && <p className="text-[10px] text-gray-500 truncate">{line.description}</p>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
+              Fecha de Vencimiento
+            </label>
+            <input
+              type="date"
+              className="erp-input text-sm w-full font-mono font-medium"
+              value={letterExpirationDate}
+              onChange={e => setLetterExpirationDate(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end pt-4 border-t border-gray-100 mt-6">
+            <button
+              type="button"
+              onClick={() => setShowGenerateLetterModal(false)}
+              className="btn-secondary text-sm"
+              disabled={generatingLetter}
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              className="btn-primary text-sm bg-[#0763a9] text-white hover:bg-[#064d85]"
+              disabled={generatingLetter}
+            >
+              {generatingLetter ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" /> Generando...
+                </>
+              ) : (
+                <>Generar PDF</>
+              )}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Delete confirmation */}

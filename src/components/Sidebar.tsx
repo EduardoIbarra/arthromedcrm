@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
   ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest, Bot, Sparkles, Ticket, Stethoscope, BookOpen,
-  Globe, Send
+  Globe, Send, Palette
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -50,6 +50,7 @@ export default function Sidebar() {
         { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
         { href: '/doctors', icon: Stethoscope, label: t('doctores'), section: 'clients' },
         { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'congresos' },
+        { href: '/catalogos/lineas', icon: Palette, label: 'Líneas de Distribución', section: 'congresos' },
       ],
     },
     {

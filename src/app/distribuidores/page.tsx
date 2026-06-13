@@ -61,6 +61,14 @@ export default function DistributorsPage() {
   }
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const q = params.get('search')
+      if (q) setSearch(q)
+    }
+  }, [])
+
+  useEffect(() => {
     fetchDistributors()
   }, [fetchDistributors])
 

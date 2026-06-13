@@ -537,6 +537,17 @@ model catalog_specialties {
   @@schema("public")
 }
 
+model catalog_lines {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  description String?
+  color       String   @default("#0763a9")
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model catalog_spending_categories {
   id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -725,6 +736,7 @@ model clients {
   distributor_id                String?                         @unique
   letter_created_at             DateTime?                       @db.Date
   letter_expires_at             DateTime?                       @db.Date
+  letter_url                    String?
   addresses                     Json?                           @default("[]")
   client_activities             client_activities[]
   client_custom_fields          client_custom_fields[]

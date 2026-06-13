@@ -99,15 +99,9 @@ export async function GET() {
     const bg1 = await pdf.embedJpg(machote1)
     const bg2 = await pdf.embedJpg(machote2)
 
-    // Try to fetch the logo
-    let logoImage: Awaited<ReturnType<typeof pdf.embedPng>> | null = null
-    try {
-      const logoRes = await fetch('https://arthromed.mx/wp-content/uploads/2024/01/logoOrigPag.png')
-      if (logoRes.ok) {
-        const logoBytes = new Uint8Array(await logoRes.arrayBuffer())
-        logoImage = await pdf.embedPng(logoBytes)
-      }
-    } catch { /* skip logo if fetch fails */ }
+    const logoPath = path.join(process.cwd(), 'resources', 'img', 'ARTHROMED OFICIAL.png')
+    const logoBytes = fs.readFileSync(logoPath)
+    const logoImage = await pdf.embedPng(logoBytes)
 
     let page = pdf.addPage([PAGE_W, PAGE_H])
     page.drawImage(bg1, { x: 0, y: 0, width: PAGE_W, height: PAGE_H })
@@ -123,7 +117,9 @@ export async function GET() {
 
       // Logo and header on every page
       if (logoImage) {
-        const logoScale = 0.35
+        const maxWidth = 140
+        const maxHeight = 45
+        const logoScale = Math.min(maxWidth / logoImage.width, maxHeight / logoImage.height)
         const lw = logoImage.width * logoScale
         const lh = logoImage.height * logoScale
         page.drawImage(logoImage, { x: LEFT - 15, y: PAGE_H - 20 - lh, width: lw, height: lh })
@@ -147,7 +143,9 @@ export async function GET() {
     // === PAGE 1 HEADER ===
     let headerHeight = 60
     if (logoImage) {
-      const logoScale = 0.35
+      const maxWidth = 140
+      const maxHeight = 45
+      const logoScale = Math.min(maxWidth / logoImage.width, maxHeight / logoImage.height)
       const lw = logoImage.width * logoScale
       const lh = logoImage.height * logoScale
       page.drawImage(logoImage, { x: LEFT - 15, y: PAGE_H - 20 - lh, width: lw, height: lh })
@@ -220,13 +218,6 @@ export async function GET() {
     for (const dist of distributors || []) {
       ensureSpace(entryH + 4)
 
-      // Subtle separator line
-      page.drawLine({
-        start: { x: LEFT + 10, y: y + 12 },
-        end: { x: RIGHT - 10, y: y + 12 },
-        thickness: 0.3,
-        color: LINE_COLOR,
-      })
 
       // Distributor ID (left)
       if (dist.distributor_id) {

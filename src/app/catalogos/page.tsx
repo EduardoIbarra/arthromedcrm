@@ -219,7 +219,7 @@ export default function CatalogosPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCatalogs.map(catalog => (
-              <div key={catalog.id} className="card p-6 flex flex-col justify-between hover:border-blue-300 hover:shadow-md transition-all group relative overflow-hidden h-full">
+              <div key={catalog.id} className="card p-6 flex flex-col justify-between hover:border-blue-300 hover:shadow-md transition-all group relative overflow-hidden h-full bg-white">
                 
                 {/* Admin Actions */}
                 <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -273,7 +273,7 @@ export default function CatalogosPage() {
             ))}
             
             {filteredCatalogs.length === 0 && (
-              <div className="col-span-full card p-12 text-center text-gray-500">
+              <div className="col-span-full card p-12 text-center text-gray-500 bg-white">
                 No se encontraron catálogos
               </div>
             )}
@@ -288,7 +288,7 @@ export default function CatalogosPage() {
         >
           <form onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 font-semibold">Nombre *</label>
               <input 
                 required 
                 type="text" 
@@ -299,7 +299,7 @@ export default function CatalogosPage() {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 font-semibold">Descripción</label>
               <textarea 
                 rows={3} 
                 className="erp-input w-full" 
@@ -309,7 +309,7 @@ export default function CatalogosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Archivo PDF *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 font-semibold">Archivo PDF *</label>
               <div className="space-y-2">
                 {formData.pdf_url && (
                   <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-100 rounded-xl">
