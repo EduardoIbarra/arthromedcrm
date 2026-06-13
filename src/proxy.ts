@@ -24,7 +24,8 @@ export async function proxy(request: NextRequest) {
                       (request.nextUrl.pathname === '/api/workshops' && request.method === 'GET') ||
                       (request.nextUrl.pathname.startsWith('/api/workshops/')) ||
                       (request.nextUrl.pathname.startsWith('/api/public/')) ||
-                      (request.nextUrl.pathname === '/api/whatsapp/send' && request.method === 'POST')
+                      (request.nextUrl.pathname === '/api/whatsapp/send' && request.method === 'POST') ||
+                      (request.nextUrl.pathname === '/api/whatsapp/webhook' && request.method === 'POST')
 
   // Fast-path for completely public routes to avoid hitting Supabase in middleware
   if (isPublicAsset || isPublicApi) {
