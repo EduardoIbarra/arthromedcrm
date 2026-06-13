@@ -197,7 +197,7 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
     console.log('Sending letter PDF link and attachment back to respond.io...')
     await sendRespondMessage(phone, {
       type: 'text',
-      text: `¡Hola! La Carta de Distribución de **${client.name}** para **${extraction.institutionName}** ha sido generada exitosamente. Aquí tienes el documento:`
+      text: `¡Hola! La Carta de Distribución de **${client.name}** para **${extraction.institutionName}** ha sido generada exitosamente. Puedes descargarla en el siguiente enlace:\n${letterResult.pdfUrl}`
     })
 
     await sendRespondMessage(phone, {
