@@ -16,6 +16,9 @@ export default function NewGastoPage() {
   const [congresos, setCongresos] = useState<{ id: string; name: string }[]>([])
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [uploading, setUploading] = useState<string | null>(null) // 'invoice' | 'general' | null
+  const [ivaMode, setIvaMode] = useState<'normal' | 'incluido' | 'no_aplica'>('normal')
+  const [montoInput, setMontoInput] = useState<string>('0')
+  const [lastIvaPercent, setLastIvaPercent] = useState<number>(16)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -59,13 +62,67 @@ export default function NewGastoPage() {
     fetchData()
   }, [])
 
+  const handleIvaModeChange = (mode: 'normal' | 'incluido' | 'no_aplica') => {
+    setIvaMode(mode)
+    if (mode === 'incluido') {
+      setMontoInput(formData.total.toString())
+    } else if (mode === 'normal') {
+      setMontoInput(formData.amount.toString())
+    } else if (mode === 'no_aplica') {
+      setMontoInput(formData.amount.toString())
+    }
+
+    if (mode === 'no_aplica') {
+      if (formData.iva_percent > 0) {
+        setLastIvaPercent(formData.iva_percent)
+      }
+      setFormData(prev => ({ ...prev, iva_percent: 0 }))
+    } else {
+      const restorePercent = formData.iva_percent === 0 ? (lastIvaPercent || 16) : formData.iva_percent
+      setFormData(prev => ({ ...prev, iva_percent: restorePercent }))
+    }
+  }
+
   // Auto-calculate total
   useEffect(() => {
-    const amount = Number(formData.amount) || 0
-    const ivaPercent = Number(formData.iva_percent) || 0
-    const ivaAmount = amount * (ivaPercent / 100)
-    setFormData(prev => ({ ...prev, iva: ivaAmount, total: amount + ivaAmount }))
-  }, [formData.amount, formData.iva_percent])
+    const enteredMonto = parseFloat(montoInput) || 0
+    let ivaPercent = Number(formData.iva_percent)
+
+    if (ivaMode !== 'no_aplica' && ivaPercent > 0) {
+      setLastIvaPercent(ivaPercent)
+    }
+
+    let amount = 0
+    let ivaAmount = 0
+    let total = 0
+
+    if (ivaMode === 'no_aplica') {
+      ivaPercent = 0
+      amount = enteredMonto
+      ivaAmount = 0
+      total = enteredMonto
+    } else if (ivaMode === 'incluido') {
+      total = enteredMonto
+      amount = total / (1 + (ivaPercent / 100))
+      ivaAmount = total - amount
+    } else {
+      amount = enteredMonto
+      ivaAmount = amount * (ivaPercent / 100)
+      total = amount + ivaAmount
+    }
+
+    const roundedAmount = Math.round(amount * 100) / 100
+    const roundedIva = Math.round(ivaAmount * 100) / 100
+    const roundedTotal = Math.round(total * 100) / 100
+
+    setFormData(prev => ({
+      ...prev,
+      amount: roundedAmount,
+      iva_percent: ivaPercent,
+      iva: roundedIva,
+      total: roundedTotal
+    }))
+  }, [montoInput, ivaMode, formData.iva_percent])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'invoice' | 'general') => {
     const file = e.target.files?.[0]
@@ -193,9 +250,52 @@ export default function NewGastoPage() {
               />
             </div>
 
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('ivaCalculationMode')}
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleIvaModeChange('normal')}
+                  className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    ivaMode === 'normal'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm font-semibold'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {t('ivaNormal')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleIvaModeChange('incluido')}
+                  className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    ivaMode === 'incluido'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm font-semibold'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {t('ivaIncluido')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleIvaModeChange('no_aplica')}
+                  className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    ivaMode === 'no_aplica'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm font-semibold'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {t('noAplicaIva')}
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('amount')} (Subtotal) *
+                {ivaMode === 'normal' && `${t('amount')} (Subtotal) *`}
+                {ivaMode === 'incluido' && `${t('amount')} (Total con IVA) *`}
+                {ivaMode === 'no_aplica' && `${t('amount')} (Total) *`}
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 select-none">$</span>
@@ -204,8 +304,8 @@ export default function NewGastoPage() {
                   type="number"
                   step="0.01"
                   className="erp-input w-full !pl-10"
-                  value={formData.amount}
-                  onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                  value={montoInput}
+                  onChange={e => setMontoInput(e.target.value)}
                 />
               </div>
             </div>
@@ -218,9 +318,10 @@ export default function NewGastoPage() {
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 select-none">%</span>
                 <input
                   required
+                  disabled={ivaMode === 'no_aplica'}
                   type="number"
                   step="0.01"
-                  className="erp-input w-full !pr-10"
+                  className={`erp-input w-full !pr-10 ${ivaMode === 'no_aplica' ? 'bg-gray-50 cursor-not-allowed text-gray-400' : ''}`}
                   value={formData.iva_percent}
                   onChange={e => setFormData({ ...formData, iva_percent: parseFloat(e.target.value) || 0 })}
                 />
