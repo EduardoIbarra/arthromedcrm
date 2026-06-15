@@ -54,8 +54,8 @@ function hexToDarkerRgb(hex: string): RGB {
     h /= 6
   }
 
-  // Force lightness to a lower range (e.g. 0.22) for high readability on white background
-  l = 0.22
+  // Force lightness to a moderate range (e.g. 0.38) for readability without losing brand color identity
+  l = 0.38
   // Ensure we maintain/boost saturation so colors remain vibrant
   s = Math.max(s, 0.75)
 
