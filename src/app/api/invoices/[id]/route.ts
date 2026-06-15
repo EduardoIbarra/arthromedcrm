@@ -26,6 +26,19 @@ export async function GET(
           include: {
             remision_productos: true
           }
+        },
+        planes_pago: {
+          include: {
+            parcialidades: {
+              orderBy: {
+                numero: 'asc'
+              }
+            }
+          },
+          orderBy: {
+            created_at: 'desc'
+          },
+          take: 1
         }
       }
     })
