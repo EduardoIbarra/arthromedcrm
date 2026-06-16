@@ -161,7 +161,7 @@ export default function CalendarPage() {
         id: `workshop-${w.id}`,
         title,
         start: wDate,
-        end: wDate,
+        end: w.end_date_time ? new Date(w.end_date_time) : wDate,
         type: 'workshop',
         location: congressInfo ? congressInfo.location : 'Por definir',
         description: `Docentes: ${docNames}. Cupo: ${w.max_people} personas. Costo: ${w.cost ? `$${w.cost}` : 'Gratuito'}`,
@@ -752,9 +752,31 @@ export default function CalendarPage() {
                 <div className="flex items-center gap-3 text-sm text-gray-600">
                   <Clock size={16} className="text-gray-400" />
                   <span>
-                    <strong>Vigencia:</strong> {selectedEvent.start.toLocaleDateString()}
-                    {selectedEvent.start.toLocaleDateString() !== selectedEvent.end.toLocaleDateString() && (
-                      <> - {selectedEvent.end.toLocaleDateString()}</>
+                    <strong>Vigencia:</strong>{' '}
+                    {selectedEvent.type === 'workshop' ? (
+                      (() => {
+                        const dStart = selectedEvent.start
+                        const dEnd = selectedEvent.end
+                        const startStr = `${dStart.toLocaleDateString('es-MX')} ${dStart.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                        const sameDay = dStart.toDateString() === dEnd.toDateString()
+                        if (sameDay) {
+                          return `${startStr} - ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                        } else {
+                          return `${startStr} - ${dEnd.toLocaleDateString('es-MX')} ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                        }
+                      })()
+                    ) : selectedEvent.type === 'cirugia' ? (
+                      (() => {
+                        const dStart = selectedEvent.start
+                        return `${dStart.toLocaleDateString('es-MX')} ${dStart.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                      })()
+                    ) : (
+                      <>
+                        {selectedEvent.start.toLocaleDateString()}
+                        {selectedEvent.start.toLocaleDateString() !== selectedEvent.end.toLocaleDateString() && (
+                          <> - {selectedEvent.end.toLocaleDateString()}</>
+                        )}
+                      </>
                     )}
                   </span>
                 </div>

@@ -654,7 +654,20 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-[#8a8b8d]">Fecha y Hora:</span>
                           <span className="text-[#5a5b5d] font-medium">
-                            {new Date(w.date_time).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {(() => {
+                              const dStart = new Date(w.date_time)
+                              const dEnd = w.end_date_time ? new Date(w.end_date_time) : null
+                              const startStr = dStart.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                              if (dEnd && !isNaN(dEnd.getTime())) {
+                                const sameDay = dStart.toDateString() === dEnd.toDateString()
+                                if (sameDay) {
+                                  return `${startStr} - ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                                } else {
+                                  return `${startStr} - ${dEnd.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                                }
+                              }
+                              return startStr
+                            })()}
                           </span>
                         </div>
                         {congress.enable_workshops !== false && (

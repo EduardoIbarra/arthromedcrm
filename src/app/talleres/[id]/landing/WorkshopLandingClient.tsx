@@ -8,6 +8,7 @@ interface WorkshopData {
   id: string
   name: string
   date_time: string
+  end_date_time?: string | null
   max_people: number
   cost: number | null
   congress_id: string | null
@@ -124,12 +125,35 @@ export default function WorkshopLandingClient({ initialWorkshop }: { initialWork
               <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col gap-1">
                 <Calendar size={18} className="text-blue-500" />
                 <span className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">Fecha</span>
-                <span className="text-sm font-bold text-gray-900">{date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
+                <span className="text-sm font-bold text-gray-900">
+                  {(() => {
+                    const dStart = new Date(workshop.date_time)
+                    const dEnd = workshop.end_date_time ? new Date(workshop.end_date_time) : null
+                    const startStr = dStart.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+                    if (dEnd && !isNaN(dEnd.getTime())) {
+                      const sameDay = dStart.toDateString() === dEnd.toDateString()
+                      if (!sameDay) {
+                        return `${startStr} - ${dEnd.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}`
+                      }
+                    }
+                    return startStr
+                  })()}
+                </span>
               </div>
               <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col gap-1">
                 <Clock size={18} className="text-blue-500" />
                 <span className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">Hora</span>
-                <span className="text-sm font-bold text-gray-900">{date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs</span>
+                <span className="text-sm font-bold text-gray-900">
+                  {(() => {
+                    const dStart = new Date(workshop.date_time)
+                    const dEnd = workshop.end_date_time ? new Date(workshop.end_date_time) : null
+                    const startStr = dStart.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                    if (dEnd && !isNaN(dEnd.getTime())) {
+                      return `${startStr} - ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                    }
+                    return startStr
+                  })()} hrs
+                </span>
               </div>
               <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col gap-1">
                 <DollarSign size={18} className="text-green-500" />
@@ -316,18 +340,41 @@ export default function WorkshopLandingClient({ initialWorkshop }: { initialWork
                     <div className="bg-gray-50 border border-gray-150 rounded-2xl p-4 text-left text-xs space-y-2">
                       <p className="font-bold text-gray-700">Detalles de tu Sesión:</p>
                       <p className="text-gray-600 font-medium">📅 Taller: <span className="text-gray-900">{workshop.name}</span></p>
-                      <p className="text-gray-600 font-medium">🕒 Horario: <span className="text-gray-900">{date.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })} a las {date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs</span></p>
+                      <p className="text-gray-600 font-medium">🕒 Horario: <span className="text-gray-900">
+                        {(() => {
+                          const dStart = new Date(workshop.date_time)
+                          const dEnd = workshop.end_date_time ? new Date(workshop.end_date_time) : null
+                          const startDayStr = dStart.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+                          const startTimeStr = dStart.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                          if (dEnd && !isNaN(dEnd.getTime())) {
+                            const sameDay = dStart.toDateString() === dEnd.toDateString()
+                            if (sameDay) {
+                              return `${startDayStr} de ${startTimeStr} a ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs`
+                            } else {
+                              return `${startDayStr} ${startTimeStr} - ${dEnd.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })} ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} hrs`
+                            }
+                          }
+                          return `${startDayStr} a las ${startTimeStr} hrs`
+                        })()}
+                      </span></p>
                       <p className="text-gray-600 font-medium">📍 Ubicación: <span className="text-gray-900">{workshop.congresos?.location || 'Por confirmar'}</span></p>
                     </div>
 
-                    <a
-                      href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(workshop.name)}&dates=${date.toISOString().replace(/-|:|\.\d\d\d/g, "")}/${new Date(date.getTime() + 2 * 60 * 60 * 1000).toISOString().replace(/-|:|\.\d\d\d/g, "")}&details=${encodeURIComponent(workshop.description || '')}&location=${encodeURIComponent(workshop.congresos?.location || '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition-colors border border-blue-100"
-                    >
-                      Añadir a Google Calendar
-                    </a>
+                    {(() => {
+                      const startDateStr = date.toISOString().replace(/-|:|\.\d\d\d/g, "")
+                      const endDate = workshop.end_date_time ? new Date(workshop.end_date_time) : new Date(date.getTime() + 2 * 60 * 60 * 1000)
+                      const endDateStr = endDate.toISOString().replace(/-|:|\.\d\d\d/g, "")
+                      return (
+                        <a
+                          href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(workshop.name)}&dates=${startDateStr}/${endDateStr}&details=${encodeURIComponent(workshop.description || '')}&location=${encodeURIComponent(workshop.congresos?.location || '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition-colors border border-blue-100"
+                        >
+                          Añadir a Google Calendar
+                        </a>
+                      )
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>

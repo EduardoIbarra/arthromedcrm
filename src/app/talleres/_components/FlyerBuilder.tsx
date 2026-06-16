@@ -14,6 +14,7 @@ interface FlyerBuilderProps {
   tallerId: string | null
   workshopName: string
   workshopDate: string
+  workshopEndDate?: string
   workshopCost: string
   congressName: string
   selectedDoctors: Doctor[]
@@ -43,6 +44,7 @@ export default function FlyerBuilder({
   tallerId,
   workshopName,
   workshopDate,
+  workshopEndDate,
   workshopCost,
   congressName,
   selectedDoctors,
@@ -79,10 +81,24 @@ export default function FlyerBuilder({
     // Format date beautifully
     if (workshopDate) {
       try {
-        const d = new Date(workshopDate)
-        const day = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
-        const time = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-        setDateText(`${day} | ${time}`)
+        const dStart = new Date(workshopDate)
+        const dEnd = workshopEndDate ? new Date(workshopEndDate) : null
+        
+        const dayStart = dStart.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+        const timeStart = dStart.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+        
+        if (dEnd && !isNaN(dEnd.getTime())) {
+          const dayEnd = dEnd.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+          const timeEnd = dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+          
+          if (dayStart === dayEnd) {
+            setDateText(`${dayStart} | ${timeStart} - ${timeEnd}`)
+          } else {
+            setDateText(`${dayStart} ${timeStart} - ${dayEnd} ${timeEnd}`)
+          }
+        } else {
+          setDateText(`${dayStart} | ${timeStart}`)
+        }
       } catch (err) {
         setDateText(workshopDate)
       }
@@ -97,7 +113,7 @@ export default function FlyerBuilder({
     } else {
       setCostText('Sin costo / Invitación académica')
     }
-  }, [workshopName, workshopDate, workshopCost, congressName])
+  }, [workshopName, workshopDate, workshopEndDate, workshopCost, congressName])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {

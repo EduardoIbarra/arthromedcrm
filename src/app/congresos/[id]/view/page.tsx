@@ -180,7 +180,20 @@ export default function CongresoViewPage() {
                         <div className="space-y-2 mb-4">
                           <p className="text-sm text-gray-500 flex items-center gap-2">
                             <Calendar size={14} className="text-gray-400" />
-                            {new Date(w.date_time).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {(() => {
+                              const dStart = new Date(w.date_time)
+                              const dEnd = w.end_date_time ? new Date(w.end_date_time) : null
+                              const startStr = dStart.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                              if (dEnd && !isNaN(dEnd.getTime())) {
+                                const sameDay = dStart.toDateString() === dEnd.toDateString()
+                                if (sameDay) {
+                                  return `${startStr} - ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                                } else {
+                                  return `${startStr} - ${dEnd.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                                }
+                              }
+                              return startStr
+                            })()}
                           </p>
                           <p className="text-sm text-gray-500 flex items-center gap-2">
                             <User size={14} className="text-gray-400" />

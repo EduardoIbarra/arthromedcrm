@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await req.json()
-    const { name, congress_id, date_time, max_people, cost, professor, doctorIds, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, flyer, description } = body
 
     if (doctorIds && Array.isArray(doctorIds)) {
       await prisma.congress_workshop_doctors.deleteMany({ where: { workshop_id: id } })
@@ -57,6 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             : { disconnect: true }
         }),
         ...(date_time && { date_time: new Date(date_time) }),
+        ...(end_date_time !== undefined && { end_date_time: end_date_time ? new Date(end_date_time) : null }),
         ...(max_people && { max_people: parseInt(max_people) }),
         ...(cost !== undefined && { cost: cost ? parseFloat(cost) : null }),
         ...(professor && { professor }),

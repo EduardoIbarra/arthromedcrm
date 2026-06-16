@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { name, congress_id, date_time, max_people, cost, professor, doctorIds, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, flyer, description } = body
 
     if (!name || !date_time || !max_people) {
       return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         date_time: new Date(date_time),
+        end_date_time: end_date_time ? new Date(end_date_time) : null,
         max_people: parseInt(max_people),
         cost: cost ? parseFloat(cost) : null,
         professor: professor || 'N/A', // Legacy field

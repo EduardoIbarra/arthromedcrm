@@ -900,6 +900,7 @@ model congress_workshops {
   congress_id                   String?                         @db.Uuid
   name                          String
   date_time                     DateTime                        @db.Timestamptz(6)
+  end_date_time                 DateTime?                       @db.Timestamptz(6)
   max_people                    Int
   cost                          Decimal?                        @db.Decimal(10, 2)
   professor                     String

@@ -25,6 +25,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const [formData, setFormData] = useState({
     name: '',
     date_time: '',
+    end_date_time: '',
     max_people: 20,
     cost: '',
     congress_id: '',
@@ -55,9 +56,16 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           if (data) {
             const d = new Date(data.date_time)
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+            let end_date_time_val = ''
+            if (data.end_date_time) {
+              const dEnd = new Date(data.end_date_time)
+              dEnd.setMinutes(dEnd.getMinutes() - dEnd.getTimezoneOffset())
+              end_date_time_val = dEnd.toISOString().slice(0, 16)
+            }
             setFormData({
               name: data.name,
               date_time: d.toISOString().slice(0, 16),
+              end_date_time: end_date_time_val,
               max_people: data.max_people,
               cost: data.cost !== null ? String(data.cost) : '',
               congress_id: data.congress_id || '',
@@ -103,6 +111,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
       const payload = {
         ...formData,
         date_time: new Date(formData.date_time).toISOString(),
+        end_date_time: formData.end_date_time ? new Date(formData.end_date_time).toISOString() : null,
         cost: formData.cost ? parseFloat(formData.cost) : null,
         congress_id: formData.congress_id || null,
         doctorIds
@@ -163,16 +172,20 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Fecha y Hora *</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Fecha y Hora Inicio *</label>
                 <input required type="datetime-local" className="erp-input w-full" value={formData.date_time} onChange={e => setFormData({ ...formData, date_time: e.target.value })} />
               </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Fecha y Hora Fin (Opcional)</label>
+                <input type="datetime-local" className="erp-input w-full" value={formData.end_date_time} onChange={e => setFormData({ ...formData, end_date_time: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Cupo Máximo *</label>
                 <input required type="number" min="1" className="erp-input w-full" value={formData.max_people} onChange={e => setFormData({ ...formData, max_people: parseInt(e.target.value) })} />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Costo (Opcional)</label>
                 <div className="relative">
@@ -249,6 +262,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
         tallerId={tallerId}
         workshopName={formData.name}
         workshopDate={formData.date_time}
+        workshopEndDate={formData.end_date_time}
         workshopCost={formData.cost}
         congressName={congresos.find(c => c.id === formData.congress_id)?.name || ''}
         selectedDoctors={allDoctors.filter(d => doctorIds.includes(d.id))}

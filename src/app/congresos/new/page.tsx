@@ -74,7 +74,7 @@ export default function NewCongresoPage() {
   }, [])
 
   const addWorkshop = () => {
-    setWorkshops([...workshops, { name: '', date_time: '', max_people: 20, cost: 0, professor: '' }])
+    setWorkshops([...workshops, { name: '', date_time: '', end_date_time: '', max_people: 20, cost: 0, professor: '' }])
   }
 
   const removeWorkshop = (index: number) => {
@@ -505,7 +505,7 @@ export default function NewCongresoPage() {
               ) : (
                 <div className="space-y-4">
                   {workshops.map((w, i) => (
-                    <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4">
                       <button 
                         type="button" 
                         onClick={() => removeWorkshop(i)}
@@ -514,7 +514,7 @@ export default function NewCongresoPage() {
                         <X size={14} />
                       </button>
                       
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-3">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Nombre del Taller</label>
                         <input
                           required
@@ -540,13 +540,22 @@ export default function NewCongresoPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Fecha y Hora</label>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Fecha y Hora Inicio</label>
                         <input
                           required
                           type="datetime-local"
                           className="erp-input w-full bg-white"
                           value={w.date_time}
                           onChange={e => updateWorkshop(i, 'date_time', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Fecha y Hora Fin (Opcional)</label>
+                        <input
+                          type="datetime-local"
+                          className="erp-input w-full bg-white"
+                          value={w.end_date_time}
+                          onChange={e => updateWorkshop(i, 'end_date_time', e.target.value)}
                         />
                       </div>
                       <div>

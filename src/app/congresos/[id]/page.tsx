@@ -194,7 +194,7 @@ export default function EditCongresoPage() {
   }
 
   const addWorkshop = () => {
-    setWorkshops([...workshops, { name: '', date_time: '', max_people: 20, cost: 0, professor: 'N/A', doctorIds: [] }])
+    setWorkshops([...workshops, { name: '', date_time: '', end_date_time: '', max_people: 20, cost: 0, professor: 'N/A', doctorIds: [] }])
   }
 
   const removeWorkshop = (index: number) => {
@@ -565,13 +565,13 @@ export default function EditCongresoPage() {
               </div>
               <div className="space-y-4">
                 {workshops.map((w, i) => (
-                  <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div key={i} className="group relative p-4 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4">
                     <button type="button" onClick={() => removeWorkshop(i)} className="absolute -top-2 -right-2 p-1 bg-white text-red-500 rounded-full border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><X size={14} /></button>
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-4">
                       <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nombre</label>
                       <input required type="text" className="erp-input w-full bg-white" value={w.name} onChange={e => updateWorkshop(i, 'name', e.target.value)} />
                     </div>
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-4">
                       <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Doctores / Docentes *</label>
                       <DoctorSelector 
                         selectedIds={w.doctorIds || []} 
@@ -580,8 +580,12 @@ export default function EditCongresoPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha y Hora</label>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha y Hora Inicio</label>
                       <input required type="datetime-local" className="erp-input w-full bg-white" value={w.date_time ? new Date(w.date_time).toISOString().slice(0, 16) : ''} onChange={e => updateWorkshop(i, 'date_time', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha y Hora Fin (Opcional)</label>
+                      <input type="datetime-local" className="erp-input w-full bg-white" value={w.end_date_time ? new Date(w.end_date_time).toISOString().slice(0, 16) : ''} onChange={e => updateWorkshop(i, 'end_date_time', e.target.value)} />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Cupo</label>

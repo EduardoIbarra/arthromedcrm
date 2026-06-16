@@ -13,6 +13,7 @@ interface Workshop {
   id: string
   name: string
   date_time: string
+  end_date_time?: string | null
   max_people: number
   cost: number | null
   congress_id: string | null
@@ -278,7 +279,22 @@ export default function TalleresPage() {
                     <div className="space-y-2 mt-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <Calendar size={14} className="text-blue-500" />
-                        <span>{date.toLocaleDateString('es-MX')} {date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>
+                          {(() => {
+                            const dStart = new Date(w.date_time)
+                            const dEnd = w.end_date_time ? new Date(w.end_date_time) : null
+                            const startStr = `${dStart.toLocaleDateString('es-MX')} ${dStart.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                            if (dEnd && !isNaN(dEnd.getTime())) {
+                              const sameDay = dStart.toDateString() === dEnd.toDateString()
+                              if (sameDay) {
+                                return `${startStr} - ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                              } else {
+                                return `${startStr} - ${dEnd.toLocaleDateString('es-MX')} ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                              }
+                            }
+                            return startStr
+                          })()}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Users size={14} className="text-blue-500" />

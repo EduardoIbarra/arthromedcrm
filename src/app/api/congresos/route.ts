@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
           create: (workshops || []).map((w: any) => ({
             name: w.name,
             date_time: new Date(w.date_time),
+            end_date_time: w.end_date_time ? new Date(w.end_date_time) : null,
             max_people: Number(w.max_people),
             cost: w.cost ? Number(w.cost) : null,
             professor: w.professor

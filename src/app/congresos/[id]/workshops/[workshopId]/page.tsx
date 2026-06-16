@@ -87,7 +87,20 @@ export default function WorkshopViewPage() {
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
               <span className="flex items-center gap-1.5 bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md font-medium">
                 <Calendar size={14} />
-                {new Date(workshop.date_time).toLocaleString('es-MX', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {(() => {
+                  const dStart = new Date(workshop.date_time)
+                  const dEnd = workshop.end_date_time ? new Date(workshop.end_date_time) : null
+                  const startStr = dStart.toLocaleString('es-MX', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                  if (dEnd && !isNaN(dEnd.getTime())) {
+                    const sameDay = dStart.toDateString() === dEnd.toDateString()
+                    if (sameDay) {
+                      return `${startStr} - ${dEnd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                    } else {
+                      return `${startStr} - ${dEnd.toLocaleString('es-MX', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                    }
+                  }
+                  return startStr
+                })()}
               </span>
               <span className="flex items-center gap-1.5">
                 <User size={14} className="text-gray-400" />
