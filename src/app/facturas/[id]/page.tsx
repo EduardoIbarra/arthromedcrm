@@ -967,9 +967,23 @@ export default function FacturaDetailPage() {
                                       className="erp-input !pl-7 !py-1 text-sm font-semibold w-full bg-white shadow-inner"
                                     />
                                   </div>
-                                  <span className="text-xs text-gray-500 font-bold bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
-                                    {pct}%
-                                  </span>
+                                  <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-lg shadow-inner">
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      max="100"
+                                      value={inst.monto === 0 || totalWithInterest === 0 ? '' : ((inst.monto / totalWithInterest) * 100).toFixed(1)}
+                                      onChange={(e) => {
+                                        const pctVal = parseFloat(e.target.value) || 0
+                                        const newMonto = parseFloat(((pctVal / 100) * totalWithInterest).toFixed(2))
+                                        setFormInstallments(prev => prev.map(p => p.numero === inst.numero ? { ...p, monto: newMonto } : p))
+                                      }}
+                                      className="w-12 text-xs font-bold text-gray-700 bg-transparent outline-none text-center"
+                                      placeholder="%"
+                                    />
+                                    <span className="text-xs text-gray-400 font-bold">%</span>
+                                  </div>
                                 </div>
                               </td>
                               <td className="p-3">
