@@ -7,6 +7,7 @@ import { Client, Congreso } from '@/types/database'
 import { Search, Filter, Download, UserPlus, Phone, Mail, MapPin, ChevronRight, X, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useRouter } from 'next/navigation'
 
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
@@ -24,6 +25,7 @@ const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
 function ClientsContent() {
   const { t } = useI18n()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [clients, setClients] = useState<Client[]>([])
   const [total, setTotal] = useState(0)
@@ -229,7 +231,12 @@ function ClientsContent() {
                   </thead>
                   <tbody>
                     {clients.map((client) => (
-                      <tr key={client.id} className="group hover:bg-blue-50/40 transition-colors" style={{ borderBottom: '1px solid #f0f5fa' }}>
+                      <tr
+                        key={client.id}
+                        onClick={() => router.push(`/clients/${client.id}`)}
+                        className="group hover:bg-blue-50/40 transition-colors cursor-pointer"
+                        style={{ borderBottom: '1px solid #f0f5fa' }}
+                      >
                         <td className="px-4 py-3 text-xs font-mono font-bold" style={{ color: client.distributor_id ? '#0763a9' : '#c4c5c7' }}>{client.distributor_id || '—'}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-1.5">
@@ -259,7 +266,7 @@ function ClientsContent() {
                         <td className="px-4 py-3 text-sm max-w-[150px] truncate" style={{ color: '#5a5b5d' }}>{client.states?.slice(0, 2).join(', ') || '—'}</td>
                         <td className="px-4 py-3"><StatusBadge status={client.status} size="sm" /></td>
                         <td className="px-4 py-3">
-                          <Link href={`/clients/${client.id}`} className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100"><ChevronRight size={16} /></Link>
+                          <span className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100 inline-flex"><ChevronRight size={16} /></span>
                         </td>
                       </tr>
                     ))}

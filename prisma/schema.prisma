@@ -523,8 +523,12 @@ model cartas_distribucion {
   destinatario    String?
   codigo          String?
   fecha_creacion  DateTime? @default(dbgenerated("CURRENT_DATE")) @db.Date
+  client_id       String?   @db.Uuid
+  letter_url      String?
+  clients         clients?  @relation(fields: [client_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   users           users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([client_id], map: "idx_cartas_client_id")
   @@schema("public")
 }
 
@@ -745,6 +749,7 @@ model clients {
   garantias                     garantias[]
   orders                        orders[]
   product_prices                product_prices[]
+  cartas_distribucion           cartas_distribucion[]
 
   @@index([status])
   @@index([distributor_id], map: "idx_clients_distributor_id")

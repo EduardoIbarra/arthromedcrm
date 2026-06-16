@@ -336,7 +336,8 @@ export async function generateClientLetter({
 
   // Generate QR Code containing verification URL
   const protocol = host.startsWith('localhost') ? 'http' : 'https'
-  const validationUrl = `${protocol}://${host}/distribuidores?search=${finalRfc}`
+  const distributorSlug = client.distributor_id || finalRfc
+  const validationUrl = `${protocol}://${host}/distribuidores/${encodeURIComponent(distributorSlug)}`
 
   let qrImage = null
   try {
@@ -671,7 +672,9 @@ export async function generateClientLetter({
       vigencia: finalExpDate,
       destinatario: institutionName,
       codigo: client.distributor_id || null,
-      created_by: createdBy || null
+      created_by: createdBy || null,
+      client_id: clientId,
+      letter_url: pdfUrl
     }
   })
 

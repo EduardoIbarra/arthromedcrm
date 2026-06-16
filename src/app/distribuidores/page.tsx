@@ -194,14 +194,15 @@ export default function DistributorsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AnimatePresence mode="popLayout">
                   {activeDistributors.map((dist, index) => (
-                    <motion.div
+                    <motion.a
                       key={dist.id}
+                      href={dist.distributor_id ? `/distribuidores/${encodeURIComponent(dist.distributor_id)}` : '#'}
                       layout
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
-                      className="group bg-white border border-blue-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all"
+                      className="group bg-white border border-blue-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer block"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-4 flex-1">
@@ -210,7 +211,7 @@ export default function DistributorsPage() {
                               <Building2 size={20} />
                             </div>
                             <div>
-                              <h3 className="font-bold text-[#1e293b] leading-tight">{dist.name}</h3>
+                              <h3 className="font-bold text-[#1e293b] leading-tight group-hover:text-[#0763a9] transition-colors">{dist.name}</h3>
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 {dist.distributor_id && (
                                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#475569] bg-slate-100 px-2 py-0.5 rounded-md font-mono">
@@ -244,13 +245,14 @@ export default function DistributorsPage() {
                           </div>
                         </div>
 
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 flex flex-col items-center gap-2">
                           <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-green-600 shadow-inner">
                             <CheckCircle2 size={24} />
                           </div>
+                          <span className="text-[10px] font-bold text-[#0763a9] group-hover:underline">Ver cartas →</span>
                         </div>
                       </div>
-                    </motion.div>
+                    </motion.a>
                   ))}
                 </AnimatePresence>
               </div>
