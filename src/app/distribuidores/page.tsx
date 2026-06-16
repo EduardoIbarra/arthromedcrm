@@ -196,7 +196,7 @@ export default function DistributorsPage() {
                   {activeDistributors.map((dist, index) => (
                     <motion.a
                       key={dist.id}
-                      href={dist.distributor_id ? `/distribuidores/${encodeURIComponent(dist.distributor_id)}` : '#'}
+                      href={`/distribuidores/${dist.id}`}
                       layout
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}

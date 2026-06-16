@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 
 // GET /api/public/distributors/[distributorId]
 // Public endpoint — returns distributor info + all their cartas_distribucion
+// The [distributorId] param is the client UUID (client.id)
 export async function GET(
   _: NextRequest,
   { params }: { params: Promise<{ distributorId: string }> }
@@ -12,9 +13,9 @@ export async function GET(
   const { distributorId } = await params
 
   try {
-    // Find client by distributor_id code
-    const client = await prisma.clients.findFirst({
-      where: { distributor_id: distributorId },
+    // Find client by UUID (primary key)
+    const client = await prisma.clients.findUnique({
+      where: { id: distributorId },
       select: {
         id: true,
         name: true,

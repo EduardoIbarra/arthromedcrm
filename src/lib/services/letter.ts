@@ -336,8 +336,7 @@ export async function generateClientLetter({
 
   // Generate QR Code containing verification URL
   const protocol = host.startsWith('localhost') ? 'http' : 'https'
-  const distributorSlug = client.distributor_id || finalRfc
-  const validationUrl = `${protocol}://${host}/distribuidores/${encodeURIComponent(distributorSlug)}`
+  const validationUrl = `${protocol}://${host}/distribuidores/${client.id}`
 
   let qrImage = null
   try {
