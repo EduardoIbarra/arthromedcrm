@@ -47,10 +47,10 @@ function formatDate(dateStr: string | null) {
 }
 
 function isVigente(vigencia: string) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const exp = new Date(vigencia + 'T00:00:00')
-  return exp >= today
+  // Extract YYYY-MM-DD only — avoids UTC-midnight being shifted back one day in local timezone
+  const expDateStr = vigencia.split('T')[0]
+  const todayStr = new Date().toISOString().split('T')[0]
+  return expDateStr >= todayStr
 }
 
 export default function DistributorDetailPage() {
