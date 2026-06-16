@@ -334,9 +334,12 @@ export async function generateClientLetter({
   const imgRicardo = await pdf.embedPng(firmaRicardoBytes)
   const logoImage = await pdf.embedPng(logoBytes)
 
-  // Generate QR Code containing verification URL
+  // Pre-generate the carta ID so we can embed it in the QR before the record is created
+  const cartaId = crypto.randomUUID()
+
+  // Generate QR Code pointing to the specific letter's public page
   const protocol = host.startsWith('localhost') ? 'http' : 'https'
-  const validationUrl = `${protocol}://${host}/distribuidores/${client.id}`
+  const validationUrl = `${protocol}://${host}/distribuidores/${client.id}/${cartaId}`
 
   let qrImage = null
   try {
@@ -660,10 +663,11 @@ export async function generateClientLetter({
     }
   })
 
-  // 8. Create a record in `cartas_distribucion`
+  // 8. Create a record in `cartas_distribucion` using the pre-generated ID
   const lineNames = lines.map((l: any) => l.name)
   const record = await prisma.cartas_distribucion.create({
     data: {
+      id: cartaId,
       empresa_nombre: finalDistName,
       rfc: finalRfc,
       estado_region: client.states ? client.states.join(', ') : '',
