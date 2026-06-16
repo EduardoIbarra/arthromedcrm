@@ -13,21 +13,32 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       include: {
         client_activities: {
           orderBy: { created_at: 'desc' }
+        },
+        cartas_distribucion: {
+          orderBy: { vigencia: 'desc' }
         }
       }
     })
     if (!data) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
 
-    // Fetch matching cartas_distribucion records by RFC or Name
-    const cartas = await prisma.cartas_distribucion.findMany({
+    // Also fetch any legacy cartas linked by RFC/name (before client_id FK existed)
+    const legacyCartas = await prisma.cartas_distribucion.findMany({
       where: {
-        OR: [
-          ...(data.rfc ? [{ rfc: { equals: data.rfc, mode: 'insensitive' } }] : []),
-          { empresa_nombre: { contains: data.name, mode: 'insensitive' } }
+        AND: [
+          { clients: null }, // no client_id set (legacy records)
+          {
+            OR: [
+              ...(data.rfc ? [{ rfc: data.rfc }] : []),
+              { empresa_nombre: { contains: data.name, mode: 'insensitive' as const } }
+            ]
+          }
         ]
       },
       orderBy: { vigencia: 'desc' }
     })
+
+    const cartas = [...(data.cartas_distribucion || []), ...legacyCartas]
+      .sort((a, b) => new Date(b.vigencia).getTime() - new Date(a.vigencia).getTime())
 
     return NextResponse.json({ data, cartas })
   } catch (error: any) {

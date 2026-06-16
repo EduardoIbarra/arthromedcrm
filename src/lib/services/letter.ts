@@ -672,9 +672,9 @@ export async function generateClientLetter({
       vigencia: finalExpDate,
       destinatario: institutionName,
       codigo: client.distributor_id || null,
-      created_by: createdBy || null,
-      client_id: clientId,
-      letter_url: pdfUrl
+      letter_url: pdfUrl,
+      ...(createdBy ? { users: { connect: { id: createdBy } } } : {}),
+      ...(clientId ? { clients: { connect: { id: clientId } } } : {})
     }
   })
 
