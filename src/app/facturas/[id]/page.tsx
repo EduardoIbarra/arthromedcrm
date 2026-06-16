@@ -979,7 +979,7 @@ export default function FacturaDetailPage() {
                                         const newMonto = parseFloat(((pctVal / 100) * totalWithInterest).toFixed(2))
                                         setFormInstallments(prev => prev.map(p => p.numero === inst.numero ? { ...p, monto: newMonto } : p))
                                       }}
-                                      className="w-12 text-xs font-bold text-gray-700 bg-transparent outline-none text-center"
+                                      className="w-12 text-xs font-bold text-gray-700 bg-transparent outline-none text-center no-spinner"
                                       placeholder="%"
                                     />
                                     <span className="text-xs text-gray-400 font-bold">%</span>
