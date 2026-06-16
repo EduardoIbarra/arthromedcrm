@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import StatusBadge from '@/components/StatusBadge'
 import Modal from '@/components/Modal'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useI18n } from '@/contexts/I18nContext'
 import { Client, ClientActivity } from '@/types/database'
 import {
@@ -200,6 +201,18 @@ export default function ClientDetailPage() {
   const [congressSenderName, setCongressSenderName] = useState('Equipo Arthromed')
   const [congressSending, setCongressSending] = useState(false)
 
+  // Toast notifications state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+  const [deletingCartaId, setDeletingCartaId] = useState<string | null>(null)
+  const [removingActiveLetter, setRemovingActiveLetter] = useState(false)
+  
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => {
+      setToast(null)
+    }, 4000)
+  }
+
   // Letter generation states
   const [showGenerateLetterModal, setShowGenerateLetterModal] = useState(false)
   const [generatingLetter, setGeneratingLetter] = useState(false)
@@ -232,7 +245,7 @@ export default function ClientDetailPage() {
   const handleGenerateLetter = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!letterInstitutionName || letterSelectedLines.length === 0) {
-      alert('Por favor selecciona la institución y al menos una línea de producto.')
+      showToast('Por favor selecciona la institución y al menos una línea de producto.', 'error')
       return
     }
     setGeneratingLetter(true)
@@ -292,9 +305,67 @@ export default function ClientDetailPage() {
       setShowGenerateLetterModal(false)
     } catch (err: any) {
       console.error(err)
-      alert('Error: ' + err.message)
+      showToast('Error: ' + err.message, 'error')
     } finally {
       setGeneratingLetter(false)
+    }
+  }
+
+  const handleRemoveActiveLetter = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar la carta de distribución activa de este cliente?')) {
+      return
+    }
+    setRemovingActiveLetter(true)
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          letter_url: null,
+          letter_created_at: null,
+          letter_expires_at: null
+        })
+      })
+      if (!res.ok) {
+        throw new Error('Error al actualizar el cliente')
+      }
+      const json = await res.json()
+      setClient(json.data)
+      setEditData(json.data)
+      showToast('Carta de distribución activa eliminada correctamente.')
+    } catch (err: any) {
+      console.error(err)
+      showToast('Error: ' + err.message, 'error')
+    } finally {
+      setRemovingActiveLetter(false)
+    }
+  }
+
+  const handleDeleteCartaRecord = async (cartaId: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar permanentemente este registro de carta de distribución de la base de datos?')) {
+      return
+    }
+    setDeletingCartaId(cartaId)
+    try {
+      const res = await fetch(`/api/cartas/${cartaId}`, {
+        method: 'DELETE'
+      })
+      if (!res.ok) {
+        throw new Error('Error al eliminar la carta')
+      }
+      
+      // Refresh database letters list
+      const cRes = await fetch(`/api/clients/${id}`)
+      if (cRes.ok) {
+        const cJson = await cRes.json()
+        setCartasDistribucion(cJson.cartas || [])
+      }
+      showToast('Registro de carta de distribución eliminado correctamente.')
+    } catch (err: any) {
+      console.error(err)
+      showToast('Error: ' + err.message, 'error')
+    } finally {
+      setDeletingCartaId(null)
     }
   }
 
@@ -503,10 +574,10 @@ export default function ClientDetailPage() {
         setActivities((await aRes.json()).data || [])
         setShowCongressWA(false)
       } else {
-        alert('Error al enviar mensaje')
+        showToast('Error al enviar mensaje', 'error')
       }
     } catch (e) {
-      alert('Error al enviar mensaje')
+      showToast('Error al enviar mensaje', 'error')
     } finally { 
       setCongressSending(false) 
     }
@@ -564,7 +635,7 @@ export default function ClientDetailPage() {
       setEditData(p => ({ ...p, letter_url: publicUrlData.publicUrl }))
     } catch (err) {
       console.error(err)
-      alert('Error al subir el archivo. Asegúrate de que el bucket "documents" exista en Supabase y sea público.')
+      showToast('Error al subir el archivo. Asegúrate de que el bucket "documents" exista en Supabase y sea público.', 'error')
     } finally {
       setUploading(false)
     }
@@ -1152,9 +1223,26 @@ export default function ClientDetailPage() {
                   {editing ? (
                     <div className="space-y-2">
                       {editData.letter_url && (
-                        <a href={editData.letter_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline block truncate">
-                          Ver archivo actual
-                        </a>
+                        <div className="flex items-center justify-between gap-2 border border-[#e8f1f9] rounded-xl p-2 bg-[#f8fafd]">
+                          <a href={editData.letter_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline truncate max-w-[150px]">
+                            Ver archivo actual
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditData(p => ({
+                                ...p,
+                                letter_url: null,
+                                letter_created_at: null,
+                                letter_expires_at: null
+                              }))
+                            }}
+                            className="text-[#b91c1c] hover:bg-[#fee2e2] p-1 rounded transition-colors text-xs flex items-center gap-0.5"
+                            title="Quitar Carta"
+                          >
+                            <Trash2 size={12} /> Quitar
+                          </button>
+                        </div>
                       )}
                       <label className="btn-secondary text-sm w-full justify-center cursor-pointer">
                         {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
@@ -1163,15 +1251,31 @@ export default function ClientDetailPage() {
                       </label>
                     </div>
                   ) : (
-                    <p className="text-sm" style={{ color: '#37383a' }}>
+                    <div className="text-sm" style={{ color: '#37383a' }}>
                       {client?.letter_url ? (
-                        <a href={client.letter_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
-                          <FileText size={14} /> Ver Documento
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <a href={client.letter_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 font-medium">
+                            <FileText size={14} /> Ver Documento
+                          </a>
+                          <button
+                            type="button"
+                            onClick={handleRemoveActiveLetter}
+                            disabled={removingActiveLetter}
+                            className="text-[#b91c1c] hover:bg-[#fee2e2] p-1 rounded-lg transition-colors flex items-center gap-0.5 text-xs font-semibold ml-2 border border-transparent hover:border-[#fca5a5] disabled:opacity-50"
+                            title="Eliminar Carta Activa"
+                          >
+                            {removingActiveLetter ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={13} />
+                            )}
+                            {removingActiveLetter ? 'Quitando...' : 'Quitar'}
+                          </button>
+                        </div>
                       ) : (
                         <span style={{ color: '#c4c5c7', fontStyle: 'italic' }}>—</span>
                       )}
-                    </p>
+                    </div>
                   )}
                 </InfoRow>
               </div>
@@ -1198,6 +1302,7 @@ export default function ClientDetailPage() {
                       <th className="p-4">Región / Estado</th>
                       <th className="p-4">Líneas de Producto</th>
                       <th className="p-4">Vigencia</th>
+                      <th className="p-4 text-right pr-6">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e8f1f9] text-sm">
@@ -1224,11 +1329,26 @@ export default function ClientDetailPage() {
                         <td className="p-4 text-gray-650">
                           {carta.vigencia ? formatDate(carta.vigencia) : '—'}
                         </td>
+                        <td className="p-4 text-right pr-6">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCartaRecord(carta.id)}
+                            disabled={deletingCartaId !== null}
+                            className="text-[#b91c1c] hover:bg-[#fee2e2] p-1.5 rounded-lg transition-colors inline-flex items-center justify-center border border-transparent hover:border-[#fca5a5] disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Eliminar registro de base de datos"
+                          >
+                            {deletingCartaId === carta.id ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {cartasDistribucion.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="p-16 text-center text-gray-400 font-medium">
+                        <td colSpan={6} className="p-16 text-center text-gray-400 font-medium">
                           No hay cartas de distribución vinculadas a este cliente.
                         </td>
                       </tr>
@@ -1664,6 +1784,23 @@ export default function ClientDetailPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3.5 rounded-xl shadow-xl text-white font-semibold text-sm ${
+              toast.type === 'error' ? 'bg-[#ef4444]' : 'bg-[#10b981]'
+            }`}
+          >
+            {toast.type === 'error' ? <X size={18} /> : <CheckCircle size={18} />}
+            <span>{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AppShell>
   )
 }

@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont, RGB } from 'pdf-lib'
+import fontkit from '@pdf-lib/fontkit'
 import { supabaseAdmin } from '@/lib/supabase/serverSide'
 import prisma from '@/lib/prisma'
 import fs from 'fs'
@@ -301,20 +302,32 @@ export async function generateClientLetter({
   const firmaEricPath = path.join(process.cwd(), 'resources', 'img', 'firmaEric.jpg')
   const firmaRicardoPath = path.join(process.cwd(), 'resources', 'img', 'firmaRicardoReyes.png')
   const logoPath = path.join(process.cwd(), 'resources', 'img', 'ARTHROMED OFICIAL.png')
+  const robotoRegularPath = path.join(process.cwd(), 'resources', 'fonts', 'Roboto-Regular.ttf')
+  const robotoBoldPath = path.join(process.cwd(), 'resources', 'fonts', 'Roboto-Bold.ttf')
 
-  if (!fs.existsSync(machotePath) || !fs.existsSync(firmaEricPath) || !fs.existsSync(firmaRicardoPath) || !fs.existsSync(logoPath)) {
-    throw new Error('Falta alguna imagen de recurso (machote, firmas o logo en resources/img)')
+  if (
+    !fs.existsSync(machotePath) ||
+    !fs.existsSync(firmaEricPath) ||
+    !fs.existsSync(firmaRicardoPath) ||
+    !fs.existsSync(logoPath) ||
+    !fs.existsSync(robotoRegularPath) ||
+    !fs.existsSync(robotoBoldPath)
+  ) {
+    throw new Error('Falta alguna imagen de recurso o fuente (machote, firmas, logo o fuentes Roboto en resources)')
   }
 
   const machoteBytes = fs.readFileSync(machotePath)
   const firmaEricBytes = fs.readFileSync(firmaEricPath)
   const firmaRicardoBytes = fs.readFileSync(firmaRicardoPath)
   const logoBytes = fs.readFileSync(logoPath)
+  const robotoRegularBytes = fs.readFileSync(robotoRegularPath)
+  const robotoBoldBytes = fs.readFileSync(robotoBoldPath)
 
   // 4. Create PDF Document
   const pdf = await PDFDocument.create()
-  const regular = await pdf.embedFont(StandardFonts.Helvetica)
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
+  pdf.registerFontkit(fontkit)
+  const regular = await pdf.embedFont(robotoRegularBytes)
+  const bold = await pdf.embedFont(robotoBoldBytes)
   
   const bg1 = await pdf.embedJpg(machoteBytes)
   const imgEric = await pdf.embedJpg(firmaEricBytes)
@@ -534,30 +547,79 @@ export async function generateClientLetter({
   const labelY1 = nameY - 10
   const labelY2 = labelY1 - 10
 
-  // Left signer: Eric Ai
-  page.drawText('Eric Ai', { x: LEFT + 45, y: nameY, size: 8.5, font: bold, color: DARK })
-  page.drawText('Gerente LATAM', { x: LEFT + 32, y: labelY1, size: 8.5, font: regular, color: GRAY })
-  page.drawText('For Jiangsu Bonss Medical Technology Co. Ltd', { x: LEFT + 5, y: labelY2, size: 7, font: regular, color: GRAY })
+  // Centers of each signature block
+  const leftCenter = LEFT + 70
+  const rightCenter = RIGHT - 98
 
-  // Draw Eric's signature (and stamp)
+  // Left signer text and positioning
+  const leftName = 'Eric Ai'
+  const leftTitle = 'Gerente LATAM'
+  const leftSub = 'For Jiangsu Bonss Medical Technology Co. Ltd'
+
+  page.drawText(leftName, {
+    x: leftCenter - bold.widthOfTextAtSize(leftName, 8.5) / 2,
+    y: nameY,
+    size: 8.5,
+    font: bold,
+    color: DARK
+  })
+  page.drawText(leftTitle, {
+    x: leftCenter - regular.widthOfTextAtSize(leftTitle, 8.5) / 2,
+    y: labelY1,
+    size: 8.5,
+    font: regular,
+    color: GRAY
+  })
+  page.drawText(leftSub, {
+    x: leftCenter - regular.widthOfTextAtSize(leftSub, 7) / 2,
+    y: labelY2,
+    size: 7,
+    font: regular,
+    color: GRAY
+  })
+
+  // Draw Eric's signature (and stamp) centered above his name block
+  const ericWidth = 110
   page.drawImage(imgEric, {
-    x: LEFT + 15,
+    x: leftCenter - ericWidth / 2,
     y: nameY + 10,
-    width: 110,
+    width: ericWidth,
     height: 55
   })
 
-  // Right signer: Dr. Ricardo Reyes Reyes
-  page.drawText('Dr. Ricardo Reyes Reyes', { x: RIGHT - 150, y: nameY, size: 8.5, font: bold, color: DARK })
-  page.drawText('Director General', { x: RIGHT - 138, y: labelY1, size: 8.5, font: regular, color: GRAY })
-  page.drawText('ARTHROMED', { x: RIGHT - 128, y: labelY2, size: 8.5, font: regular, color: GRAY })
+  // Right signer text and positioning
+  const rightName = 'Dr. Ricardo Reyes Reyes'
+  const rightTitle = 'Director General'
+  const rightSub = 'ARTHROMED'
 
-  // Draw Ricardo's signature - bigger while preserving aspect ratio
-  const rWidth = 140
+  page.drawText(rightName, {
+    x: rightCenter - bold.widthOfTextAtSize(rightName, 8.5) / 2,
+    y: nameY,
+    size: 8.5,
+    font: bold,
+    color: DARK
+  })
+  page.drawText(rightTitle, {
+    x: rightCenter - regular.widthOfTextAtSize(rightTitle, 8.5) / 2,
+    y: labelY1,
+    size: 8.5,
+    font: regular,
+    color: GRAY
+  })
+  page.drawText(rightSub, {
+    x: rightCenter - regular.widthOfTextAtSize(rightSub, 8.5) / 2,
+    y: labelY2,
+    size: 8.5,
+    font: regular,
+    color: GRAY
+  })
+
+  // Draw Ricardo's signature - balanced size while preserving aspect ratio, centered above his name block
+  const rWidth = 105
   const rHeight = (imgRicardo.height / imgRicardo.width) * rWidth
   
   page.drawImage(imgRicardo, {
-    x: RIGHT - 175, // Adjust positioning so it's centered nicely above his name
+    x: rightCenter - rWidth / 2,
     y: nameY + 10,
     width: rWidth,
     height: rHeight

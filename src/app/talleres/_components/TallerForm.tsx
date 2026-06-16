@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
 import { createClient } from '@/lib/supabase/client'
+import FlyerBuilder from './FlyerBuilder'
+import { Doctor } from '@/types/database'
 
 interface TallerFormProps {
   tallerId: string | null
@@ -30,6 +32,8 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     flyer: ''
   })
   const [doctorIds, setDoctorIds] = useState<string[]>([])
+  const [allDoctors, setAllDoctors] = useState<Doctor[]>([])
+  const [isFlyerBuilderOpen, setIsFlyerBuilderOpen] = useState(false)
 
   const supabase = createClient()
 
@@ -38,6 +42,11 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     fetch('/api/congresos')
       .then(r => r.json())
       .then(({ data }) => setCongresos(data || []))
+
+    // Fetch all doctors for flyer builder mapping
+    fetch('/api/doctors')
+      .then(r => r.json())
+      .then(({ data }) => setAllDoctors(data || []))
 
     if (!isNew && tallerId) {
       fetch(`/api/workshops/${tallerId}`)
@@ -187,19 +196,35 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               <div className="space-y-2">
                 {formData.flyer && (
                   <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-100 rounded-xl">
-                    <a href={formData.flyer} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1 truncate flex-1">
-                      <FileText size={16} /> Ver flyer actual
+                    <a href={formData.flyer} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1 truncate flex-1 font-semibold">
+                      <FileText size={16} /> Ver flyer actual o generado
                     </a>
                     <button type="button" onClick={() => setFormData(p => ({ ...p, flyer: '' }))} className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
                       <X size={16} />
                     </button>
                   </div>
                 )}
-                <label className="btn-secondary w-full justify-center cursor-pointer text-sm py-3 border-dashed border-2">
-                  {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                  {uploading ? 'Subiendo...' : (formData.flyer ? 'Reemplazar Flyer' : 'Subir Imagen o PDF')}
-                  <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="btn-secondary w-full justify-center cursor-pointer text-sm py-3 border-dashed border-2">
+                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                    {uploading ? 'Subiendo...' : (formData.flyer ? 'Reemplazar Flyer' : 'Subir Imagen o PDF')}
+                    <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (doctorIds.length === 0) {
+                        alert('Selecciona al menos un doctor antes de abrir el diseñador de flyers.')
+                        return
+                      }
+                      setIsFlyerBuilderOpen(true)
+                    }}
+                    className="btn-secondary w-full justify-center text-sm py-3 border-blue-200 text-blue-600 hover:bg-blue-50/50 flex items-center gap-2"
+                  >
+                    <Sparkles size={16} />
+                    Generar Flyer desde Cero
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -218,6 +243,17 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           </div>
         </form>
       </div>
+      <FlyerBuilder
+        isOpen={isFlyerBuilderOpen}
+        onClose={() => setIsFlyerBuilderOpen(false)}
+        tallerId={tallerId}
+        workshopName={formData.name}
+        workshopDate={formData.date_time}
+        workshopCost={formData.cost}
+        congressName={congresos.find(c => c.id === formData.congress_id)?.name || ''}
+        selectedDoctors={allDoctors.filter(d => doctorIds.includes(d.id))}
+        onSave={(url) => setFormData(p => ({ ...p, flyer: url }))}
+      />
     </AppShell>
   )
 }
