@@ -117,6 +117,9 @@ export default function FacturaDetailPage() {
   const [formMoratorio, setFormMoratorio] = useState(0)
   const [formInstallments, setFormInstallments] = useState<{ numero: number; monto: number; fecha_vencimiento: string }[]>([])
   const [isSavingPlan, setIsSavingPlan] = useState(false)
+  const [pctInputs, setPctInputs] = useState<Record<number, string>>({})
+  const [montoInputs, setMontoInputs] = useState<Record<number, string>>({})
+  const [activeInput, setActiveInput] = useState<{ numero: number; type: 'monto' | 'pct' } | null>(null)
 
   // Installment Payment State
   const [payingInstallment, setPayingInstallment] = useState<Parcialidad | null>(null)
@@ -255,12 +258,20 @@ export default function FacturaDetailPage() {
           fecha_vencimiento: new Date(p.fecha_vencimiento).toISOString().split('T')[0]
         }))
       )
+      
+      const initialPct: Record<number, string> = {}
+      const totalWithInterest = Number(invoice?.total || 0) * (1 + Number(paymentPlan.interes_porcentaje) / 100)
+      paymentPlan.parcialidades.forEach(p => {
+        initialPct[p.numero] = totalWithInterest > 0 ? ((Number(p.monto) / totalWithInterest) * 100).toFixed(1) : '0.0'
+      })
+      setPctInputs(initialPct)
     } else {
       setFormNumPayments(3)
       setIsCustomPayments(false)
       setFormInterest(0)
       setFormMoratorio(0)
       setFormInstallments([])
+      setPctInputs({})
     }
   }
 
@@ -309,6 +320,11 @@ export default function FacturaDetailPage() {
       }
     }
     setFormInstallments(installments)
+    const proposalPct: Record<number, string> = {}
+    installments.forEach(inst => {
+      proposalPct[inst.numero] = totalWithInterest > 0 ? ((inst.monto / totalWithInterest) * 100).toFixed(1) : '0.0'
+    })
+    setPctInputs(proposalPct)
   }
 
   const handleSavePlan = async () => {
@@ -865,7 +881,20 @@ export default function FacturaDetailPage() {
                     max="100"
                     step="0.01"
                     value={formInterest}
-                    onChange={(e) => setFormInterest(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const newInterest = parseFloat(e.target.value) || 0
+                      setFormInterest(newInterest)
+                      if (invoice) {
+                        const newTotalWithInterest = Number(invoice.total) * (1 + newInterest / 100)
+                        setPctInputs(prev => {
+                          const updated = { ...prev }
+                          formInstallments.forEach(inst => {
+                            updated[inst.numero] = newTotalWithInterest > 0 ? ((inst.monto / newTotalWithInterest) * 100).toFixed(1) : '0.0'
+                          })
+                          return updated
+                        })
+                      }
+                    }}
                     className="erp-input w-full shadow-xs bg-white text-sm"
                   />
                 </div>
@@ -907,12 +936,19 @@ export default function FacturaDetailPage() {
                             fecha_vencimiento: new Date(p.fecha_vencimiento).toISOString().split('T')[0]
                           }))
                         )
+                        const initialPct: Record<number, string> = {}
+                        const totalWithInterest = Number(invoice?.total || 0) * (1 + Number(paymentPlan.interes_porcentaje) / 100)
+                        paymentPlan.parcialidades.forEach(p => {
+                          initialPct[p.numero] = totalWithInterest > 0 ? ((Number(p.monto) / totalWithInterest) * 100).toFixed(1) : '0.0'
+                        })
+                        setPctInputs(initialPct)
                       } else {
                         setFormNumPayments(3)
                         setIsCustomPayments(false)
                         setFormInterest(0)
                         setFormMoratorio(0)
                         setFormInstallments([])
+                        setPctInputs({})
                       }
                     }}
                     className="btn-secondary border-red-200 text-red-600 hover:bg-red-50 !py-2 !px-5 text-sm font-semibold cursor-pointer flex items-center gap-1"
@@ -945,7 +981,6 @@ export default function FacturaDetailPage() {
                       <tbody className="divide-y divide-gray-100">
                         {formInstallments.map((inst, index) => {
                           const totalWithInterest = Number(invoice.total || 0) * (1 + formInterest / 100)
-                          const pct = totalWithInterest > 0 ? ((inst.monto / totalWithInterest) * 100).toFixed(1) : '0.0'
                           return (
                             <tr key={index} className="hover:bg-gray-50/50">
                               <td className="p-3 text-center font-bold text-gray-700">#{inst.numero}</td>
@@ -959,12 +994,25 @@ export default function FacturaDetailPage() {
                                       type="number"
                                       step="0.01"
                                       min="0.01"
-                                      value={inst.monto}
-                                      onChange={(e) => {
-                                        const val = parseFloat(e.target.value) || 0
-                                        setFormInstallments(prev => prev.map(p => p.numero === inst.numero ? { ...p, monto: val } : p))
+                                      value={
+                                        activeInput?.numero === inst.numero && activeInput?.type === 'monto'
+                                          ? (montoInputs[inst.numero] ?? '')
+                                          : inst.monto
+                                      }
+                                      onFocus={() => {
+                                        setMontoInputs(prev => ({ ...prev, [inst.numero]: inst.monto.toString() }))
+                                        setActiveInput({ numero: inst.numero, type: 'monto' })
                                       }}
-                                      className="erp-input !pl-7 !py-1 text-sm font-semibold w-full bg-white shadow-inner"
+                                      onBlur={() => setActiveInput(null)}
+                                      onChange={(e) => {
+                                        const rawVal = e.target.value
+                                        setMontoInputs(prev => ({ ...prev, [inst.numero]: rawVal }))
+                                        const val = parseFloat(rawVal) || 0
+                                        setFormInstallments(prev => prev.map(p => p.numero === inst.numero ? { ...p, monto: val } : p))
+                                        const pct = totalWithInterest > 0 ? ((val / totalWithInterest) * 100).toFixed(1) : '0.0'
+                                        setPctInputs(prev => ({ ...prev, [inst.numero]: pct }))
+                                      }}
+                                      className="erp-input !pl-7 !py-1 text-sm font-semibold w-full bg-white shadow-inner no-spinner"
                                     />
                                   </div>
                                   <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-lg shadow-inner">
@@ -973,9 +1021,21 @@ export default function FacturaDetailPage() {
                                       step="any"
                                       min="0"
                                       max="100"
-                                      value={inst.monto === 0 || totalWithInterest === 0 ? '' : ((inst.monto / totalWithInterest) * 100).toFixed(1)}
+                                      value={
+                                        activeInput?.numero === inst.numero && activeInput?.type === 'pct'
+                                          ? (pctInputs[inst.numero] ?? '')
+                                          : (totalWithInterest > 0 ? ((inst.monto / totalWithInterest) * 100).toFixed(1) : '0.0')
+                                      }
+                                      onFocus={() => {
+                                        const currentPct = totalWithInterest > 0 ? ((inst.monto / totalWithInterest) * 100).toFixed(1) : '0.0'
+                                        setPctInputs(prev => ({ ...prev, [inst.numero]: currentPct }))
+                                        setActiveInput({ numero: inst.numero, type: 'pct' })
+                                      }}
+                                      onBlur={() => setActiveInput(null)}
                                       onChange={(e) => {
-                                        const pctVal = parseFloat(e.target.value) || 0
+                                        const rawVal = e.target.value
+                                        setPctInputs(prev => ({ ...prev, [inst.numero]: rawVal }))
+                                        const pctVal = parseFloat(rawVal) || 0
                                         const newMonto = parseFloat(((pctVal / 100) * totalWithInterest).toFixed(2))
                                         setFormInstallments(prev => prev.map(p => p.numero === inst.numero ? { ...p, monto: newMonto } : p))
                                       }}
