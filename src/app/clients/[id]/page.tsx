@@ -221,6 +221,7 @@ export default function ClientDetailPage() {
   const [letterRfc, setLetterRfc] = useState('')
   const [letterSelectedLines, setLetterSelectedLines] = useState<string[]>([])
   const [letterExpirationDate, setLetterExpirationDate] = useState('')
+  const [letterCoverage, setLetterCoverage] = useState('')
   const [productLines, setProductLines] = useState<any[]>([])
 
   const getLastDayOfNextJanuary = () => {
@@ -239,6 +240,7 @@ export default function ClientDetailPage() {
     setLetterRfc(client?.rfc || '')
     setLetterSelectedLines([])
     setLetterExpirationDate(getLastDayOfNextJanuary())
+    setLetterCoverage('')
     setShowGenerateLetterModal(true)
   }
 
@@ -259,7 +261,8 @@ export default function ClientDetailPage() {
           rfc: letterRfc,
           selectedLines: letterSelectedLines,
           expirationDate: letterExpirationDate,
-          createdBy: null
+          createdBy: null,
+          coverage: letterCoverage
         })
       })
 
@@ -1668,6 +1671,19 @@ export default function ClientDetailPage() {
               className="erp-input text-sm w-full font-medium"
               value={letterInstitutionName}
               onChange={e => setLetterInstitutionName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
+              Cobertura (Opcional)
+            </label>
+            <input
+              type="text"
+              placeholder="Ej. Nuevo León, república mexicana, etc."
+              className="erp-input text-sm w-full font-medium"
+              value={letterCoverage}
+              onChange={e => setLetterCoverage(e.target.value)}
             />
           </div>
 

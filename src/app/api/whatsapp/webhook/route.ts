@@ -88,7 +88,8 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
 5. "rfc": Si se menciona un RFC específico para usar en la carta, extráelo. De lo contrario, pon null.
 6. "selectedLinesIds": Compara las líneas solicitadas en el mensaje con la lista de líneas disponibles en el sistema. Selecciona los IDs de aquellas líneas que coincidan con lo solicitado (por ejemplo, si pide "plasma" coincide con "Bonss Plasma", si pide "shaver" coincide con "Bonss Shaver", etc.). Si no solicita ninguna línea específica o no coincide con ninguna, deja la lista vacía.
 7. "expirationDate": Fecha de vencimiento específica en formato YYYY-MM-DD si se menciona en el mensaje. De lo contrario, pon null.
-8. "missingInformation": Si "isLetterRequest" es true pero falta el distribuidor ("distributorQuery"), la institución ("institutionName") o las líneas de producto, escribe un mensaje explicativo y amigable en español solicitando los datos faltantes.`
+8. "missingInformation": Si "isLetterRequest" es true pero falta el distribuidor ("distributorQuery"), la institución ("institutionName") o las líneas de producto, escribe un mensaje explicativo y amigable en español solicitando los datos faltantes.
+9. "coverage": La cobertura geográfica (región, estado, estados, país o países) especificada en la solicitud (ej. "Nuevo León", "los estados de Jalisco, Colima y Nayarit", "república mexicana", etc.). Si no se especifica explícitamente en el mensaje, pon null.`
 
         const parsed = await generateObject({
           model: google('gemini-2.5-flash'),
@@ -100,7 +101,8 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
             rfc: z.string().nullable(),
             selectedLinesIds: z.array(z.string()),
             expirationDate: z.string().nullable(),
-            missingInformation: z.string().nullable()
+            missingInformation: z.string().nullable(),
+            coverage: z.string().nullable()
           }),
           prompt
         })
@@ -184,7 +186,8 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
           selectedLines: extraction.selectedLinesIds,
           expirationDate: finalExpDate,
           createdBy: null,
-          host
+          host,
+          coverage: extraction.coverage || undefined
         })
 
         // Log the activity on the client profile

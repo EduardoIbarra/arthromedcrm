@@ -94,6 +94,80 @@ function formatDateES(dateStr: string | Date): string {
   return `${d.getDate()} de ${MONTHS_ES[d.getMonth()]} de ${d.getFullYear()}`
 }
 
+interface CoverageFormatted {
+  prefix: string
+  boldText: string
+}
+
+async function generateCoverageText(coverage: string): Promise<CoverageFormatted> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    console.warn('OPENAI_API_KEY is not set. Using fallback for coverage formatting.')
+    return { prefix: ' para ', boldText: coverage }
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Eres un asistente de redacción formal en español. Tu tarea es recibir una descripción de cobertura geográfica (ej. un estado, varios estados, una región, cobertura nacional, etc.) y estructurarla en dos partes:
+1. "prefix": Frase introductoria/preposición que conecta "ante su institución" con la cobertura (normalmente comienza con " para el estado de ", " para los estados de ", " para la ", " con cobertura ", etc.). Debe incluir los espacios iniciales y finales adecuados.
+2. "boldText": El nombre de la región, estado, estados o país formateado formalmente para mostrarse en negrita.
+
+Ejemplos:
+- Entrada: "Nuevo León" -> prefix: " para el estado de ", boldText: "Nuevo León"
+- Entrada: "Nuevo León y Tamaulipas" -> prefix: " para los estados de ", boldText: "Nuevo León y Tamaulipas"
+- Entrada: "república mexicana" -> prefix: " para la ", boldText: "república mexicana"
+- Entrada: "nacional" -> prefix: " con cobertura ", boldText: "nacional"
+- Entrada: "Jalisco, Colima y Nayarit" -> prefix: " para los estados de ", boldText: "Jalisco, Colima y Nayarit"
+- Entrada: "sureste" -> prefix: " para la región ", boldText: "sureste"
+- Entrada: "México" -> prefix: " para la ", boldText: "república mexicana"
+
+Responde con un objeto JSON que tenga exactamente las llaves "prefix" y "boldText". No incluyas comillas invertidas de markdown en la respuesta.`
+          },
+          {
+            role: 'user',
+            content: coverage
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 150,
+        response_format: { type: "json_object" }
+      })
+    })
+
+    if (!response.ok) {
+      console.error('OpenAI API error generating coverage text:', await response.text())
+      return { prefix: ' para ', boldText: coverage }
+    }
+
+    const data = await response.json()
+    const resultText = data.choices?.[0]?.message?.content?.trim()
+    if (resultText) {
+      const parsed = JSON.parse(resultText)
+      if (parsed.prefix !== undefined && parsed.boldText !== undefined) {
+        return {
+          prefix: parsed.prefix,
+          boldText: parsed.boldText
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error calling OpenAI for coverage formatting:', error)
+  }
+
+  return { prefix: ' para ', boldText: coverage }
+}
+
+
 function wrapText(text: string, font: PDFFont, size: number, maxW: number): string[] {
   const words = text.split(' ')
   const lines: string[] = []
@@ -258,6 +332,7 @@ export interface GenerateLetterParams {
   expirationDate: string | Date
   createdBy?: string | null
   host?: string
+  coverage?: string
 }
 
 export async function generateClientLetter({
@@ -268,7 +343,8 @@ export async function generateClientLetter({
   selectedLines,
   expirationDate,
   createdBy = null,
-  host = 'localhost:3000'
+  host = 'localhost:3000',
+  coverage
 }: GenerateLetterParams) {
   // 1. Fetch client from DB
   const client = await prisma.clients.findUnique({
@@ -448,15 +524,25 @@ export async function generateClientLetter({
 
   // Paragraph 2 (Justified)
   y -= 20
-  const p2Segments = [
+  let p2Segments = [
     { text: 'Por medio de la presente, hacemos constar que la empresa ', font: regular },
     { text: finalDistName.toUpperCase(), font: bold },
     { text: ' , con RFC: ', font: regular },
     { text: finalRfc.toUpperCase(), font: bold },
     { text: ', cuenta con nuestra autorización para fungir como ', font: regular },
     { text: 'Distribuidor Autorizado', font: bold },
-    { text: ' ante su institución.', font: regular }
+    { text: ' ante su institución', font: regular }
   ]
+
+  if (coverage && coverage.trim()) {
+    const formatted = await generateCoverageText(coverage.trim())
+    p2Segments.push({ text: formatted.prefix, font: regular })
+    p2Segments.push({ text: formatted.boldText, font: bold })
+    p2Segments.push({ text: '.', font: regular })
+  } else {
+    p2Segments.push({ text: '.', font: regular })
+  }
+
   y = drawJustifiedMixedParagraph(page, p2Segments, LEFT, y, 10, CONTENT_W, 14, DARK)
 
   // Paragraph 3 (Justified)
@@ -670,7 +756,7 @@ export async function generateClientLetter({
       id: cartaId,
       empresa_nombre: finalDistName,
       rfc: finalRfc,
-      estado_region: client.states ? client.states.join(', ') : '',
+      estado_region: coverage || (client.states ? client.states.join(', ') : ''),
       lineas_producto: lineNames,
       vigencia: finalExpDate,
       destinatario: institutionName,

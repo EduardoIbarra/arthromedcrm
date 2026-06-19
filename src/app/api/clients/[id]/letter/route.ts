@@ -16,7 +16,8 @@ export async function POST(
       rfc,
       selectedLines, // Array of line IDs
       expirationDate,
-      createdBy
+      createdBy,
+      coverage
     } = body
 
     if (!institutionName || !selectedLines || selectedLines.length === 0) {
@@ -33,7 +34,8 @@ export async function POST(
       selectedLines,
       expirationDate,
       createdBy,
-      host
+      host,
+      coverage
     })
 
     return NextResponse.json(result)

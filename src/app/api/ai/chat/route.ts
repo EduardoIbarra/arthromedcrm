@@ -30,12 +30,14 @@ Reglas de razonamiento y uso de herramientas:
    - Para VENTAS TOTALES de un periodo, mes, año, tendencias, o comparaciones generales de totales, usa SIEMPRE la herramienta "getSalesSummaryByPeriod". Esta herramienta calcula la suma total directamente en el servidor y te da el valor consolidado de forma 100% exacta sin inducir a errores de cálculo.
    - Para DESGLOSES DE CLIENTES, RANKINGS de clientes, o detalles por cliente, usa "getSalesData" pasando el año ("anio") y/o mes ("mes") si el usuario los especificó.
    - Para CONSULTAS SOBRE PRODUCTOS (cuál se vende más, volúmenes de venta, precios, qué productos compra un cliente, productos vendidos en un periodo, etc.), usa SIEMPRE la herramienta "getProductSalesSummary".
+   - Para CONSULTAS DETALLADAS O GRANULARES DE VENTAS DE UN PRODUCTO POR FACTURA (por ejemplo, cuántas unidades de un producto específico se vendieron este año o mes, en qué facturas, a qué clientes, a qué precios y cuáles son los montos de venta detallados), usa "getProductSalesByInvoice".
 3. CONSULTAS DE FACTURAS ESPECÍFICAS: Si el usuario te pregunta por facturas específicas (ej. F-240, F-238, o simplemente 240, 238), usa SIEMPRE la herramienta "getSpecificInvoices" pasando los números de factura.
 4. PROYECCIONES: Si el usuario te pide proyecciones de ventas (por ejemplo, para el resto del año 2026 o para periodos futuros), obtén el histórico de ventas utilizando "getSalesSummaryByPeriod" (sin filtrar o filtrando por año), analiza el promedio mensual o la tendencia de crecimiento, y calcula una proyección razonada explicándola paso a paso en tu respuesta.
-5. Responde siempre en español de manera profesional, analítica, clara y concisa.
+5. Responde siempre en español de manera profesional, analítica, clara y extremadamente concisa. Evita rodeos, saludos redundantes o explicaciones largas.
 6. Muestra siempre las cifras monetarias formateadas como pesos mexicanos (ej. $1,250,500.00 MXN).
 7. Presenta las respuestas de forma muy estructurada. Usa formato Markdown (tablas, negritas, viñetas) para que los rankings, desgloses y comparaciones sean visualmente impecables y fáciles de leer.
 8. Si te preguntan sobre cosas ajenas a las ventas o al ERP, responde amablemente que tu especialidad es el análisis de ventas y datos del ERP de Arthromed.
+9. Sé muy directo y breve en tus introducciones y explicaciones de texto (máximo 1 o 2 párrafos cortos antes de cualquier tabla) para que la lectura por voz sea fluida y rápida. No repitas en prosa o en texto los números o datos exactos que ya se detallan en la tabla.
 `
 
     const result = await generateText({
@@ -231,10 +233,13 @@ Reglas de razonamiento y uso de herramientas:
               const where: any = {}
               
               if (productoNombre) {
-                where.producto_nombre = {
-                  contains: productoNombre,
-                  mode: 'insensitive'
-                }
+                const cleanSearch = productoNombre.replace(/\s+/g, '')
+                const cleanWithDash = productoNombre.replace(/\s+/g, '-')
+                where.OR = [
+                  { producto_nombre: { contains: productoNombre, mode: 'insensitive' } },
+                  { producto_nombre: { contains: cleanSearch, mode: 'insensitive' } },
+                  { producto_nombre: { contains: cleanWithDash, mode: 'insensitive' } }
+                ]
               }
 
               const invoiceWhere: any = {
@@ -355,6 +360,92 @@ Reglas de razonamiento y uso de herramientas:
               }
             } catch (err: any) {
               console.error('Error in getProductSalesSummary tool:', err)
+              return { error: err.message }
+            }
+          }
+        }),
+
+        getProductSalesByInvoice: tool({
+          description: 'Obtiene el desglose detallado de ventas factura por factura para un producto específico, permitiendo ver de forma granular las ventas registradas. Devuelve una lista de transacciones donde cada elemento representa la venta de ese producto en una factura, incluyendo número de factura, fecha, cliente, cantidad facturada, precio unitario e importe.',
+          inputSchema: z.object({
+            productoNombre: z.string().describe('Nombre del producto a buscar (ej. cannon 3)'),
+            clienteNombre: z.string().optional().describe('Nombre del cliente para filtrar las ventas (ej. Bio Implants)'),
+            anio: z.number().optional().describe('Año específico para filtrar (ej. 2026)'),
+            mes: z.number().optional().describe('Mes específico (1-12) para filtrar (ej. 1 para enero)'),
+          }),
+          execute: async ({ productoNombre, clienteNombre, anio, mes }) => {
+            try {
+              const cleanSearch = productoNombre.replace(/\s+/g, '')
+              const cleanWithDash = productoNombre.replace(/\s+/g, '-')
+              const where: any = {
+                OR: [
+                  { producto_nombre: { contains: productoNombre, mode: 'insensitive' } },
+                  { producto_nombre: { contains: cleanSearch, mode: 'insensitive' } },
+                  { producto_nombre: { contains: cleanWithDash, mode: 'insensitive' } }
+                ]
+              }
+
+              const invoiceWhere: any = {
+                estado: { notIn: ['anulado', 'cancelada'] }
+              }
+
+              if (clienteNombre) {
+                invoiceWhere.cliente_nombre = {
+                  contains: clienteNombre,
+                  mode: 'insensitive'
+                }
+              }
+
+              if (anio) {
+                if (mes) {
+                  const startDate = new Date(anio, mes - 1, 1)
+                  const endDate = new Date(anio, mes, 0, 23, 59, 59, 999)
+                  invoiceWhere.fecha_expedicion = { gte: startDate, lte: endDate }
+                } else {
+                  const startDate = new Date(anio, 0, 1)
+                  const endDate = new Date(anio, 11, 31, 23, 59, 59, 999)
+                  invoiceWhere.fecha_expedicion = { gte: startDate, lte: endDate }
+                }
+              } else if (mes) {
+                const currentYear = new Date().getFullYear()
+                const startDate = new Date(currentYear, mes - 1, 1)
+                const endDate = new Date(currentYear, mes, 0, 23, 59, 59, 999)
+                invoiceWhere.fecha_expedicion = { gte: startDate, lte: endDate }
+              }
+
+              where.facturas_cliente = invoiceWhere
+
+              const items = await prisma.factura_productos.findMany({
+                where,
+                include: {
+                  facturas_cliente: {
+                    select: {
+                      cliente_nombre: true,
+                      fecha_expedicion: true,
+                      numero_factura: true
+                    }
+                  }
+                }
+              })
+
+              // Sort in memory to avoid Prisma order by nested relations limitations
+              items.sort((a: any, b: any) => {
+                const dateA = a.facturas_cliente?.fecha_expedicion ? new Date(a.facturas_cliente.fecha_expedicion).getTime() : 0
+                const dateB = b.facturas_cliente?.fecha_expedicion ? new Date(b.facturas_cliente.fecha_expedicion).getTime() : 0
+                return dateB - dateA
+              })
+
+              return items.map((item: any) => ({
+                factura_numero: item.facturas_cliente?.numero_factura,
+                fecha: item.facturas_cliente?.fecha_expedicion,
+                cliente: item.facturas_cliente?.cliente_nombre,
+                producto: item.producto_nombre,
+                cantidad: item.cantidad_facturada,
+                precio_unitario: Number(item.precio_unitario || 0),
+                importe: Number(item.importe || 0)
+              }))
+            } catch (err: any) {
+              console.error('Error in getProductSalesByInvoice tool:', err)
               return { error: err.message }
             }
           }
