@@ -714,6 +714,30 @@ export async function generateClientLetter({
     height: rHeight
   })
 
+  // Footer address info
+  const footerLine1 = 'Av. Zacatecas #128, Constituyentes del 17, San Nicolás de los Garza, CP 66410 Nuevo León, México. Tel. 812-429-5408 | 812-429-8573'
+  const footerLine2 = 'gerencia@arthromed.com.mx'
+  
+  const footerSize = 7.5
+  const w1 = regular.widthOfTextAtSize(footerLine1, footerSize)
+  const w2 = regular.widthOfTextAtSize(footerLine2, footerSize)
+
+  page.drawText(footerLine1, {
+    x: (PAGE_W - w1) / 2,
+    y: 35,
+    size: footerSize,
+    font: regular,
+    color: GRAY
+  })
+
+  page.drawText(footerLine2, {
+    x: (PAGE_W - w2) / 2,
+    y: 23,
+    size: footerSize,
+    font: regular,
+    color: GRAY
+  })
+
   // 5. Save PDF bytes
   const pdfBytes = await pdf.save()
 
