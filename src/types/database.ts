@@ -280,7 +280,9 @@ export interface CarFleet {
 export interface WorkshopMember {
   workshop_id: string
   user_id: string
+  car_id?: string | null
   user_profiles?: UserProfile
+  car_fleet?: CarFleet | null
 }
 
 export interface WorkshopItineraryMember {

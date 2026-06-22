@@ -9,7 +9,7 @@ export async function GET() {
       include: {
         congresos: true,
         congress_workshop_doctors: { include: { doctors: true } },
-        congress_workshop_members: { include: { user_profiles: true } },
+        congress_workshop_members: { include: { user_profiles: true, car_fleet: true } },
         _count: { select: { congress_workshop_enrollments: true } }
       },
       orderBy: { date_time: 'desc' },
@@ -23,14 +23,26 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, flyer, description } = body
 
     if (!name || !date_time || !max_people) {
       return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
     }
 
     const docIds = Array.isArray(doctorIds) ? doctorIds : []
-    const membIds = Array.isArray(memberIds) ? memberIds : []
+    
+    let membersData: { user_id: string, car_id: string | null }[] = []
+    if (members && Array.isArray(members)) {
+      membersData = members.map((m: any) => ({
+        user_id: m.userId,
+        car_id: m.carId || null
+      }))
+    } else if (memberIds && Array.isArray(memberIds)) {
+      membersData = memberIds.map((userId: string) => ({
+        user_id: userId,
+        car_id: null
+      }))
+    }
 
     const workshop = await prisma.congress_workshops.create({
       data: {
@@ -53,14 +65,12 @@ export async function POST(req: NextRequest) {
           }))
         },
         congress_workshop_members: {
-          create: membIds.map((userId: string) => ({
-            user_id: userId
-          }))
+          create: membersData
         }
       },
       include: {
         congress_workshop_doctors: { include: { doctors: true } },
-        congress_workshop_members: { include: { user_profiles: true } },
+        congress_workshop_members: { include: { user_profiles: true, car_fleet: true } },
         congresos: true
       }
     })

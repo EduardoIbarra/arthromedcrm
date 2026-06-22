@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           include: { doctors: true }
         },
         congress_workshop_members: {
-          include: { user_profiles: true }
+          include: { user_profiles: true, car_fleet: true }
         },
         workshop_itinerarios: {
           include: {
@@ -55,14 +55,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await req.json()
-    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, itinerary, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, itinerary, flyer, description } = body
 
     const result = await prisma.$transaction(async (tx: any) => {
       if (doctorIds && Array.isArray(doctorIds)) {
         await tx.congress_workshop_doctors.deleteMany({ where: { workshop_id: id } })
       }
 
-      if (memberIds && Array.isArray(memberIds)) {
+      let shouldUpdateMembers = false
+      let membersData: { user_id: string, car_id: string | null }[] = []
+      
+      if (members && Array.isArray(members)) {
+        shouldUpdateMembers = true
+        membersData = members.map((m: any) => ({
+          user_id: m.userId,
+          car_id: m.carId || null
+        }))
+      } else if (memberIds && Array.isArray(memberIds)) {
+        shouldUpdateMembers = true
+        membersData = memberIds.map((userId: string) => ({
+          user_id: userId,
+          car_id: null
+        }))
+      }
+      
+      if (shouldUpdateMembers) {
         await tx.congress_workshop_members.deleteMany({ where: { workshop_id: id } })
       }
 
@@ -93,17 +110,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               }))
             }
           }),
-          ...(memberIds && Array.isArray(memberIds) && {
+          ...(shouldUpdateMembers && {
             congress_workshop_members: {
-              create: memberIds.map((userId: string) => ({
-                user_id: userId
-              }))
+              create: membersData
             }
           })
         },
         include: {
           congress_workshop_doctors: { include: { doctors: true } },
-          congress_workshop_members: { include: { user_profiles: true } }
+          congress_workshop_members: { include: { user_profiles: true, car_fleet: true } }
         }
       })
 

@@ -2007,6 +2007,7 @@ model car_fleet {
   updated_at     DateTime       @default(now()) @db.Timestamptz(6)
   assigned_to_id String?        @db.Uuid
   assigned_to    user_profiles? @relation(fields: [assigned_to_id], references: [id], onDelete: SetNull)
+  congress_workshop_members congress_workshop_members[]
 
   @@schema("public")
 }
@@ -2014,8 +2015,10 @@ model car_fleet {
 model congress_workshop_members {
   workshop_id        String             @db.Uuid
   user_id            String             @db.Uuid
+  car_id             String?            @db.Uuid
   user_profiles      user_profiles      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   congress_workshops congress_workshops @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
+  car_fleet          car_fleet?         @relation(fields: [car_id], references: [id], onDelete: SetNull)
 
   @@id([workshop_id, user_id])
   @@schema("public")

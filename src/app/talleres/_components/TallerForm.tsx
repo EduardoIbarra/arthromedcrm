@@ -8,7 +8,7 @@ import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
 import { createClient } from '@/lib/supabase/client'
 import FlyerBuilder from './FlyerBuilder'
-import { Doctor } from '@/types/database'
+import { Doctor, CarFleet } from '@/types/database'
 
 interface TallerFormProps {
   tallerId: string | null
@@ -51,6 +51,8 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   // Staff and Itinerary states
   const [staffList, setStaffList] = useState<any[]>([])
   const [memberIds, setMemberIds] = useState<string[]>([])
+  const [carList, setCarList] = useState<CarFleet[]>([])
+  const [memberCarAssignments, setMemberCarAssignments] = useState<Record<string, string>>({})
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([])
 
   // Itinerary temporary form state
@@ -81,6 +83,11 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
       .then(r => r.json())
       .then(({ data }) => setStaffList(data || []))
 
+    // Fetch car fleet for assignments
+    fetch('/api/car-fleet')
+      .then(r => r.json())
+      .then(({ data }) => setCarList(data || []))
+
     if (!isNew && tallerId) {
       fetch(`/api/workshops/${tallerId}`)
         .then(r => r.json())
@@ -109,6 +116,13 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
             }
             if (data.congress_workshop_members) {
               setMemberIds(data.congress_workshop_members.map((m: any) => m.user_id))
+              const assignments: Record<string, string> = {}
+              data.congress_workshop_members.forEach((m: any) => {
+                if (m.car_id) {
+                  assignments[m.user_id] = m.car_id
+                }
+              })
+              setMemberCarAssignments(assignments)
             }
             if (data.workshop_itinerarios) {
               setItinerary(data.workshop_itinerarios.map((it: any) => ({
@@ -206,7 +220,10 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
         cost: formData.cost ? parseFloat(formData.cost) : null,
         congress_id: formData.congress_id || null,
         doctorIds,
-        memberIds,
+        members: memberIds.map(userId => ({
+          userId,
+          carId: memberCarAssignments[userId] || null
+        })),
         itinerary
       }
 
@@ -234,6 +251,10 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const handleToggleMember = (userId: string) => {
     if (memberIds.includes(userId)) {
       setMemberIds(memberIds.filter(id => id !== userId))
+      // Clean up car assignment
+      const updated = { ...memberCarAssignments }
+      delete updated[userId]
+      setMemberCarAssignments(updated)
       // Also clean up itinerary items involving this member
       setItinerary(itinerary.map(item => ({
         ...item,
@@ -242,6 +263,18 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     } else {
       setMemberIds([...memberIds, userId])
     }
+  }
+
+  const handleAssignCar = (userId: string, carId: string) => {
+    setMemberCarAssignments(prev => {
+      const next = { ...prev }
+      if (carId) {
+        next[userId] = carId
+      } else {
+        delete next[userId]
+      }
+      return next
+    })
   }
 
   // Itinerary handlers
@@ -492,35 +525,58 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                   {staffList.map((user) => {
                     const isChecked = memberIds.includes(user.id)
                     return (
-                      <label 
+                      <div 
                         key={user.id} 
-                        className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer hover:bg-white
+                        className={`flex flex-col justify-between p-3 rounded-xl border transition-all hover:bg-white
                           ${isChecked 
                             ? 'bg-blue-50/50 border-blue-200 shadow-sm' 
                             : 'bg-white/80 border-gray-100'
                           }
                         `}
                       >
-                        <input 
-                          type="checkbox" 
-                          checked={isChecked} 
-                          onChange={() => handleToggleMember(user.id)}
-                          className="mt-1 rounded text-blue-600 border-gray-300 focus:ring-blue-500" 
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {user.first_name || user.last_name 
-                              ? `${user.first_name || ''} ${user.last_name || ''}`.trim() 
-                              : user.email}
-                          </p>
-                          <p className="text-[10px] text-gray-400 truncate">{user.email}</p>
-                          {user.position && (
-                            <span className="inline-block mt-1 px-1.5 py-0.5 bg-blue-100 text-blue-800 text-[9px] font-bold rounded">
-                              {user.position}
-                            </span>
-                          )}
+                        <div className="flex items-start gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => handleToggleMember(user.id)}
+                            className="mt-1 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer" 
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {user.first_name || user.last_name 
+                                ? `${user.first_name || ''} ${user.last_name || ''}`.trim() 
+                                : user.email}
+                            </p>
+                            <p className="text-[10px] text-gray-400 truncate">{user.email}</p>
+                            {user.position && (
+                              <span className="inline-block mt-1 px-1.5 py-0.5 bg-blue-100 text-blue-800 text-[9px] font-bold rounded">
+                                {user.position}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </label>
+
+                        {/* Car assignment dropdown (only show if selected/checked) */}
+                        {isChecked && (
+                          <div className="mt-3 pt-3 border-t border-blue-100/50">
+                            <label className="block text-[10px] font-bold text-gray-500 mb-1">
+                              Vehículo Asignado
+                            </label>
+                            <select
+                              value={memberCarAssignments[user.id] || ''}
+                              onChange={(e) => handleAssignCar(user.id, e.target.value)}
+                              className="erp-input w-full py-1.5 px-2 text-xs bg-white/70 focus:bg-white"
+                            >
+                              <option value="">-- Sin Vehículo --</option>
+                              {carList.map((car) => (
+                                <option key={car.id} value={car.id}>
+                                  {car.make} {car.model} ({car.plate_number})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                   {staffList.length === 0 && (
