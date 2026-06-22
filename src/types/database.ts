@@ -262,3 +262,43 @@ export type EventoInsert = Omit<Evento, 'id' | 'created_at' | 'created_by'> & {
 
 export type Database = Record<string, unknown>
 
+export interface CarFleet {
+  id: string
+  make: string
+  model: string
+  year: number
+  plate_number: string
+  color: string | null
+  status: 'available' | 'in_use' | 'maintenance' | string
+  notes: string | null
+  assigned_to_id: string | null
+  assigned_to?: UserProfile | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkshopMember {
+  workshop_id: string
+  user_id: string
+  user_profiles?: UserProfile
+}
+
+export interface WorkshopItineraryMember {
+  itinerary_id: string
+  user_id: string
+  user_profiles?: UserProfile
+}
+
+export interface WorkshopItinerary {
+  id: string
+  workshop_id: string
+  date: string
+  time: string | null
+  description: string
+  notes: string | null
+  involved_members?: { user_profiles: UserProfile }[]
+  created_at?: string
+  updated_at?: string
+}
+
+

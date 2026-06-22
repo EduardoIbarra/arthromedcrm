@@ -38,7 +38,7 @@ const prismaClientSingleton = () => {
   })
 }
 
-const TRIGGER_VERSION = 6
+const TRIGGER_VERSION = 8
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
@@ -48,6 +48,7 @@ declare global {
 const hasUpdates = globalThis.prisma && 
   ('ticket_updates' in globalThis.prisma) && 
   ('landing_pages' in globalThis.prisma) &&
+  ('car_fleet' in globalThis.prisma) &&
   globalThis.prismaTriggerVersion === TRIGGER_VERSION
 
 const prisma = hasUpdates ? globalThis.prisma! : prismaClientSingleton()

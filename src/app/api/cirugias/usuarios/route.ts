@@ -7,7 +7,13 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const profiles = await prisma.user_profiles.findMany({
-      select: { id: true, email: true },
+      select: { 
+        id: true, 
+        email: true,
+        first_name: true,
+        last_name: true,
+        position: true
+      },
       orderBy: { email: 'asc' },
     })
     return NextResponse.json({ data: profiles })

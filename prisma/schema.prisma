@@ -908,6 +908,8 @@ model congress_workshops {
   description                   String?
   congress_workshop_doctors     congress_workshop_doctors[]
   congress_workshop_enrollments congress_workshop_enrollments[]
+  congress_workshop_members     congress_workshop_members[]
+  workshop_itinerarios          workshop_itinerarios[]
   congresos                     congresos?                      @relation(fields: [congress_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
@@ -1840,6 +1842,9 @@ model user_profiles {
   inventario_movimientos_inventario_movimientos_usuario_idTouser_profiles     inventario_movimientos[] @relation("inventario_movimientos_usuario_idTouser_profiles")
   users                                                                       users                    @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   roles                                                                       roles?                   @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  congress_workshop_members                                                   congress_workshop_members[]
+  workshop_itinerary_members                                                  workshop_itinerary_members[]
+  car_fleet                                                                   car_fleet[]
 
   @@schema("public")
 }
@@ -1986,5 +1991,58 @@ model almacen_propio {
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_at  DateTime @default(now()) @db.Timestamptz(6)
 
+  @@schema("public")
+}
+
+model car_fleet {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  make           String
+  model          String
+  year           Int
+  plate_number   String         @unique
+  color          String?
+  status         String         @default("available")
+  notes          String?
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
+  assigned_to_id String?        @db.Uuid
+  assigned_to    user_profiles? @relation(fields: [assigned_to_id], references: [id], onDelete: SetNull)
+
+  @@schema("public")
+}
+
+model congress_workshop_members {
+  workshop_id        String             @db.Uuid
+  user_id            String             @db.Uuid
+  user_profiles      user_profiles      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  congress_workshops congress_workshops @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
+
+  @@id([workshop_id, user_id])
+  @@schema("public")
+}
+
+model workshop_itinerarios {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workshop_id        String             @db.Uuid
+  date               DateTime           @db.Date
+  time               String?
+  description        String
+  notes              String?
+  created_at         DateTime?          @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?          @default(now()) @db.Timestamptz(6)
+  congress_workshops congress_workshops @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
+  involved_members   workshop_itinerary_members[]
+
+  @@index([workshop_id])
+  @@schema("public")
+}
+
+model workshop_itinerary_members {
+  itinerary_id        String               @db.Uuid
+  user_id             String               @db.Uuid
+  user_profiles       user_profiles        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  workshop_itinerarios workshop_itinerarios @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
+
+  @@id([itinerary_id, user_id])
   @@schema("public")
 }

@@ -15,7 +15,8 @@ export const SECTIONS = [
   'warranties',
   'tickets',
   'landing_pages',
-  'communication'
+  'communication',
+  'car_fleet'
 ] as const
 
 export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']
