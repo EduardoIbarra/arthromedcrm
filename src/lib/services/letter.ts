@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont, RGB } from 'pdf-lib'
+import { PDFDocument, rgb, PDFPage, PDFFont, RGB } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 import { supabaseAdmin } from '@/lib/supabase/serverSide'
 import prisma from '@/lib/prisma'
@@ -16,7 +16,6 @@ const LEFT = 85
 const RIGHT = 525
 const CONTENT_W = RIGHT - LEFT
 const DARK = rgb(0.14, 0.14, 0.16)
-const BLUE = rgb(0.027, 0.388, 0.663)
 const GRAY = rgb(0.35, 0.37, 0.38)
 
 interface TextSegment {
@@ -252,14 +251,32 @@ function drawJustifiedMixedParagraph(
   lineHeight: number,
   color: RGB
 ): number {
-  const words: { text: string; font: PDFFont }[] = []
+  const rawWords: { text: string; font: PDFFont }[] = []
   for (const seg of segments) {
     const splitWords = seg.text.split(' ')
-    for (let i = 0; i < splitWords.length; i++) {
-      const w = splitWords[i]
-      if (w || i === 0 || i === splitWords.length - 1) {
-        words.push({ text: w, font: seg.font })
+    for (const w of splitWords) {
+      if (w) {
+        rawWords.push({ text: w, font: seg.font })
       }
+    }
+  }
+
+  const words: { text: string; font: PDFFont }[] = []
+  for (const word of rawWords) {
+    const match = word.text.match(/^([.,:;!?\)]+)(.*)$/)
+    if (match && words.length > 0) {
+      const punctuation = match[1]
+      const rest = match[2]
+      
+      // Append punctuation to the previous word
+      words[words.length - 1].text += punctuation
+      
+      // If there is remaining text, add it as a new word
+      if (rest) {
+        words.push({ text: rest, font: word.font })
+      }
+    } else {
+      words.push(word)
     }
   }
 
@@ -370,7 +387,7 @@ export async function generateClientLetter({
 
   // Sort lines to match requested order in selectedLines
   const lines = selectedLines
-    .map((id: string) => linesDb.find((l: any) => l.id === id))
+    .map((id: string) => linesDb.find(l => l.id === id))
     .filter(Boolean) as typeof linesDb
 
   // 3. Load files
@@ -524,10 +541,10 @@ export async function generateClientLetter({
 
   // Paragraph 2 (Justified)
   y -= 20
-  let p2Segments = [
+  const p2Segments = [
     { text: 'Por medio de la presente, hacemos constar que la empresa ', font: regular },
     { text: finalDistName.toUpperCase(), font: bold },
-    { text: ' , con RFC: ', font: regular },
+    { text: ', con RFC: ', font: regular },
     { text: finalRfc.toUpperCase(), font: bold },
     { text: ', cuenta con nuestra autorización para fungir como ', font: regular },
     { text: 'Distribuidor Autorizado', font: bold },
@@ -774,7 +791,7 @@ export async function generateClientLetter({
   })
 
   // 8. Create a record in `cartas_distribucion` using the pre-generated ID
-  const lineNames = lines.map((l: any) => l.name)
+  const lineNames = lines.map(l => l.name)
   const record = await prisma.cartas_distribucion.create({
     data: {
       id: cartaId,
