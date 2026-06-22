@@ -23,6 +23,13 @@ interface TextSegment {
   font: PDFFont
 }
 
+interface CatalogLine {
+  id: string
+  name: string
+  color: string
+  description?: string | null
+}
+
 function hexToDarkerRgb(hex: string): RGB {
   const cleanHex = hex.replace('#', '')
   if (cleanHex.length !== 6) return rgb(0.07, 0.39, 0.66)
@@ -387,8 +394,8 @@ export async function generateClientLetter({
 
   // Sort lines to match requested order in selectedLines
   const lines = selectedLines
-    .map((id: string) => linesDb.find(l => l.id === id))
-    .filter(Boolean) as typeof linesDb
+    .map((id: string) => linesDb.find((l: CatalogLine) => l.id === id))
+    .filter(Boolean) as CatalogLine[]
 
   // 3. Load files
   const machotePath = path.join(process.cwd(), 'resources', 'img', 'machote1.jpeg')
