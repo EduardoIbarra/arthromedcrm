@@ -7,9 +7,17 @@ export async function GET(request: NextRequest) {
     const key = searchParams.get('key')
     
     if (key) {
-      const setting = await prisma.app_settings.findUnique({
+      let setting = await prisma.app_settings.findUnique({
         where: { key }
       })
+      if (!setting && key === 'delivery_time_days') {
+        setting = await prisma.app_settings.create({
+          data: {
+            key: 'delivery_time_days',
+            value: '25'
+          }
+        })
+      }
       return NextResponse.json({ value: setting?.value ?? null })
     }
     

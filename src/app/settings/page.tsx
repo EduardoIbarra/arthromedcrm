@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
-import { Globe, Database, MessageCircle, Bot, FileText, X, Plus, Loader2, DollarSign } from 'lucide-react'
+import { Globe, Database, MessageCircle, Bot, FileText, X, Plus, Loader2, DollarSign, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/contexts/CurrencyContext'
 
@@ -40,6 +40,8 @@ export default function SettingsPage() {
   const [inventarioUsers, setInventarioUsers] = useState<string[]>([])
   const [users, setUsers] = useState<{id: string, email: string, whatsapp: string}[]>([])
   const [savingNumbers, setSavingNumbers] = useState(false)
+  const [deliveryDaysInput, setDeliveryDaysInput] = useState('25')
+  const [savingDeliveryDays, setSavingDeliveryDays] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -61,6 +63,15 @@ export default function SettingsPage() {
         }
       })
       .catch(err => console.error('Error fetching notification config:', err))
+      
+    fetch('/api/settings?key=delivery_time_days')
+      .then(res => res.json())
+      .then(data => {
+        if (data.value) {
+          setDeliveryDaysInput(data.value.toString())
+        }
+      })
+      .catch(err => console.error('Error fetching delivery days:', err))
       
     supabase.from('user_profiles').select('id, email, whatsapp').not('whatsapp', 'is', null).then((res: any) => {
       if (res.data) setUsers(res.data)
@@ -112,6 +123,28 @@ export default function SettingsPage() {
       alert('Error al guardar el tipo de cambio.')
     } finally {
       setSavingRate(false)
+    }
+  }
+
+  const handleSaveDeliveryDays = async () => {
+    const val = parseInt(deliveryDaysInput)
+    if (isNaN(val) || val <= 0) {
+      alert('Por favor introduce un número de días válido mayor a 0.')
+      return
+    }
+    setSavingDeliveryDays(true)
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'delivery_time_days', value: val.toString() }),
+      })
+      alert('Tiempo de entrega guardado exitosamente.')
+    } catch (err) {
+      console.error('Error saving delivery days setting:', err)
+      alert('Error al guardar el tiempo de entrega.')
+    } finally {
+      setSavingDeliveryDays(false)
     }
   }
 
@@ -175,6 +208,43 @@ export default function SettingsPage() {
               >
                 {savingRate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 Guardar Tipo de Cambio
+              </button>
+            </div>
+          </div>
+        </SettingCard>
+
+        <SettingCard icon={<Clock size={16} />} iconColor="#f59e0b" title="Tiempo de Entrega">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#37383a' }}>Días de Entrega Prometidos</p>
+                <p className="text-xs" style={{ color: '#8a8b8d' }}>
+                  Define el número de días hábiles después del pago para entregar la factura.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={deliveryDaysInput}
+                  onChange={(e) => setDeliveryDaysInput(e.target.value)}
+                  className="px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl text-sm font-mono w-28 text-right outline-none focus:border-brand-500/40"
+                  placeholder="25"
+                />
+                <span className="text-xs font-semibold text-gray-500">días hábiles</span>
+              </div>
+            </div>
+            
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveDeliveryDays}
+                disabled={savingDeliveryDays}
+                className="px-4 py-2 hover:opacity-90 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                style={{ background: '#0763a9' }}
+              >
+                {savingDeliveryDays ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Guardar Tiempo de Entrega
               </button>
             </div>
           </div>

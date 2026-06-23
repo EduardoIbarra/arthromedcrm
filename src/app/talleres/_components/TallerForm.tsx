@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit, Car, ChevronDown, ChevronUp } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
 import { createClient } from '@/lib/supabase/client'
@@ -31,7 +31,10 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const [uploading, setUploading] = useState(false)
   const [congresos, setCongresos] = useState<{id: string, name: string}[]>([])
 
-  const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'itinerary'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'itinerary' | 'resumen'>('general')
+  const [isNotifyingAll, setIsNotifyingAll] = useState(false)
+  const [isNotifying, setIsNotifying] = useState<Record<string, boolean>>({})
+  const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({})
 
   const [formData, setFormData] = useState({
     name: '',
@@ -343,6 +346,78 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     }
   }
 
+  const formatFriendlyDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    try {
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const d = new Date(year, month - 1, day)
+      return new Intl.DateTimeFormat('es-MX', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short'
+      }).format(d)
+    } catch (e) {
+      return dateStr
+    }
+  }
+
+  const toggleExpandTasks = (userId: string) => {
+    setExpandedTasks(prev => ({ ...prev, [userId]: !prev[userId] }))
+  }
+
+  const handleNotifyUser = async (userId: string) => {
+    setIsNotifying(prev => ({ ...prev, [userId]: true }))
+    try {
+      const res = await fetch(`/api/workshops/${tallerId}/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      })
+      const result = await res.json()
+      if (res.ok && result.success) {
+        if (result.errors && result.errors.length > 0) {
+          alert(result.errors.join('\n'))
+        } else {
+          alert('Notificación enviada por WhatsApp exitosamente.')
+        }
+      } else {
+        alert('Error al enviar notificación: ' + (result.error || 'Error desconocido'))
+      }
+    } catch (err: any) {
+      console.error(err)
+      alert('Error de red al enviar notificación.')
+    } finally {
+      setIsNotifying(prev => ({ ...prev, [userId]: false }))
+    }
+  }
+
+  const handleNotifyAll = async () => {
+    if (!confirm('¿Estás seguro de que deseas notificar a todo el staff de este taller vía WhatsApp?')) return
+    setIsNotifyingAll(true)
+    try {
+      const res = await fetch(`/api/workshops/${tallerId}/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+      const result = await res.json()
+      if (res.ok && result.success) {
+        if (result.errors && result.errors.length > 0) {
+          alert(`Notificaciones enviadas. Se enviaron ${result.notificationsSent} mensajes. Hubo los siguientes errores:\n` + result.errors.join('\n'))
+        } else {
+          alert(`Se enviaron notificaciones a todo el staff (${result.notificationsSent} mensajes) exitosamente.`)
+        }
+      } else {
+        alert('Error al enviar notificaciones: ' + (result.error || 'Error desconocido'))
+      }
+    } catch (err: any) {
+      console.error(err)
+      alert('Error de red al enviar notificaciones.')
+    } finally {
+      setIsNotifyingAll(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <AppShell>
@@ -416,6 +491,26 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           >
             Itinerario ({itinerary.length})
           </button>
+          {!isNew && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!formData.date_time) {
+                  alert('Por favor ingresa la fecha y hora de inicio primero.')
+                  return
+                }
+                setActiveTab('resumen')
+              }}
+              className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
+                ${activeTab === 'resumen'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                }
+              `}
+            >
+              Resumen
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
@@ -762,6 +857,170 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                                 <Trash2 size={14} />
                               </button>
                             </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: RESUMEN */}
+          {activeTab === 'resumen' && (
+            <div className="space-y-6">
+              {/* Notice to Save Changes */}
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                <span className="text-amber-500 mt-0.5">⚠️</span>
+                <div>
+                  <h4 className="text-sm font-bold text-amber-800">Nota de Logística</h4>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Guarda los cambios del taller antes de enviar notificaciones para asegurar que el staff reciba la información actualizada.
+                  </p>
+                </div>
+              </div>
+
+              <div className="card p-6 bg-white shadow-sm border border-gray-150 rounded-2xl">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 mb-1">Resumen del Staff y Asignaciones</h3>
+                    <p className="text-xs text-gray-500">Revisa la logística de traslado y actividades del staff para este taller, y envíales sus notificaciones.</p>
+                  </div>
+                  
+                  {/* Button to notify everyone */}
+                  <button
+                    type="button"
+                    onClick={handleNotifyAll}
+                    disabled={isNotifyingAll || assignedStaff.length === 0}
+                    className="btn-primary bg-green-600 hover:bg-green-700 border-green-600 flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    {isNotifyingAll ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.49-3.232c1.648.978 3.256 1.488 4.982 1.489 5.433.003 9.85-4.387 9.853-9.782.002-2.614-1.011-5.071-2.853-6.914C16.638 3.718 14.186 2.7 11.579 2.7c-5.437 0-9.856 4.39-9.859 9.783-.001 1.832.483 3.619 1.401 5.2l-.188.685-.688 2.508 2.57-.674.632-.164zm10.74-4.821c-.244-.122-1.442-.712-1.666-.793-.223-.081-.385-.122-.547.122-.162.244-.63.793-.772.955-.143.162-.285.183-.529.061-.244-.122-1.029-.379-1.96-1.21-.724-.646-1.213-1.444-1.355-1.687-.143-.244-.015-.376.107-.497.11-.11.244-.285.366-.427.122-.142.162-.244.244-.407.081-.162.041-.305-.02-.427-.061-.122-.547-1.32-.75-1.81-.197-.474-.397-.41-.547-.417-.142-.007-.305-.009-.467-.009-.162 0-.427.061-.65.305-.223.244-.853.834-.853 2.035 0 1.2.873 2.36 1.001 2.475.127.115 1.705 2.612 4.14 3.655.58.248 1.03.396 1.38.508.583.185 1.114.159 1.533.096.467-.069 1.442-.589 1.646-1.159.203-.57.203-1.057.142-1.159-.06-.101-.223-.162-.467-.284z" />
+                      </svg>
+                    )}
+                    {isNotifyingAll ? 'Notificando...' : 'Notificar a todo el Staff'}
+                  </button>
+                </div>
+
+                {assignedStaff.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 border border-dashed border-gray-200 rounded-2xl space-y-2">
+                    <User size={36} className="text-gray-400 mx-auto" />
+                    <p className="text-sm font-semibold text-gray-600">No hay personal de staff asignado.</p>
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto">Dirígete a la pestaña "Miembros del Staff" para asignar al equipo que participará en este taller.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {assignedStaff.map(member => {
+                      const carId = memberCarAssignments[member.id]
+                      const car = carList.find(c => c.id === carId)
+                      
+                      // Filter user tasks
+                      const userTasks = itinerary.filter(item => item.involvedMemberIds.includes(member.id))
+                      const isExpanded = !!expandedTasks[member.id]
+                      
+                      return (
+                        <div 
+                          key={member.id}
+                          className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 rounded-2xl border border-gray-150 hover:border-blue-200 hover:shadow-md transition-all duration-300 bg-white"
+                        >
+                          {/* User info */}
+                          <div className="flex items-center gap-3.5 min-w-[250px]">
+                            <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-sm">
+                              {member.first_name ? member.first_name[0].toUpperCase() : member.email[0].toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-sm font-bold text-gray-900 leading-tight truncate">
+                                {member.first_name || member.last_name 
+                                  ? `${member.first_name || ''} ${member.last_name || ''}`.trim() 
+                                  : member.email}
+                              </h4>
+                              <p className="text-xs text-gray-400 truncate">{member.email}</p>
+                              {member.position && (
+                                <span className="inline-block mt-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100">
+                                  {member.position}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Vehicle info */}
+                          <div className="flex items-center gap-2 min-w-[200px]">
+                            <div className="p-2 bg-gray-50 border border-gray-100 rounded-xl text-gray-600">
+                              <Car size={18} />
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Vehículo de Traslado</span>
+                              <span className={`text-xs font-semibold ${car ? 'text-gray-900' : 'text-gray-500 italic'}`}>
+                                {car ? `${car.make} ${car.model} (${car.plate_number})` : 'Sin vehículo asignado'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Collapsible Tasks involved */}
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Actividades</span>
+                                <span className="text-xs font-semibold text-gray-800">
+                                  {userTasks.length} {userTasks.length === 1 ? 'actividad' : 'actividades'}
+                                </span>
+                              </div>
+                              {userTasks.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpandTasks(member.id)}
+                                  className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                                >
+                                  {isExpanded ? 'Ocultar' : 'Ver tareas'}
+                                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                </button>
+                              )}
+                            </div>
+                            
+                            {/* Collapsed tasks list */}
+                            {isExpanded && userTasks.length > 0 && (
+                              <div className="mt-3 p-3 bg-gray-50 border border-gray-150 rounded-xl space-y-2 max-h-48 overflow-y-auto">
+                                {userTasks.map((t, idx) => (
+                                  <div key={idx} className="text-xs space-y-0.5 border-b border-gray-100 last:border-0 pb-1.5 last:pb-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">
+                                        {formatFriendlyDate(t.date)}
+                                      </span>
+                                      {t.time && (
+                                        <span className="font-semibold text-gray-650 bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">
+                                          {t.time} hs
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="font-semibold text-gray-800">{t.description}</p>
+                                    {t.notes && <p className="text-[10px] text-gray-500">{t.notes}</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Individual Action Button */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleNotifyUser(member.id)}
+                              disabled={isNotifying[member.id]}
+                              className="w-full lg:w-auto btn-secondary border-green-200 text-green-700 hover:bg-green-50 flex items-center gap-2 text-xs py-2 px-3.5 rounded-xl transition-all"
+                            >
+                              {isNotifying[member.id] ? (
+                                <Loader2 className="animate-spin" size={14} />
+                              ) : (
+                                <svg className="w-3.5 h-3.5 fill-current text-green-600" viewBox="0 0 24 24">
+                                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.49-3.232c1.648.978 3.256 1.488 4.982 1.489 5.433.003 9.85-4.387 9.853-9.782.002-2.614-1.011-5.071-2.853-6.914C16.638 3.718 14.186 2.7 11.579 2.7c-5.437 0-9.856 4.39-9.859 9.783-.001 1.832.483 3.619 1.401 5.2l-.188.685-.688 2.508 2.57-.674.632-.164zm10.74-4.821c-.244-.122-1.442-.712-1.666-.793-.223-.081-.385-.122-.547.122-.162.244-.63.793-.772.955-.143.162-.285.183-.529.061-.244-.122-1.029-.379-1.96-1.21-.724-.646-1.213-1.444-1.355-1.687-.143-.244-.015-.376.107-.497.11-.11.244-.285.366-.427.122-.142.162-.244.244-.407.081-.162.041-.305-.02-.427-.061-.122-.547-1.32-.75-1.81-.197-.474-.397-.41-.547-.417-.142-.007-.305-.009-.467-.009-.162 0-.427.061-.65.305-.223.244-.853.834-.853 2.035 0 1.2.873 2.36 1.001 2.475.127.115 1.705 2.612 4.14 3.655.58.248 1.03.396 1.38.508.583.185 1.114.159 1.533.096.467-.069 1.442-.589 1.646-1.159.203-.57.203-1.057.142-1.159-.06-.101-.223-.162-.467-.284z"/>
+                                </svg>
+                              )}
+                              {isNotifying[member.id] ? 'Enviando...' : 'Notificar'}
+                            </button>
                           </div>
                         </div>
                       )

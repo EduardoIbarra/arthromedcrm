@@ -5,7 +5,7 @@ import { useI18n } from '@/contexts/I18nContext'
 import { 
   FileText, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, 
   X, CheckCircle, AlertCircle, DollarSign, Calendar, TrendingUp, Info,
-  Download
+  Download, SlidersHorizontal, GripVertical
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import { useRouter } from 'next/navigation'
@@ -57,6 +57,27 @@ const ESTADO_SURTIDO_MAP: Record<string, { label: string; bg: string; text: stri
   completa: { label: 'Completa', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' }
 }
 
+interface ColumnConfig {
+  id: string
+  label: string
+  visible: boolean
+}
+
+const DEFAULT_COLUMNS: ColumnConfig[] = [
+  { id: 'numero_factura', label: 'Folio / Número', visible: true },
+  { id: 'cliente', label: 'Cliente', visible: true },
+  { id: 'rfc', label: 'RFC', visible: false },
+  { id: 'fecha_expedicion', label: 'Fecha Expedición', visible: true },
+  { id: 'fecha_vencimiento', label: 'Vencimiento', visible: false },
+  { id: 'fecha_pago', label: 'Fecha Pago', visible: true },
+  { id: 'subtotal', label: 'Subtotal', visible: false },
+  { id: 'iva', label: 'IVA', visible: false },
+  { id: 'total', label: 'Total', visible: true },
+  { id: 'surtido', label: 'Surtido', visible: true },
+  { id: 'dias_restantes', label: 'Días Restantes', visible: true },
+  { id: 'estado_pago', label: 'Estado Pago', visible: true },
+]
+
 export default function FacturasPage() {
   const router = useRouter()
   const { t, locale } = useI18n()
@@ -67,6 +88,101 @@ export default function FacturasPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [deliveryDays, setDeliveryDays] = useState<number>(25)
+
+  // Columns reordering & visibility states
+  const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS)
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem('facturas-columns-config')
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const merged = parsed.map((col: any) => {
+            const def = DEFAULT_COLUMNS.find(d => d.id === col.id)
+            return def ? { ...def, ...col } : null
+          }).filter(Boolean) as ColumnConfig[]
+
+          DEFAULT_COLUMNS.forEach(def => {
+            if (!merged.some(m => m.id === def.id)) {
+              merged.push(def)
+            }
+          })
+          setColumns(merged)
+        }
+      } catch (e) {
+        console.error('Error loading columns config', e)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowColumnDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const saveColumnsConfig = (newCols: ColumnConfig[]) => {
+    setColumns(newCols)
+    localStorage.setItem('facturas-columns-config', JSON.stringify(newCols))
+  }
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', index.toString())
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+
+    const updatedCols = [...columns]
+    const draggedItem = updatedCols[draggedIndex]
+    
+    updatedCols.splice(draggedIndex, 1)
+    updatedCols.splice(index, 0, draggedItem)
+    
+    setDraggedIndex(index)
+    saveColumnsConfig(updatedCols)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+  }
+
+  const toggleColumnVisibility = (id: string) => {
+    const updated = columns.map(col => 
+      col.id === id ? { ...col, visible: !col.visible } : col
+    )
+    saveColumnsConfig(updated)
+  }
+
+  const resetColumns = () => {
+    saveColumnsConfig(DEFAULT_COLUMNS)
+  }
+
+  useEffect(() => {
+    fetch('/api/settings?key=delivery_time_days')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.value) {
+          const days = parseInt(data.value, 10)
+          if (!isNaN(days) && days > 0) {
+            setDeliveryDays(days)
+          }
+        }
+      })
+      .catch((err) => console.error('Error fetching delivery days setting:', err))
+  }, [])
   
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -281,6 +397,85 @@ export default function FacturasPage() {
     })
   }
 
+  const addBusinessDays = (startDateStr: string | Date, days: number): Date => {
+    const date = new Date(startDateStr)
+    let count = 0
+    while (count < days) {
+      date.setUTCDate(date.getUTCDate() + 1)
+      const dayOfWeek = date.getUTCDay()
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count++
+      }
+    }
+    return date
+  }
+
+  const getBusinessDaysDiff = (startDate: Date, endDate: Date): number => {
+    const start = new Date(startDate)
+    const startUTC = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
+    
+    const end = new Date(endDate)
+    const endUTC = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())
+    
+    if (startUTC === endUTC) {
+      return 0
+    }
+    
+    const isNegative = startUTC > endUTC
+    let count = 0
+    
+    const current = new Date(isNegative ? endUTC : startUTC)
+    const target = new Date(isNegative ? startUTC : endUTC)
+    
+    while (current.getTime() < target.getTime()) {
+      current.setUTCDate(current.getUTCDate() + 1)
+      const dayOfWeek = current.getUTCDay()
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count++
+      }
+    }
+    
+    return isNegative ? -count : count
+  }
+
+  const renderDeliveryDays = (invoice: Factura) => {
+    const isPaid = ['pagada', 'pagado'].includes(invoice.estado)
+    if (!isPaid || !invoice.fecha_pago) {
+      return <span className="text-gray-400 font-medium text-xs">-</span>
+    }
+
+    if (invoice.estado_surtido === 'completa') {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+          Entregada
+        </span>
+      )
+    }
+
+    const deadline = addBusinessDays(invoice.fecha_pago, deliveryDays)
+    const leftDays = getBusinessDaysDiff(new Date(), deadline)
+
+    if (leftDays < 0) {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-100 animate-pulse">
+          Atrasada ({leftDays} d)
+        </span>
+      )
+    } else if (leftDays <= 5) {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+          Urgente ({leftDays} d)
+        </span>
+      )
+    } else {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+          {leftDays} días
+        </span>
+      )
+    }
+  }
+
   // Calculated metrics (from current table state or all local invoices)
   // To keep it dynamic, we compute them from the items retrieved or general estimations
   const kpiTotalInvoiced = invoices.reduce((acc, inv) => acc + (!['cancelada', 'anulado'].includes(inv.estado) ? Number(inv.total) || 0 : 0), 0)
@@ -336,7 +531,73 @@ export default function FacturasPage() {
           </div>
 
           {/* Sync status card & control button */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 relative" ref={dropdownRef}>
+            <button
+              onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+              className="btn-secondary flex items-center gap-2 whitespace-nowrap text-sm cursor-pointer"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Columnas
+            </button>
+
+            {showColumnDropdown && (
+              <div 
+                className="absolute right-0 top-full mt-2 w-80 bg-white border border-[#d4e0ec] rounded-2xl shadow-xl z-50 p-4 animate-fade-in text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#e8f1f9]">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Columnas de la Tabla</h3>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Arrastra para ordenar, marca para mostrar</p>
+                  </div>
+                  <button 
+                    onClick={resetColumns}
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                  >
+                    Restablecer
+                  </button>
+                </div>
+                
+                <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
+                  {columns.map((col, idx) => {
+                    const isDraggingThis = draggedIndex === idx
+                    return (
+                      <div
+                        key={col.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, idx)}
+                        onDragOver={(e) => handleDragOver(e, idx)}
+                        onDragEnd={handleDragEnd}
+                        className={`flex items-center justify-between p-2 rounded-lg border text-sm transition-all select-none ${
+                          isDraggingThis 
+                            ? 'bg-blue-50 border-blue-300 opacity-50' 
+                            : 'bg-white border-transparent hover:bg-gray-50 hover:border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div 
+                            className="cursor-grab active:cursor-grabbing text-gray-400 p-0.5 hover:text-gray-600 transition-colors"
+                            title="Arrastrar para reordenar"
+                          >
+                            <GripVertical size={14} />
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={col.visible}
+                              onChange={() => toggleColumnVisibility(col.id)}
+                              className="rounded border-gray-300 text-[#0763a9] focus:ring-[#0763a9]"
+                            />
+                            <span className="font-medium text-gray-700 text-xs">{col.label}</span>
+                          </label>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleDownloadReport}
               disabled={downloading}
@@ -532,17 +793,17 @@ export default function FacturasPage() {
                         onChange={toggleAll}
                       />
                     </th>
-                    <th className="p-4">Folio / Número</th>
-                    <th className="p-4">Cliente</th>
-                    <th className="p-4">RFC</th>
-                    <th className="p-4">Fecha Expedición</th>
-                    <th className="p-4">Vencimiento</th>
-                    <th className="p-4">{t('paymentDate' as any) || 'Fecha Pago'}</th>
-                    <th className="p-4 text-right">Subtotal</th>
-                    <th className="p-4 text-right">IVA</th>
-                    <th className="p-4 text-right font-bold">Total</th>
-                    <th className="p-4 text-center">Surtido</th>
-                    <th className="p-4 text-center">Estado Pago</th>
+                    {columns.filter(c => c.visible).map((col) => {
+                      let alignClass = 'text-left'
+                      if (['subtotal', 'iva', 'total'].includes(col.id)) alignClass = 'text-right'
+                      if (['surtido', 'dias_restantes', 'estado_pago'].includes(col.id)) alignClass = 'text-center'
+                      
+                      return (
+                        <th key={col.id} className={`p-4 ${alignClass} ${col.id === 'total' ? 'font-bold' : ''}`}>
+                          {col.label}
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e8f1f9] text-sm">
@@ -568,48 +829,93 @@ export default function FacturasPage() {
                             }}
                           />
                         </td>
-                        <td className="p-4 font-semibold text-[#0763a9] group-hover:underline">
-                          {invoice.numero_factura}
-                        </td>
-                        <td className="p-4 font-medium text-gray-900 max-w-[200px] truncate">
-                          {invoice.cliente_nombre}
-                        </td>
-                        <td className="p-4 text-gray-600 font-mono text-xs">
-                          {invoice.cliente_rfc || '-'}
-                        </td>
-                        <td className="p-4 text-gray-600">
-                          {formatDate(invoice.fecha_expedicion)}
-                        </td>
-                        <td className="p-4 text-gray-600">
-                          {formatDate(invoice.fecha_vencimiento)}
-                        </td>
-                        <td className="p-4 text-gray-600 font-medium text-xs">
-                          {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
-                            ? formatDate(invoice.fecha_pago) 
-                            : '-'
+                        {columns.filter(c => c.visible).map((col) => {
+                          switch (col.id) {
+                            case 'numero_factura':
+                              return (
+                                <td key={col.id} className="p-4 font-semibold text-[#0763a9] group-hover:underline">
+                                  {invoice.numero_factura}
+                                </td>
+                              )
+                            case 'cliente':
+                              return (
+                                <td key={col.id} className="p-4 font-medium text-gray-900 max-w-[200px] truncate">
+                                  {invoice.cliente_nombre}
+                                </td>
+                              )
+                            case 'rfc':
+                              return (
+                                <td key={col.id} className="p-4 text-gray-600 font-mono text-xs">
+                                  {invoice.cliente_rfc || '-'}
+                                </td>
+                              )
+                            case 'fecha_expedicion':
+                              return (
+                                <td key={col.id} className="p-4 text-gray-600">
+                                  {formatDate(invoice.fecha_expedicion)}
+                                </td>
+                              )
+                            case 'fecha_vencimiento':
+                              return (
+                                <td key={col.id} className="p-4 text-gray-600">
+                                  {formatDate(invoice.fecha_vencimiento)}
+                                </td>
+                              )
+                            case 'fecha_pago':
+                              return (
+                                <td key={col.id} className="p-4 text-gray-600 font-medium text-xs">
+                                  {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
+                                    ? formatDate(invoice.fecha_pago) 
+                                    : '-'
+                                  }
+                                </td>
+                              )
+                            case 'subtotal':
+                              return (
+                                <td key={col.id} className="p-4 text-right text-gray-600 font-mono text-xs">
+                                  {formatCurrency(invoice.subtotal)}
+                                </td>
+                              )
+                            case 'iva':
+                              return (
+                                <td key={col.id} className="p-4 text-right text-gray-600 font-mono text-xs">
+                                  {formatCurrency(invoice.iva)}
+                                </td>
+                              )
+                            case 'total':
+                              return (
+                                <td key={col.id} className="p-4 text-right font-bold text-gray-900 font-mono">
+                                  {formatCurrency(invoice.total)}
+                                </td>
+                              )
+                            case 'surtido':
+                              return (
+                                <td key={col.id} className="p-4 text-center">
+                                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${surtido.bg} ${surtido.text} ${surtido.border}`}>
+                                    {surtido.label}
+                                  </span>
+                                </td>
+                              )
+                            case 'dias_restantes':
+                              return (
+                                <td key={col.id} className="p-4 text-center">
+                                  {renderDeliveryDays(invoice)}
+                                </td>
+                              )
+                            case 'estado_pago':
+                              return (
+                                <td key={col.id} className="p-4 text-center">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.bg} ${status.text} ${status.border}`}>
+                                      {status.label}
+                                    </span>
+                                  </div>
+                                </td>
+                              )
+                            default:
+                              return null
                           }
-                        </td>
-                        <td className="p-4 text-right text-gray-600 font-mono text-xs">
-                          {formatCurrency(invoice.subtotal)}
-                        </td>
-                        <td className="p-4 text-right text-gray-600 font-mono text-xs">
-                          {formatCurrency(invoice.iva)}
-                        </td>
-                        <td className="p-4 text-right font-bold text-gray-900 font-mono">
-                          {formatCurrency(invoice.total)}
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${surtido.bg} ${surtido.text} ${surtido.border}`}>
-                            {surtido.label}
-                          </span>
-                        </td>
-                        <td className="p-4 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.bg} ${status.text} ${status.border}`}>
-                              {status.label}
-                            </span>
-                          </div>
-                        </td>
+                        })}
                       </tr>
                     )
                   })}
