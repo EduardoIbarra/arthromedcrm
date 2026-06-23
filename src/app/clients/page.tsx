@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import PermissionGuard from '@/components/PermissionGuard'
+import { addMonths, differenceInDays, format } from 'date-fns'
 
 const MEXICO_STATES = [
   'CDMX', 'Estado de México', 'Jalisco', 'Nuevo León', 'Puebla', 'Guanajuato',
@@ -22,6 +23,79 @@ const MEXICO_STATES = [
 ]
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
+
+const renderLetterIndicator = (client: any, isMobile = false) => {
+  const hasLetter = client.distributor_id || client.letter_url || (client.cartas_count && client.cartas_count > 0)
+  if (!hasLetter) {
+    return isMobile ? null : <span className="text-gray-400">—</span>
+  }
+
+  if (!client.latest_payment_date) {
+    return (
+      <div className={`flex flex-col ${isMobile ? 'items-end' : ''}`}>
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100">
+          Revocada (Sin compras)
+        </span>
+      </div>
+    )
+  }
+
+  const paymentDate = new Date(client.latest_payment_date)
+  const revocationDate = addMonths(paymentDate, 3)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  revocationDate.setHours(0, 0, 0, 0)
+
+  const daysRemaining = differenceInDays(revocationDate, today)
+
+  if (daysRemaining <= 0) {
+    return (
+      <div className={`flex flex-col gap-0.5 ${isMobile ? 'items-end' : ''}`}>
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 w-fit">
+          Revocada
+        </span>
+        {!isMobile && (
+          <span className="text-[10px] text-gray-400">
+            Desde: {format(revocationDate, 'dd/MM/yyyy')}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  if (daysRemaining < 30) {
+    return (
+      <div className={`flex flex-col gap-0.5 ${isMobile ? 'items-end' : ''}`}>
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100 w-fit animate-pulse">
+          Revoca en {daysRemaining}d
+        </span>
+        {!isMobile && (
+          <span className="text-[10px] text-gray-400">
+            Límite: {format(revocationDate, 'dd/MM/yyyy')}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  const monthsRemaining = Math.floor(daysRemaining / 30)
+  const remainingText = monthsRemaining > 0 
+    ? `Revoca en ~${monthsRemaining}m`
+    : `Revoca en ${daysRemaining}d`
+
+  return (
+    <div className={`flex flex-col gap-0.5 ${isMobile ? 'items-end' : ''}`}>
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 w-fit">
+        {remainingText}
+      </span>
+      {!isMobile && (
+        <span className="text-[10px] text-gray-400">
+          Límite: {format(revocationDate, 'dd/MM/yyyy')}
+        </span>
+      )}
+    </div>
+  )
+}
 
 function ClientsContent() {
   const { t } = useI18n()
@@ -224,7 +298,7 @@ function ClientsContent() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #e8f1f9' }}>
-                      {['ID', t('name'), t('rfc'), t('phone'), t('state'), t('status'), ''].map(h => (
+                      {['ID', t('name'), t('rfc'), t('phone'), t('state'), 'Carta', t('status'), ''].map(h => (
                         <th key={h} className="text-left text-xs font-semibold uppercase tracking-wide px-4 py-3" style={{ color: '#8a8b8d' }}>{h}</th>
                       ))}
                     </tr>
@@ -264,6 +338,7 @@ function ClientsContent() {
                         <td className="px-4 py-3 text-sm font-mono" style={{ color: '#5a5b5d' }}>{client.rfc || '—'}</td>
                         <td className="px-4 py-3 text-sm" style={{ color: '#5a5b5d' }}>{client.phone || '—'}</td>
                         <td className="px-4 py-3 text-sm max-w-[150px] truncate" style={{ color: '#5a5b5d' }}>{client.states?.slice(0, 2).join(', ') || '—'}</td>
+                        <td className="px-4 py-3">{renderLetterIndicator(client)}</td>
                         <td className="px-4 py-3"><StatusBadge status={client.status} size="sm" /></td>
                         <td className="px-4 py-3">
                           <span className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100 inline-flex"><ChevronRight size={16} /></span>
@@ -284,7 +359,10 @@ function ClientsContent() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold truncate" style={{ color: '#37383a' }}>{client.name}</p>
-                        <StatusBadge status={client.status} size="sm" />
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <StatusBadge status={client.status} size="sm" />
+                          {renderLetterIndicator(client, true)}
+                        </div>
                       </div>
                       <p className="text-xs font-mono mt-0.5" style={{ color: client.distributor_id ? '#0763a9' : '#8a8b8d' }}>{client.distributor_id || client.rfc || '—'}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">

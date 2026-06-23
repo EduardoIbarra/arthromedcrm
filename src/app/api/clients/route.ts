@@ -50,7 +50,49 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data, count, page, pageSize })
+  let enrichedData = data || []
+  if (enrichedData.length > 0) {
+    const clientIds = enrichedData.map((c: any) => c.id)
+
+    // 1. Get latest payment date for each client from facturas_cliente
+    const latestPayments = await prisma.facturas_cliente.groupBy({
+      by: ['cliente_id'],
+      where: {
+        cliente_id: { in: clientIds },
+        fecha_pago: { not: null }
+      },
+      _max: {
+        fecha_pago: true
+      }
+    })
+
+    // 2. Get count of distributor letters for each client
+    const cartasCounts = await prisma.cartas_distribucion.groupBy({
+      by: ['client_id'],
+      where: {
+        client_id: { in: clientIds }
+      },
+      _count: {
+        id: true
+      }
+    })
+
+    const paymentsMap = Object.fromEntries(
+      latestPayments.map((p: any) => [p.cliente_id, p._max.fecha_pago])
+    )
+
+    const cartasMap = Object.fromEntries(
+      cartasCounts.map((c: any) => [c.client_id, c._count.id])
+    )
+
+    enrichedData = enrichedData.map((c: any) => ({
+      ...c,
+      latest_payment_date: paymentsMap[c.id] || null,
+      cartas_count: cartasMap[c.id] || 0
+    }))
+  }
+
+  return NextResponse.json({ data: enrichedData, count, page, pageSize })
 }
 
 // POST /api/clients — create client
