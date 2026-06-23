@@ -21,6 +21,7 @@ export default function CarFleetPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
+    alias: '',
     make: '',
     model: '',
     year: new Date().getFullYear(),
@@ -64,6 +65,7 @@ export default function CarFleetPage() {
   }, [])
 
   const filteredCars = cars.filter(c =>
+    (c.alias && c.alias.toLowerCase().includes(searchQuery.toLowerCase())) ||
     c.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.plate_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -75,6 +77,7 @@ export default function CarFleetPage() {
 
   const openNew = () => {
     setFormData({
+      alias: '',
       make: '',
       model: '',
       year: new Date().getFullYear(),
@@ -91,6 +94,7 @@ export default function CarFleetPage() {
 
   const openEdit = (car: CarFleet) => {
     setFormData({
+      alias: car.alias || '',
       make: car.make,
       model: car.model,
       year: car.year,
@@ -241,9 +245,12 @@ export default function CarFleetPage() {
                     </div>
                   </div>
 
-                  <h3 className="font-bold text-lg text-gray-900 leading-tight">
-                    {car.make} {car.model}
+                  <h3 className="font-bold text-lg text-[#0763a9] leading-tight">
+                    {car.alias || `${car.make} ${car.model}`}
                   </h3>
+                  {car.alias && (
+                    <p className="text-xs text-gray-400 font-semibold">{car.make} {car.model}</p>
+                  )}
                   <p className="text-sm text-gray-500 mt-1">Año: {car.year} | Placas: <span className="font-mono text-gray-700 font-bold">{car.plate_number}</span></p>
                   
                   {car.color && (
@@ -304,8 +311,10 @@ export default function CarFleetPage() {
                   {filteredCars.map(car => (
                     <tr key={car.id} className="hover:bg-blue-50/30 transition-colors group">
                       <td className="p-4">
-                        <div className="font-semibold text-gray-900">{car.make} {car.model}</div>
-                        <div className="text-xs text-gray-500">Año: {car.year} {car.color && `| Color: ${car.color}`}</div>
+                        <div className="font-semibold text-gray-900">{car.alias || `${car.make} ${car.model}`}</div>
+                        <div className="text-xs text-gray-500">
+                          {car.alias && `${car.make} ${car.model} | `}Año: {car.year} {car.color && `| Color: ${car.color}`}
+                        </div>
                       </td>
                       <td className="p-4 font-mono font-bold text-sm text-gray-700">{car.plate_number}</td>
                       <td className="p-4">
@@ -352,6 +361,11 @@ export default function CarFleetPage() {
 
         <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title={isEditing ? 'Editar Vehículo' : 'Registrar Vehículo'}>
           <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Alias del Vehículo (Opcional)</label>
+              <input type="text" className="erp-input w-full" value={formData.alias} onChange={e => setFormData({ ...formData, alias: e.target.value })} placeholder="Ej. Camioneta Roja, Sedán Gris" />
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">{t('make') || 'Marca'} *</label>

@@ -665,7 +665,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                               <option value="">-- Sin Vehículo --</option>
                               {carList.map((car) => (
                                 <option key={car.id} value={car.id}>
-                                  {car.make} {car.model} ({car.plate_number})
+                                  {car.alias || `${car.make} ${car.model} (${car.plate_number})`}
                                 </option>
                               ))}
                             </select>
@@ -955,7 +955,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                             <div>
                               <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Vehículo de Traslado</span>
                               <span className={`text-xs font-semibold ${car ? 'text-gray-900' : 'text-gray-500 italic'}`}>
-                                {car ? `${car.make} ${car.model} (${car.plate_number})` : 'Sin vehículo asignado'}
+                                {car ? (car.alias || `${car.make} ${car.model} (${car.plate_number})`) : 'Sin vehículo asignado'}
                               </span>
                             </div>
                           </div>

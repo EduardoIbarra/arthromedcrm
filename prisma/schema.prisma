@@ -1996,6 +1996,7 @@ model almacen_propio {
 
 model car_fleet {
   id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  alias          String?
   make           String
   model          String
   year           Int

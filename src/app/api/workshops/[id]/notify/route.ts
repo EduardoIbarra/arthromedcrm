@@ -91,7 +91,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       const car = member.car_fleet
       const carText = car
-        ? `🚗 ${car.make} ${car.model} (Placas: ${car.plate_number})`
+        ? `🚗 ${car.alias || `${car.make} ${car.model} (Placas: ${car.plate_number})`}`
         : '🚶 Sin vehículo asignado (traslado por cuenta propia)'
 
       // Find itinerary tasks where this member is involved

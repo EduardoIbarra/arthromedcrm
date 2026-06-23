@@ -33,9 +33,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params
   try {
     const body = await request.json()
-    const { make, model, year, plate_number, color, status, notes, assigned_to_id } = body
+    const { alias, make, model, year, plate_number, color, status, notes, assigned_to_id } = body
 
     const updateData: any = {}
+    if (alias !== undefined) updateData.alias = alias || null
     if (make !== undefined) updateData.make = make
     if (model !== undefined) updateData.model = model
     if (year !== undefined) updateData.year = parseInt(year)

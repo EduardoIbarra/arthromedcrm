@@ -264,6 +264,7 @@ export type Database = Record<string, unknown>
 
 export interface CarFleet {
   id: string
+  alias: string | null
   make: string
   model: string
   year: number

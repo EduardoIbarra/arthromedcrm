@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { make, model, year, plate_number, color, status, notes, assigned_to_id } = body
+    const { alias, make, model, year, plate_number, color, status, notes, assigned_to_id } = body
 
     if (!make || !model || !year || !plate_number) {
       return NextResponse.json({ error: 'Make, model, year, and plate number are required.' }, { status: 400 })
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
 
     const car = await prisma.car_fleet.create({
       data: {
+        alias: alias || null,
         make,
         model,
         year: parseInt(year),
