@@ -775,14 +775,6 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     }
   }
 
-  if (isLoading) {
-    return (
-      <AppShell>
-        <div className="flex justify-center p-12"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
-      </AppShell>
-    )
-  }
-
   const assignedStaff = useMemo(() => {
     const assigned = staffList.filter(s => memberIds.includes(s.id)).map(s => ({
       id: s.id,
@@ -810,6 +802,14 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     
     return [...assigned, ...temps]
   }, [staffList, memberIds, tempMembers])
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="flex justify-center p-12"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
+      </AppShell>
+    )
+  }
 
   const renderMemberCard = (member: any, hideVehicleInfo = false) => {
     const carId = member.isTemp ? member.carId : memberCarAssignments[member.id]
