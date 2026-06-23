@@ -911,10 +911,12 @@ model congress_workshops {
   congress_workshop_members     congress_workshop_members[]
   workshop_itinerarios          workshop_itinerarios[]
   workshop_hotel_rooms          workshop_hotel_rooms[]
+  workshop_stations             workshop_stations[]
   congresos                     congresos?                      @relation(fields: [congress_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
 }
+
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model contador_remisiones {
@@ -1580,16 +1582,18 @@ model productos {
   subtipo                String?
   specialty_ids          String[]
   image_urls             String[]
-  cirugia_productos      cirugia_productos[]
-  detalle_plan_pago      detalle_plan_pago[]
-  evento_inventario      evento_inventario[]
-  factura_productos      factura_productos[]
-  garantias              garantias[]
-  inventario_lotes       inventario_lotes[]
-  inventario_movimientos inventario_movimientos[]
-  inventario_productos   inventario_productos[]
-  orden_productos        orden_productos[]
-  remision_productos     remision_productos[]
+  cirugia_productos         cirugia_productos[]
+  detalle_plan_pago         detalle_plan_pago[]
+  evento_inventario         evento_inventario[]
+  factura_productos         factura_productos[]
+  garantias                 garantias[]
+  inventario_lotes          inventario_lotes[]
+  inventario_movimientos    inventario_movimientos[]
+  inventario_productos      inventario_productos[]
+  orden_productos           orden_productos[]
+  remision_productos        remision_productos[]
+  workshop_station_products workshop_station_products[]
+
 
   @@schema("public")
 }
@@ -2081,3 +2085,29 @@ model workshop_hotel_occupants {
   @@index([room_id])
   @@schema("public")
 }
+
+model workshop_stations {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workshop_id               String                      @db.Uuid
+  name                      String
+  created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  congress_workshops        congress_workshops          @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
+  workshop_station_products workshop_station_products[]
+
+  @@index([workshop_id])
+  @@schema("public")
+}
+
+model workshop_station_products {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  station_id        String            @db.Uuid
+  product_id        String            @db.Uuid
+  cantidad          Int               @default(1)
+  created_at        DateTime?         @default(now()) @db.Timestamptz(6)
+  workshop_stations workshop_stations @relation(fields: [station_id], references: [id], onDelete: Cascade)
+  productos         productos         @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([station_id])
+  @@schema("public")
+}
+

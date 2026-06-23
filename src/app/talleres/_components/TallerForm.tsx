@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit, Car, ChevronDown, ChevronUp, Hotel, Users, BedDouble } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit, Car, ChevronDown, ChevronUp, Hotel, Users, BedDouble, Boxes, Wrench } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
 import { createClient } from '@/lib/supabase/client'
@@ -40,6 +40,27 @@ interface HotelRoom {
   workshop_hotel_occupants: HotelOccupant[]
 }
 
+interface StationProduct {
+  id?: string
+  product_id: string
+  cantidad: number
+  productos?: { id: string; nombre: string; precio_unitario: any; categoria: string | null; tipo: string | null } | null
+}
+
+interface WorkshopStation {
+  id?: string
+  name: string
+  workshop_id: string
+  workshop_station_products: StationProduct[]
+}
+
+interface CatalogProduct {
+  id: string
+  nombre: string
+  categoria: string | null;
+  tipo: string | null;
+}
+
 export default function TallerForm({ tallerId }: TallerFormProps) {
   const router = useRouter()
   const isNew = tallerId === null
@@ -48,7 +69,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const [uploading, setUploading] = useState(false)
   const [congresos, setCongresos] = useState<{id: string, name: string}[]>([])
 
-  const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'itinerary' | 'resumen' | 'hotel'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones'>('general')
   const [isNotifyingAll, setIsNotifyingAll] = useState(false)
   const [isNotifying, setIsNotifying] = useState<Record<string, boolean>>({})
   const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({})
@@ -64,6 +85,17 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const [assigningRoomId, setAssigningRoomId] = useState<string | null>(null)
   const [guestForm, setGuestForm] = useState({ guest_name: '', guest_phone: '' })
   const [showGuestForm, setShowGuestForm] = useState(false)
+
+  // Estaciones state
+  const [stations, setStations] = useState<WorkshopStation[]>([])
+  const [stationsLoading, setStationsLoading] = useState(false)
+  const [stationsSaving, setStationsSaving] = useState<Record<string, boolean>>({})
+  const [showAddStation, setShowAddStation] = useState(false)
+  const [newStationName, setNewStationName] = useState('')
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([])
+  const [stationSearchQuery, setStationSearchQuery] = useState<Record<string, string>>({})
+  const [editingStationNameId, setEditingStationNameId] = useState<string | null>(null)
+  const [tempStationName, setTempStationName] = useState('')
 
   const [formData, setFormData] = useState({
     name: '',
@@ -134,6 +166,11 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
       .then(r => r.json())
       .then(({ data }) => setCarList(data || []))
 
+    // Fetch catalog products
+    fetch('/api/products')
+      .then(r => r.json())
+      .then(({ data }) => setCatalogProducts(data || []))
+
     if (!isNew && tallerId) {
       fetch(`/api/workshops/${tallerId}`)
         .then(r => r.json())
@@ -148,10 +185,10 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               end_date_time_val = dEnd.toISOString().slice(0, 16)
             }
             setFormData({
-              name: data.name,
+              name: data.name || '',
               date_time: d.toISOString().slice(0, 16),
               end_date_time: end_date_time_val,
-              max_people: data.max_people,
+              max_people: data.max_people || 20,
               cost: data.cost !== null ? String(data.cost) : '',
               congress_id: data.congress_id || '',
               description: data.description || '',
@@ -186,11 +223,135 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     }
   }, [isNew, tallerId])
 
+  const fetchStations = useCallback(async () => {
+    if (!tallerId) return
+    setStationsLoading(true)
+    try {
+      const res = await fetch(`/api/workshops/${tallerId}/stations`)
+      const { data } = await res.json()
+      setStations(data || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setStationsLoading(false)
+    }
+  }, [tallerId])
+
   useEffect(() => {
     if (!isNew && tallerId) {
       fetchHotelRooms()
+      fetchStations()
     }
-  }, [isNew, tallerId, fetchHotelRooms])
+  }, [isNew, tallerId, fetchHotelRooms, fetchStations])
+
+  // Workshop station handlers
+  const handleCreateStation = async () => {
+    if (!newStationName.trim()) return
+    setStationsSaving(p => ({ ...p, new: true }))
+    try {
+      const res = await fetch(`/api/workshops/${tallerId}/stations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newStationName.trim() })
+      })
+      if (res.ok) {
+        setNewStationName('')
+        setShowAddStation(false)
+        await fetchStations()
+      } else {
+        const e = await res.json()
+        alert('Error: ' + e.error)
+      }
+    } finally {
+      setStationsSaving(p => ({ ...p, new: false }))
+    }
+  }
+
+  const handleDeleteStation = async (stationId: string) => {
+    if (!confirm('¿Eliminar esta estación y todos sus productos?')) return
+    setStationsSaving(p => ({ ...p, [stationId]: true }))
+    try {
+      await fetch(`/api/workshops/${tallerId}/stations/${stationId}`, { method: 'DELETE' })
+      await fetchStations()
+    } finally {
+      setStationsSaving(p => ({ ...p, [stationId]: false }))
+    }
+  }
+
+  const handleRenameStation = async (stationId: string) => {
+    if (!tempStationName.trim()) return
+    setStationsSaving(p => ({ ...p, [stationId]: true }))
+    try {
+      const res = await fetch(`/api/workshops/${tallerId}/stations/${stationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: tempStationName.trim() })
+      })
+      if (res.ok) {
+        setEditingStationNameId(null)
+        setTempStationName('')
+        await fetchStations()
+      }
+    } finally {
+      setStationsSaving(p => ({ ...p, [stationId]: false }))
+    }
+  }
+
+  const handleUpdateStationProducts = async (stationId: string, products: { product_id: string, cantidad: number }[]) => {
+    setStationsSaving(p => ({ ...p, [stationId]: true }))
+    try {
+      const res = await fetch(`/api/workshops/${tallerId}/stations/${stationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products })
+      })
+      if (res.ok) {
+        await fetchStations()
+      }
+    } finally {
+      setStationsSaving(p => ({ ...p, [stationId]: false }))
+    }
+  }
+
+  const handleAddProductToStation = async (stationId: string, productId: string) => {
+    const station = stations.find(s => s.id === stationId)
+    if (!station) return
+    const existing = station.workshop_station_products.find(p => p.product_id === productId)
+    let updatedProducts: { product_id: string; cantidad: number }[] = []
+    if (existing) {
+      updatedProducts = station.workshop_station_products.map(p => ({
+        product_id: p.product_id,
+        cantidad: p.product_id === productId ? p.cantidad + 1 : p.cantidad
+      }))
+    } else {
+      updatedProducts = [
+        ...station.workshop_station_products.map(p => ({ product_id: p.product_id, cantidad: p.cantidad })),
+        { product_id: productId, cantidad: 1 }
+      ]
+    }
+    await handleUpdateStationProducts(stationId, updatedProducts)
+    setStationSearchQuery(p => ({ ...p, [stationId]: '' }))
+  }
+
+  const handleRemoveProductFromStation = async (stationId: string, productId: string) => {
+    const station = stations.find(s => s.id === stationId)
+    if (!station) return
+    const updatedProducts = station.workshop_station_products
+      .filter(p => p.product_id !== productId)
+      .map(p => ({ product_id: p.product_id, cantidad: p.cantidad }))
+    await handleUpdateStationProducts(stationId, updatedProducts)
+  }
+
+  const handleUpdateProductQty = async (stationId: string, productId: string, cantidad: number) => {
+    if (cantidad < 1) return
+    const station = stations.find(s => s.id === stationId)
+    if (!station) return
+    const updatedProducts = station.workshop_station_products.map(p => ({
+      product_id: p.product_id,
+      cantidad: p.product_id === productId ? cantidad : p.cantidad
+    }))
+    await handleUpdateStationProducts(stationId, updatedProducts)
+  }
 
   // Hotel room handlers
   const handleCreateRoom = async () => {
@@ -831,6 +992,21 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               Habitaciones ({hotelRooms.length})
             </button>
           )}
+          {!isNew && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('estaciones')}
+              className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
+                ${activeTab === 'estaciones'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                }
+              `}
+            >
+              <Boxes size={14} />
+              Estaciones ({stations.length})
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
@@ -1188,72 +1364,125 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           )}
 
           {/* TAB 4: RESUMEN */}
-          {activeTab === 'resumen' && (
-            <div className="space-y-6">
-              {/* Notice to Save Changes */}
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
-                <span className="text-amber-500 mt-0.5">⚠️</span>
-                <div>
-                  <h4 className="text-sm font-bold text-amber-800">Nota de Logística</h4>
-                  <p className="text-xs text-amber-700 mt-0.5">
-                    Guarda los cambios del taller antes de enviar notificaciones para asegurar que el staff reciba la información actualizada.
-                  </p>
-                </div>
-              </div>
+          {activeTab === 'resumen' && (() => {
+            // Aggregate all products from all stations
+            const consolidatedMap: Record<string, { nombre: string; categoria: string | null; tipo: string | null; cantidad: number }> = {}
+            stations.forEach(station => {
+              station.workshop_station_products.forEach(sp => {
+                const prod = sp.productos
+                if (!prod) return
+                if (consolidatedMap[prod.id]) {
+                  consolidatedMap[prod.id].cantidad += sp.cantidad
+                } else {
+                  consolidatedMap[prod.id] = { nombre: prod.nombre, categoria: prod.categoria, tipo: prod.tipo, cantidad: sp.cantidad }
+                }
+              })
+            })
+            const consolidatedProducts = Object.values(consolidatedMap)
 
-              <div className="card p-6 bg-white shadow-sm border border-gray-150 rounded-2xl">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            return (
+              <div className="space-y-6">
+                {/* Notice to Save Changes */}
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                  <span className="text-amber-500 mt-0.5">⚠️</span>
                   <div>
-                    <h3 className="text-base font-bold text-gray-900 mb-1">Resumen del Staff y Asignaciones</h3>
-                    <p className="text-xs text-gray-500">Revisa la logística de traslado y actividades del staff para este taller, y envíales sus notificaciones.</p>
-                    
-                    {/* Toggle button */}
-                    <div className="flex items-center gap-2 mt-3">
-                      <button
-                        type="button"
-                        onClick={() => setGroupByVehicle(!groupByVehicle)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                          groupByVehicle 
-                            ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' 
-                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Car size={14} />
-                        {groupByVehicle ? 'Agrupado por Vehículo' : 'Agrupar por Vehículo'}
-                      </button>
+                    <h4 className="text-sm font-bold text-amber-800">Nota de Logística</h4>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Guarda los cambios del taller antes de enviar notificaciones para asegurar que el staff reciba la información actualizada.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Consolidated Products */}
+                {consolidatedProducts.length > 0 && (
+                  <div className="card p-6 bg-white shadow-sm border border-gray-150 rounded-2xl">
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2 mb-4">
+                      <Wrench size={18} className="text-blue-500" />
+                      Productos Necesarios (Todas las Estaciones)
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-2 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Producto</th>
+                            <th className="text-left py-2 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Categoría</th>
+                            <th className="text-center py-2 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Cantidad Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {consolidatedProducts.map((p, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                              <td className="py-2.5 px-3 font-semibold text-gray-900">{p.nombre}</td>
+                              <td className="py-2.5 px-3">
+                                {p.categoria && (
+                                  <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg">{p.categoria}</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-bold text-sm">{p.cantidad}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                  
-                  {/* Button to notify everyone */}
-                  <button
-                    type="button"
-                    onClick={handleNotifyAll}
-                    disabled={isNotifyingAll || assignedStaff.length === 0}
-                    className="btn-primary bg-green-600 hover:bg-green-700 border-green-600 flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    {isNotifyingAll ? (
-                      <Loader2 className="animate-spin" size={16} />
-                    ) : (
-                      <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
-                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.49-3.232c1.648.978 3.256 1.488 4.982 1.489 5.433.003 9.85-4.387 9.853-9.782.002-2.614-1.011-5.071-2.853-6.914C16.638 3.718 14.186 2.7 11.579 2.7c-5.437 0-9.856 4.39-9.859 9.783-.001 1.832.483 3.619 1.401 5.2l-.188.685-.688 2.508 2.57-.674.632-.164zm10.74-4.821c-.244-.122-1.442-.712-1.666-.793-.223-.081-.385-.122-.547.122-.162.244-.63.793-.772.955-.143.162-.285.183-.529.061-.244-.122-1.029-.379-1.96-1.21-.724-.646-1.213-1.444-1.355-1.687-.143-.244-.015-.376.107-.497.11-.11.244-.285.366-.427.122-.142.162-.244.244-.407.081-.162.041-.305-.02-.427-.061-.122-.547-1.32-.75-1.81-.197-.474-.397-.41-.547-.417-.142-.007-.305-.009-.467-.009-.162 0-.427.061-.65.305-.223.244-.853.834-.853 2.035 0 1.2.873 2.36 1.001 2.475.127.115 1.705 2.612 4.14 3.655.58.248 1.03.396 1.38.508.583.185 1.114.159 1.533.096.467-.069 1.442-.589 1.646-1.159.203-.57.203-1.057.142-1.159-.06-.101-.223-.162-.467-.284z"/>
-                      </svg>
-                    )}
-                    {isNotifyingAll ? 'Notificando...' : 'Notificar a todo el Staff'}
-                  </button>
-                </div>
-
-                {assignedStaff.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 border border-dashed border-gray-200 rounded-2xl space-y-2">
-                    <User size={36} className="text-gray-400 mx-auto" />
-                    <p className="text-sm font-semibold text-gray-600">No hay personal de staff asignado.</p>
-                    <p className="text-xs text-gray-500 max-w-sm mx-auto">Dirígete a la pestaña "Miembros del Staff" para asignar al equipo que participará en este taller.</p>
-                  </div>
-                ) : (
-                  renderStaffList()
                 )}
-              </div>
+
+                <div className="card p-6 bg-white shadow-sm border border-gray-150 rounded-2xl">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 mb-1">Resumen del Staff y Asignaciones</h3>
+                      <p className="text-xs text-gray-500">Revisa la logística de traslado y actividades del staff para este taller, y envíales sus notificaciones.</p>
+                      
+                      {/* Toggle button */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setGroupByVehicle(!groupByVehicle)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                            groupByVehicle 
+                              ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' 
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <Car size={14} />
+                          {groupByVehicle ? 'Agrupado por Vehículo' : 'Agrupar por Vehículo'}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Button to notify everyone */}
+                    <button
+                      type="button"
+                      onClick={handleNotifyAll}
+                      disabled={isNotifyingAll || assignedStaff.length === 0}
+                      className="btn-primary bg-green-600 hover:bg-green-700 border-green-600 flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      {isNotifyingAll ? (
+                        <Loader2 className="animate-spin" size={16} />
+                      ) : (
+                        <svg className="w-4 h-4 fill-current text-white" viewBox="0 0 24 24">
+                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.49-3.232c1.648.978 3.256 1.488 4.982 1.489 5.433.003 9.85-4.387 9.853-9.782.002-2.614-1.011-5.071-2.853-6.914C16.638 3.718 14.186 2.7 11.579 2.7c-5.437 0-9.856 4.39-9.859 9.783-.001 1.832.483 3.619 1.401 5.2l-.188.685-.688 2.508 2.57-.674.632-.164zm10.74-4.821c-.244-.122-1.442-.712-1.666-.793-.223-.081-.385-.122-.547.122-.162.244-.63.793-.772.955-.143.162-.285.183-.529.061-.244-.122-1.029-.379-1.96-1.21-.724-.646-1.213-1.444-1.355-1.687-.143-.244-.015-.376.107-.497.11-.11.244-.285.366-.427.122-.142.162-.244.244-.407.081-.162.041-.305-.02-.427-.061-.122-.547-1.32-.75-1.81-.197-.474-.397-.41-.547-.417-.142-.007-.305-.009-.467-.009-.162 0-.427.061-.65.305-.223.244-.853.834-.853 2.035 0 1.2.873 2.36 1.001 2.475.127.115 1.705 2.612 4.14 3.655.58.248 1.03.396 1.38.508.583.185 1.114.159 1.533.096.467-.069 1.442-.589 1.646-1.159.203-.57.203-1.057.142-1.159-.06-.101-.223-.162-.467-.284z"/>
+                        </svg>
+                      )}
+                      {isNotifyingAll ? 'Notificando...' : 'Notificar a todo el Staff'}
+                    </button>
+                  </div>
+
+                  {assignedStaff.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 border border-dashed border-gray-200 rounded-2xl space-y-2">
+                      <User size={36} className="text-gray-400 mx-auto" />
+                      <p className="text-sm font-semibold text-gray-600">No hay personal de staff asignado.</p>
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto">Dirígete a la pestaña "Miembros del Staff" para asignar al equipo que participará en este taller.</p>
+                    </div>
+                  ) : (
+                    renderStaffList()
+                  )}
+                </div>
             </div>
-          )}
+            )
+          })()}
 
           {/* TAB 5: HOTEL ROOMS */}
           {activeTab === 'hotel' && (
@@ -1537,6 +1766,468 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                               </div>
                             </div>
                           )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 6: ESTACIONES */}
+          {activeTab === 'estaciones' && (
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <Boxes size={18} className="text-blue-500" />
+                    Estaciones del Taller
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Crea estaciones y asigna los productos necesarios para cada una.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStation(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Plus size={15} /> Nueva Estación
+                </button>
+              </div>
+
+              {/* Add Station Form */}
+              {showAddStation && (
+                <div className="p-5 bg-blue-50 border border-blue-200 rounded-2xl space-y-3">
+                  <h4 className="font-bold text-sm text-blue-900">Nueva Estación</h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nombre de la estación (ej. Estación 1, Artroscopia, etc.)"
+                      className="erp-input flex-1"
+                      value={newStationName}
+                      onChange={e => setNewStationName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleCreateStation())}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateStation}
+                      disabled={!newStationName.trim() || stationsSaving['new']}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {stationsSaving['new'] ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Crear
+                    </button>
+                    <button type="button" onClick={() => { setShowAddStation(false); setNewStationName('') }} className="btn-secondary text-sm">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Station Cards */}
+              {stationsLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="animate-spin text-blue-500" size={28} /></div>
+              ) : stations.length === 0 ? (
+                <div className="text-center py-14 border-2 border-dashed border-gray-200 rounded-2xl space-y-2">
+                  <Boxes size={36} className="text-gray-300 mx-auto" />
+                  <p className="text-sm font-semibold text-gray-500">No hay estaciones registradas</p>
+                  <p className="text-xs text-gray-400">Crea una estación para comenzar a asignar productos.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {stations.map(station => {
+                    const stationId = station.id!
+                    const isSaving = !!stationsSaving[stationId]
+                    const searchQuery = (stationSearchQuery[stationId] || '').toLowerCase()
+                    const filteredCatalog = catalogProducts.filter(
+                      p =>
+                        !station.workshop_station_products.some(sp => sp.product_id === p.id) &&
+                        (p.nombre.toLowerCase().includes(searchQuery) ||
+                          (p.categoria || '').toLowerCase().includes(searchQuery))
+                    ).slice(0, 8)
+
+                    return (
+                      <div key={stationId} className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden">
+                        {/* Station Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                              <Wrench size={16} />
+                            </div>
+                            {editingStationNameId === stationId ? (
+                              <div className="flex items-center gap-2 flex-1">
+                                <input
+                                  type="text"
+                                  className="erp-input flex-1 py-1.5 text-sm"
+                                  value={tempStationName}
+                                  onChange={e => setTempStationName(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') { e.preventDefault(); handleRenameStation(stationId) }
+                                    if (e.key === 'Escape') { setEditingStationNameId(null); setTempStationName('') }
+                                  }}
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRenameStation(stationId)}
+                                  disabled={isSaving}
+                                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  {isSaving ? <Loader2 size={12} className="animate-spin" /> : 'Guardar'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingStationNameId(null); setTempStationName('') }}
+                                  className="text-xs text-gray-500 hover:text-gray-700"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 min-w-0">
+                                <h4 className="font-bold text-gray-900 text-sm truncate">{station.name}</h4>
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingStationNameId(stationId); setTempStationName(station.name) }}
+                                  className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors shrink-0"
+                                  title="Renombrar"
+                                >
+                                  <Edit size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-lg">
+                              {station.workshop_station_products.length} productos
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStation(stationId)}
+                              disabled={isSaving}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Eliminar estación"
+                            >
+                              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-4 space-y-3">
+                          {/* Current Products */}
+                          {station.workshop_station_products.length === 0 ? (
+                            <p className="text-xs text-gray-400 italic text-center py-2">Sin productos asignados</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {station.workshop_station_products.map(sp => {
+                                const prod = sp.productos
+                                return (
+                                  <div key={sp.product_id} className="flex items-center justify-between gap-3 p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-semibold text-gray-900 truncate">{prod?.nombre || sp.product_id}</p>
+                                      {prod?.categoria && (
+                                        <span className="text-[9px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{prod.categoria}</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateProductQty(stationId, sp.product_id, sp.cantidad - 1)}
+                                        disabled={isSaving || sp.cantidad <= 1}
+                                        className="w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 font-bold text-sm"
+                                      >−</button>
+                                      <span className="w-8 text-center text-sm font-bold text-gray-900">{sp.cantidad}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateProductQty(stationId, sp.product_id, sp.cantidad + 1)}
+                                        disabled={isSaving}
+                                        className="w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 font-bold text-sm"
+                                      >+</button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveProductFromStation(stationId, sp.product_id)}
+                                        disabled={isSaving}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                                        title="Quitar producto"
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          {/* Product Search / Add */}
+                          <div className="border-t border-gray-100 pt-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Agregar Producto del Catálogo</p>
+                            <input
+                              type="text"
+                              placeholder="Buscar por nombre o categoría..."
+                              className="erp-input w-full py-1.5 text-xs"
+                              value={stationSearchQuery[stationId] || ''}
+                              onChange={e => setStationSearchQuery(p => ({ ...p, [stationId]: e.target.value }))}
+                            />
+                            {(stationSearchQuery[stationId] || '').trim().length > 0 && (
+                              <div className="mt-1.5 space-y-1 max-h-48 overflow-y-auto">
+                                {filteredCatalog.length === 0 ? (
+                                  <p className="text-xs text-gray-400 italic py-2 text-center">No se encontraron productos.</p>
+                                ) : (
+                                  filteredCatalog.map(p => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => handleAddProductToStation(stationId, p.id)}
+                                      disabled={isSaving}
+                                      className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white border border-gray-150 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all text-left disabled:opacity-50"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-gray-900 truncate">{p.nombre}</p>
+                                        {p.categoria && (
+                                          <span className="text-[9px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{p.categoria}</span>
+                                        )}
+                                      </div>
+                                      <Plus size={14} className="text-blue-500 shrink-0" />
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 6: ESTACIONES */}
+          {activeTab === 'estaciones' && (
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <Boxes size={18} className="text-blue-500" />
+                    Estaciones del Taller
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Crea estaciones y asigna los productos necesarios para cada una.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStation(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Plus size={15} /> Nueva Estación
+                </button>
+              </div>
+
+              {/* Add Station Form */}
+              {showAddStation && (
+                <div className="p-5 bg-blue-50 border border-blue-200 rounded-2xl space-y-3">
+                  <h4 className="font-bold text-sm text-blue-900">Nueva Estación</h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nombre de la estación (ej. Estación 1, Artroscopia, etc.)"
+                      className="erp-input flex-1"
+                      value={newStationName}
+                      onChange={e => setNewStationName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleCreateStation())}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateStation}
+                      disabled={!newStationName.trim() || stationsSaving['new']}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {stationsSaving['new'] ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Crear
+                    </button>
+                    <button type="button" onClick={() => { setShowAddStation(false); setNewStationName('') }} className="btn-secondary text-sm">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Station Cards */}
+              {stationsLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="animate-spin text-blue-500" size={28} /></div>
+              ) : stations.length === 0 ? (
+                <div className="text-center py-14 border-2 border-dashed border-gray-200 rounded-2xl space-y-2">
+                  <Boxes size={36} className="text-gray-300 mx-auto" />
+                  <p className="text-sm font-semibold text-gray-500">No hay estaciones registradas</p>
+                  <p className="text-xs text-gray-400">Crea una estación para comenzar a asignar productos.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {stations.map(station => {
+                    const stationId = station.id!
+                    const isSavingStation = !!stationsSaving[stationId]
+                    const searchQuery = (stationSearchQuery[stationId] || '').toLowerCase()
+                    const filteredCatalog = catalogProducts.filter(
+                      p =>
+                        !station.workshop_station_products.some(sp => sp.product_id === p.id) &&
+                        (p.nombre.toLowerCase().includes(searchQuery) ||
+                          (p.categoria || '').toLowerCase().includes(searchQuery))
+                    ).slice(0, 8)
+
+                    return (
+                      <div key={stationId} className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden">
+                        {/* Station Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                              <Wrench size={16} />
+                            </div>
+                            {editingStationNameId === stationId ? (
+                              <div className="flex items-center gap-2 flex-1">
+                                <input
+                                  type="text"
+                                  className="erp-input flex-1 py-1.5 text-sm"
+                                  value={tempStationName}
+                                  onChange={e => setTempStationName(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') { e.preventDefault(); handleRenameStation(stationId) }
+                                    if (e.key === 'Escape') { setEditingStationNameId(null); setTempStationName('') }
+                                  }}
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRenameStation(stationId)}
+                                  disabled={isSavingStation}
+                                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  {isSavingStation ? <Loader2 size={12} className="animate-spin" /> : 'Guardar'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingStationNameId(null); setTempStationName('') }}
+                                  className="text-xs text-gray-500 hover:text-gray-700"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 min-w-0">
+                                <h4 className="font-bold text-gray-900 text-sm truncate">{station.name}</h4>
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingStationNameId(stationId); setTempStationName(station.name) }}
+                                  className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors shrink-0"
+                                  title="Renombrar"
+                                >
+                                  <Edit size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-lg">
+                              {station.workshop_station_products.length} productos
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStation(stationId)}
+                              disabled={isSavingStation}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Eliminar estación"
+                            >
+                              {isSavingStation ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-4 space-y-3">
+                          {/* Current Products */}
+                          {station.workshop_station_products.length === 0 ? (
+                            <p className="text-xs text-gray-400 italic text-center py-2">Sin productos asignados</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {station.workshop_station_products.map(sp => {
+                                const prod = sp.productos
+                                return (
+                                  <div key={sp.product_id} className="flex items-center justify-between gap-3 p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-semibold text-gray-900 truncate">{prod?.nombre || sp.product_id}</p>
+                                      {prod?.categoria && (
+                                        <span className="text-[9px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{prod.categoria}</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateProductQty(stationId, sp.product_id, sp.cantidad - 1)}
+                                        disabled={isSavingStation || sp.cantidad <= 1}
+                                        className="w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 font-bold text-sm"
+                                      >−</button>
+                                      <span className="w-8 text-center text-sm font-bold text-gray-900">{sp.cantidad}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateProductQty(stationId, sp.product_id, sp.cantidad + 1)}
+                                        disabled={isSavingStation}
+                                        className="w-6 h-6 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 font-bold text-sm"
+                                      >+</button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveProductFromStation(stationId, sp.product_id)}
+                                        disabled={isSavingStation}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                                        title="Quitar producto"
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          {/* Product Search / Add */}
+                          <div className="border-t border-gray-100 pt-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Agregar Producto del Catálogo</p>
+                            <input
+                              type="text"
+                              placeholder="Buscar por nombre o categoría..."
+                              className="erp-input w-full py-1.5 text-xs"
+                              value={stationSearchQuery[stationId] || ''}
+                              onChange={e => setStationSearchQuery(p => ({ ...p, [stationId]: e.target.value }))}
+                            />
+                            {(stationSearchQuery[stationId] || '').trim().length > 0 && (
+                              <div className="mt-1.5 space-y-1 max-h-48 overflow-y-auto">
+                                {filteredCatalog.length === 0 ? (
+                                  <p className="text-xs text-gray-400 italic py-2 text-center">No se encontraron productos.</p>
+                                ) : (
+                                  filteredCatalog.map(p => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => handleAddProductToStation(stationId, p.id)}
+                                      disabled={isSavingStation}
+                                      className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white border border-gray-150 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all text-left disabled:opacity-50"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-gray-900 truncate">{p.nombre}</p>
+                                        {p.categoria && (
+                                          <span className="text-[9px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{p.categoria}</span>
+                                        )}
+                                      </div>
+                                      <Plus size={14} className="text-blue-500 shrink-0" />
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
