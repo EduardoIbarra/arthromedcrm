@@ -75,6 +75,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'total', label: 'Total', visible: true },
   { id: 'surtido', label: 'Surtido', visible: true },
   { id: 'dias_restantes', label: 'Días Restantes', visible: true },
+  { id: 'fecha_limite_entrega', label: 'Límite Entrega', visible: true },
   { id: 'estado_pago', label: 'Estado Pago', visible: true },
 ]
 
@@ -796,7 +797,7 @@ export default function FacturasPage() {
                     {columns.filter(c => c.visible).map((col) => {
                       let alignClass = 'text-left'
                       if (['subtotal', 'iva', 'total'].includes(col.id)) alignClass = 'text-right'
-                      if (['surtido', 'dias_restantes', 'estado_pago'].includes(col.id)) alignClass = 'text-center'
+                      if (['surtido', 'dias_restantes', 'fecha_limite_entrega', 'estado_pago'].includes(col.id)) alignClass = 'text-center'
                       
                       return (
                         <th key={col.id} className={`p-4 ${alignClass} ${col.id === 'total' ? 'font-bold' : ''}`}>
@@ -900,6 +901,15 @@ export default function FacturasPage() {
                               return (
                                 <td key={col.id} className="p-4 text-center">
                                   {renderDeliveryDays(invoice)}
+                                </td>
+                              )
+                            case 'fecha_limite_entrega':
+                              return (
+                                <td key={col.id} className="p-4 text-center text-gray-650 font-medium text-xs">
+                                  {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
+                                    ? formatDate(addBusinessDays(invoice.fecha_pago, deliveryDays).toISOString())
+                                    : '-'
+                                  }
                                 </td>
                               )
                             case 'estado_pago':
