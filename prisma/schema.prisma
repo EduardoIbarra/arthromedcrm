@@ -910,6 +910,7 @@ model congress_workshops {
   congress_workshop_enrollments congress_workshop_enrollments[]
   congress_workshop_members     congress_workshop_members[]
   workshop_itinerarios          workshop_itinerarios[]
+  workshop_hotel_rooms          workshop_hotel_rooms[]
   congresos                     congresos?                      @relation(fields: [congress_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
@@ -1845,6 +1846,7 @@ model user_profiles {
   congress_workshop_members                                                   congress_workshop_members[]
   workshop_itinerary_members                                                  workshop_itinerary_members[]
   car_fleet                                                                   car_fleet[]
+  workshop_hotel_occupants                                                    workshop_hotel_occupants[]
 
   @@schema("public")
 }
@@ -2048,5 +2050,34 @@ model workshop_itinerary_members {
   workshop_itinerarios workshop_itinerarios @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
 
   @@id([itinerary_id, user_id])
+  @@schema("public")
+}
+
+model workshop_hotel_rooms {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workshop_id              String                     @db.Uuid
+  room_number              String
+  room_type                String?
+  capacity                 Int                        @default(2)
+  notes                    String?
+  created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
+  congress_workshops       congress_workshops          @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
+  workshop_hotel_occupants workshop_hotel_occupants[]
+
+  @@index([workshop_id])
+  @@schema("public")
+}
+
+model workshop_hotel_occupants {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id              String               @db.Uuid
+  user_id              String?              @db.Uuid
+  guest_name           String?
+  guest_phone          String?
+  created_at           DateTime?            @default(now()) @db.Timestamptz(6)
+  workshop_hotel_rooms workshop_hotel_rooms @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  user_profiles        user_profiles?       @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([room_id])
   @@schema("public")
 }
