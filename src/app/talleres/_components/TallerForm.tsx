@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit, Car, ChevronDown, ChevronUp, Hotel, Users, BedDouble, Boxes, Wrench } from 'lucide-react'
@@ -115,6 +115,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   // Staff and Itinerary states
   const [staffList, setStaffList] = useState<any[]>([])
   const [memberIds, setMemberIds] = useState<string[]>([])
+  const [tempMembers, setTempMembers] = useState<any[]>([])
   const [carList, setCarList] = useState<CarFleet[]>([])
   const [memberCarAssignments, setMemberCarAssignments] = useState<Record<string, string>>({})
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([])
@@ -207,6 +208,14 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               })
               setMemberCarAssignments(assignments)
             }
+            if (data.workshop_temp_staff) {
+              setTempMembers(data.workshop_temp_staff.map((tm: any) => ({
+                id: tm.id,
+                name: tm.name,
+                phone: tm.phone || '',
+                carId: tm.car_id || null
+              })))
+            }
             if (data.workshop_itinerarios) {
               setItinerary(data.workshop_itinerarios.map((it: any) => ({
                 id: it.id,
@@ -214,7 +223,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                 time: it.time || '',
                 description: it.description,
                 notes: it.notes || '',
-                involvedMemberIds: it.involved_members.map((im: any) => im.user_id)
+                involvedMemberIds: it.involved_members.map((im: any) => im.user_id || im.temp_member_id)
               })))
             }
           }
@@ -403,16 +412,29 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     }
   }
 
-  const handleAddStaffToRoom = async (roomId: string, userId: string) => {
+  const handleAddStaffToRoom = async (roomId: string, staffId: string) => {
     const room = hotelRooms.find(r => r.id === roomId)
     if (!room) return
-    const alreadyIn = room.workshop_hotel_occupants.some(o => o.user_id === userId)
-    if (alreadyIn) return
-    const newOccupants = [
-      ...room.workshop_hotel_occupants.map(o => ({ user_id: o.user_id, guest_name: o.guest_name, guest_phone: o.guest_phone })),
-      { user_id: userId }
-    ]
-    await handleUpdateOccupants(roomId, newOccupants)
+    const staff = assignedStaff.find(s => s.id === staffId)
+    if (!staff) return
+
+    if (staff.isTemp) {
+      const alreadyIn = room.workshop_hotel_occupants.some(o => o.guest_name === staff.first_name)
+      if (alreadyIn) return
+      const newOccupants = [
+        ...room.workshop_hotel_occupants.map(o => ({ user_id: o.user_id, guest_name: o.guest_name, guest_phone: o.guest_phone })),
+        { guest_name: staff.first_name, guest_phone: staff.phone || null, user_id: null }
+      ]
+      await handleUpdateOccupants(roomId, newOccupants)
+    } else {
+      const alreadyIn = room.workshop_hotel_occupants.some(o => o.user_id === staffId)
+      if (alreadyIn) return
+      const newOccupants = [
+        ...room.workshop_hotel_occupants.map(o => ({ user_id: o.user_id, guest_name: o.guest_name, guest_phone: o.guest_phone })),
+        { user_id: staffId, guest_name: null, guest_phone: null }
+      ]
+      await handleUpdateOccupants(roomId, newOccupants)
+    }
   }
 
   const handleAddGuestToRoom = async (roomId: string) => {
@@ -521,6 +543,12 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           userId,
           carId: memberCarAssignments[userId] || null
         })),
+        tempStaff: tempMembers.map(tm => ({
+          id: tm.id,
+          name: tm.name,
+          phone: tm.phone || null,
+          carId: tm.carId || null
+        })),
         itinerary
       }
 
@@ -572,6 +600,41 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
       }
       return next
     })
+  }
+
+  const handleAddTempMember = () => {
+    const newId = crypto.randomUUID()
+    setTempMembers(prev => [
+      ...prev,
+      {
+        id: newId,
+        name: '',
+        phone: '',
+        carId: null
+      }
+    ])
+  }
+
+  const handleRemoveTempMember = (id: string) => {
+    setTempMembers(prev => prev.filter(tm => tm.id !== id))
+    // Clean up car assignment if any
+    const updatedAssignments = { ...memberCarAssignments }
+    delete updatedAssignments[id]
+    setMemberCarAssignments(updatedAssignments)
+    // Clean up itinerary items involving this temp member
+    setItinerary(itinerary.map(item => ({
+      ...item,
+      involvedMemberIds: item.involvedMemberIds.filter(mid => mid !== id)
+    })))
+  }
+
+  const handleUpdateTempMember = (id: string, field: string, value: any) => {
+    setTempMembers(prev => prev.map(tm => {
+      if (tm.id === id) {
+        return { ...tm, [field]: value }
+      }
+      return tm
+    }))
   }
 
   // Itinerary handlers
@@ -720,10 +783,36 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     )
   }
 
-  const assignedStaff = staffList.filter(s => memberIds.includes(s.id))
+  const assignedStaff = useMemo(() => {
+    const assigned = staffList.filter(s => memberIds.includes(s.id)).map(s => ({
+      id: s.id,
+      first_name: s.first_name || '',
+      last_name: s.last_name || '',
+      email: s.email || '',
+      phone: s.whatsapp || '',
+      whatsapp: s.whatsapp || '',
+      position: s.position || 'Staff',
+      isTemp: false,
+      carId: null as string | null
+    }))
+    
+    const temps = tempMembers.map(tm => ({
+      id: tm.id,
+      first_name: tm.name,
+      last_name: '',
+      email: 'Personal Temporal',
+      phone: tm.phone || '',
+      whatsapp: tm.phone || '',
+      position: 'Staff Temporal',
+      isTemp: true,
+      carId: (tm.carId || null) as string | null
+    }))
+    
+    return [...assigned, ...temps]
+  }, [staffList, memberIds, tempMembers])
 
   const renderMemberCard = (member: any, hideVehicleInfo = false) => {
-    const carId = memberCarAssignments[member.id]
+    const carId = member.isTemp ? member.carId : memberCarAssignments[member.id]
     const car = carList.find(c => c.id === carId)
     const userTasks = itinerary.filter(item => item.involvedMemberIds.includes(member.id))
     const isExpanded = !!expandedTasks[member.id]
@@ -846,7 +935,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     // Grouping logic
     const grouped: Record<string, typeof assignedStaff> = {}
     assignedStaff.forEach(member => {
-      const carId = memberCarAssignments[member.id] || 'no_car'
+      const carId = (member.isTemp ? member.carId : memberCarAssignments[member.id]) || 'no_car'
       if (!grouped[carId]) {
         grouped[carId] = []
       }
@@ -1174,6 +1263,86 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                     <div className="col-span-full py-12 text-center text-gray-400 italic">No hay usuarios en el sistema.</div>
                   )}
                 </div>
+              </div>
+
+              {/* Personal Temporal / Externo */}
+              <div className="pt-6 border-t border-gray-150 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900">Personal Temporal o Externo</h4>
+                    <p className="text-xs text-gray-500">Agrega colaboradores adicionales que participarán en este taller temporalmente, sin registrarlos como usuarios en el sistema.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddTempMember}
+                    className="btn-secondary self-start sm:self-auto py-1.5 px-3 border-blue-200 text-blue-700 hover:bg-blue-50 text-xs flex items-center gap-1.5 rounded-xl transition-all font-semibold"
+                  >
+                    <Plus size={14} />
+                    Agregar Personal Temporal
+                  </button>
+                </div>
+
+                {tempMembers.length === 0 ? (
+                  <div className="p-5 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-center text-xs text-gray-400 italic">
+                    No hay personal temporal asignado.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {tempMembers.map((member) => (
+                      <div key={member.id} className="p-4 bg-gray-50/50 rounded-xl border border-gray-150 space-y-3 relative group">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTempMember(member.id)}
+                          className="absolute top-3 right-3 text-gray-400 hover:text-red-500 p-1 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Eliminar personal temporal"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        
+                        <div className="space-y-3 pr-6">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Nombre Completo *</label>
+                            <input
+                              type="text"
+                              value={member.name}
+                              onChange={(e) => handleUpdateTempMember(member.id, 'name', e.target.value)}
+                              placeholder="Ej. Juan Pérez"
+                              className="erp-input w-full py-1.5 px-2.5 text-xs bg-white focus:bg-white"
+                              required
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">WhatsApp (Celular)</label>
+                            <input
+                              type="tel"
+                              value={member.phone}
+                              onChange={(e) => handleUpdateTempMember(member.id, 'phone', e.target.value)}
+                              placeholder="Ej. 8110000000"
+                              className="erp-input w-full py-1.5 px-2.5 text-xs bg-white focus:bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Vehículo Asignado</label>
+                            <select
+                              value={member.carId || ''}
+                              onChange={(e) => handleUpdateTempMember(member.id, 'carId', e.target.value)}
+                              className="erp-input w-full py-1.5 px-2 text-xs bg-white focus:bg-white"
+                            >
+                              <option value="">-- Sin Vehículo --</option>
+                              {carList.map((car) => (
+                                <option key={car.id} value={car.id}>
+                                  {car.alias || `${car.make} ${car.model} (${car.plate_number})`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1588,9 +1757,10 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                     const isAssigning = assigningRoomId === room.id
                     const isSavingRoom = room.id ? !!hotelSaving[room.id] : false
 
-                    // Staff not yet in this room
-                    const availableStaff = assignedStaff.filter(
-                      s => !room.workshop_hotel_occupants.some(o => o.user_id === s.id)
+                    const availableStaff = assignedStaff.filter(s =>
+                      s.isTemp
+                        ? !room.workshop_hotel_occupants.some(o => o.guest_name === s.first_name)
+                        : !room.workshop_hotel_occupants.some(o => o.user_id === s.id)
                     )
 
                     return (

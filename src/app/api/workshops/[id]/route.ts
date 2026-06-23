@@ -19,10 +19,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         congress_workshop_members: {
           include: { user_profiles: true, car_fleet: true }
         },
+        workshop_temp_staff: {
+          include: { car_fleet: true }
+        },
         workshop_itinerarios: {
           include: {
             involved_members: {
-              include: { user_profiles: true }
+              include: { user_profiles: true, workshop_temp_staff: true }
             }
           },
           orderBy: [
@@ -55,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await req.json()
-    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, itinerary, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, itinerary, flyer, description } = body
 
     const result = await prisma.$transaction(async (tx: any) => {
       if (doctorIds && Array.isArray(doctorIds)) {
@@ -81,6 +84,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       
       if (shouldUpdateMembers) {
         await tx.congress_workshop_members.deleteMany({ where: { workshop_id: id } })
+      }
+
+      if (tempStaff && Array.isArray(tempStaff)) {
+        await tx.workshop_temp_staff.deleteMany({ where: { workshop_id: id } })
       }
 
       if (itinerary && Array.isArray(itinerary)) {
@@ -118,9 +125,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         },
         include: {
           congress_workshop_doctors: { include: { doctors: true } },
-          congress_workshop_members: { include: { user_profiles: true, car_fleet: true } }
+          congress_workshop_members: { include: { user_profiles: true, car_fleet: true } },
+          workshop_temp_staff: { include: { car_fleet: true } }
         }
       })
+
+      if (tempStaff && Array.isArray(tempStaff)) {
+        await tx.workshop_temp_staff.createMany({
+          data: tempStaff.map((ts: any) => ({
+            id: ts.id,
+            workshop_id: id,
+            name: ts.name,
+            phone: ts.phone || null,
+            car_id: ts.carId || null
+          }))
+        })
+      }
 
       if (itinerary && Array.isArray(itinerary)) {
         for (const item of itinerary) {
@@ -132,9 +152,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               description: item.description,
               notes: item.notes || null,
               involved_members: {
-                create: (item.involvedMemberIds || []).map((userId: string) => ({
-                  user_id: userId
-                }))
+                create: (item.involvedMemberIds || []).map((memberId: string) => {
+                  const isTemp = tempStaff && tempStaff.some((ts: any) => ts.id === memberId)
+                  return {
+                    ...(isTemp ? { temp_member_id: memberId } : { user_id: memberId })
+                  }
+                })
               }
             }
           })

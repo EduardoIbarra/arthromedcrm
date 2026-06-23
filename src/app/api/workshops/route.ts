@@ -10,6 +10,7 @@ export async function GET() {
         congresos: true,
         congress_workshop_doctors: { include: { doctors: true } },
         congress_workshop_members: { include: { user_profiles: true, car_fleet: true } },
+        workshop_temp_staff: { include: { car_fleet: true } },
         _count: { select: { congress_workshop_enrollments: true } }
       },
       orderBy: { date_time: 'desc' },
@@ -23,7 +24,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, flyer, description } = body
 
     if (!name || !date_time || !max_people) {
       return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
@@ -66,11 +67,20 @@ export async function POST(req: NextRequest) {
         },
         congress_workshop_members: {
           create: membersData
+        },
+        workshop_temp_staff: {
+          create: (tempStaff || []).map((ts: any) => ({
+            id: ts.id,
+            name: ts.name,
+            phone: ts.phone || null,
+            car_id: ts.carId || null
+          }))
         }
       },
       include: {
         congress_workshop_doctors: { include: { doctors: true } },
         congress_workshop_members: { include: { user_profiles: true, car_fleet: true } },
+        workshop_temp_staff: { include: { car_fleet: true } },
         congresos: true
       }
     })

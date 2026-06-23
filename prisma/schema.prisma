@@ -912,6 +912,7 @@ model congress_workshops {
   workshop_itinerarios          workshop_itinerarios[]
   workshop_hotel_rooms          workshop_hotel_rooms[]
   workshop_stations             workshop_stations[]
+  workshop_temp_staff           workshop_temp_staff[]
   congresos                     congresos?                      @relation(fields: [congress_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
@@ -2015,6 +2016,7 @@ model car_fleet {
   assigned_to_id String?        @db.Uuid
   assigned_to    user_profiles? @relation(fields: [assigned_to_id], references: [id], onDelete: SetNull)
   congress_workshop_members congress_workshop_members[]
+  workshop_temp_staff       workshop_temp_staff[]
 
   @@schema("public")
 }
@@ -2048,12 +2050,29 @@ model workshop_itinerarios {
 }
 
 model workshop_itinerary_members {
-  itinerary_id        String               @db.Uuid
-  user_id             String               @db.Uuid
-  user_profiles       user_profiles        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itinerary_id         String               @db.Uuid
+  user_id              String?              @db.Uuid
+  temp_member_id       String?              @db.Uuid
+  user_profiles        user_profiles?       @relation(fields: [user_id], references: [id], onDelete: Cascade)
   workshop_itinerarios workshop_itinerarios @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
+  workshop_temp_staff  workshop_temp_staff? @relation(fields: [temp_member_id], references: [id], onDelete: Cascade)
 
-  @@id([itinerary_id, user_id])
+  @@schema("public")
+}
+
+model workshop_temp_staff {
+  id                 String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workshop_id        String                       @db.Uuid
+  name               String
+  phone              String?
+  car_id             String?                      @db.Uuid
+  created_at         DateTime?                    @default(now()) @db.Timestamptz(6)
+  congress_workshops congress_workshops           @relation(fields: [workshop_id], references: [id], onDelete: Cascade)
+  car_fleet          car_fleet?                   @relation(fields: [car_id], references: [id], onDelete: SetNull)
+  itinerary_members  workshop_itinerary_members[]
+
+  @@index([workshop_id])
   @@schema("public")
 }
 
