@@ -1,0 +1,1895 @@
+[
+  {
+    "id": "consumibles_taller",
+    "items": [
+      {
+        "id": "c_2",
+        "modelo": "AC407A",
+        "cantidad": 3,
+        "material": "TR Forceps IS",
+        "observaciones": "sin irrigacion y succion"
+      },
+      {
+        "id": "c_3",
+        "modelo": "MC304B",
+        "cantidad": 1,
+        "material": "TMJ",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_4",
+        "modelo": "AC304",
+        "cantidad": 2,
+        "material": "Turbin EX",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_5",
+        "modelo": "AC304B",
+        "cantidad": 4,
+        "material": "Oto Knife00",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_6",
+        "modelo": "AC304",
+        "cantidad": 1,
+        "material": "Oto Knife45",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_7",
+        "modelo": "MC304A",
+        "cantidad": 1,
+        "material": "Oto Curette",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_8",
+        "modelo": "AC305",
+        "cantidad": 1,
+        "material": "Palat EX",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_9",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Tonsil blator",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_10",
+        "modelo": "MC402D",
+        "cantidad": 2,
+        "material": "Tonsil Blator HP",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_11",
+        "modelo": "AC402C",
+        "cantidad": 1,
+        "material": "Tonsil UGC",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_12",
+        "modelo": "AC303",
+        "cantidad": 1,
+        "material": "Dual-Pole-C",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_13",
+        "modelo": "BDA",
+        "cantidad": 2,
+        "material": "SB BDA1104040A",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_14",
+        "modelo": "DGB",
+        "cantidad": 2,
+        "material": "Bur DGB10UA99",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_15",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB10UA115",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_16",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB20UA80",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_17",
+        "modelo": "DGB",
+        "cantidad": 2,
+        "material": "Bur DGB40UA105",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_18",
+        "modelo": "T",
+        "cantidad": 8,
+        "material": "Tuberia de irrigación IT",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_19",
+        "modelo": "AC311A",
+        "cantidad": 1,
+        "material": "Release RX",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_20",
+        "modelo": "AC404",
+        "cantidad": 1,
+        "material": "MAX Blator 50°",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_21",
+        "modelo": "MC404C",
+        "cantidad": 2,
+        "material": "MAX Blator 50FS",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_22",
+        "modelo": "AC405",
+        "cantidad": 6,
+        "material": "EZ Blator 90°",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_23",
+        "modelo": "MC405C",
+        "cantidad": 1,
+        "material": "EZ Blator 90FS",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_24",
+        "modelo": "BDJ",
+        "cantidad": 2,
+        "material": "Shaver BDJ13040A",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_25",
+        "modelo": "BDJ",
+        "cantidad": 5,
+        "material": "Shaver BDJ13040B1",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_26",
+        "modelo": "BDJ",
+        "cantidad": 5,
+        "material": "Shaver BDJ13055H",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_27",
+        "modelo": "BDJ",
+        "cantidad": 2,
+        "material": "Shaver BDJ13050H1",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_28",
+        "modelo": "BC301A",
+        "cantidad": 7,
+        "material": "Spine O-UBE",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_29",
+        "modelo": "BC310A",
+        "cantidad": 2,
+        "material": "UGD",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_30",
+        "modelo": "BC405B",
+        "cantidad": 2,
+        "material": "UXD 70",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_31",
+        "modelo": "BC405A",
+        "cantidad": 2,
+        "material": "UXD 90",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_32",
+        "modelo": "DGB",
+        "cantidad": 2,
+        "material": "Bur DGB20WA110",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_33",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB20UA115",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_34",
+        "modelo": "DGB",
+        "cantidad": 3,
+        "material": "Bur DGB30UA110",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_35",
+        "modelo": "DGB",
+        "cantidad": 0,
+        "material": "Bur DGB40UA115",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_36",
+        "modelo": "DGB",
+        "cantidad": 2,
+        "material": "Bur DGB40WA115",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_37",
+        "modelo": "DGA",
+        "cantidad": 1,
+        "material": "DG-A30UX411(R)",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_38",
+        "modelo": "DGA",
+        "cantidad": 1,
+        "material": "DG-A30WZ411(R)",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_39",
+        "modelo": "MC302",
+        "cantidad": 1,
+        "material": "Spine O-QFX",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_40",
+        "modelo": "BC302",
+        "cantidad": 1,
+        "material": "Spine FX",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_41",
+        "modelo": "AC405B",
+        "cantidad": 1,
+        "material": "UXD90L",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_42",
+        "modelo": "AC310",
+        "cantidad": 2,
+        "material": "Cannon3",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_43",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB30UA290",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_44",
+        "modelo": "AC307",
+        "cantidad": 11,
+        "material": "Loop XS",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_45",
+        "modelo": "AC307A",
+        "cantidad": 6,
+        "material": "Loop XL",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_46",
+        "modelo": "MC307G",
+        "cantidad": 3,
+        "material": "Hook",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_47",
+        "modelo": "MC307C",
+        "cantidad": 1,
+        "material": "Vap Button",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_48",
+        "modelo": "MC307",
+        "cantidad": 1,
+        "material": "Vap Ball",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_49",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Saw Roller",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_50",
+        "modelo": "BC307",
+        "cantidad": 0,
+        "material": "Loop UT",
+        "observaciones": ""
+      },
+      {
+        "id": "c_51",
+        "modelo": "MC308",
+        "cantidad": 1,
+        "material": "Bine",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_52",
+        "modelo": "AC308",
+        "cantidad": 1,
+        "material": "Bine BD",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_53",
+        "modelo": "EXTRAS",
+        "cantidad": 0,
+        "material": "EXTRAS",
+        "observaciones": ""
+      },
+      {
+        "id": "c_54",
+        "modelo": "BDJ",
+        "cantidad": 1,
+        "material": "BDJ37045B2",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_55",
+        "modelo": "BDJ",
+        "cantidad": 1,
+        "material": "BDJ37045B1",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_56",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "AGUJA BIOPSIA DE MAMA",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_57",
+        "modelo": "CSAQW230",
+        "cantidad": 2,
+        "material": "ULTRASONIC SCALPELS",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_58",
+        "modelo": "PS-02",
+        "cantidad": 2,
+        "material": "ELECTRODO JINGYI",
+        "observaciones": "true"
+      },
+      {
+        "id": "c_59",
+        "modelo": "PS-03",
+        "cantidad": 1,
+        "material": "ELECTRODO JINGYI",
+        "observaciones": "true"
+      }
+    ],
+    "nombre": "Consumibles taller",
+    "descripcion": "Listado de consumibles del taller"
+  },
+  {
+    "id": "muestras",
+    "items": [
+      {
+        "id": "m_1",
+        "modelo": "BC406",
+        "cantidad": 1,
+        "material": "Thyroid Blator",
+        "observaciones": ""
+      },
+      {
+        "id": "m_2",
+        "modelo": "AC407A",
+        "cantidad": 1,
+        "material": "TR Forceps IS",
+        "observaciones": ""
+      },
+      {
+        "id": "m_3",
+        "modelo": "BC303",
+        "cantidad": 1,
+        "material": "TB Forceps",
+        "observaciones": ""
+      },
+      {
+        "id": "m_4",
+        "modelo": "BC402",
+        "cantidad": 1,
+        "material": "Master Pillar",
+        "observaciones": ""
+      },
+      {
+        "id": "m_5",
+        "modelo": "AC304",
+        "cantidad": 1,
+        "material": "Turbin EX",
+        "observaciones": ""
+      },
+      {
+        "id": "m_6",
+        "modelo": "AC304A",
+        "cantidad": 1,
+        "material": "Oto Knife 45°",
+        "observaciones": ""
+      },
+      {
+        "id": "m_7",
+        "modelo": "AC305",
+        "cantidad": 1,
+        "material": "Palat EX",
+        "observaciones": ""
+      },
+      {
+        "id": "m_8",
+        "modelo": "MC401B",
+        "cantidad": 2,
+        "material": "Tonsil Blator Plus",
+        "observaciones": ""
+      },
+      {
+        "id": "m_9",
+        "modelo": "MC402C",
+        "cantidad": 1,
+        "material": "Tonsil Blator MAX",
+        "observaciones": ""
+      },
+      {
+        "id": "m_10",
+        "modelo": "BC401B",
+        "cantidad": 1,
+        "material": "Tonsil Plus C",
+        "observaciones": ""
+      },
+      {
+        "id": "m_11",
+        "modelo": "AC402C",
+        "cantidad": 2,
+        "material": "Tonsil UGC",
+        "observaciones": ""
+      },
+      {
+        "id": "m_12",
+        "modelo": "AC403",
+        "cantidad": 2,
+        "material": "Laryn Max",
+        "observaciones": ""
+      },
+      {
+        "id": "m_13",
+        "modelo": "BC403B",
+        "cantidad": 1,
+        "material": "Laryn Neo",
+        "observaciones": ""
+      },
+      {
+        "id": "m_14",
+        "modelo": "AC401A",
+        "cantidad": 1,
+        "material": "Tonsil blator AD",
+        "observaciones": ""
+      },
+      {
+        "id": "m_15",
+        "modelo": "MC304B",
+        "cantidad": 1,
+        "material": "TMJ",
+        "observaciones": ""
+      },
+      {
+        "id": "m_16",
+        "modelo": "BDA",
+        "cantidad": 2,
+        "material": "Shaver BDA1104040A",
+        "observaciones": ""
+      },
+      {
+        "id": "m_17",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB30UA105",
+        "observaciones": ""
+      },
+      {
+        "id": "m_18",
+        "modelo": "AC306",
+        "cantidad": 1,
+        "material": "Tendon RX",
+        "observaciones": ""
+      },
+      {
+        "id": "m_19",
+        "modelo": "AC311A",
+        "cantidad": 2,
+        "material": "Release RX",
+        "observaciones": ""
+      },
+      {
+        "id": "m_20",
+        "modelo": "AC404",
+        "cantidad": 3,
+        "material": "MAX Blator 50°",
+        "observaciones": ""
+      },
+      {
+        "id": "m_21",
+        "modelo": "AC405",
+        "cantidad": 4,
+        "material": "Neo Blator 90°",
+        "observaciones": ""
+      },
+      {
+        "id": "m_22",
+        "modelo": "AC405",
+        "cantidad": 7,
+        "material": "EZ Blator 90°",
+        "observaciones": ""
+      },
+      {
+        "id": "m_23",
+        "modelo": "BDJ",
+        "cantidad": 1,
+        "material": "Shaver BDJ13030A",
+        "observaciones": ""
+      },
+      {
+        "id": "m_24",
+        "modelo": "BDJ",
+        "cantidad": 1,
+        "material": "Shaver BDJ13030B1",
+        "observaciones": ""
+      },
+      {
+        "id": "m_25",
+        "modelo": "BDJ",
+        "cantidad": 1,
+        "material": "Shaver BDJ13030H",
+        "observaciones": ""
+      },
+      {
+        "id": "m_26",
+        "modelo": "BDJ",
+        "cantidad": 1,
+        "material": "Shaver BDJ13030H1",
+        "observaciones": ""
+      },
+      {
+        "id": "m_27",
+        "modelo": "BDJ",
+        "cantidad": 2,
+        "material": "Shaver BDJ13055H1",
+        "observaciones": ""
+      },
+      {
+        "id": "m_28",
+        "modelo": "BDJ",
+        "cantidad": 1,
+        "material": "Shaver BDJ32035U3",
+        "observaciones": ""
+      },
+      {
+        "id": "m_29",
+        "modelo": "BC301A",
+        "cantidad": 1,
+        "material": "Spine O-UBE",
+        "observaciones": ""
+      },
+      {
+        "id": "m_30",
+        "modelo": "BC310A",
+        "cantidad": 1,
+        "material": "UGD",
+        "observaciones": ""
+      },
+      {
+        "id": "m_31",
+        "modelo": "BC405B",
+        "cantidad": 1,
+        "material": "UXD 70",
+        "observaciones": ""
+      },
+      {
+        "id": "m_32",
+        "modelo": "BC405A",
+        "cantidad": 1,
+        "material": "UXD 90",
+        "observaciones": ""
+      },
+      {
+        "id": "m_33",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB20UA110",
+        "observaciones": ""
+      },
+      {
+        "id": "m_34",
+        "modelo": "DGB",
+        "cantidad": 5,
+        "material": "Bur DGB40UA110",
+        "observaciones": ""
+      },
+      {
+        "id": "m_35",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB30WA110",
+        "observaciones": ""
+      },
+      {
+        "id": "m_36",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB50WA110",
+        "observaciones": ""
+      },
+      {
+        "id": "m_37",
+        "modelo": "DGA",
+        "cantidad": 1,
+        "material": "DG-A40UX411(R)",
+        "observaciones": ""
+      },
+      {
+        "id": "m_38",
+        "modelo": "AC310A",
+        "cantidad": 1,
+        "material": "Lumba FX",
+        "observaciones": ""
+      },
+      {
+        "id": "m_39",
+        "modelo": "MC302",
+        "cantidad": 2,
+        "material": "Spine O-QFX",
+        "observaciones": ""
+      },
+      {
+        "id": "m_40",
+        "modelo": "AC302A",
+        "cantidad": 1,
+        "material": "Cannon",
+        "observaciones": ""
+      },
+      {
+        "id": "m_41",
+        "modelo": "DGB",
+        "cantidad": 1,
+        "material": "Bur DGB30UA290",
+        "observaciones": ""
+      },
+      {
+        "id": "m_42",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Loop UT",
+        "observaciones": ""
+      },
+      {
+        "id": "m_43",
+        "modelo": "AC307",
+        "cantidad": 3,
+        "material": "Loop XS",
+        "observaciones": ""
+      },
+      {
+        "id": "m_44",
+        "modelo": "AC307A",
+        "cantidad": 2,
+        "material": "Loop XL",
+        "observaciones": ""
+      },
+      {
+        "id": "m_45",
+        "modelo": "MC307G",
+        "cantidad": 4,
+        "material": "Hook",
+        "observaciones": ""
+      },
+      {
+        "id": "m_46",
+        "modelo": "MC307C",
+        "cantidad": 1,
+        "material": "Vap Button",
+        "observaciones": ""
+      },
+      {
+        "id": "m_47",
+        "modelo": "AC307E",
+        "cantidad": 0,
+        "material": "Roller",
+        "observaciones": ""
+      },
+      {
+        "id": "m_48",
+        "modelo": "BC307",
+        "cantidad": 0,
+        "material": "Loop UT",
+        "observaciones": ""
+      },
+      {
+        "id": "m_49",
+        "modelo": "MC308",
+        "cantidad": 1,
+        "material": "Bine",
+        "observaciones": ""
+      },
+      {
+        "id": "m_50",
+        "modelo": "AC308",
+        "cantidad": 1,
+        "material": "Bine BD",
+        "observaciones": ""
+      },
+      {
+        "id": "m_51",
+        "modelo": "BC308A",
+        "cantidad": 0,
+        "material": "Spring",
+        "observaciones": ""
+      }
+    ],
+    "nombre": "MUESTRAS",
+    "descripcion": "Muestras de productos y herramientas"
+  },
+  {
+    "id": "inventario_desechables",
+    "items": [
+      {
+        "id": "d_2",
+        "modelo": "",
+        "cantidad": 12,
+        "material": "Compresas (Pz)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_3",
+        "modelo": "",
+        "cantidad": 206,
+        "material": "Batas quirurgicas (Pz)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_4",
+        "modelo": "",
+        "cantidad": 5,
+        "material": "Mangos de bisturí de 4",
+        "observaciones": ""
+      },
+      {
+        "id": "d_5",
+        "modelo": "",
+        "cantidad": 5,
+        "material": "Mangos de bisturí de 3",
+        "observaciones": ""
+      },
+      {
+        "id": "d_6",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Guantes CH (caja)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_7",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Guantes M (caja)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_8",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Guantes G (caja)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_9",
+        "modelo": "",
+        "cantidad": 17,
+        "material": "Bolsa de Suero fisciologico 3000ml (abierta)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_10",
+        "modelo": "",
+        "cantidad": 10,
+        "material": "Porrones 20lts.",
+        "observaciones": ""
+      },
+      {
+        "id": "d_11",
+        "modelo": "",
+        "cantidad": 10,
+        "material": "Porrones 25lts.",
+        "observaciones": ""
+      },
+      {
+        "id": "d_12",
+        "modelo": "",
+        "cantidad": 10,
+        "material": "Porrones 50lts.",
+        "observaciones": ""
+      },
+      {
+        "id": "d_13",
+        "modelo": "",
+        "cantidad": 8,
+        "material": "Irrigatek de 2 vías",
+        "observaciones": ""
+      },
+      {
+        "id": "d_14",
+        "modelo": "",
+        "cantidad": 6,
+        "material": "Porta sueros doble",
+        "observaciones": ""
+      },
+      {
+        "id": "d_15",
+        "modelo": "",
+        "cantidad": 9,
+        "material": "Jeringas de 20 mL",
+        "observaciones": ""
+      },
+      {
+        "id": "d_16",
+        "modelo": "",
+        "cantidad": 100,
+        "material": "Hojas de bisturí del 12",
+        "observaciones": ""
+      },
+      {
+        "id": "d_17",
+        "modelo": "",
+        "cantidad": 100,
+        "material": "Hojas de bisturí del 15",
+        "observaciones": ""
+      },
+      {
+        "id": "d_18",
+        "modelo": "",
+        "cantidad": 100,
+        "material": "Hojas de bisturí del 22",
+        "observaciones": ""
+      },
+      {
+        "id": "d_19",
+        "modelo": "",
+        "cantidad": 8,
+        "material": "Manguera de succión",
+        "observaciones": ""
+      },
+      {
+        "id": "d_20",
+        "modelo": "",
+        "cantidad": 11,
+        "material": "Manguera Llenado",
+        "observaciones": ""
+      },
+      {
+        "id": "d_21",
+        "modelo": "",
+        "cantidad": 9,
+        "material": "Manguera Drenaje",
+        "observaciones": ""
+      },
+      {
+        "id": "d_22",
+        "modelo": "",
+        "cantidad": 8,
+        "material": "Manguera Drenaje corta",
+        "observaciones": ""
+      },
+      {
+        "id": "d_23",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Manguera BONSS",
+        "observaciones": ""
+      },
+      {
+        "id": "d_24",
+        "modelo": "",
+        "cantidad": 10,
+        "material": "Bolsa RPBI",
+        "observaciones": ""
+      },
+      {
+        "id": "d_25",
+        "modelo": "",
+        "cantidad": 22,
+        "material": "Campo quirurgico desechable",
+        "observaciones": "Pendiente: 6"
+      },
+      {
+        "id": "d_26",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Palangana chica",
+        "observaciones": ""
+      },
+      {
+        "id": "d_27",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Palangana grande",
+        "observaciones": ""
+      },
+      {
+        "id": "d_28",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Cubre bocas (caja)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_29",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Bomba Bonss",
+        "observaciones": ""
+      },
+      {
+        "id": "d_30",
+        "modelo": "",
+        "cantidad": 6,
+        "material": "Bomba de garrafon",
+        "observaciones": ""
+      },
+      {
+        "id": "d_31",
+        "modelo": "",
+        "cantidad": 11,
+        "material": "Plumones",
+        "observaciones": ""
+      },
+      {
+        "id": "d_32",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Sal kg",
+        "observaciones": ""
+      },
+      {
+        "id": "d_33",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Banco de altura",
+        "observaciones": ""
+      },
+      {
+        "id": "d_34",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Cepillo dental",
+        "observaciones": ""
+      },
+      {
+        "id": "d_35",
+        "modelo": "",
+        "cantidad": 8,
+        "material": "Power bank",
+        "observaciones": ""
+      },
+      {
+        "id": "d_36",
+        "modelo": "",
+        "cantidad": 10,
+        "material": "Franelas",
+        "observaciones": ""
+      },
+      {
+        "id": "d_37",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Embudo negro",
+        "observaciones": ""
+      },
+      {
+        "id": "d_38",
+        "modelo": "",
+        "cantidad": 6,
+        "material": "Caja plastica",
+        "observaciones": ""
+      },
+      {
+        "id": "d_39",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Lonas impresas",
+        "observaciones": ""
+      },
+      {
+        "id": "d_40",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Modelo anatomico lumbar (base)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_41",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Modelo anatomico cervical(base)",
+        "observaciones": ""
+      },
+      {
+        "id": "d_42",
+        "modelo": "",
+        "cantidad": 0,
+        "material": "Cartucho cervical",
+        "observaciones": ""
+      },
+      {
+        "id": "d_43",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Modelo lumbar Praxis",
+        "observaciones": ""
+      },
+      {
+        "id": "d_44",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Muestrario",
+        "observaciones": ""
+      },
+      {
+        "id": "d_45",
+        "modelo": "",
+        "cantidad": 41,
+        "material": "Sutura 3-0",
+        "observaciones": ""
+      },
+      {
+        "id": "d_46",
+        "modelo": "",
+        "cantidad": 11,
+        "material": "Sutura 6-0",
+        "observaciones": ""
+      },
+      {
+        "id": "d_47",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Unidad de succion MEDIMETRICS 7E-B5",
+        "observaciones": ""
+      },
+      {
+        "id": "d_48",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Esfigmomanometro HOMECARE Mod 200",
+        "observaciones": ""
+      }
+    ],
+    "nombre": "Inventario Desechables",
+    "descripcion": "Inventario de material desechable"
+  },
+  {
+    "id": "herramienta",
+    "items": [
+      {
+        "id": "h_1",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Maleta de herramienta",
+        "observaciones": ""
+      },
+      {
+        "id": "h_2",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Caja de herramienta",
+        "observaciones": ""
+      },
+      {
+        "id": "h_3",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pistola de aire",
+        "observaciones": ""
+      },
+      {
+        "id": "h_4",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Pintura en aerosol",
+        "observaciones": ""
+      },
+      {
+        "id": "h_5",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Lubricante de piezas de mano",
+        "observaciones": ""
+      },
+      {
+        "id": "h_6",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Lubricante y limpiador dielectrico",
+        "observaciones": ""
+      },
+      {
+        "id": "h_7",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Espuma limpiadora para cubiertas plasticas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_8",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "WD-40",
+        "observaciones": ""
+      },
+      {
+        "id": "h_9",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Limpiador de equipo electrónico",
+        "observaciones": ""
+      },
+      {
+        "id": "h_10",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Desarmador de bateria",
+        "observaciones": ""
+      },
+      {
+        "id": "h_11",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Taladro",
+        "observaciones": ""
+      },
+      {
+        "id": "h_12",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Cargador para desarmador",
+        "observaciones": ""
+      },
+      {
+        "id": "h_13",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Cargador para taladro",
+        "observaciones": ""
+      },
+      {
+        "id": "h_14",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Batería para taladro",
+        "observaciones": ""
+      },
+      {
+        "id": "h_15",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Cortadora de disco",
+        "observaciones": ""
+      },
+      {
+        "id": "h_16",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Juego para atornillar",
+        "observaciones": ""
+      },
+      {
+        "id": "h_17",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Martillo",
+        "observaciones": ""
+      },
+      {
+        "id": "h_18",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pinzas de crimpar",
+        "observaciones": ""
+      },
+      {
+        "id": "h_19",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Broca 3/4x12",
+        "observaciones": ""
+      },
+      {
+        "id": "h_20",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Pinzas de plastico",
+        "observaciones": ""
+      },
+      {
+        "id": "h_21",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Juego para atornillar 12 pzs",
+        "observaciones": ""
+      },
+      {
+        "id": "h_22",
+        "modelo": "",
+        "cantidad": 7,
+        "material": "Desarmadores de estrella (varios)",
+        "observaciones": ""
+      },
+      {
+        "id": "h_23",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Desarmadores de estrella cortos",
+        "observaciones": ""
+      },
+      {
+        "id": "h_24",
+        "modelo": "",
+        "cantidad": 7,
+        "material": "Desarmadores planos (varios)",
+        "observaciones": ""
+      },
+      {
+        "id": "h_25",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Desarmadore de puntas intercambiables",
+        "observaciones": ""
+      },
+      {
+        "id": "h_26",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Juego de desarmadores",
+        "observaciones": ""
+      },
+      {
+        "id": "h_27",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Juego de desarmadores milimetricos",
+        "observaciones": ""
+      },
+      {
+        "id": "h_28",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Llaves allen Husky",
+        "observaciones": ""
+      },
+      {
+        "id": "h_29",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Juego de llaves allen unidas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_30",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Juego de llaves allen",
+        "observaciones": ""
+      },
+      {
+        "id": "h_31",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Juego de llaves torx",
+        "observaciones": ""
+      },
+      {
+        "id": "h_32",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Brocas de extracción",
+        "observaciones": ""
+      },
+      {
+        "id": "h_33",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Llaves inglesas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_34",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pinzas de presión",
+        "observaciones": ""
+      },
+      {
+        "id": "h_35",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Pinzas de punta",
+        "observaciones": ""
+      },
+      {
+        "id": "h_36",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pinzas de chofer",
+        "observaciones": ""
+      },
+      {
+        "id": "h_37",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pinzas de corte",
+        "observaciones": ""
+      },
+      {
+        "id": "h_38",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pinzas extensibles",
+        "observaciones": ""
+      },
+      {
+        "id": "h_39",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Llaves de montaje",
+        "observaciones": ""
+      },
+      {
+        "id": "h_40",
+        "modelo": "",
+        "cantidad": 12,
+        "material": "Llaves españolas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_41",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Llave de gas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_42",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Juego de dados",
+        "observaciones": ""
+      },
+      {
+        "id": "h_43",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Llaves T deslizantes",
+        "observaciones": ""
+      },
+      {
+        "id": "h_44",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Matracas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_45",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Extensiones",
+        "observaciones": ""
+      },
+      {
+        "id": "h_46",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Extension flexible",
+        "observaciones": ""
+      },
+      {
+        "id": "h_47",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Extension articulada",
+        "observaciones": ""
+      },
+      {
+        "id": "h_48",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Desarmador de dado",
+        "observaciones": ""
+      },
+      {
+        "id": "h_49",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pistola de silicon",
+        "observaciones": ""
+      },
+      {
+        "id": "h_50",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Niveles",
+        "observaciones": ""
+      },
+      {
+        "id": "h_51",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Felxometros",
+        "observaciones": ""
+      },
+      {
+        "id": "h_52",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Mandil",
+        "observaciones": ""
+      },
+      {
+        "id": "h_53",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Adaptadores",
+        "observaciones": ""
+      },
+      {
+        "id": "h_54",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Vernier digital",
+        "observaciones": ""
+      },
+      {
+        "id": "h_55",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Vernier analogico",
+        "observaciones": ""
+      },
+      {
+        "id": "h_56",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Kit Klein Tools",
+        "observaciones": ""
+      },
+      {
+        "id": "h_57",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Succionador de soldadura",
+        "observaciones": ""
+      },
+      {
+        "id": "h_58",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Kit de termofit",
+        "observaciones": ""
+      },
+      {
+        "id": "h_59",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Cautin y pistola de calor",
+        "observaciones": ""
+      },
+      {
+        "id": "h_60",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Cizallas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_61",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Botas de trabajo",
+        "observaciones": ""
+      },
+      {
+        "id": "h_62",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Folders",
+        "observaciones": ""
+      },
+      {
+        "id": "h_63",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Power bank STEREN",
+        "observaciones": ""
+      },
+      {
+        "id": "h_64",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Power bank STEREN",
+        "observaciones": ""
+      },
+      {
+        "id": "h_65",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Power bank STEREN",
+        "observaciones": ""
+      },
+      {
+        "id": "h_66",
+        "modelo": "",
+        "cantidad": 3,
+        "material": "Power bank JUOPLD",
+        "observaciones": ""
+      },
+      {
+        "id": "h_67",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Power bank MOBO",
+        "observaciones": ""
+      },
+      {
+        "id": "h_68",
+        "modelo": "",
+        "cantidad": 5,
+        "material": "Portasueros dobles",
+        "observaciones": ""
+      },
+      {
+        "id": "h_69",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Unidad de succión",
+        "observaciones": ""
+      },
+      {
+        "id": "h_70",
+        "modelo": "",
+        "cantidad": 2,
+        "material": "Bancos de altura",
+        "observaciones": ""
+      },
+      {
+        "id": "h_71",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Caja de herramienta Milwaukee",
+        "observaciones": ""
+      },
+      {
+        "id": "h_72",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Soplador de hojas",
+        "observaciones": ""
+      },
+      {
+        "id": "h_73",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Bateria recargable con cargador",
+        "observaciones": ""
+      },
+      {
+        "id": "h_74",
+        "modelo": "",
+        "cantidad": 1,
+        "material": "Pinzas de electicista",
+        "observaciones": ""
+      },
+      {
+        "id": "h_75",
+        "modelo": "",
+        "cantidad": 4,
+        "material": "Chalecos de seguridad",
+        "observaciones": ""
+      }
+    ],
+    "nombre": "Herramienta",
+    "descripcion": "Inventario de herramientas del taller"
+  },
+  {
+    "id": "admin_fijos",
+    "nombre": "Equipos y Mobiliario",
+    "descripcion": "Inventario de equipos fijos y mobiliario de oficina",
+    "items": [
+      {
+        "id": "admin_f_1",
+        "material": "Escritorio para Trabajo",
+        "cantidad": 3,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_2",
+        "material": "Pizarrón",
+        "cantidad": 2,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_3",
+        "material": "Pizarra",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_4",
+        "material": "Sillas Gamer",
+        "modelo": "GEOTrust",
+        "cantidad": 5,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_5",
+        "material": "Impresora HP",
+        "modelo": "HP Color LaserJet MFP M281fdw",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_6",
+        "material": "Archivero",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_7",
+        "material": "Librero",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_8",
+        "material": "Repisas de dos niveles",
+        "cantidad": 2,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_9",
+        "material": "Repisas de dos niveles largas",
+        "cantidad": 3,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_10",
+        "material": "Cajoneras flotantes",
+        "cantidad": 2,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_11",
+        "material": "Televisión",
+        "modelo": "Hisense",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_12",
+        "material": "Mesa de trabajo",
+        "modelo": "Storage Basics Seville Classics inc",
+        "cantidad": 2,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_13",
+        "material": "Banco de metal",
+        "modelo": "Seville Classics inc/ 18292",
+        "cantidad": 8,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_14",
+        "material": "Caja para guardado con ruedas",
+        "modelo": "Ezy Storage",
+        "cantidad": 3,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_15",
+        "material": "Caja para guardado 114 L",
+        "modelo": "Prodeplast",
+        "cantidad": 3,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_16",
+        "material": "Dispensador de agua eléctrico",
+        "modelo": "Kool Factory",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_17",
+        "material": "Escritorio Gris",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_18",
+        "material": "Escritorio eléctrico",
+        "modelo": "Twin-star international",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_19",
+        "material": "Banco de trabajo móvil",
+        "modelo": "Husky",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_20",
+        "material": "Organizador con cajones",
+        "cantidad": 1,
+        "observaciones": "Estado: Incompleto, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_21",
+        "material": "Archivero de escritorio",
+        "cantidad": 2,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_22",
+        "material": "Caja Fuerte",
+        "modelo": "TK2021074505",
+        "cantidad": 1,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_23",
+        "material": "Botes de basura",
+        "cantidad": 7,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_24",
+        "material": "Extintor",
+        "modelo": "Extintec",
+        "cantidad": 1,
+        "observaciones": "Estado: Vencido , Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_92",
+        "material": "Portasueros dobles",
+        "cantidad": 5,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_93",
+        "material": "Consola ARS 800",
+        "modelo": "Bonss",
+        "cantidad": 1,
+        "observaciones": "Estado: Descompuesto, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_94",
+        "material": "Consola ARS 600",
+        "modelo": "Bonss",
+        "cantidad": 1,
+        "observaciones": "Estado: Descompuesto, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_95",
+        "material": "Unidad de succión",
+        "modelo": "Medimetrics",
+        "cantidad": 2,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_96",
+        "material": "Muestrarios de electrodos",
+        "modelo": "Bonss",
+        "cantidad": 3,
+        "observaciones": "Estado: Usados, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_97",
+        "material": "Bancos de altura",
+        "cantidad": 2,
+        "observaciones": "Estado: Bueno, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_103",
+        "material": "Impresora Bambu Lab H2C",
+        "modelo": "Bambu Lab",
+        "cantidad": 1,
+        "observaciones": "Estado: Nuevo, Ubicación: Administración"
+      },
+      {
+        "id": "admin_f_104",
+        "material": "Escritorio para Impresora 3D",
+        "cantidad": 1,
+        "observaciones": "Estado: Nuevo, Ubicación: Administración"
+      }
+    ]
+  },
+  {
+    "id": "admin_stand",
+    "nombre": "Catálogos de Stand",
+    "descripcion": "Materiales promocionales y catálogos de stand",
+    "items": [
+      {
+        "id": "admin_s_1",
+        "material": "Catalogos ENT",
+        "cantidad": 1
+      },
+      {
+        "id": "admin_s_2",
+        "material": "Catalogos UBE",
+        "cantidad": 1
+      },
+      {
+        "id": "admin_s_3",
+        "material": "Catalogos Spine",
+        "cantidad": 1
+      },
+      {
+        "id": "admin_s_4",
+        "material": "Catalogos Sport Medicine",
+        "cantidad": 1
+      },
+      {
+        "id": "admin_s_5",
+        "material": "Catalogos URO&GYN",
+        "cantidad": 1
+      }
+    ]
+  }
+]

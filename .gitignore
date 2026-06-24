@@ -48,5 +48,6 @@ _chat.txt
 !package.json
 !package-lock.json
 !tsconfig.json
+!src/data/checklists_seed.json
 
 /src/generated/prisma
