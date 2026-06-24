@@ -106,6 +106,7 @@ export default function ChecklistsPage() {
   // Submit states
   const [submitting, setSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [savedHistoryId, setSavedHistoryId] = useState<string | null>(null)
 
   // ─── Fetch Checklist Definitions ───────────────────────────────────────────
 
@@ -133,6 +134,32 @@ export default function ChecklistsPage() {
   useEffect(() => {
     fetchChecklists()
   }, [fetchChecklists])
+
+  // Load checklist history from query parameter on mount if ?historyId is present
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const historyId = params.get('historyId')
+      if (historyId) {
+        setShowHistory(true)
+        fetchHistory()
+      }
+    }
+  }, [])
+
+  // Auto-select the history entry matching the ?historyId query parameter once list is fetched
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const historyId = params.get('historyId')
+      if (historyId && historyList.length > 0) {
+        const entry = historyList.find(e => e.id === historyId)
+        if (entry) {
+          setSelectedHistoryEntry(entry)
+        }
+      }
+    }
+  }, [historyList])
 
   // ─── Load Local Storage States ──────────────────────────────────────────────
 
@@ -500,8 +527,10 @@ export default function ChecklistsPage() {
         throw new Error(json.error || t('error'))
       }
 
+      setSavedHistoryId(historyEntry.id)
       setSubmitSuccess(true)
       setTimeout(() => setSubmitSuccess(false), 3000)
+      fetchHistory()
       
       // Optionally reset the checklist state
       setCheckedStates(prev => ({
@@ -877,6 +906,53 @@ export default function ChecklistsPage() {
           </div>
         )}
 
+        {/* PDF Download Offering Modal */}
+        {savedHistoryId && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-6 text-center animate-scale-up space-y-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mx-auto">
+                <CheckCircle2 size={32} />
+              </div>
+              <h3 className="font-bold text-gray-900 text-xl">{t('inspectionSaved')}</h3>
+              <p className="text-sm text-gray-500">
+                La inspección ha sido registrada con éxito en el historial. ¿Deseas descargar el reporte detallado en formato PDF?
+              </p>
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/checklists/history/${savedHistoryId}/pdf`)
+                      if (!res.ok) throw new Error('Error al generar PDF')
+                      const blob = await res.blob()
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `Reporte_Checklist_${savedHistoryId.replace('hlog_', '')}.pdf`
+                      document.body.appendChild(a)
+                      a.click()
+                      document.body.removeChild(a)
+                      URL.revokeObjectURL(url)
+                      setSavedHistoryId(null)
+                    } catch (err: any) {
+                      alert('Error al descargar el PDF: ' + err.message)
+                    }
+                  }}
+                  className="w-full py-3 bg-[#0763a9] hover:bg-[#064e86] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow transition-all cursor-pointer"
+                >
+                  <ClipboardList size={18} />
+                  Descargar Reporte PDF
+                </button>
+                <button
+                  onClick={() => setSavedHistoryId(null)}
+                  className="w-full py-2.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all cursor-pointer font-medium"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ─── MODAL: ADD ITEM ON THE FLY ──────────────────────────────────────── */}
         {showAddModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1014,16 +1090,42 @@ export default function ChecklistsPage() {
                     </button>
                     
                     <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100 space-y-3">
-                      <div>
-                        <h4 className="font-bold text-gray-900 text-base">{selectedHistoryEntry.checklistName}</h4>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 mt-1.5">
-                          <span className="flex items-center gap-1">
-                            <Calendar size={13} /> {new Date(selectedHistoryEntry.date).toLocaleString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <User size={13} /> {selectedHistoryEntry.user.split('@')[0]}
-                          </span>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-bold text-gray-900 text-base">{selectedHistoryEntry.checklistName}</h4>
+                          <div className="flex items-center gap-4 text-xs text-gray-500 mt-1.5">
+                            <span className="flex items-center gap-1">
+                              <Calendar size={13} /> {new Date(selectedHistoryEntry.date).toLocaleString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <User size={13} /> {selectedHistoryEntry.user.split('@')[0]}
+                            </span>
+                          </div>
                         </div>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            try {
+                              const res = await fetch(`/api/checklists/history/${selectedHistoryEntry.id}/pdf`)
+                              if (!res.ok) throw new Error('Error al generar PDF')
+                              const blob = await res.blob()
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = `Reporte_Checklist_${selectedHistoryEntry.id.replace('hlog_', '')}.pdf`
+                              document.body.appendChild(a)
+                              a.click()
+                              document.body.removeChild(a)
+                              URL.revokeObjectURL(url)
+                            } catch (err: any) {
+                              alert('Error al descargar el PDF: ' + err.message)
+                            }
+                          }}
+                          className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 border border-red-200 transition-all cursor-pointer shrink-0"
+                        >
+                          <ClipboardList size={13} />
+                          {t('downloadReport')}
+                        </button>
                       </div>
                       
                       <div className="flex justify-between items-center text-xs font-semibold border-t pt-3">
@@ -1115,6 +1217,30 @@ export default function ChecklistsPage() {
                           </div>
 
                           <div className="text-right flex-shrink-0 flex items-center gap-2">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                try {
+                                  const res = await fetch(`/api/checklists/history/${entry.id}/pdf`)
+                                  if (!res.ok) throw new Error('Error al generar PDF')
+                                  const blob = await res.blob()
+                                  const url = URL.createObjectURL(blob)
+                                  const a = document.createElement('a')
+                                  a.href = url
+                                  a.download = `Reporte_Checklist_${entry.id.replace('hlog_', '')}.pdf`
+                                  document.body.appendChild(a)
+                                  a.click()
+                                  document.body.removeChild(a)
+                                  URL.revokeObjectURL(url)
+                                } catch (err: any) {
+                                  alert('Error al descargar el PDF: ' + err.message)
+                                }
+                              }}
+                              className="w-8 h-8 rounded-lg hover:bg-slate-100 text-gray-500 hover:text-red-600 flex items-center justify-center transition-all cursor-pointer mr-1"
+                              title={t('downloadReport')}
+                            >
+                              <ClipboardList size={16} />
+                            </button>
                             <div>
                               <p className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                                 {entry.checkedCount} / {entry.totalCount}
