@@ -57,6 +57,7 @@ export default function Sidebar() {
       title: t('inventory' as any) || 'Inventario',
       items: [
         { href: '/inventario', icon: Warehouse, label: t('inventory' as any) || 'Inventario', section: 'products' },
+        { href: '/inventario/checklists', icon: ClipboardList, label: t('checklists'), section: 'products' },
         { href: '/imports/repartition', icon: GitPullRequest, label: t('repartition' as any) || 'Repartición', section: 'clients', action: 'create' },
       ],
     },

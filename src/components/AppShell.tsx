@@ -15,6 +15,7 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/clients/new': { section: 'clients', action: 'create' },
   '/import': { section: 'clients', action: 'create' },
   '/products': { section: 'products', action: 'view' },
+  '/inventario/checklists': { section: 'products', action: 'view' },
   '/hospitals': { section: 'hospitals', action: 'view' },
   '/congresos': { section: 'congresos', action: 'view' },
   '/congresos/new': { section: 'congresos', action: 'create' },

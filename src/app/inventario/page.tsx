@@ -17,7 +17,7 @@ import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
 import SearchableSelect from '@/components/SearchableSelect'
 import Link from 'next/link'
-import { MinusCircle } from 'lucide-react'
+import { MinusCircle, ClipboardList } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -320,6 +320,9 @@ export default function InventarioPage() {
             >
               <MinusCircle size={15} /> Registrar Salida
             </button>
+            <Link href="/inventario/checklists" className="btn-secondary text-sm flex items-center gap-1.5 bg-[#eef7ff] text-[#0763a9] border-blue-200 hover:bg-[#e0f0fe]">
+              <ClipboardList size={15} /> Checklists
+            </Link>
             <Link href="/inventario/tipos" className="btn-secondary text-sm">
               Gestionar Tipos
             </Link>
