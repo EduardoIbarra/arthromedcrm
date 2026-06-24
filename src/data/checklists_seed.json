@@ -1646,248 +1646,535 @@
   },
   {
     "id": "admin_fijos",
-    "nombre": "Equipos y Mobiliario",
-    "descripcion": "Inventario de equipos fijos y mobiliario de oficina",
     "items": [
       {
         "id": "admin_f_1",
-        "material": "Escritorio para Trabajo",
         "cantidad": 3,
+        "material": "Escritorio para Trabajo",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_2",
-        "material": "Pizarrón",
         "cantidad": 2,
+        "material": "Pizarrón",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_3",
-        "material": "Pizarra",
         "cantidad": 1,
+        "material": "Pizarra",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_4",
-        "material": "Sillas Gamer",
         "modelo": "GEOTrust",
         "cantidad": 5,
+        "material": "Sillas Gamer",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_5",
-        "material": "Impresora HP",
         "modelo": "HP Color LaserJet MFP M281fdw",
         "cantidad": 1,
+        "material": "Impresora HP",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_6",
-        "material": "Archivero",
         "cantidad": 1,
+        "material": "Archivero",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_7",
-        "material": "Librero",
         "cantidad": 1,
+        "material": "Librero",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_8",
-        "material": "Repisas de dos niveles",
         "cantidad": 2,
+        "material": "Repisas de dos niveles",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_9",
-        "material": "Repisas de dos niveles largas",
         "cantidad": 3,
+        "material": "Repisas de dos niveles largas",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_10",
-        "material": "Cajoneras flotantes",
         "cantidad": 2,
+        "material": "Cajoneras flotantes",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_11",
-        "material": "Televisión",
         "modelo": "Hisense",
         "cantidad": 1,
+        "material": "Televisión",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_12",
-        "material": "Mesa de trabajo",
         "modelo": "Storage Basics Seville Classics inc",
         "cantidad": 2,
+        "material": "Mesa de trabajo",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_13",
-        "material": "Banco de metal",
         "modelo": "Seville Classics inc/ 18292",
         "cantidad": 8,
+        "material": "Banco de metal",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_14",
-        "material": "Caja para guardado con ruedas",
         "modelo": "Ezy Storage",
         "cantidad": 3,
+        "material": "Caja para guardado con ruedas",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_15",
-        "material": "Caja para guardado 114 L",
         "modelo": "Prodeplast",
         "cantidad": 3,
+        "material": "Caja para guardado 114 L",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_16",
-        "material": "Dispensador de agua eléctrico",
         "modelo": "Kool Factory",
         "cantidad": 1,
+        "material": "Dispensador de agua eléctrico",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_17",
-        "material": "Escritorio Gris",
         "cantidad": 1,
+        "material": "Escritorio Gris",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_18",
-        "material": "Escritorio eléctrico",
         "modelo": "Twin-star international",
         "cantidad": 1,
+        "material": "Escritorio eléctrico",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_19",
-        "material": "Banco de trabajo móvil",
         "modelo": "Husky",
         "cantidad": 1,
+        "material": "Banco de trabajo móvil",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_20",
-        "material": "Organizador con cajones",
         "cantidad": 1,
+        "material": "Organizador con cajones",
         "observaciones": "Estado: Incompleto, Ubicación: Administración"
       },
       {
         "id": "admin_f_21",
-        "material": "Archivero de escritorio",
         "cantidad": 2,
+        "material": "Archivero de escritorio",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_22",
-        "material": "Caja Fuerte",
         "modelo": "TK2021074505",
         "cantidad": 1,
+        "material": "Caja Fuerte",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_23",
-        "material": "Botes de basura",
         "cantidad": 7,
+        "material": "Botes de basura",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_24",
-        "material": "Extintor",
         "modelo": "Extintec",
         "cantidad": 1,
+        "material": "Extintor",
         "observaciones": "Estado: Vencido , Ubicación: Administración"
       },
       {
         "id": "admin_f_92",
-        "material": "Portasueros dobles",
         "cantidad": 5,
+        "material": "Portasueros dobles",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_93",
-        "material": "Consola ARS 800",
         "modelo": "Bonss",
         "cantidad": 1,
+        "material": "Consola ARS 800",
         "observaciones": "Estado: Descompuesto, Ubicación: Administración"
       },
       {
         "id": "admin_f_94",
-        "material": "Consola ARS 600",
         "modelo": "Bonss",
         "cantidad": 1,
+        "material": "Consola ARS 600",
         "observaciones": "Estado: Descompuesto, Ubicación: Administración"
       },
       {
         "id": "admin_f_95",
-        "material": "Unidad de succión",
         "modelo": "Medimetrics",
         "cantidad": 2,
+        "material": "Unidad de succión",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_96",
-        "material": "Muestrarios de electrodos",
         "modelo": "Bonss",
         "cantidad": 3,
+        "material": "Muestrarios de electrodos",
         "observaciones": "Estado: Usados, Ubicación: Administración"
       },
       {
         "id": "admin_f_97",
-        "material": "Bancos de altura",
         "cantidad": 2,
+        "material": "Bancos de altura",
         "observaciones": "Estado: Bueno, Ubicación: Administración"
       },
       {
         "id": "admin_f_103",
-        "material": "Impresora Bambu Lab H2C",
         "modelo": "Bambu Lab",
         "cantidad": 1,
+        "material": "Impresora Bambu Lab H2C",
         "observaciones": "Estado: Nuevo, Ubicación: Administración"
       },
       {
         "id": "admin_f_104",
-        "material": "Escritorio para Impresora 3D",
         "cantidad": 1,
+        "material": "Escritorio para Impresora 3D",
         "observaciones": "Estado: Nuevo, Ubicación: Administración"
       }
-    ]
+    ],
+    "nombre": "Equipos y Mobiliario",
+    "descripcion": "Inventario de equipos fijos y mobiliario de oficina"
   },
   {
     "id": "admin_stand",
-    "nombre": "Catálogos de Stand",
-    "descripcion": "Materiales promocionales y catálogos de stand",
     "items": [
       {
         "id": "admin_s_1",
-        "material": "Catalogos ENT",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "Catalogos ENT"
       },
       {
         "id": "admin_s_2",
-        "material": "Catalogos UBE",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "Catalogos UBE"
       },
       {
         "id": "admin_s_3",
-        "material": "Catalogos Spine",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "Catalogos Spine"
       },
       {
         "id": "admin_s_4",
-        "material": "Catalogos Sport Medicine",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "Catalogos Sport Medicine"
       },
       {
         "id": "admin_s_5",
-        "material": "Catalogos URO&GYN",
+        "cantidad": 1,
+        "material": "Catalogos URO&GYN"
+      }
+    ],
+    "nombre": "Catálogos de Stand",
+    "descripcion": "Materiales promocionales y catálogos de stand"
+  },
+  {
+    "id": "parras_junio_2026",
+    "nombre": "Inventario Parras",
+    "descripcion": "INVENTARIO PARRAS 26/27 JUNIO 2026",
+    "items": [
+      {
+        "id": "parras_1",
+        "material": "CASES DE PANTALLA 18 PANELES COMPLETOS",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_2",
+        "material": "CASES DE BASE DE PANTALLA",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_3",
+        "material": "CASE DE CABLEADO (EL MUERTO)",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_4",
+        "material": "CABLES DE LUZ PANTALLAS AC",
+        "cantidad": 18
+      },
+      {
+        "id": "parras_5",
+        "material": "CABLES CONECTORES DE ETHERNET SEÑAL P/PANTALLA",
+        "cantidad": 25
+      },
+      {
+        "id": "parras_6",
+        "material": "CENTRO DE CARGA GORILA C/CABLE USO RUDO GRUESO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_7",
+        "material": "EXTENSIÓN DE USORUDO ROJINEGRA DE MULTICONTACTOS",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_8",
+        "material": "EXTENSIÓN DE USO RUDO LARGA AZULNEGRO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_9",
+        "material": "CABLES DE LUZ LARGAS A PANTALLAS",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_10",
+        "material": "CABLES LARGOS DE SEÑAL PROCESADOR A PANTALLAS",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_11",
+        "material": "MULTICONTACTO GRIS KOBLENZ",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_12",
+        "material": "MULTICONTACTO GRIS OSCURO STEREN",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_13",
+        "material": "MULTICONTACTOS NEGREOS STEREN",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_14",
+        "material": "SELFIE STICK",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_15",
+        "material": "BASE TRIPIE PARA CÁMARA",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_16",
+        "material": "EXTENSIONES ENROLLABLES NARANJAS",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_17",
+        "material": "GALLITO PARA MICROFONO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_18",
+        "material": "ETHERNET AZUL",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_19",
+        "material": "ETHERNET GRIS LARGO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_20",
+        "material": "CONECTORES EXTENSION ETHERNET",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_21",
+        "material": "CAMARA GO PRO 11 Y 12",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_22",
+        "material": "MIXER BERHINGER / AC/",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_23",
+        "material": "CABLES HDMI LARGOS ROJINEGROS",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_24",
+        "material": "HDMI MEDIANO NEGREO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_25",
+        "material": "HDMI LARGO NEGRO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_26",
+        "material": "CABLES DE PLUG NEGROS",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_27",
+        "material": "CABLES CANON NEGROS",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_28",
+        "material": "EXTENSIÓN DE USB MEDIANA",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_29",
+        "material": "CABLE HDMI A TIPO C",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_30",
+        "material": "CONECTOR HDMI A USB",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_31",
+        "material": "CABLE AUXILIAR - 3 CONECTORES AUX A PLUG",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_32",
+        "material": "CONECTORES HEMBRA CANON A PLUG",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_33",
+        "material": "EXTENSIÓN HDMI HEMBRA A MACHO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_34",
+        "material": "CABLE RCA A PLUG",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_35",
+        "material": "CABLE TIPO IMPRESORA EN CAJA DE PROCESADOR DE VIDEO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_36",
+        "material": "PROCESADOR DE VIDEO PARA PANTALLAS LED",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_37",
+        "material": "DIADEMA STEREN",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_38",
+        "material": "RECEPTOR PARA DIADEMA STEREN",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_39",
+        "material": "MICROFONO INALAMBRICO SHURE SM58 BETA",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_40",
+        "material": "CAMARA DJI POCKET CON SU MICROFONO, BASE Y 2 BATERÍAS",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_41",
+        "material": "CAMARA WEBCAM",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_42",
+        "material": "CABLE HDMI A MICROHDMI",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_43",
+        "material": "CABLE VARIADO TIPO USB IPHONE",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_44",
+        "material": "CONECTORES USB A TIPO C",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_45",
+        "material": "MULTI USB 6 PUERTOS STEREN",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_46",
+        "material": "MULTIPUERTO TIPO C A USB, CARD, TIPO C, STEREN",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_47",
+        "material": "CABLE TIPO C A C MEDIANO",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_48",
+        "material": "CABLE BLANCO TIPO C",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_49",
+        "material": "CABLE MULTI  USB A TIPO C , MICRO Y IPHONE GRIS",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_50",
+        "material": "CONECTORES AZUL A CORRIENTE LARGOS",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_51",
+        "material": "CABLE CANNON GRIS TIPO PLANCHA",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_52",
+        "material": "CABLE ETHERNET CON PUNTA Y SIN PUNTA",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_53",
+        "material": "BOCINA JBL EON 15 PULGS",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_54",
+        "material": "CASE PARA BOCINA JBL EON 15 PULGS",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_55",
+        "material": "CONSOLA STREAMIGN BLACKMAGIC DESING",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_56",
+        "material": "DIVISOR CON AMPLIFICADOR HDMI DE 4 SALIDAS",
         "cantidad": 1
       }
     ]

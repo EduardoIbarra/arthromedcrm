@@ -547,7 +547,10 @@ export default function ChecklistsPage() {
       case 'herramienta': return t('herramientaLabel')
       case 'admin_fijos': return t('equiposMobiliario')
       case 'admin_stand': return t('catalogosStand')
-      default: return id
+      default: {
+        const found = checklists.find(c => c.id === id)
+        return found ? (found.nombre || id) : id
+      }
     }
   }
 
