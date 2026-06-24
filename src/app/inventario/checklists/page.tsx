@@ -102,6 +102,7 @@ export default function ChecklistsPage() {
   const [historyList, setHistoryList] = useState<HistoryEntry[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<HistoryEntry | null>(null)
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([])
 
   // Submit states
   const [submitting, setSubmitting] = useState(false)
@@ -796,9 +797,16 @@ export default function ChecklistsPage() {
                               
                               {/* Quantity and Diff display */}
                               <div className="flex flex-col items-center min-w-[50px]">
-                                <span className="text-sm font-bold text-gray-900 leading-none">
-                                  {getCountedQty(item.id, item.cantidad || 0)}
-                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={getCountedQty(item.id, item.cantidad || 0)}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10)
+                                    handleUpdateQty(item.id, isNaN(val) ? 0 : val)
+                                  }}
+                                  className="w-12 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 leading-none focus:outline-none focus:border-blue-500 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
                                 {getQtyDiffBadge(item.id, item.cantidad || 0)}
                               </div>
 
@@ -1187,6 +1195,68 @@ export default function ChecklistsPage() {
                 ) : (
                   /* History List View */
                   <div className="space-y-3">
+                    {/* Bulk Action Bar */}
+                    {selectedHistoryIds.length > 0 && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 flex items-center justify-between gap-2 mb-1 animate-fade-in shadow-sm">
+                        <span className="text-xs font-bold text-blue-900">
+                          {selectedHistoryIds.length} seleccionados
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const idsStr = selectedHistoryIds.join(',')
+                                const res = await fetch(`/api/checklists/history/bulk-pdf?ids=${idsStr}`)
+                                if (!res.ok) throw new Error('Error al generar PDF masivo')
+                                const blob = await res.blob()
+                                const url = URL.createObjectURL(blob)
+                                const a = document.createElement('a')
+                                a.href = url
+                                a.download = `Reporte_Checklists_Masivo.pdf`
+                                document.body.appendChild(a)
+                                a.click()
+                                document.body.removeChild(a)
+                                URL.revokeObjectURL(url)
+                              } catch (err: any) {
+                                alert('Error al descargar el PDF masivo: ' + err.message)
+                              }
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow"
+                          >
+                            <ClipboardList size={13} />
+                            Descargar
+                          </button>
+                          <button
+                            onClick={() => setSelectedHistoryIds([])}
+                            className="text-gray-500 hover:text-gray-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                          >
+                            Limpiar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Select All Checkbox */}
+                    {historyList.length > 0 && !loadingHistory && (
+                      <div className="flex items-center justify-between px-1">
+                        <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={selectedHistoryIds.length === historyList.length && historyList.length > 0}
+                            onChange={() => {
+                              if (selectedHistoryIds.length === historyList.length) {
+                                setSelectedHistoryIds([])
+                              } else {
+                                setSelectedHistoryIds(historyList.map(h => h.id))
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          Seleccionar todos
+                        </label>
+                      </div>
+                    )}
+
                     {loadingHistory ? (
                       <div className="flex flex-col items-center justify-center py-10 gap-2">
                         <Loader2 className="w-8 h-8 text-[#0763a9] animate-spin" />
@@ -1199,58 +1269,81 @@ export default function ChecklistsPage() {
                         <p className="text-xs mt-1">{t('noHistoryLogsDesc')}</p>
                       </div>
                     ) : (
-                      historyList.map(entry => (
-                        <div
-                          key={entry.id}
-                          onClick={() => setSelectedHistoryEntry(entry)}
-                          className="bg-white hover:bg-slate-50 border rounded-2xl p-4 cursor-pointer transition-all flex items-center justify-between gap-3 shadow-sm hover:shadow"
-                        >
-                          <div className="min-w-0 space-y-1">
-                            <h4 className="font-bold text-gray-900 text-sm truncate">{entry.checklistName}</h4>
-                            <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
-                              <Calendar size={11} /> 
-                              {new Date(entry.date).toLocaleString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                            <p className="text-[11px] text-gray-400 truncate">
-                              {t('userLabel')} {entry.user}
-                            </p>
-                          </div>
+                      historyList.map(entry => {
+                        const isSelected = selectedHistoryIds.includes(entry.id)
+                        return (
+                          <div
+                            key={entry.id}
+                            onClick={() => setSelectedHistoryEntry(entry)}
+                            className={`bg-white hover:bg-slate-50 border rounded-2xl p-4 cursor-pointer transition-all flex items-center justify-between gap-3 shadow-sm hover:shadow ${
+                              isSelected ? 'border-blue-200 bg-blue-50/10' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {/* Selection Checkbox */}
+                              <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    setSelectedHistoryIds(prev => 
+                                      prev.includes(entry.id) 
+                                        ? prev.filter(id => id !== entry.id) 
+                                        : [...prev, entry.id]
+                                    )
+                                  }}
+                                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                              </div>
 
-                          <div className="text-right flex-shrink-0 flex items-center gap-2">
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation()
-                                try {
-                                  const res = await fetch(`/api/checklists/history/${entry.id}/pdf`)
-                                  if (!res.ok) throw new Error('Error al generar PDF')
-                                  const blob = await res.blob()
-                                  const url = URL.createObjectURL(blob)
-                                  const a = document.createElement('a')
-                                  a.href = url
-                                  a.download = `Reporte_Checklist_${entry.id.replace('hlog_', '')}.pdf`
-                                  document.body.appendChild(a)
-                                  a.click()
-                                  document.body.removeChild(a)
-                                  URL.revokeObjectURL(url)
-                                } catch (err: any) {
-                                  alert('Error al descargar el PDF: ' + err.message)
-                                }
-                              }}
-                              className="w-8 h-8 rounded-lg hover:bg-slate-100 text-gray-500 hover:text-red-600 flex items-center justify-center transition-all cursor-pointer mr-1"
-                              title={t('downloadReport')}
-                            >
-                              <ClipboardList size={16} />
-                            </button>
-                            <div>
-                              <p className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                {entry.checkedCount} / {entry.totalCount}
-                              </p>
-                              <p className="text-[9px] text-gray-400 mt-1 uppercase font-semibold">{t('readyLabel')}</p>
+                              <div className="min-w-0 space-y-1">
+                                <h4 className="font-bold text-gray-900 text-sm truncate">{entry.checklistName}</h4>
+                                <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                                  <Calendar size={11} /> 
+                                  {new Date(entry.date).toLocaleString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                                <p className="text-[11px] text-gray-400 truncate">
+                                  {t('userLabel')} {entry.user}
+                                </p>
+                              </div>
                             </div>
-                            <ChevronRight size={16} className="text-gray-400" />
+
+                            <div className="text-right flex-shrink-0 flex items-center gap-2">
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  try {
+                                    const res = await fetch(`/api/checklists/history/${entry.id}/pdf`)
+                                    if (!res.ok) throw new Error('Error al generar PDF')
+                                    const blob = await res.blob()
+                                    const url = URL.createObjectURL(blob)
+                                    const a = document.createElement('a')
+                                    a.href = url
+                                    a.download = `Reporte_Checklist_${entry.id.replace('hlog_', '')}.pdf`
+                                    document.body.appendChild(a)
+                                    a.click()
+                                    document.body.removeChild(a)
+                                    URL.revokeObjectURL(url)
+                                  } catch (err: any) {
+                                    alert('Error al descargar el PDF: ' + err.message)
+                                  }
+                                }}
+                                className="w-8 h-8 rounded-lg hover:bg-slate-100 text-gray-500 hover:text-red-600 flex items-center justify-center transition-all cursor-pointer mr-1"
+                                title={t('downloadReport')}
+                              >
+                                <ClipboardList size={16} />
+                              </button>
+                              <div>
+                                <p className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                  {entry.checkedCount} / {entry.totalCount}
+                                </p>
+                                <p className="text-[9px] text-gray-400 mt-1 uppercase font-semibold">{t('readyLabel')}</p>
+                              </div>
+                              <ChevronRight size={16} className="text-gray-400" />
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 )}
