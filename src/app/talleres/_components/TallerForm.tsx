@@ -785,7 +785,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
       whatsapp: s.whatsapp || '',
       position: s.position || 'Staff',
       isTemp: false,
-      carId: null as string | null
+      carId: (memberCarAssignments[s.id] || null) as string | null
     }))
     
     const temps = tempMembers.map(tm => ({
@@ -801,7 +801,121 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     }))
     
     return [...assigned, ...temps]
-  }, [staffList, memberIds, tempMembers])
+  }, [staffList, memberIds, tempMembers, memberCarAssignments])
+
+  const unassignedHotelStaff = useMemo(() => {
+    return assignedStaff.filter(staff => {
+      return !hotelRooms.some(room => 
+        room.workshop_hotel_occupants.some(occ => 
+          staff.isTemp 
+            ? occ.guest_name === staff.first_name 
+            : occ.user_id === staff.id
+        )
+      )
+    })
+  }, [assignedStaff, hotelRooms])
+
+  // Drag and Drop Helpers
+  const handleDragStartVehicle = (e: React.DragEvent, memberId: string, isTemp: boolean) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'vehicle-staff', memberId, isTemp }))
+  }
+
+  const handleDropVehicle = (e: React.DragEvent, carId: string | null) => {
+    e.preventDefault()
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      if (data.type === 'vehicle-staff') {
+        const { memberId, isTemp } = data
+        if (isTemp) {
+          handleUpdateTempMember(memberId, 'carId', carId || null)
+        } else {
+          handleAssignCar(memberId, carId || '')
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDragStartHotel = (e: React.DragEvent, staffId: string, isTemp: boolean, sourceRoomId?: string, occupantId?: string) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ 
+      type: 'hotel-staff', 
+      staffId, 
+      isTemp, 
+      sourceRoomId, 
+      occupantId 
+    }))
+  }
+
+  const handleDropRoom = async (e: React.DragEvent, targetRoomId: string) => {
+    e.preventDefault()
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      if (data.type === 'hotel-staff') {
+        const { staffId, isTemp, sourceRoomId, occupantId } = data
+        
+        // If dragging within the same room, do nothing
+        if (sourceRoomId === targetRoomId) return
+        
+        // Check capacity of target room
+        const targetRoom = hotelRooms.find(r => r.id === targetRoomId)
+        if (!targetRoom) return
+        if (targetRoom.workshop_hotel_occupants.length >= targetRoom.capacity) {
+          alert('La habitación seleccionada ya está al límite de su capacidad.')
+          return
+        }
+        
+        // Find the staff details
+        const staff = assignedStaff.find(s => s.id === staffId)
+        if (!staff) return
+        
+        // 1. Add to target room
+        let newOccupants = [...targetRoom.workshop_hotel_occupants.map(o => ({
+          user_id: o.user_id,
+          guest_name: o.guest_name,
+          guest_phone: o.guest_phone
+        }))]
+        
+        if (isTemp) {
+          newOccupants.push({ guest_name: staff.first_name, guest_phone: staff.phone || null, user_id: null })
+        } else {
+          newOccupants.push({ user_id: staffId, guest_name: null, guest_phone: null })
+        }
+        
+        // Update target room in DB
+        await handleUpdateOccupants(targetRoomId, newOccupants)
+        
+        // 2. If it came from a source room, remove it from the source room
+        if (sourceRoomId && occupantId) {
+          const sourceRoom = hotelRooms.find(r => r.id === sourceRoomId)
+          if (sourceRoom) {
+            const cleanSourceOccupants = sourceRoom.workshop_hotel_occupants
+              .filter(o => o.id !== occupantId)
+              .map(o => ({
+                user_id: o.user_id,
+                guest_name: o.guest_name,
+                guest_phone: o.guest_phone
+              }))
+            await handleUpdateOccupants(sourceRoomId, cleanSourceOccupants)
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDropUnassignedHotel = async (e: React.DragEvent) => {
+    e.preventDefault()
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      if (data.type === 'hotel-staff' && data.sourceRoomId && data.occupantId) {
+        await handleRemoveOccupant(data.sourceRoomId, data.occupantId)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -1655,293 +1769,362 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
 
           {/* TAB 5: HOTEL ROOMS */}
           {activeTab === 'hotel' && (
-            <div className="space-y-5">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                    <BedDouble size={18} className="text-indigo-500" />
-                    Reparto de Habitaciones
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Asigna habitaciones de hotel al staff y personas externas.</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column: Unassigned Hotel Staff */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="card p-5 bg-white shadow-sm border border-gray-150 rounded-2xl space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 mb-1">Staff Sin Habitación</h3>
+                    <p className="text-[11px] text-gray-500 mb-3">Arrastra y suelta miembros aquí para quitarlos de su habitación actual.</p>
+                    
+                    <div 
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={handleDropUnassignedHotel}
+                      className="min-h-[250px] rounded-xl border-2 border-dashed border-gray-200 p-2 space-y-2 bg-slate-50/50 hover:bg-slate-100/50 transition-all max-h-[500px] overflow-y-auto"
+                    >
+                      {unassignedHotelStaff.map(member => (
+                        <div
+                          key={member.id}
+                          draggable={true}
+                          onDragStart={e => handleDragStartHotel(e, member.id, member.isTemp)}
+                          className="p-2.5 bg-white border border-gray-150 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow transition-all flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-gray-800 truncate">{member.first_name} {member.last_name}</p>
+                            <p className="text-[10px] text-gray-400">{member.position}</p>
+                          </div>
+                          <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.2 rounded border">✥ Drag</span>
+                        </div>
+                      ))}
+                      {unassignedHotelStaff.length === 0 && (
+                        <p className="text-[11px] text-gray-400 italic text-center py-12">Todos tienen habitación asignada</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setShowAddRoom(true); setEditingRoomId(null) }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Plus size={15} /> Nueva Habitación
-                </button>
               </div>
 
-              {/* Add Room Form */}
-              {showAddRoom && (
-                <div className="p-5 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-4">
-                  <h4 className="font-bold text-sm text-indigo-900">Agregar Habitación</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Número / Nombre *</label>
-                      <input
-                        type="text"
-                        placeholder="Ej. 101, Suite A"
-                        className="erp-input w-full"
-                        value={newRoomForm.room_number}
-                        onChange={e => setNewRoomForm(p => ({ ...p, room_number: e.target.value }))}
-                      />
+              {/* Right Column: Hotel Rooms Grid */}
+              <div className="lg:col-span-2 space-y-5">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                      <BedDouble size={18} className="text-indigo-500" />
+                      Reparto de Habitaciones
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Asigna habitaciones de hotel al staff y personas externas. Arrastra y suelta para organizar.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddRoom(true); setEditingRoomId(null) }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Plus size={15} /> Nueva Habitación
+                  </button>
+                </div>
+
+                {/* Add Room Form */}
+                {showAddRoom && (
+                  <div className="p-5 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-4">
+                    <h4 className="font-bold text-sm text-indigo-900">Agregar Habitación</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Número / Nombre *</label>
+                        <input
+                          type="text"
+                          placeholder="Ej. 101, Suite A"
+                          className="erp-input w-full"
+                          value={newRoomForm.room_number}
+                          onChange={e => setNewRoomForm(p => ({ ...p, room_number: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Tipo</label>
+                        <select
+                          className="erp-input w-full"
+                          value={newRoomForm.room_type}
+                          onChange={e => setNewRoomForm(p => ({ ...p, room_type: e.target.value }))}
+                        >
+                          <option value="Sencilla">Sencilla</option>
+                          <option value="Doble">Doble</option>
+                          <option value="Triple">Triple</option>
+                          <option value="Suite">Suite</option>
+                          <option value="Junior Suite">Junior Suite</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Capacidad (personas)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          className="erp-input w-full"
+                          value={newRoomForm.capacity}
+                          onChange={e => setNewRoomForm(p => ({ ...p, capacity: parseInt(e.target.value) || 1 }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Notas (piso, edificio, etc.)</label>
+                        <input
+                          type="text"
+                          placeholder="Opcional"
+                          className="erp-input w-full"
+                          value={newRoomForm.notes}
+                          onChange={e => setNewRoomForm(p => ({ ...p, notes: e.target.value }))}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Tipo</label>
-                      <select
-                        className="erp-input w-full"
-                        value={newRoomForm.room_type}
-                        onChange={e => setNewRoomForm(p => ({ ...p, room_type: e.target.value }))}
+                    <div className="flex justify-end gap-2 pt-2 border-t border-indigo-200">
+                      <button type="button" onClick={() => setShowAddRoom(false)} className="btn-secondary text-sm">Cancelar</button>
+                      <button
+                        type="button"
+                        onClick={handleCreateRoom}
+                        disabled={!newRoomForm.room_number.trim() || hotelSaving['new']}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <option value="Sencilla">Sencilla</option>
-                        <option value="Doble">Doble</option>
-                        <option value="Triple">Triple</option>
-                        <option value="Suite">Suite</option>
-                        <option value="Junior Suite">Junior Suite</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Capacidad (personas)</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={10}
-                        className="erp-input w-full"
-                        value={newRoomForm.capacity}
-                        onChange={e => setNewRoomForm(p => ({ ...p, capacity: parseInt(e.target.value) || 1 }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Notas (piso, edificio, etc.)</label>
-                      <input
-                        type="text"
-                        placeholder="Opcional"
-                        className="erp-input w-full"
-                        value={newRoomForm.notes}
-                        onChange={e => setNewRoomForm(p => ({ ...p, notes: e.target.value }))}
-                      />
+                        {hotelSaving['new'] ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        Crear Habitación
+                      </button>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-2 pt-2 border-t border-indigo-200">
-                    <button type="button" onClick={() => setShowAddRoom(false)} className="btn-secondary text-sm">Cancelar</button>
-                    <button
-                      type="button"
-                      onClick={handleCreateRoom}
-                      disabled={!newRoomForm.room_number.trim() || hotelSaving['new']}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {hotelSaving['new'] ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                      Crear Habitación
-                    </button>
+                )}
+
+                {/* Room Cards */}
+                {hotelLoading ? (
+                  <div className="flex justify-center py-12"><Loader2 className="animate-spin text-indigo-500" size={28} /></div>
+                ) : hotelRooms.length === 0 ? (
+                  <div className="text-center py-14 border-2 border-dashed border-gray-200 rounded-2xl space-y-2">
+                    <BedDouble size={36} className="text-gray-300 mx-auto" />
+                    <p className="text-sm font-semibold text-gray-500">No hay habitaciones registradas</p>
+                    <p className="text-xs text-gray-400">Agrega una habitación para comenzar a asignar personas o arrastrarlas.</p>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {hotelRooms.map(room => {
+                      const occupancy = room.workshop_hotel_occupants.length
+                      const isFull = occupancy >= room.capacity
+                      const isAssigning = assigningRoomId === room.id
+                      const isSavingRoom = room.id ? !!hotelSaving[room.id] : false
 
-              {/* Room Cards */}
-              {hotelLoading ? (
-                <div className="flex justify-center py-12"><Loader2 className="animate-spin text-indigo-500" size={28} /></div>
-              ) : hotelRooms.length === 0 ? (
-                <div className="text-center py-14 border-2 border-dashed border-gray-200 rounded-2xl space-y-2">
-                  <BedDouble size={36} className="text-gray-300 mx-auto" />
-                  <p className="text-sm font-semibold text-gray-500">No hay habitaciones registradas</p>
-                  <p className="text-xs text-gray-400">Agrega una habitación para comenzar a asignar personas.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {hotelRooms.map(room => {
-                    const occupancy = room.workshop_hotel_occupants.length
-                    const isFull = occupancy >= room.capacity
-                    const isAssigning = assigningRoomId === room.id
-                    const isSavingRoom = room.id ? !!hotelSaving[room.id] : false
+                      const availableStaff = assignedStaff.filter(s =>
+                        s.isTemp
+                          ? !room.workshop_hotel_occupants.some(o => o.guest_name === s.first_name)
+                          : !room.workshop_hotel_occupants.some(o => o.user_id === s.id)
+                      )
 
-                    const availableStaff = assignedStaff.filter(s =>
-                      s.isTemp
-                        ? !room.workshop_hotel_occupants.some(o => o.guest_name === s.first_name)
-                        : !room.workshop_hotel_occupants.some(o => o.user_id === s.id)
-                    )
-
-                    return (
-                      <div key={room.id} className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden">
-                        {/* Room Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                              <BedDouble size={18} />
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-gray-900 text-sm">Hab. {room.room_number}</h4>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {room.room_type && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg">{room.room_type}</span>
-                                )}
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
-                                  isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                                }`}>
-                                  {occupancy}/{room.capacity} ocupantes
-                                </span>
-                                {room.notes && <span className="text-[10px] text-gray-400">{room.notes}</span>}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {!isFull && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAssigningRoomId(isAssigning ? null : (room.id || null))
-                                  setShowGuestForm(false)
-                                  setGuestForm({ guest_name: '', guest_phone: '' })
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 transition-all"
-                              >
-                                <Users size={12} /> {isAssigning ? 'Cerrar' : 'Asignar'}
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => room.id && handleDeleteRoom(room.id)}
-                              disabled={isSavingRoom}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Eliminar habitación"
-                            >
-                              {isSavingRoom ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Capacity bar */}
-                        <div className="h-1 w-full bg-gray-100">
-                          <div
-                            className={`h-1 transition-all rounded-full ${
-                              isFull ? 'bg-red-400' : occupancy > 0 ? 'bg-indigo-400' : 'bg-gray-200'
-                            }`}
-                            style={{ width: `${Math.min(100, (occupancy / room.capacity) * 100)}%` }}
-                          />
-                        </div>
-
-                        {/* Occupants list */}
-                        <div className="p-4 space-y-2">
-                          {room.workshop_hotel_occupants.length === 0 ? (
-                            <p className="text-xs text-gray-400 italic text-center py-2">Sin ocupantes asignados</p>
-                          ) : (
-                            room.workshop_hotel_occupants.map(occ => {
-                              const profile = occ.user_profiles
-                              const name = profile
-                                ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email
-                                : occ.guest_name || 'Invitado'
-                              const sub = profile ? profile.email : (occ.guest_phone || 'Externo')
-                              return (
-                                <div key={occ.id} className="flex items-center justify-between gap-3 p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                                      profile ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 text-white' : 'bg-amber-100 text-amber-700'
-                                    }`}>
-                                      {name[0]?.toUpperCase() || '?'}
-                                    </div>
-                                    <div>
-                                      <p className="text-xs font-semibold text-gray-900">{name}</p>
-                                      <p className="text-[10px] text-gray-400">{sub}</p>
-                                    </div>
-                                    {!profile && (
-                                      <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Externo</span>
+                      return (
+                        <div 
+                          key={room.id} 
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={e => room.id && handleDropRoom(e, room.id)}
+                          className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden hover:border-indigo-300 transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            {/* Room Header */}
+                            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                  <BedDouble size={18} />
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-gray-900 text-sm">Hab. {room.room_number}</h4>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {room.room_type && (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg">{room.room_type}</span>
                                     )}
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
+                                      isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                    }`}>
+                                      {occupancy}/{room.capacity} ocupantes
+                                    </span>
                                   </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {!isFull && (
                                   <button
                                     type="button"
-                                    onClick={() => occ.id && room.id && handleRemoveOccupant(room.id, occ.id)}
-                                    className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
-                                    title="Quitar"
+                                    onClick={() => {
+                                      setAssigningRoomId(isAssigning ? null : (room.id || null))
+                                      setShowGuestForm(false)
+                                      setGuestForm({ guest_name: '', guest_phone: '' })
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 transition-all"
                                   >
-                                    <X size={13} />
+                                    <Users size={12} /> {isAssigning ? 'Cerrar' : 'Asignar'}
                                   </button>
-                                </div>
-                              )
-                            })
-                          )}
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => room.id && handleDeleteRoom(room.id)}
+                                  disabled={isSavingRoom}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Eliminar habitación"
+                                >
+                                  {isSavingRoom ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                </button>
+                              </div>
+                            </div>
 
-                          {/* Assign panel */}
-                          {isAssigning && (
-                            <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-3">
-                              {/* Staff selector */}
-                              {availableStaff.length > 0 && (
-                                <div>
-                                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Staff Disponible</p>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {availableStaff.map(s => (
+                            {/* Capacity bar */}
+                            <div className="h-1 w-full bg-gray-100">
+                              <div
+                                className={`h-1 transition-all rounded-full ${
+                                  isFull ? 'bg-red-400' : occupancy > 0 ? 'bg-indigo-400' : 'bg-gray-200'
+                                }`}
+                                style={{ width: `${Math.min(100, (occupancy / room.capacity) * 100)}%` }}
+                              />
+                            </div>
+
+                            {/* Occupants list */}
+                            <div className="p-4 space-y-2">
+                              {room.workshop_hotel_occupants.length === 0 ? (
+                                <p className="text-xs text-gray-400 italic text-center py-6 border border-dashed rounded-xl border-gray-150">
+                                  Arrastra staff aquí
+                                </p>
+                              ) : (
+                                room.workshop_hotel_occupants.map(occ => {
+                                  const profile = occ.user_profiles
+                                  const name = profile
+                                    ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email
+                                    : occ.guest_name || 'Invitado'
+                                  const sub = profile ? profile.email : (occ.guest_phone || 'Externo')
+
+                                  const matchingStaff = assignedStaff.find(s =>
+                                    s.isTemp ? s.first_name === occ.guest_name : s.id === occ.user_id
+                                  )
+                                  const isDraggable = !!matchingStaff
+                                  const staffId = matchingStaff?.id
+                                  const isTemp = !!matchingStaff?.isTemp
+
+                                  return (
+                                    <div 
+                                      key={occ.id} 
+                                      draggable={isDraggable}
+                                      onDragStart={e => {
+                                        if (isDraggable && staffId) {
+                                          handleDragStartHotel(e, staffId, isTemp, room.id, occ.id)
+                                        }
+                                      }}
+                                      className={`flex items-center justify-between gap-3 p-2.5 bg-gray-50 rounded-xl border border-gray-100 transition-all ${
+                                        isDraggable 
+                                          ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:bg-white hover:shadow-sm' 
+                                          : ''
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                        {isDraggable && (
+                                          <span className="text-[10px] text-gray-400 font-bold select-none">✥</span>
+                                        )}
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                          profile ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 text-white' : 'bg-amber-100 text-amber-700'
+                                        }`}>
+                                          {name[0]?.toUpperCase() || '?'}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-xs font-semibold text-gray-900 truncate">{name}</p>
+                                          <p className="text-[10px] text-gray-400 truncate">{sub}</p>
+                                        </div>
+                                        {!profile && (
+                                          <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded flex-shrink-0">Externo</span>
+                                        )}
+                                      </div>
                                       <button
-                                        key={s.id}
                                         type="button"
-                                        onClick={() => room.id && handleAddStaffToRoom(room.id, s.id)}
-                                        className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-indigo-200 text-indigo-800 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors"
+                                        onClick={() => occ.id && room.id && handleRemoveOccupant(room.id, occ.id)}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                                        title="Quitar"
                                       >
-                                        <User size={11} />
-                                        {s.first_name || s.last_name
-                                          ? `${s.first_name || ''} ${s.last_name || ''}`.trim()
-                                          : s.email}
+                                        <X size={13} />
                                       </button>
-                                    ))}
+                                    </div>
+                                  )
+                                })
+                              )}
+
+                              {/* Assign panel */}
+                              {isAssigning && (
+                                <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-3">
+                                  {/* Staff selector */}
+                                  {availableStaff.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Staff Disponible</p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {availableStaff.map(s => (
+                                          <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => room.id && handleAddStaffToRoom(room.id, s.id)}
+                                            className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-indigo-200 text-indigo-800 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors"
+                                          >
+                                            <User size={11} />
+                                            {s.first_name || s.last_name
+                                              ? `${s.first_name || ''} ${s.last_name || ''}`.trim()
+                                              : s.email}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Guest form toggle */}
+                                  <div className="border-t border-indigo-200 pt-2">
+                                    {!showGuestForm ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowGuestForm(true)}
+                                        className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                                      >
+                                        <Plus size={12} /> Agregar persona externa
+                                      </button>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Persona Externa</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <input
+                                            type="text"
+                                            placeholder="Nombre *"
+                                            className="erp-input py-1.5 text-xs"
+                                            value={guestForm.guest_name}
+                                            onChange={e => setGuestForm(p => ({ ...p, guest_name: e.target.value }))}
+                                          />
+                                          <input
+                                            type="tel"
+                                            placeholder="Teléfono (opcional)"
+                                            className="erp-input py-1.5 text-xs"
+                                            value={guestForm.guest_phone}
+                                            onChange={e => setGuestForm(p => ({ ...p, guest_phone: e.target.value }))}
+                                          />
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => { setShowGuestForm(false); setGuestForm({ guest_name: '', guest_phone: '' }) }}
+                                            className="text-xs text-gray-500 hover:text-gray-700"
+                                          >Cancelar</button>
+                                          <button
+                                            type="button"
+                                            onClick={() => room.id && handleAddGuestToRoom(room.id)}
+                                            disabled={!guestForm.guest_name.trim()}
+                                            className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                                          >
+                                            <Plus size={11} /> Agregar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )}
-
-                              {/* Guest form toggle */}
-                              <div className="border-t border-indigo-200 pt-2">
-                                {!showGuestForm ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowGuestForm(true)}
-                                    className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
-                                  >
-                                    <Plus size={12} /> Agregar persona externa
-                                  </button>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Persona Externa</p>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <input
-                                        type="text"
-                                        placeholder="Nombre *"
-                                        className="erp-input py-1.5 text-xs"
-                                        value={guestForm.guest_name}
-                                        onChange={e => setGuestForm(p => ({ ...p, guest_name: e.target.value }))}
-                                      />
-                                      <input
-                                        type="tel"
-                                        placeholder="Teléfono (opcional)"
-                                        className="erp-input py-1.5 text-xs"
-                                        value={guestForm.guest_phone}
-                                        onChange={e => setGuestForm(p => ({ ...p, guest_phone: e.target.value }))}
-                                      />
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => { setShowGuestForm(false); setGuestForm({ guest_name: '', guest_phone: '' }) }}
-                                        className="text-xs text-gray-500 hover:text-gray-700"
-                                      >Cancelar</button>
-                                      <button
-                                        type="button"
-                                        onClick={() => room.id && handleAddGuestToRoom(room.id)}
-                                        disabled={!guestForm.guest_name.trim()}
-                                        className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                                      >
-                                        <Plus size={11} /> Agregar
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

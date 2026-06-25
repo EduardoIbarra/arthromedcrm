@@ -90,7 +90,7 @@
         "id": "c_14",
         "modelo": "DGB",
         "cantidad": 2,
-        "material": "Bur DGB10UA99",
+        "material": "Bur DGB10UA110",
         "observaciones": "true"
       },
       {
@@ -1949,233 +1949,248 @@
       },
       {
         "id": "parras_11",
-        "material": "MULTICONTACTO GRIS KOBLENZ",
+        "material": "MULTICONTACTO GRIS CLARO KOBLENZ",
         "cantidad": 1
       },
       {
         "id": "parras_12",
-        "material": "MULTICONTACTO GRIS OSCURO STEREN",
-        "cantidad": 1
-      },
-      {
-        "id": "parras_13",
-        "material": "MULTICONTACTOS NEGREOS STEREN",
+        "material": "MULTICONTACTOS NEGROS STEREN",
         "cantidad": 2
       },
       {
-        "id": "parras_14",
+        "id": "parras_13",
         "material": "SELFIE STICK",
         "cantidad": 1
       },
       {
-        "id": "parras_15",
+        "id": "parras_14",
         "material": "BASE TRIPIE PARA CÁMARA",
         "cantidad": 1
       },
       {
-        "id": "parras_16",
+        "id": "parras_15",
         "material": "EXTENSIONES ENROLLABLES NARANJAS",
         "cantidad": 2
       },
       {
-        "id": "parras_17",
+        "id": "parras_16",
         "material": "GALLITO PARA MICROFONO",
         "cantidad": 1
       },
       {
-        "id": "parras_18",
+        "id": "parras_17",
         "material": "ETHERNET AZUL",
         "cantidad": 1
       },
       {
-        "id": "parras_19",
+        "id": "parras_18",
         "material": "ETHERNET GRIS LARGO",
         "cantidad": 1
       },
       {
-        "id": "parras_20",
+        "id": "parras_19",
         "material": "CONECTORES EXTENSION ETHERNET",
         "cantidad": 2
       },
       {
-        "id": "parras_21",
+        "id": "parras_20",
         "material": "CAMARA GO PRO 11 Y 12",
         "cantidad": 2
       },
       {
-        "id": "parras_22",
+        "id": "parras_21",
         "material": "MIXER BERHINGER / AC/",
         "cantidad": 1
       },
       {
-        "id": "parras_23",
+        "id": "parras_22",
         "material": "CABLES HDMI LARGOS ROJINEGROS",
         "cantidad": 2
       },
       {
-        "id": "parras_24",
+        "id": "parras_23",
         "material": "HDMI MEDIANO NEGREO",
         "cantidad": 1
       },
       {
-        "id": "parras_25",
+        "id": "parras_24",
         "material": "HDMI LARGO NEGRO",
         "cantidad": 1
       },
       {
-        "id": "parras_26",
+        "id": "parras_25",
         "material": "CABLES DE PLUG NEGROS",
         "cantidad": 4
       },
       {
-        "id": "parras_27",
+        "id": "parras_26",
         "material": "CABLES CANON NEGROS",
         "cantidad": 4
       },
       {
-        "id": "parras_28",
+        "id": "parras_27",
         "material": "EXTENSIÓN DE USB MEDIANA",
         "cantidad": 1
       },
       {
-        "id": "parras_29",
+        "id": "parras_28",
         "material": "CABLE HDMI A TIPO C",
         "cantidad": 1
       },
       {
-        "id": "parras_30",
+        "id": "parras_29",
         "material": "CONECTOR HDMI A USB",
         "cantidad": 1
       },
       {
-        "id": "parras_31",
+        "id": "parras_30",
         "material": "CABLE AUXILIAR - 3 CONECTORES AUX A PLUG",
         "cantidad": 2
       },
       {
-        "id": "parras_32",
+        "id": "parras_31",
         "material": "CONECTORES HEMBRA CANON A PLUG",
         "cantidad": 2
       },
       {
-        "id": "parras_33",
+        "id": "parras_32",
         "material": "EXTENSIÓN HDMI HEMBRA A MACHO",
         "cantidad": 1
       },
       {
-        "id": "parras_34",
-        "material": "CABLE RCA A PLUG",
-        "cantidad": 1
-      },
-      {
-        "id": "parras_35",
+        "id": "parras_33",
         "material": "CABLE TIPO IMPRESORA EN CAJA DE PROCESADOR DE VIDEO",
         "cantidad": 1
       },
       {
-        "id": "parras_36",
-        "material": "PROCESADOR DE VIDEO PARA PANTALLAS LED",
+        "id": "parras_34",
+        "material": "PROCESADOR DE VIDEO PARA PANTALLAS LED-AC-HDMI-USB-PUERTO VGA",
         "cantidad": 1
       },
       {
-        "id": "parras_37",
+        "id": "parras_35",
         "material": "DIADEMA STEREN",
         "cantidad": 1
       },
       {
-        "id": "parras_38",
+        "id": "parras_36",
         "material": "RECEPTOR PARA DIADEMA STEREN",
         "cantidad": 1
       },
       {
-        "id": "parras_39",
+        "id": "parras_37",
         "material": "MICROFONO INALAMBRICO SHURE SM58 BETA",
         "cantidad": 1
       },
       {
-        "id": "parras_40",
+        "id": "parras_38",
         "material": "CAMARA DJI POCKET CON SU MICROFONO, BASE Y 2 BATERÍAS",
         "cantidad": 1
       },
       {
-        "id": "parras_41",
+        "id": "parras_39",
         "material": "CAMARA WEBCAM",
         "cantidad": 1
       },
       {
-        "id": "parras_42",
+        "id": "parras_40",
         "material": "CABLE HDMI A MICROHDMI",
         "cantidad": 1
       },
       {
-        "id": "parras_43",
+        "id": "parras_41",
         "material": "CABLE VARIADO TIPO USB IPHONE",
         "cantidad": 1
       },
       {
-        "id": "parras_44",
+        "id": "parras_42",
         "material": "CONECTORES USB A TIPO C",
         "cantidad": 3
       },
       {
-        "id": "parras_45",
+        "id": "parras_43",
         "material": "MULTI USB 6 PUERTOS STEREN",
         "cantidad": 1
       },
       {
-        "id": "parras_46",
+        "id": "parras_44",
         "material": "MULTIPUERTO TIPO C A USB, CARD, TIPO C, STEREN",
         "cantidad": 1
       },
       {
-        "id": "parras_47",
+        "id": "parras_45",
         "material": "CABLE TIPO C A C MEDIANO",
         "cantidad": 1
       },
       {
-        "id": "parras_48",
+        "id": "parras_46",
         "material": "CABLE BLANCO TIPO C",
         "cantidad": 1
       },
       {
-        "id": "parras_49",
+        "id": "parras_47",
         "material": "CABLE MULTI  USB A TIPO C , MICRO Y IPHONE GRIS",
         "cantidad": 1
       },
       {
-        "id": "parras_50",
+        "id": "parras_48",
         "material": "CONECTORES AZUL A CORRIENTE LARGOS",
         "cantidad": 2
       },
       {
-        "id": "parras_51",
+        "id": "parras_49",
         "material": "CABLE CANNON GRIS TIPO PLANCHA",
         "cantidad": 1
       },
       {
-        "id": "parras_52",
+        "id": "parras_50",
         "material": "CABLE ETHERNET CON PUNTA Y SIN PUNTA",
         "cantidad": 1
       },
       {
-        "id": "parras_53",
+        "id": "parras_51",
         "material": "BOCINA JBL EON 15 PULGS",
         "cantidad": 1
       },
       {
-        "id": "parras_54",
+        "id": "parras_52",
         "material": "CASE PARA BOCINA JBL EON 15 PULGS",
         "cantidad": 1
       },
       {
-        "id": "parras_55",
+        "id": "parras_53",
         "material": "CONSOLA STREAMIGN BLACKMAGIC DESING",
         "cantidad": 1
       },
       {
-        "id": "parras_56",
+        "id": "parras_54",
         "material": "DIVISOR CON AMPLIFICADOR HDMI DE 4 SALIDAS",
         "cantidad": 1
+      },
+      {
+        "id": "parras_55",
+        "material": "MULTI USB 4 PUERTOS",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_56",
+        "material": "EXTENSIONES NARANJAS LARGAS",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_57",
+        "material": "MUERCIELAGOS Y TORNILLERÍA",
+        "cantidad": 10
+      },
+      {
+        "id": "parras_58",
+        "material": "EXTENSIÓN ROJA MEDIANA",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_59",
+        "material": "CABLES HDMI NEGROS",
+        "cantidad": 3
       }
     ]
   }
