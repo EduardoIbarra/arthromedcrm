@@ -90,7 +90,7 @@
         "id": "c_14",
         "modelo": "DGB",
         "cantidad": 2,
-        "material": "Bur DGB10UA110",
+        "material": "Bur DGB10UA99",
         "observaciones": "true"
       },
       {
@@ -1894,303 +1894,838 @@
   },
   {
     "id": "parras_junio_2026",
-    "nombre": "Inventario Parras",
-    "descripcion": "INVENTARIO PARRAS 26/27 JUNIO 2026",
     "items": [
       {
         "id": "parras_1",
-        "material": "CASES DE PANTALLA 18 PANELES COMPLETOS",
-        "cantidad": 3
+        "cantidad": 3,
+        "material": "CASES DE PANTALLA 18 PANELES COMPLETOS"
       },
       {
         "id": "parras_2",
-        "material": "CASES DE BASE DE PANTALLA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CASES DE BASE DE PANTALLA"
       },
       {
         "id": "parras_3",
-        "material": "CASE DE CABLEADO (EL MUERTO)",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CASE DE CABLEADO (EL MUERTO)"
       },
       {
         "id": "parras_4",
-        "material": "CABLES DE LUZ PANTALLAS AC",
-        "cantidad": 18
+        "cantidad": 18,
+        "material": "CABLES DE LUZ PANTALLAS AC"
       },
       {
         "id": "parras_5",
-        "material": "CABLES CONECTORES DE ETHERNET SEÑAL P/PANTALLA",
-        "cantidad": 25
+        "cantidad": 25,
+        "material": "CABLES CONECTORES DE ETHERNET SEÑAL P/PANTALLA"
       },
       {
         "id": "parras_6",
-        "material": "CENTRO DE CARGA GORILA C/CABLE USO RUDO GRUESO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CENTRO DE CARGA GORILA C/CABLE USO RUDO GRUESO"
       },
       {
         "id": "parras_7",
-        "material": "EXTENSIÓN DE USORUDO ROJINEGRA DE MULTICONTACTOS",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "EXTENSIÓN DE USORUDO ROJINEGRA DE MULTICONTACTOS"
       },
       {
         "id": "parras_8",
-        "material": "EXTENSIÓN DE USO RUDO LARGA AZULNEGRO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "EXTENSIÓN DE USO RUDO LARGA AZULNEGRO"
       },
       {
         "id": "parras_9",
-        "material": "CABLES DE LUZ LARGAS A PANTALLAS",
-        "cantidad": 3
+        "cantidad": 3,
+        "material": "CABLES DE LUZ LARGAS A PANTALLAS"
       },
       {
         "id": "parras_10",
-        "material": "CABLES LARGOS DE SEÑAL PROCESADOR A PANTALLAS",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "CABLES LARGOS DE SEÑAL PROCESADOR A PANTALLAS"
       },
       {
         "id": "parras_11",
-        "material": "MULTICONTACTO GRIS CLARO KOBLENZ",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "MULTICONTACTO GRIS CLARO KOBLENZ"
       },
       {
         "id": "parras_12",
-        "material": "MULTICONTACTOS NEGROS STEREN",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "MULTICONTACTOS NEGROS STEREN"
       },
       {
         "id": "parras_13",
-        "material": "SELFIE STICK",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "SELFIE STICK"
       },
       {
         "id": "parras_14",
-        "material": "BASE TRIPIE PARA CÁMARA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "BASE TRIPIE PARA CÁMARA"
       },
       {
         "id": "parras_15",
-        "material": "EXTENSIONES ENROLLABLES NARANJAS",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "EXTENSIONES ENROLLABLES NARANJAS"
       },
       {
         "id": "parras_16",
-        "material": "GALLITO PARA MICROFONO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "GALLITO PARA MICROFONO"
       },
       {
         "id": "parras_17",
-        "material": "ETHERNET AZUL",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "ETHERNET AZUL"
       },
       {
         "id": "parras_18",
-        "material": "ETHERNET GRIS LARGO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "ETHERNET GRIS LARGO"
       },
       {
         "id": "parras_19",
-        "material": "CONECTORES EXTENSION ETHERNET",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "CONECTORES EXTENSION ETHERNET"
       },
       {
         "id": "parras_20",
-        "material": "CAMARA GO PRO 11 Y 12",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "CAMARA GO PRO 11 Y 12"
       },
       {
         "id": "parras_21",
-        "material": "MIXER BERHINGER / AC/",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "MIXER BERHINGER / AC/"
       },
       {
         "id": "parras_22",
-        "material": "CABLES HDMI LARGOS ROJINEGROS",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "CABLES HDMI LARGOS ROJINEGROS"
       },
       {
         "id": "parras_23",
-        "material": "HDMI MEDIANO NEGREO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "HDMI MEDIANO NEGREO"
       },
       {
         "id": "parras_24",
-        "material": "HDMI LARGO NEGRO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "HDMI LARGO NEGRO"
       },
       {
         "id": "parras_25",
-        "material": "CABLES DE PLUG NEGROS",
-        "cantidad": 4
+        "cantidad": 4,
+        "material": "CABLES DE PLUG NEGROS"
       },
       {
         "id": "parras_26",
-        "material": "CABLES CANON NEGROS",
-        "cantidad": 4
+        "cantidad": 4,
+        "material": "CABLES CANON NEGROS"
       },
       {
         "id": "parras_27",
-        "material": "EXTENSIÓN DE USB MEDIANA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "EXTENSIÓN DE USB MEDIANA"
       },
       {
         "id": "parras_28",
-        "material": "CABLE HDMI A TIPO C",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE HDMI A TIPO C"
       },
       {
         "id": "parras_29",
-        "material": "CONECTOR HDMI A USB",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CONECTOR HDMI A USB"
       },
       {
         "id": "parras_30",
-        "material": "CABLE AUXILIAR - 3 CONECTORES AUX A PLUG",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "CABLE AUXILIAR - 3 CONECTORES AUX A PLUG"
       },
       {
         "id": "parras_31",
-        "material": "CONECTORES HEMBRA CANON A PLUG",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "CONECTORES HEMBRA CANON A PLUG"
       },
       {
         "id": "parras_32",
-        "material": "EXTENSIÓN HDMI HEMBRA A MACHO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "EXTENSIÓN HDMI HEMBRA A MACHO"
       },
       {
         "id": "parras_33",
-        "material": "CABLE TIPO IMPRESORA EN CAJA DE PROCESADOR DE VIDEO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE TIPO IMPRESORA EN CAJA DE PROCESADOR DE VIDEO"
       },
       {
         "id": "parras_34",
-        "material": "PROCESADOR DE VIDEO PARA PANTALLAS LED-AC-HDMI-USB-PUERTO VGA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "PROCESADOR DE VIDEO PARA PANTALLAS LED-AC-HDMI-USB-PUERTO VGA"
       },
       {
         "id": "parras_35",
-        "material": "DIADEMA STEREN",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "DIADEMA STEREN"
       },
       {
         "id": "parras_36",
-        "material": "RECEPTOR PARA DIADEMA STEREN",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "RECEPTOR PARA DIADEMA STEREN"
       },
       {
         "id": "parras_37",
-        "material": "MICROFONO INALAMBRICO SHURE SM58 BETA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "MICROFONO INALAMBRICO SHURE SM58 BETA"
       },
       {
         "id": "parras_38",
-        "material": "CAMARA DJI POCKET CON SU MICROFONO, BASE Y 2 BATERÍAS",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CAMARA DJI POCKET CON SU MICROFONO, BASE Y 2 BATERÍAS"
       },
       {
         "id": "parras_39",
-        "material": "CAMARA WEBCAM",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CAMARA WEBCAM"
       },
       {
         "id": "parras_40",
-        "material": "CABLE HDMI A MICROHDMI",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE HDMI A MICROHDMI"
       },
       {
         "id": "parras_41",
-        "material": "CABLE VARIADO TIPO USB IPHONE",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE VARIADO TIPO USB IPHONE"
       },
       {
         "id": "parras_42",
-        "material": "CONECTORES USB A TIPO C",
-        "cantidad": 3
+        "cantidad": 3,
+        "material": "CONECTORES USB A TIPO C"
       },
       {
         "id": "parras_43",
-        "material": "MULTI USB 6 PUERTOS STEREN",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "MULTI USB 6 PUERTOS STEREN"
       },
       {
         "id": "parras_44",
-        "material": "MULTIPUERTO TIPO C A USB, CARD, TIPO C, STEREN",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "MULTIPUERTO TIPO C A USB, CARD, TIPO C, STEREN"
       },
       {
         "id": "parras_45",
-        "material": "CABLE TIPO C A C MEDIANO",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE TIPO C A C MEDIANO"
       },
       {
         "id": "parras_46",
-        "material": "CABLE BLANCO TIPO C",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE BLANCO TIPO C"
       },
       {
         "id": "parras_47",
-        "material": "CABLE MULTI  USB A TIPO C , MICRO Y IPHONE GRIS",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE MULTI  USB A TIPO C , MICRO Y IPHONE GRIS"
       },
       {
         "id": "parras_48",
-        "material": "CONECTORES AZUL A CORRIENTE LARGOS",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "CONECTORES AZUL A CORRIENTE LARGOS"
       },
       {
         "id": "parras_49",
-        "material": "CABLE CANNON GRIS TIPO PLANCHA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE CANNON GRIS TIPO PLANCHA"
       },
       {
         "id": "parras_50",
-        "material": "CABLE ETHERNET CON PUNTA Y SIN PUNTA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CABLE ETHERNET CON PUNTA Y SIN PUNTA"
       },
       {
         "id": "parras_51",
-        "material": "BOCINA JBL EON 15 PULGS",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "BOCINA JBL EON 15 PULGS"
       },
       {
         "id": "parras_52",
-        "material": "CASE PARA BOCINA JBL EON 15 PULGS",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CASE PARA BOCINA JBL EON 15 PULGS"
       },
       {
         "id": "parras_53",
-        "material": "CONSOLA STREAMIGN BLACKMAGIC DESING",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "CONSOLA STREAMIGN BLACKMAGIC DESING"
       },
       {
         "id": "parras_54",
-        "material": "DIVISOR CON AMPLIFICADOR HDMI DE 4 SALIDAS",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "DIVISOR CON AMPLIFICADOR HDMI DE 4 SALIDAS"
       },
       {
         "id": "parras_55",
-        "material": "MULTI USB 4 PUERTOS",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "MULTI USB 4 PUERTOS"
       },
       {
         "id": "parras_56",
-        "material": "EXTENSIONES NARANJAS LARGAS",
-        "cantidad": 2
+        "cantidad": 2,
+        "material": "EXTENSIONES NARANJAS LARGAS"
       },
       {
         "id": "parras_57",
-        "material": "MUERCIELAGOS Y TORNILLERÍA",
-        "cantidad": 10
+        "cantidad": 10,
+        "material": "MUERCIELAGOS Y TORNILLERÍA"
       },
       {
         "id": "parras_58",
-        "material": "EXTENSIÓN ROJA MEDIANA",
-        "cantidad": 1
+        "cantidad": 1,
+        "material": "EXTENSIÓN ROJA MEDIANA"
       },
       {
         "id": "parras_59",
-        "material": "CABLES HDMI NEGROS",
+        "cantidad": 3,
+        "material": "CABLES HDMI NEGROS"
+      }
+    ],
+    "nombre": "Inventario Parras",
+    "descripcion": "INVENTARIO PARRAS 26/27 JUNIO 2026"
+  },
+  {
+    "id": "parras_fer",
+    "nombre": "Parras Fer",
+    "descripcion": "Check list Taller Parras",
+    "items": [
+      {
+        "id": "parras_fer_1",
+        "material": "Batas quirurgicas (Pz)",
+        "cantidad": 55,
+        "observaciones": "Caja 1"
+      },
+      {
+        "id": "parras_fer_2",
+        "material": "Bomba Bonss",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_3",
+        "material": "Muestrario",
+        "cantidad": 1,
+        "observaciones": "Caja 2"
+      },
+      {
+        "id": "parras_fer_4",
+        "material": "Cepillo dental",
         "cantidad": 3
+      },
+      {
+        "id": "parras_fer_5",
+        "material": "Sal kg",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_fer_6",
+        "material": "Manguera BONSS",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_7",
+        "material": "Hojas de bisturí del 15",
+        "cantidad": 100
+      },
+      {
+        "id": "parras_fer_8",
+        "material": "Hojas de bisturí del 22",
+        "cantidad": 100
+      },
+      {
+        "id": "parras_fer_9",
+        "material": "Bolsa RPBI",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_fer_10",
+        "material": "Cubre bocas (caja)",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_fer_11",
+        "material": "Hojas Opalina",
+        "cantidad": 50
+      },
+      {
+        "id": "parras_fer_12",
+        "material": "Guantes CH (caja)",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_13",
+        "material": "Guantes M (caja)",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_fer_14",
+        "material": "Guantes G (caja)",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_15",
+        "material": "Compresas (Pz)",
+        "cantidad": 12,
+        "observaciones": "Palanganas"
+      },
+      {
+        "id": "parras_fer_16",
+        "material": "Mangos de bisturí de 4",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_17",
+        "material": "Mangos de bisturí de 3",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_18",
+        "material": "Bolsa de Suero fisciologico 3000ml (abierta)",
+        "cantidad": 10
+      },
+      {
+        "id": "parras_fer_19",
+        "material": "Irrigatek de 2 vías",
+        "cantidad": 5
+      },
+      {
+        "id": "parras_fer_20",
+        "material": "Jeringas de 20 mL",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_fer_21",
+        "material": "Manguera de succión",
+        "cantidad": 6
+      },
+      {
+        "id": "parras_fer_22",
+        "material": "Manguera Llenado",
+        "cantidad": 6
+      },
+      {
+        "id": "parras_fer_23",
+        "material": "Manguera Drenaje",
+        "cantidad": 6
+      },
+      {
+        "id": "parras_fer_24",
+        "material": "Manguera Drenaje corta",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_25",
+        "material": "Campo quirurgico desechable",
+        "cantidad": 20
+      },
+      {
+        "id": "parras_fer_26",
+        "material": "Power bank",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_fer_27",
+        "material": "Bomba de garrafon",
+        "cantidad": 6
+      },
+      {
+        "id": "parras_fer_28",
+        "material": "EZ Blator 90°",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_fer_29",
+        "material": "Spine O-UBE",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_fer_30",
+        "material": "UGD",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_31",
+        "material": "UXD 70",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_32",
+        "material": "UXD 90",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_33",
+        "material": "Bur DGB30UA110",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_fer_34",
+        "material": "Bur DGB40WA115",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_35",
+        "material": "DG-A30UX411(R)",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_36",
+        "material": "DG-A30WZ411(R)",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_37",
+        "material": "Plumones",
+        "cantidad": 6
+      },
+      {
+        "id": "parras_fer_38",
+        "material": "Palangana chica",
+        "cantidad": 4
+      },
+      {
+        "id": "parras_fer_39",
+        "material": "Sutura 6-0",
+        "cantidad": 8
+      },
+      {
+        "id": "parras_fer_40",
+        "material": "Banco de altura",
+        "cantidad": 2,
+        "observaciones": "Caja 3"
+      },
+      {
+        "id": "parras_fer_41",
+        "material": "Tarjetas Puente",
+        "cantidad": 53
+      },
+      {
+        "id": "parras_fer_42",
+        "material": "Franelas",
+        "cantidad": 7
+      },
+      {
+        "id": "parras_fer_43",
+        "material": "Lonas impresas",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_fer_44",
+        "material": "Embudo negro",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_45",
+        "material": "Modelo anatomico lumbar (base)",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_46",
+        "material": "Cartucho lumbar Nuevo",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_47",
+        "material": "Catalogos Spine Ingles",
+        "cantidad": 20
+      },
+      {
+        "id": "parras_fer_48",
+        "material": "Plastico de gafetes",
+        "cantidad": 25
+      },
+      {
+        "id": "parras_fer_49",
+        "material": "Porta gafetes ARTHROMED",
+        "cantidad": 100
+      },
+      {
+        "id": "parras_fer_50",
+        "material": "Actrilicos",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_51",
+        "material": "Linternas de regalo",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_52",
+        "material": "Columna cervical c/ base de craneo",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_53",
+        "material": "Columna c/ base",
+        "cantidad": 3
+      },
+      {
+        "id": "parras_fer_54",
+        "material": "Catalogos UBE Grande",
+        "cantidad": 25
+      },
+      {
+        "id": "parras_fer_55",
+        "material": "Muro de lona",
+        "cantidad": 3,
+        "observaciones": "Suelto"
+      },
+      {
+        "id": "parras_fer_56",
+        "material": "Porta sueros doble",
+        "cantidad": 4,
+        "observaciones": "Muerto"
+      },
+      {
+        "id": "parras_fer_57",
+        "material": "Porrones 20lts.",
+        "cantidad": 4,
+        "observaciones": "Suelto"
+      },
+      {
+        "id": "parras_fer_58",
+        "material": "Porrones 25lts.",
+        "cantidad": 4,
+        "observaciones": "Suelto"
+      },
+      {
+        "id": "parras_fer_59",
+        "material": "Porrones 50lts.",
+        "cantidad": 4,
+        "observaciones": "Suelto"
+      },
+      {
+        "id": "parras_fer_60",
+        "material": "Base para TV",
+        "cantidad": 1,
+        "observaciones": "Suelto"
+      },
+      {
+        "id": "parras_fer_61",
+        "material": "TV",
+        "cantidad": 1,
+        "observaciones": "Suelto"
+      },
+      {
+        "id": "parras_fer_62",
+        "material": "Pistola de aire",
+        "cantidad": 1,
+        "observaciones": "Herramienta"
+      },
+      {
+        "id": "parras_fer_63",
+        "material": "Desarmador de bateria",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_64",
+        "material": "Taladro",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_65",
+        "material": "Cargador para desarmador",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_66",
+        "material": "Batería para taladro",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_67",
+        "material": "Juego para atornillar",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_68",
+        "material": "Martillo",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_69",
+        "material": "Brocas",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_70",
+        "material": "Juego para atornillar 12 pzs",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_71",
+        "material": "Desarmadores de estrella",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_72",
+        "material": "Desarmadores de estrella cortos",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_73",
+        "material": "Desarmadores planos (Corto)",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_74",
+        "material": "Desarmadores planos",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_75",
+        "material": "Juego de desarmadores",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_76",
+        "material": "Juego de desarmadores milimetricos",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_77",
+        "material": "Juego de llaves allen unidas",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_78",
+        "material": "Juego de llaves torx",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_79",
+        "material": "Llaves inglesas",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_80",
+        "material": "Pinzas de presión",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_81",
+        "material": "Pinzas de punta",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_82",
+        "material": "Pinzas de chofer",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_83",
+        "material": "Pinzas de corte",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_84",
+        "material": "Pinzas extensibles",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_85",
+        "material": "Juego de dados",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_86",
+        "material": "Matracas",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_87",
+        "material": "Extensiones",
+        "cantidad": 2
+      },
+      {
+        "id": "parras_fer_88",
+        "material": "Pistola de silicon",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_89",
+        "material": "Nivel",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_90",
+        "material": "Felxometros",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_91",
+        "material": "Kit Klein Tools",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_92",
+        "material": "Pinzas de electicista",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_93",
+        "material": "Spine O-UBE",
+        "cantidad": 1,
+        "observaciones": "Muestrario"
+      },
+      {
+        "id": "parras_fer_94",
+        "material": "UGD",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_95",
+        "material": "UXD 70",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_96",
+        "material": "UXD 90",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_97",
+        "material": "Bur DGB40UA110",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_98",
+        "material": "Bur DGB40UA110",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_99",
+        "material": "Bur DGA30WA110",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_100",
+        "material": "Bur DGA40UA110",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_101",
+        "material": "Lumba FX",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_102",
+        "material": "Spine O-QFX",
+        "cantidad": 1
+      },
+      {
+        "id": "parras_fer_103",
+        "material": "Bur DGB30UA290",
+        "cantidad": 1
       }
     ]
   }
