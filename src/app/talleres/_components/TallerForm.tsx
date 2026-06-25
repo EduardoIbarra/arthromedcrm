@@ -1779,43 +1779,41 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
 
           {/* TAB 5: HOTEL ROOMS */}
           {activeTab === 'hotel' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column: Unassigned Hotel Staff */}
-              <div className="lg:col-span-1 space-y-6">
-                <div className="card p-5 bg-white shadow-sm border border-gray-150 rounded-2xl space-y-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 mb-1">Staff Sin Habitación</h3>
-                    <p className="text-[11px] text-gray-500 mb-3">Arrastra y suelta miembros aquí para quitarlos de su habitación actual.</p>
-                    
-                    <div 
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={handleDropUnassignedHotel}
-                      className="min-h-[250px] rounded-xl border-2 border-dashed border-gray-200 p-2 space-y-2 bg-slate-50/50 hover:bg-slate-100/50 transition-all max-h-[500px] overflow-y-auto"
-                    >
-                      {unassignedHotelStaff.map(member => (
-                        <div
-                          key={member.id}
-                          draggable={true}
-                          onDragStart={e => handleDragStartHotel(e, member.id, member.isTemp)}
-                          className="p-2.5 bg-white border border-gray-150 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow transition-all flex items-center justify-between gap-2"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 truncate">{member.first_name} {member.last_name}</p>
-                            <p className="text-[10px] text-gray-400">{member.position}</p>
-                          </div>
-                          <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.2 rounded border">✥ Drag</span>
+            <div className="space-y-6">
+              {/* Top Panel: Unassigned Hotel Staff (Full Width) */}
+              <div className="card p-5 bg-white shadow-sm border border-gray-150 rounded-2xl space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 mb-1">Staff Sin Habitación</h3>
+                  <p className="text-[11px] text-gray-500 mb-3">Arrastra y suelta miembros aquí para quitarlos de su habitación actual.</p>
+                  
+                  <div 
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={handleDropUnassignedHotel}
+                    className="min-h-[80px] rounded-xl border-2 border-dashed border-gray-200 p-3 bg-slate-50/50 hover:bg-slate-100/50 transition-all flex flex-wrap gap-2.5"
+                  >
+                    {unassignedHotelStaff.map(member => (
+                      <div
+                        key={member.id}
+                        draggable={true}
+                        onDragStart={e => handleDragStartHotel(e, member.id, member.isTemp)}
+                        className="p-2.5 bg-white border border-gray-150 rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow transition-all flex items-center gap-2 max-w-[200px]"
+                      >
+                        <span className="text-[9px] text-gray-400 font-bold select-none cursor-grab">✥</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate">{member.first_name} {member.last_name}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{member.position}</p>
                         </div>
-                      ))}
-                      {unassignedHotelStaff.length === 0 && (
-                        <p className="text-[11px] text-gray-400 italic text-center py-12">Todos tienen habitación asignada</p>
-                      )}
-                    </div>
+                      </div>
+                    ))}
+                    {unassignedHotelStaff.length === 0 && (
+                      <p className="text-[11px] text-gray-400 italic text-center w-full py-4">Todos tienen habitación asignada</p>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Right Column: Hotel Rooms Grid */}
-              <div className="lg:col-span-2 space-y-5">
+              {/* Bottom Grid: Hotel Rooms Grid (Full Width) */}
+              <div className="space-y-5">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div>
@@ -1900,7 +1898,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                   </div>
                 )}
 
-                {/* Room Cards */}
+                {/* Room Cards Grid */}
                 {hotelLoading ? (
                   <div className="flex justify-center py-12"><Loader2 className="animate-spin text-indigo-500" size={28} /></div>
                 ) : hotelRooms.length === 0 ? (
@@ -1910,7 +1908,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                     <p className="text-xs text-gray-400">Agrega una habitación para comenzar a asignar personas o arrastrarlas.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {hotelRooms.map(room => {
                       const occupancy = room.workshop_hotel_occupants.length
                       const isFull = occupancy >= room.capacity
@@ -1952,17 +1950,17 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setAssigningRoomId(isAssigning ? null : (room.id || null))
-                                      setShowGuestForm(false)
-                                      setGuestForm({ guest_name: '', guest_phone: '' })
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 transition-all"
-                                  >
-                                    <Users size={12} /> {isAssigning ? 'Cerrar' : 'Asignar'}
-                                  </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAssigningRoomId(isAssigning ? null : (room.id || null))
+                                    setShowGuestForm(false)
+                                    setGuestForm({ guest_name: '', guest_phone: '' })
+                                  }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 transition-all"
+                                >
+                                  <Users size={12} /> {isAssigning ? 'Cerrar' : 'Asignar'}
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => room.id && handleDeleteRoom(room.id)}
