@@ -857,13 +857,9 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
         // If dragging within the same room, do nothing
         if (sourceRoomId === targetRoomId) return
         
-        // Check capacity of target room
+        // Find target room
         const targetRoom = hotelRooms.find(r => r.id === targetRoomId)
         if (!targetRoom) return
-        if (targetRoom.workshop_hotel_occupants.length >= targetRoom.capacity) {
-          alert('La habitación seleccionada ya está al límite de su capacidad.')
-          return
-        }
         
         // Find the staff details
         const staff = assignedStaff.find(s => s.id === staffId)
@@ -934,11 +930,14 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
     return (
       <div 
         key={member.id}
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 rounded-2xl border border-gray-150 hover:border-blue-200 hover:shadow-md transition-all duration-300 bg-white"
+        draggable={true}
+        onDragStart={e => handleDragStartVehicle(e, member.id, member.isTemp)}
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 rounded-2xl border border-gray-150 hover:border-blue-200 hover:shadow-md transition-all duration-300 bg-white cursor-grab active:cursor-grabbing"
       >
         {/* User info */}
         <div className="flex items-center gap-3.5 min-w-[250px]">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-sm">
+          <span className="text-[10px] text-gray-400 font-bold select-none cursor-grab shrink-0">✥</span>
+          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
             {member.first_name ? member.first_name[0].toUpperCase() : member.email[0].toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
@@ -1073,22 +1072,33 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           const members = grouped[carId]
           const car = carList.find(c => c.id === carId)
           return (
-            <div key={carId} className="border border-gray-150 rounded-2xl p-5 bg-slate-50/50 space-y-4">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-gray-200">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
-                  <Car size={18} />
+            <div 
+              key={carId} 
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => handleDropVehicle(e, carId === 'no_car' ? '' : carId)}
+              className="border border-gray-150 rounded-2xl p-5 bg-slate-50/50 space-y-4 hover:border-blue-300 hover:bg-blue-50/10 transition-all"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+                    <Car size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900">
+                      {car ? (car.alias || `${car.make} ${car.model} (${car.plate_number})`) : 'Sin vehículo asignado'}
+                    </h4>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      {members.length} {members.length === 1 ? 'persona asignada' : 'personas asignadas'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-gray-900">
-                    {car ? (car.alias || `${car.make} ${car.model} (${car.plate_number})`) : 'Sin vehículo asignado'}
-                  </h4>
-                  <p className="text-[11px] text-gray-500 font-medium">
-                    {members.length} {members.length === 1 ? 'persona asignada' : 'personas asignadas'}
-                  </p>
-                </div>
+                <span className="text-[9px] bg-slate-100 text-blue-700 font-bold px-1.5 py-0.2 rounded border">✥ Dropzone</span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 min-h-[50px]">
                 {members.map(member => renderMemberCard(member, true))}
+                {members.length === 0 && (
+                  <p className="text-[11px] text-gray-400 italic text-center py-4">Arrastra staff aquí</p>
+                )}
               </div>
             </div>
           )
@@ -1942,7 +1952,6 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                {!isFull && (
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1954,7 +1963,6 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                                   >
                                     <Users size={12} /> {isAssigning ? 'Cerrar' : 'Asignar'}
                                   </button>
-                                )}
                                 <button
                                   type="button"
                                   onClick={() => room.id && handleDeleteRoom(room.id)}
