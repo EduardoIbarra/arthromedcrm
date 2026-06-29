@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { toPng } from 'html-to-image'
+import { toBlob } from 'html-to-image'
 import { X, Loader2, Download, Printer, Award, FileText, Check } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { QRCodeSVG } from 'qrcode.react'
@@ -267,14 +267,14 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       // Small timeout for browser to ensure image rendering
       await new Promise(r => setTimeout(r, 200))
       
-      // iOS Safari bug: call toPng once to warm up WebKit cache and prevent blank images
+      // iOS Safari bug: call toBlob once to warm up WebKit cache and prevent blank images
       try {
-        await toPng(node, { cacheBust: true })
+        await toBlob(node, { cacheBust: true })
       } catch (e) {
         // ignore first attempt error
       }
       
-      const dataUrl = await toPng(node, {
+      const blob = await toBlob(node, {
         pixelRatio: 2, // Safe 2x resolution (avoid Safari memory limits)
         cacheBust: true,
         style: {
@@ -285,10 +285,16 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
         }
       })
       
+      if (!blob) throw new Error('Failed to generate PNG blob')
+      
+      const dataUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.download = `Diploma_${editableName.trim().replace(/\s+/g, '_')}.png`
       link.href = dataUrl
       link.click()
+      
+      // Cleanup URL object
+      setTimeout(() => URL.revokeObjectURL(dataUrl), 1000)
     } catch (err) {
       console.error(err)
       alert('Error al descargar el diploma en imagen. Intenta la opción de Imprimir.')
@@ -484,8 +490,18 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       </Modal>
 
       {/* Hidden print render node */}
-      <div className="absolute left-[-9999px] top-[-9999px]" style={{ zIndex: -1 }}>
-        <DiplomaLayout idAttr="diploma-generator-render-node" />
+      <div
+        style={{
+          position: 'absolute',
+          left: '-9999px',
+          top: '-9999px',
+          pointerEvents: 'none',
+          zIndex: -1
+        }}
+      >
+        <div id="diploma-generator-render-node" style={{ width: '1000px', height: '773px', position: 'relative' }}>
+          <DiplomaLayout />
+        </div>
       </div>
 
       {/* Screen/Printer layout for printing (using Portal to place directly under body) */}
