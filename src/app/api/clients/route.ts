@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
         letter_created_at: body.letter_created_at ? new Date(body.letter_created_at) : null,
         letter_expires_at: body.letter_expires_at ? new Date(body.letter_expires_at) : null,
         letter_url: body.letter_url,
+        avatar_url: body.avatar_url,
         addresses: body.addresses || []
       }
     })

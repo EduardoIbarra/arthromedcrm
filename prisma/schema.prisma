@@ -741,6 +741,7 @@ model clients {
   letter_created_at             DateTime?                       @db.Date
   letter_expires_at             DateTime?                       @db.Date
   letter_url                    String?
+  avatar_url                    String?
   addresses                     Json?                           @default("[]")
   client_activities             client_activities[]
   client_custom_fields          client_custom_fields[]

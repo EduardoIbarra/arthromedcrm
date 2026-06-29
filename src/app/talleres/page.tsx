@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check, Award, MoreVertical } from 'lucide-react'
+import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check, Award, MoreVertical, Contact, User } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import Modal from '@/components/Modal'
@@ -10,6 +10,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { QRCodeSVG } from 'qrcode.react'
 import DiplomaBuilder from './_components/DiplomaBuilder'
 import DiplomaGeneratorModal from './_components/DiplomaGeneratorModal'
+import BadgeGeneratorModal from './_components/BadgeGeneratorModal'
 
 interface Workshop {
   id: string
@@ -72,6 +73,31 @@ export default function TalleresPage() {
   const [clients, setClients] = useState<any[]>([])
   const [selectedClient, setSelectedClient] = useState('')
   const [isSubmittingEnrollment, setIsSubmittingEnrollment] = useState(false)
+
+  // Gafete / Badge generator states
+  const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false)
+  const [selectedClientForBadge, setSelectedClientForBadge] = useState<any>(null)
+
+  const handleGenerateBadge = (client: any) => {
+    setSelectedClientForBadge(client)
+    setIsBadgeModalOpen(true)
+  }
+
+  const handleClientUpdate = (updatedClient: any) => {
+    setEnrolledUsers(prev => prev.map(enroll => {
+      if (enroll.clients?.id === updatedClient.id) {
+        return {
+          ...enroll,
+          clients: {
+            ...enroll.clients,
+            ...updatedClient
+          }
+        }
+      }
+      return enroll
+    }))
+    setSelectedClientForBadge(updatedClient)
+  }
 
   // Quick client creation inside attendance modal
   const [isCreatingNewClient, setIsCreatingNewClient] = useState(false)
@@ -564,25 +590,42 @@ export default function TalleresPage() {
                     const client = enroll.clients
                     if (!client) return null
                     return (
-                      <div key={enroll.id} className="p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{client.name}</p>
-                          <div className="flex gap-4 text-xs text-gray-500 mt-0.5">
-                            {client.email_primary && <span className="flex items-center gap-1"><Mail size={12} /> {client.email_primary}</span>}
-                            {client.phone && <span className="flex items-center gap-1"><Phone size={12} /> {client.phone}</span>}
+                      <div key={enroll.id} className="p-3 flex items-center justify-between hover:bg-gray-55 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {/* Student Avatar */}
+                          <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 border border-gray-250 flex items-center justify-center shrink-0">
+                            {client.avatar_url ? (
+                              <img src={client.avatar_url} alt={client.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <User size={16} className="text-gray-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{client.name}</p>
+                            <div className="flex gap-4 text-xs text-gray-500 mt-0.5">
+                              {client.email_primary && <span className="flex items-center gap-1"><Mail size={12} /> {client.email_primary}</span>}
+                              {client.phone && <span className="flex items-center gap-1"><Phone size={12} /> {client.phone}</span>}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
                           <button 
+                            onClick={() => handleGenerateBadge(client)}
+                            className="p-1.5 text-blue-600 hover:text-blue-750 hover:bg-blue-50 rounded-md transition-colors"
+                            title="Generar Gafete"
+                          >
+                            <Contact size={16} />
+                          </button>
+                          <button 
                             onClick={() => handleGenerateDiploma(client.name)}
-                            className="p-1.5 text-amber-600 hover:text-amber-750 hover:bg-amber-55 rounded-md transition-colors"
+                            className="p-1.5 text-amber-600 hover:text-amber-750 hover:bg-amber-50 rounded-md transition-colors"
                             title="Generar Diploma"
                           >
                             <Award size={16} />
                           </button>
                           <button 
                             onClick={() => handleUnenroll(client.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-red-650 hover:bg-red-50 rounded-md transition-colors"
                             title="Eliminar del taller"
                           >
                             <Trash2 size={16} />
@@ -654,6 +697,17 @@ export default function TalleresPage() {
             onClose={() => setIsDiplomaGeneratorOpen(false)}
             studentName={selectedStudentName}
             taller={selectedWorkshop}
+          />
+        )}
+
+        {/* Badge (Gafete) Generator Modal */}
+        {selectedWorkshop && isBadgeModalOpen && (
+          <BadgeGeneratorModal 
+            isOpen={isBadgeModalOpen}
+            onClose={() => setIsBadgeModalOpen(false)}
+            client={selectedClientForBadge}
+            taller={selectedWorkshop}
+            onClientUpdate={handleClientUpdate}
           />
         )}
 

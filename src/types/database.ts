@@ -29,6 +29,7 @@ export interface Client {
   letter_created_at: string | null
   letter_expires_at: string | null
   letter_url: string | null
+  avatar_url?: string | null
   addresses?: { name: string; address: string; zip_code?: string | null; is_dhl?: boolean }[] | null
   updated_at: string
 }
