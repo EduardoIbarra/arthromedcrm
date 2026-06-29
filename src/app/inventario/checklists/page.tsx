@@ -559,6 +559,64 @@ export default function ChecklistsPage() {
     }
   }
 
+  const handleRecreatePendingChecklist = async (entry: HistoryEntry) => {
+    if (!confirm(t('confirmRecreateChecklist') || '¿Deseas generar una nueva lista de chequeo basada en esta y enviarla a Pendientes de Chequeo?')) return
+
+    try {
+      const dateStr = new Date().toLocaleDateString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short' })
+      const baseName = entry.checklistName.split(' - ')[0]
+      const newTitle = `${baseName} - ${dateStr}`
+
+      const itemsToInspect = entry.items.map((item, index) => ({
+        id: `otf_${Date.now()}_${index}`,
+        material: item.material,
+        modelo: item.modelo,
+        cantidad: item.cantidad || 1,
+        observaciones: item.observaciones,
+        addedOnTheFly: false
+      }))
+
+      const pendingEntry = {
+        id: `pchk_${Date.now()}`,
+        nombre: newTitle,
+        areaId: entry.checklistId || 'manual',
+        areaNombre: entry.checklistName.split(' - ')[0] || 'Manual',
+        date: new Date().toISOString(),
+        user: profile?.email || 'Usuario ERP',
+        items: itemsToInspect,
+        notes: entry.notes || undefined
+      }
+
+      const res = await fetch('/api/checklists/pending', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry: pendingEntry })
+      })
+
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error || 'Error al guardar la checklist pendiente')
+      }
+
+      setToastMessage({
+        title: locale === 'en' ? 'Checklist Sent!' : locale === 'zh' ? '检查表已发送！' : '¡Checklist enviada a Pendientes!',
+        desc: locale === 'en'
+          ? 'The checklist is now available under Pending Checklists.'
+          : locale === 'zh'
+          ? '检查表现已在待检查列表中可用。'
+          : 'La lista de chequeo ya está disponible en Pendientes de Chequeo.'
+      })
+      setSubmitSuccess(true)
+      setTimeout(() => setSubmitSuccess(false), 4000)
+
+      await fetchPendingLists()
+      setActiveTab('pending')
+      setSelectedHistoryEntry(null)
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
+
   // History filtering
   const filteredHistory = useMemo(() => {
     const query = historySearchQuery.toLowerCase().trim()
@@ -1216,30 +1274,42 @@ export default function ChecklistsPage() {
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        try {
-                          const res = await fetch(`/api/checklists/history/${selectedHistoryEntry.id}/pdf`)
-                          if (!res.ok) throw new Error('Error al generar PDF')
-                          const blob = await res.blob()
-                          const url = URL.createObjectURL(blob)
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = `Reporte_Checklist_${selectedHistoryEntry.id.replace('hlog_', '')}.pdf`
-                          document.body.appendChild(a)
-                          a.click()
-                          document.body.removeChild(a)
-                          URL.revokeObjectURL(url)
-                        } catch (err: any) {
-                          alert('Error al descargar el PDF: ' + err.message)
-                        }
-                      }}
-                      className="bg-red-50 hover:bg-red-100 text-red-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1 border border-red-200 transition-all cursor-pointer shrink-0"
-                    >
-                      <FileSpreadsheet size={14} />
-                      {t('downloadReport')}
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRecreatePendingChecklist(selectedHistoryEntry)
+                        }}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-blue-200 transition-all cursor-pointer shadow-sm"
+                      >
+                        <RotateCcw size={14} />
+                        {t('recreateChecklist')}
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          try {
+                            const res = await fetch(`/api/checklists/history/${selectedHistoryEntry.id}/pdf`)
+                            if (!res.ok) throw new Error('Error al generar PDF')
+                            const blob = await res.blob()
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `Reporte_Checklist_${selectedHistoryEntry.id.replace('hlog_', '')}.pdf`
+                            document.body.appendChild(a)
+                            a.click()
+                            document.body.removeChild(a)
+                            URL.revokeObjectURL(url)
+                          } catch (err: any) {
+                            alert('Error al descargar el PDF: ' + err.message)
+                          }
+                        }}
+                        className="bg-red-50 hover:bg-red-100 text-red-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-red-200 transition-all cursor-pointer shadow-sm"
+                      >
+                        <FileSpreadsheet size={14} />
+                        {t('downloadReport')}
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="flex justify-between items-center text-xs font-semibold border-t pt-3">
@@ -1426,6 +1496,16 @@ export default function ChecklistsPage() {
                           </div>
 
                           <div className="text-right flex-shrink-0 flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRecreatePendingChecklist(entry)
+                              }}
+                              className="w-8 h-8 rounded-lg hover:bg-slate-100 text-gray-500 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer mr-1"
+                              title={t('recreateChecklist')}
+                            >
+                              <RotateCcw size={16} />
+                            </button>
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation()
