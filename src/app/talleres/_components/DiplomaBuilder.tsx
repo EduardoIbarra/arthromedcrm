@@ -370,16 +370,17 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
           </div>
           
           {/* Verification QR Code */}
-          <div className="flex items-center gap-2 bg-white p-1 border border-gray-200 rounded-md shadow-xs">
+          <div className="flex items-center gap-2.5 bg-white p-1.5 border border-gray-200 rounded-lg shadow-xs">
             <QRCodeSVG 
               value={getVerificationUrl(studentName)} 
-              size={36}
+              size={64}
               level="M"
               includeMargin={false}
             />
-            <div className="text-[6.5px] text-gray-400 font-mono leading-none flex flex-col justify-center text-left">
-              <span className="font-bold text-gray-500">ESCANEAR PARA</span>
-              <span>VERIFICAR</span>
+            <div className="text-[7.5px] text-gray-400 font-mono leading-tight flex flex-col justify-center text-left max-w-[65px]">
+              <span className="font-bold text-gray-600">CONSTANCIA</span>
+              <span className="font-bold text-emerald-600">VERIFICADA</span>
+              <span className="mt-1 text-[6px] text-gray-400 leading-none">ESCANEAR CÓDIGO</span>
             </div>
           </div>
         </div>
