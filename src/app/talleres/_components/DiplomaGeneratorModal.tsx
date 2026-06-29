@@ -5,6 +5,7 @@ import { toPng } from 'html-to-image'
 import { X, Loader2, Download, Printer, Award, FileText, Check } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { QRCodeSVG } from 'qrcode.react'
+import { createPortal } from 'react-dom'
 
 interface DiplomaTemplate {
   title: string
@@ -266,8 +267,15 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       // Small timeout for browser to ensure image rendering
       await new Promise(r => setTimeout(r, 200))
       
+      // iOS Safari bug: call toPng once to warm up WebKit cache and prevent blank images
+      try {
+        await toPng(node, { cacheBust: true })
+      } catch (e) {
+        // ignore first attempt error
+      }
+      
       const dataUrl = await toPng(node, {
-        pixelRatio: 3, // High-quality print output
+        pixelRatio: 2, // Safe 2x resolution (avoid Safari memory limits)
         cacheBust: true,
         style: {
           transform: 'scale(1)',
@@ -480,10 +488,13 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
         <DiplomaLayout idAttr="diploma-generator-render-node" />
       </div>
 
-      {/* Screen/Printer layout for printing */}
-      <div id="print-diploma-root" style={{ display: 'none' }}>
-        <DiplomaLayout />
-      </div>
+      {/* Screen/Printer layout for printing (using Portal to place directly under body) */}
+      {typeof document !== 'undefined' && createPortal(
+        <div id="print-diploma-root" style={{ display: 'none' }}>
+          <DiplomaLayout />
+        </div>,
+        document.body
+      )}
     </>
   )
 }
