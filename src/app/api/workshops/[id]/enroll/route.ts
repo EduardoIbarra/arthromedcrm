@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       where: { id },
       include: {
         _count: {
-          select: { enrollments: true }
+          select: { congress_workshop_enrollments: true }
         }
       }
     })
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // 4. Check limit
-    if (workshop._count.enrollments >= workshop.max_people) {
+    if (workshop._count.congress_workshop_enrollments >= workshop.max_people) {
       return NextResponse.json({ error: 'El cupo de este taller está lleno' }, { status: 400 })
     }
 

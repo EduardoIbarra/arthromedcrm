@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { toPng } from 'html-to-image'
 import { X, Loader2, Download, Printer, Award, FileText, Check } from 'lucide-react'
 import Modal from '@/components/Modal'
+import { QRCodeSVG } from 'qrcode.react'
 
 interface DiplomaTemplate {
   title: string
@@ -93,6 +94,12 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       .replace(/{{hours}}/g, template.hours)
       .replace(/{{location}}/g, template.location)
       .replace(/{{professor}}/g, taller.professor || 'Profesor Titular')
+  }
+
+  // Generate verification URL for QR code
+  const getVerificationUrl = (nameToUse: string) => {
+    if (typeof window === 'undefined') return `/talleres/${taller.id}/verify?student=${encodeURIComponent(nameToUse)}`
+    return `${window.location.origin}/talleres/${taller.id}/verify?student=${encodeURIComponent(nameToUse)}`
   }
 
   const getThemeStyles = () => {
@@ -329,10 +336,26 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between items-center text-[9px] text-gray-400 px-6 z-10 mt-4 border-t border-gray-100 pt-2 w-full font-sans">
-        <span>ID de Certificación: AR-{taller.id.slice(0, 8).toUpperCase()}-{editableName.slice(0, 3).toUpperCase()}</span>
-        <span>{template.location}, México</span>
-        <span>arthromed.com.mx</span>
+      <div className="flex justify-between items-end text-[9px] text-gray-400 px-6 z-10 mt-4 border-t border-gray-100 pt-2 w-full font-sans">
+        <div className="flex flex-col gap-0.5 text-left">
+          <span>ID de Certificación: AR-{taller.id.slice(0, 8).toUpperCase()}-{editableName.slice(0, 3).toUpperCase()}</span>
+          <span>{template.location}, México</span>
+          <span>arthromed.com.mx</span>
+        </div>
+        
+        {/* Verification QR Code */}
+        <div className="flex items-center gap-2 bg-white p-1 border border-gray-200 rounded-md shadow-xs">
+          <QRCodeSVG 
+            value={getVerificationUrl(editableName)} 
+            size={36}
+            level="M"
+            includeMargin={false}
+          />
+          <div className="text-[6.5px] text-gray-400 font-mono leading-none flex flex-col justify-center text-left">
+            <span className="font-bold text-gray-500">ESCANEAR PARA</span>
+            <span>VERIFICAR</span>
+          </div>
+        </div>
       </div>
     </div>
   )
