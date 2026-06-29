@@ -422,7 +422,7 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       </Modal>
 
       {/* Hidden print render node */}
-      <div className="hidden absolute left-[-9999px] top-[-9999px]" style={{ zIndex: -1 }}>
+      <div className="absolute left-[-9999px] top-[-9999px]" style={{ zIndex: -1 }}>
         <DiplomaLayout idAttr="diploma-generator-render-node" />
       </div>
 
