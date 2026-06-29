@@ -6,6 +6,8 @@ import LanguageSwitcher from '@/components/LanguageSwitcher'
 import { Globe, Database, MessageCircle, Bot, FileText, X, Plus, Loader2, DollarSign, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/contexts/CurrencyContext'
+import packageJson from '../../../package.json'
+
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
@@ -151,10 +153,16 @@ export default function SettingsPage() {
   return (
     <AppShell>
       <div className="max-w-3xl mx-auto space-y-5">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#37383a' }}>{t('settings')}</h1>
-          <p className="text-sm" style={{ color: '#5a5b5d' }}>Configuración del sistema</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: '#37383a' }}>{t('settings')}</h1>
+            <p className="text-sm" style={{ color: '#5a5b5d' }}>Configuración del sistema</p>
+          </div>
+          <div className="text-xs font-semibold px-2.5 py-1 rounded-xl bg-[#f8fafd] border border-[#d4e0ec] text-[#5a5b5d] font-mono">
+            v{packageJson.version}
+          </div>
         </div>
+
 
         <SettingCard icon={<Globe size={16} />} iconColor="#0763a9" title={t('language')}>
           <div className="flex items-center gap-4">

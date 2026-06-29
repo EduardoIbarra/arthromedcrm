@@ -10,7 +10,8 @@
     "lint": "eslint",
     "migrate:dev": "npx prisma migrate dev",
     "migrate:deploy": "npx prisma migrate deploy",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "release": "bash scripts/push-release.sh"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.67",
