@@ -28,6 +28,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           }
         },
         congreso_itinerarios: {
+          include: {
+            involved_members: {
+              include: { user_profiles: true, congreso_temp_staff: true }
+            }
+          },
           orderBy: [
             { date: 'asc' },
             { time: 'asc' }
@@ -40,6 +45,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           include: {
             catalog_spending_categories: true
           }
+        },
+        congreso_members: {
+          include: { user_profiles: true, car_fleet: true }
+        },
+        congreso_temp_staff: {
+          include: { car_fleet: true }
         }
       }
     })
@@ -74,7 +85,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       workshops,
       contacts,
       catalog_ids,
-      gastos_estimados
+      gastos_estimados,
+      members,
+      tempStaff,
+      itinerary
     } = body
     
     // Update main record and nested relations
@@ -162,8 +176,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      // 2. Update congress and upsert related records
-      return await tx.congresos.update({
+      // Sync congress members (staff)
+      let shouldUpdateMembers = false
+      let membersData: { user_id: string, car_id: string | null }[] = []
+      
+      if (members && Array.isArray(members)) {
+        shouldUpdateMembers = true
+        membersData = members.map((m: any) => ({
+          user_id: m.userId,
+          car_id: m.carId || null
+        }))
+      }
+      
+      if (shouldUpdateMembers) {
+        await tx.congreso_members.deleteMany({ where: { congress_id: id } })
+      }
+
+      if (tempStaff && Array.isArray(tempStaff)) {
+        await tx.congreso_temp_staff.deleteMany({ where: { congress_id: id } })
+      }
+
+      if (itinerary && Array.isArray(itinerary)) {
+        await tx.congreso_itinerarios.deleteMany({ where: { congreso_id: id } })
+      }
+
+      // Update congress
+      const updated = await tx.congresos.update({
         where: { id },
         data: {
           name,
@@ -189,7 +227,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
               number: c.number,
               email: c.email
             }))
-          }
+          },
+          ...(shouldUpdateMembers && {
+            congreso_members: {
+              create: membersData
+            }
+          })
         },
         include: {
           congress_workshops: true,
@@ -203,9 +246,51 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             include: {
               catalog_spending_categories: true
             }
+          },
+          congreso_members: {
+            include: { user_profiles: true, car_fleet: true }
+          },
+          congreso_temp_staff: {
+            include: { car_fleet: true }
           }
         }
       })
+
+      if (tempStaff && Array.isArray(tempStaff)) {
+        await tx.congreso_temp_staff.createMany({
+          data: tempStaff.map((ts: any) => ({
+            id: ts.id,
+            congress_id: id,
+            name: ts.name,
+            phone: ts.phone || null,
+            car_id: ts.carId || null
+          }))
+        })
+      }
+
+      if (itinerary && Array.isArray(itinerary)) {
+        for (const item of itinerary) {
+          await tx.congreso_itinerarios.create({
+            data: {
+              congreso_id: id,
+              date: new Date(item.date),
+              time: item.time || null,
+              activity: item.description,
+              notes: item.notes || null,
+              involved_members: {
+                create: (item.involvedMemberIds || []).map((memberId: string) => {
+                  const isTemp = tempStaff && tempStaff.some((ts: any) => ts.id === memberId)
+                  return {
+                    ...(isTemp ? { temp_member_id: memberId } : { user_id: memberId })
+                  }
+                })
+              }
+            }
+          })
+        }
+      }
+
+      return updated
     })
 
     const travelers = await prisma.congreso_viajeros.findMany({

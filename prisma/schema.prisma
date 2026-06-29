@@ -786,16 +786,17 @@ model congreso_gastos_estimados {
 }
 
 model congreso_itinerarios {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  congreso_id String    @db.Uuid
-  activity    String
-  date        DateTime  @db.Date
-  time        String?
-  location    String?
-  notes       String?
-  created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
-  congresos   congresos @relation(fields: [congreso_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                 String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congreso_id        String                       @db.Uuid
+  activity           String
+  date               DateTime                     @db.Date
+  time               String?
+  location           String?
+  notes              String?
+  created_at         DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime                     @default(now()) @db.Timestamptz(6)
+  congresos          congresos                    @relation(fields: [congreso_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  involved_members   congreso_itinerary_members[]
 
   @@index([congreso_id])
   @@schema("public")
@@ -846,6 +847,10 @@ model congresos {
   gastos                    gastos[]
   orders                    orders[]
   landing_pages             landing_pages[]
+  congreso_members          congreso_members[]
+  congreso_temp_staff       congreso_temp_staff[]
+  congreso_hotel_rooms      congreso_hotel_rooms[]
+  congreso_stations         congreso_stations[]
 
   @@index([start_date])
   @@schema("public")
@@ -1594,6 +1599,7 @@ model productos {
   orden_productos           orden_productos[]
   remision_productos        remision_productos[]
   workshop_station_products workshop_station_products[]
+  congreso_station_products congreso_station_products[]
 
 
   @@schema("public")
@@ -1852,6 +1858,9 @@ model user_profiles {
   workshop_itinerary_members                                                  workshop_itinerary_members[]
   car_fleet                                                                   car_fleet[]
   workshop_hotel_occupants                                                    workshop_hotel_occupants[]
+  congreso_members                                                            congreso_members[]
+  congreso_itinerary_members                                                  congreso_itinerary_members[]
+  congreso_hotel_occupants                                                    congreso_hotel_occupants[]
 
   @@schema("public")
 }
@@ -2017,6 +2026,8 @@ model car_fleet {
   assigned_to    user_profiles? @relation(fields: [assigned_to_id], references: [id], onDelete: SetNull)
   congress_workshop_members congress_workshop_members[]
   workshop_temp_staff       workshop_temp_staff[]
+  congreso_members          congreso_members[]
+  congreso_temp_staff       congreso_temp_staff[]
 
   @@schema("public")
 }
@@ -2124,6 +2135,99 @@ model workshop_station_products {
   cantidad          Int               @default(1)
   created_at        DateTime?         @default(now()) @db.Timestamptz(6)
   workshop_stations workshop_stations @relation(fields: [station_id], references: [id], onDelete: Cascade)
+  productos         productos         @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([station_id])
+  @@schema("public")
+}
+
+model congreso_members {
+  congress_id        String             @db.Uuid
+  user_id            String             @db.Uuid
+  car_id             String?            @db.Uuid
+  user_profiles      user_profiles      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  congresos          congresos          @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+  car_fleet          car_fleet?         @relation(fields: [car_id], references: [id], onDelete: SetNull)
+
+  @@id([congress_id, user_id])
+  @@schema("public")
+}
+
+model congreso_temp_staff {
+  id                 String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congress_id        String                       @db.Uuid
+  name               String
+  phone              String?
+  car_id             String?                      @db.Uuid
+  created_at         DateTime?                    @default(now()) @db.Timestamptz(6)
+  congresos          congresos                    @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+  car_fleet          car_fleet?                   @relation(fields: [car_id], references: [id], onDelete: SetNull)
+  itinerary_members  congreso_itinerary_members[]
+
+  @@index([congress_id])
+  @@schema("public")
+}
+
+model congreso_itinerary_members {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itinerary_id         String               @db.Uuid
+  user_id              String?              @db.Uuid
+  temp_member_id       String?              @db.Uuid
+  user_profiles        user_profiles?       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  congreso_itinerarios congreso_itinerarios @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
+  congreso_temp_staff  congreso_temp_staff? @relation(fields: [temp_member_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model congreso_hotel_rooms {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congress_id              String                     @db.Uuid
+  room_number              String
+  room_type                String?
+  capacity                 Int                        @default(2)
+  notes                    String?
+  created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
+  congresos                congresos                  @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+  congreso_hotel_occupants congreso_hotel_occupants[]
+
+  @@index([congress_id])
+  @@schema("public")
+}
+
+model congreso_hotel_occupants {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id              String               @db.Uuid
+  user_id              String?              @db.Uuid
+  guest_name           String?
+  guest_phone          String?
+  created_at           DateTime?            @default(now()) @db.Timestamptz(6)
+  congreso_hotel_rooms congreso_hotel_rooms @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  user_profiles        user_profiles?       @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([room_id])
+  @@schema("public")
+}
+
+model congreso_stations {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congress_id               String                      @db.Uuid
+  name                      String
+  created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  congresos                 congresos                   @relation(fields: [congress_id], references: [id], onDelete: Cascade)
+  congreso_station_products congreso_station_products[]
+
+  @@index([congress_id])
+  @@schema("public")
+}
+
+model congreso_station_products {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  station_id        String            @db.Uuid
+  product_id        String            @db.Uuid
+  cantidad          Int               @default(1)
+  created_at        DateTime?         @default(now()) @db.Timestamptz(6)
+  congreso_stations congreso_stations @relation(fields: [station_id], references: [id], onDelete: Cascade)
   productos         productos         @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([station_id])
