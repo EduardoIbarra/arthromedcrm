@@ -212,11 +212,12 @@ export default function TalleresPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: newClientForm.name,
-          email_primary: newClientForm.email,
-          phone: newClientForm.phone,
+          name: newClientForm.name.trim(),
+          email_primary: newClientForm.email?.trim() || null,
+          phone: newClientForm.phone?.trim() || null,
           status: 'Nuevo Prospecto',
-          source: 'Registro Taller Admin'
+          source: 'Asistente Externo Taller',
+          tags: ['taller-externo']
         })
       })
 
@@ -453,15 +454,21 @@ export default function TalleresPage() {
             </div>
 
             {/* Quick Actions (Enroll / Create Client) */}
-            <div className="border-t border-b border-gray-100 py-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-900">Inscribir Participante</h3>
-                <button 
-                  type="button" 
-                  onClick={() => setIsCreatingNewClient(!isCreatingNewClient)}
-                  className="text-xs text-blue-600 hover:underline font-semibold"
+            <div className="border-t border-b border-gray-100 py-4 space-y-4 font-sans">
+              <div className="flex border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingNewClient(false)}
+                  className={`flex-1 pb-2 text-xs font-bold border-b-2 text-center transition-colors ${!isCreatingNewClient ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                 >
-                  {isCreatingNewClient ? 'Seleccionar existente' : '+ Crear nuevo cliente'}
+                  Buscar en Clientes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingNewClient(true)}
+                  className={`flex-1 pb-2 text-xs font-bold border-b-2 text-center transition-colors ${isCreatingNewClient ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                >
+                  Registrar Asistente Nuevo / Externo
                 </button>
               </div>
 
@@ -469,7 +476,7 @@ export default function TalleresPage() {
                 <div className="flex gap-2 items-center">
                   <div className="flex-1">
                     <SearchableSelect 
-                      placeholder="Buscar cliente..."
+                      placeholder="Buscar cliente para inscribir..."
                       options={clients.map(c => ({ value: c.id, label: `${c.name} (${c.email_primary || 'Sin correo'})` }))}
                       value={selectedClient}
                       onChange={setSelectedClient}
@@ -484,32 +491,44 @@ export default function TalleresPage() {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleCreateAndEnroll} className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl space-y-3">
-                  <h4 className="text-xs font-bold text-blue-700">Registrar y Auto-Inscribir Cliente</h4>
+                <form onSubmit={handleCreateAndEnroll} className="p-4 bg-amber-50/30 border border-amber-100 rounded-2xl space-y-3">
+                  <h4 className="text-xs font-bold text-amber-800">Registrar y Auto-Inscribir Asistente Externo</h4>
+                  <p className="text-[10px] text-gray-500 leading-normal">
+                    * El nombre es obligatorio. El correo y teléfono son opcionales. El asistente se registrará con origen <strong>"Asistente Externo Taller"</strong>.
+                  </p>
+                  
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input 
-                      required 
-                      type="text" 
-                      placeholder="Nombre *" 
-                      className="erp-input w-full bg-white text-xs py-2"
-                      value={newClientForm.name}
-                      onChange={e => setNewClientForm({ ...newClientForm, name: e.target.value })}
-                    />
-                    <input 
-                      required 
-                      type="email" 
-                      placeholder="Correo *" 
-                      className="erp-input w-full bg-white text-xs py-2"
-                      value={newClientForm.email}
-                      onChange={e => setNewClientForm({ ...newClientForm, email: e.target.value })}
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Teléfono" 
-                      className="erp-input w-full bg-white text-xs py-2"
-                      value={newClientForm.phone}
-                      onChange={e => setNewClientForm({ ...newClientForm, phone: e.target.value })}
-                    />
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Nombre *</label>
+                      <input 
+                        required 
+                        type="text" 
+                        placeholder="Dr. Nombre de Asistente" 
+                        className="erp-input w-full bg-white text-xs py-2"
+                        value={newClientForm.name}
+                        onChange={e => setNewClientForm({ ...newClientForm, name: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Correo (Opcional)</label>
+                      <input 
+                        type="email" 
+                        placeholder="correo@ejemplo.com" 
+                        className="erp-input w-full bg-white text-xs py-2"
+                        value={newClientForm.email}
+                        onChange={e => setNewClientForm({ ...newClientForm, email: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Teléfono (Opcional)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Teléfono de contacto" 
+                        className="erp-input w-full bg-white text-xs py-2"
+                        value={newClientForm.phone}
+                        onChange={e => setNewClientForm({ ...newClientForm, phone: e.target.value })}
+                      />
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <button 
@@ -522,10 +541,10 @@ export default function TalleresPage() {
                     <button 
                       type="submit" 
                       disabled={isSubmittingNewClient}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-500 flex items-center gap-1"
+                      className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-650 flex items-center gap-1"
                     >
                       {isSubmittingNewClient ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                      Registrar
+                      Registrar e Inscribir
                     </button>
                   </div>
                 </form>
