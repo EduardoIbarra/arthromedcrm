@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check, Award } from 'lucide-react'
+import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check, Award, MoreVertical } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import Modal from '@/components/Modal'
@@ -43,6 +43,7 @@ export default function TalleresPage() {
   const [isDiplomaBuilderOpen, setIsDiplomaBuilderOpen] = useState(false)
   const [isDiplomaGeneratorOpen, setIsDiplomaGeneratorOpen] = useState(false)
   const [selectedStudentName, setSelectedStudentName] = useState('')
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
 
   const handleOpenDiplomaBuilder = (workshop: Workshop) => {
     setSelectedWorkshop(workshop)
@@ -295,16 +296,103 @@ export default function TalleresPage() {
               const date = new Date(w.date_time)
               const docNames = w.congress_workshop_doctors?.map(d => d.doctors.name).join(', ') || 'Sin doctor asignado'
               const enrollCount = w._count?.congress_workshop_enrollments || 0
-
               return (
-                <div key={w.id} className="card p-5 hover:border-blue-200 transition-colors group flex flex-col h-full relative overflow-hidden">
+                <div key={w.id} className="card p-5 hover:border-blue-200 transition-colors group flex flex-col h-full relative overflow-visible">
                   <div className="flex-1">
                     {w.congress_id && (
                       <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-[10px] font-bold uppercase rounded mb-2">
                         Congreso: {w.congresos?.name}
                       </span>
                     )}
-                    <h3 className="font-bold text-lg text-gray-900 leading-tight mb-2 pr-16">{w.name}</h3>
+                    
+                    {/* Options Dropdown Trigger in Top Right */}
+                    <div className="absolute top-4 right-4 z-20">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setActiveMenuId(activeMenuId === w.id ? null : w.id)
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-105 rounded-lg transition-colors"
+                        title="Opciones"
+                      >
+                        <MoreVertical size={18} />
+                      </button>
+                      
+                      {activeMenuId === w.id && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setActiveMenuId(null)} />
+                          <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-2xl shadow-xl z-45 py-1.5 text-xs font-sans">
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null)
+                                handleOpenAttendance(w)
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 font-semibold transition-colors"
+                            >
+                              <Users size={14} className="text-gray-400" />
+                              <span>Control de Asistentes</span>
+                            </button>
+                            
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null)
+                                handleOpenDiplomaBuilder(w)
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 font-semibold transition-colors"
+                            >
+                              <Award size={14} className="text-gray-400" />
+                              <span>Diseñar Diploma</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null)
+                                handleOpenQr(w)
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 font-semibold transition-colors"
+                            >
+                              <QrCode size={14} className="text-gray-400" />
+                              <span>Código QR de Registro</span>
+                            </button>
+
+                            <a
+                              href={getPublicUrl(w.id)}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => setActiveMenuId(null)}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 font-semibold transition-colors"
+                            >
+                              <ExternalLink size={14} className="text-gray-400" />
+                              <span>Ver Página Pública</span>
+                            </a>
+
+                            <Link
+                              href={`/talleres/${w.id}`}
+                              onClick={() => setActiveMenuId(null)}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 font-semibold transition-colors"
+                            >
+                              <Edit size={14} className="text-gray-400" />
+                              <span>Editar Detalles</span>
+                            </Link>
+
+                            <div className="border-t border-gray-100 my-1" />
+
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null)
+                                handleDelete(w.id)
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 text-red-600 font-bold transition-colors"
+                            >
+                              <Trash2 size={14} className="text-red-400" />
+                              <span>Eliminar Taller</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <h3 className="font-bold text-lg text-gray-900 leading-tight mb-2 pr-12">{w.name}</h3>
                     
                     <div className="space-y-2 mt-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
@@ -342,50 +430,6 @@ export default function TalleresPage() {
                       )}
                     </div>
                   </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100 font-sans">
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => handleOpenAttendance(w)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-colors"
-                      >
-                        <Users size={14} /> Asistentes
-                      </button>
-                      <button 
-                        onClick={() => handleOpenDiplomaBuilder(w)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-semibold transition-colors"
-                        title="Diseñar Diploma"
-                      >
-                        <Award size={14} /> Diploma
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => handleOpenQr(w)}
-                        className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                        title="Ver Código QR"
-                      >
-                        <QrCode size={16} />
-                      </button>
-                      <Link href={`/talleres/${w.id}`} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                        <Edit size={16} />
-                      </Link>
-                      <button onClick={() => handleDelete(w.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <a 
-                    href={getPublicUrl(w.id)} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors inline-flex items-center gap-1 text-[10px] font-semibold"
-                  >
-                    Pública <ExternalLink size={12} />
-                  </a>
                 </div>
               )
             })}
