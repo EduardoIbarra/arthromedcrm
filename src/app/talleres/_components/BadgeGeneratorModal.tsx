@@ -218,10 +218,10 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
       style={{ boxSizing: 'border-box' }}
     >
       {/* Header Accent Bar */}
-      <div className="bg-[#081e3f] text-white py-3 px-4 flex flex-col items-center justify-center text-center relative">
+      <div className="bg-slate-50 border-b border-gray-150 py-3 px-4 flex flex-col items-center justify-center text-center relative">
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-sky-400 to-amber-500" />
-        <img src="/logo.png" alt="Arthromed Logo" className="h-6 object-contain filter brightness-200 mb-0.5" />
-        <span className="text-[7.5px] font-black uppercase tracking-[0.2em] text-blue-300">Arthromed Academy</span>
+        <img src="/logo.png" alt="Arthromed Logo" className="h-6 object-contain mb-0.5" />
+        <span className="text-[7.5px] font-black uppercase tracking-[0.2em] text-[#0763a9] tracking-wider">Arthromed Academy</span>
       </div>
 
       {/* Main Body */}
@@ -229,7 +229,7 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
         
         {/* Profile Picture Uploader/Display */}
         <div className="relative mb-3 group">
-          <div className="w-32 h-32 rounded-full border-3 border-[#081e3f] overflow-hidden bg-gray-50 flex items-center justify-center shadow-inner relative">
+          <div className="w-32 h-32 rounded-full border-3 border-[#0763a9] overflow-hidden bg-gray-50 flex items-center justify-center shadow-inner relative">
             {avatarBase64 ? (
               <img src={avatarBase64} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
@@ -279,7 +279,7 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
       <div className="bg-gray-50 border-t border-gray-150 p-3 flex justify-between items-center text-left">
         <div>
           <span className="text-[7.5px] font-bold text-gray-400 uppercase tracking-wider block">Validación Oficial</span>
-          <span className="text-[8px] font-bold text-[#081e3f] font-mono">ID: AR-{taller.id.slice(0, 6).toUpperCase()}</span>
+          <span className="text-[8px] font-bold text-[#0763a9] font-mono">ID: AR-{taller.id.slice(0, 6).toUpperCase()}</span>
           <span className="text-[8.5px] font-semibold text-gray-500 block leading-tight">arthromed.com.mx</span>
         </div>
 
