@@ -31,6 +31,45 @@ interface BadgeGeneratorModalProps {
   onClientUpdate: (updatedClient: any) => void
 }
 
+// Compress and resize image to maximum dimensions to prevent Safari's SVG data URI length failure and DB bloat
+const resizeImage = (base64Str: string, maxWidth = 300, maxHeight = 300): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.src = base64Str
+    img.onload = () => {
+      let width = img.width
+      let height = img.height
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width)
+          width = maxWidth
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height)
+          height = maxHeight
+        }
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height)
+        // Export as JPEG with 0.75 quality to drastically reduce base64 length (approx 15-30KB)
+        resolve(canvas.toDataURL('image/jpeg', 0.75))
+      } else {
+        resolve(base64Str)
+      }
+    }
+    img.onerror = () => {
+      resolve(base64Str)
+    }
+  })
+}
+
 export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, onClientUpdate }: BadgeGeneratorModalProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -49,14 +88,23 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
     const resolveAvatar = async () => {
       if (client.avatar_url) {
         if (client.avatar_url.startsWith('data:')) {
-          setAvatarBase64(client.avatar_url)
+          // If it is an existing giant base64 data url, compress it on load for Safari compatibility
+          let urlToUse = client.avatar_url
+          if (urlToUse.length > 150000) {
+            urlToUse = await resizeImage(urlToUse, 300, 300)
+          }
+          setAvatarBase64(urlToUse)
         } else {
           try {
             const res = await fetch(client.avatar_url)
             if (res.ok) {
               const blob = await res.blob()
               const reader = new FileReader()
-              reader.onloadend = () => setAvatarBase64(reader.result as string)
+              reader.onloadend = async () => {
+                const base64 = reader.result as string
+                const resized = await resizeImage(base64, 300, 300)
+                setAvatarBase64(resized)
+              }
               reader.readAsDataURL(blob)
             }
           } catch (e) {
@@ -93,7 +141,11 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
     setIsUploading(true)
     const reader = new FileReader()
     reader.onloadend = async () => {
-      const base64Data = reader.result as string
+      const rawBase64 = reader.result as string
+      
+      // Compress and resize image to maximum 300x300 JPEG to avoid Safari SVG length limits and DB bloat
+      const base64Data = await resizeImage(rawBase64, 300, 300)
+      
       try {
         // Save to DB
         const res = await fetch(`/api/clients/${client.id}`, {
@@ -105,7 +157,7 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
         if (res.ok) {
           const { data } = await res.json()
           setAvatarBase64(base64Data)
-          onClientUpdate(data) // update page list
+          onClientUpdate(data) // update parent page state
         } else {
           const err = await res.json()
           alert('Error al guardar la foto: ' + (err.error || 'Intenta de nuevo'))
