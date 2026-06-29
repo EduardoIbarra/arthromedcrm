@@ -11,7 +11,7 @@ export async function proxy(request: NextRequest) {
                         request.nextUrl.pathname === '/registro-cliente' ||
                         request.nextUrl.pathname === '/qr' ||
                         (request.nextUrl.pathname.startsWith('/congresos/') && request.nextUrl.pathname.endsWith('/landing')) ||
-                        (request.nextUrl.pathname.startsWith('/talleres/') && request.nextUrl.pathname.endsWith('/landing'))
+                        (request.nextUrl.pathname.startsWith('/talleres/') && (request.nextUrl.pathname.endsWith('/landing') || request.nextUrl.pathname.endsWith('/verify')))
 
   const isPublicApi = (request.nextUrl.pathname === '/api/catalog/specialties' && request.method === 'GET') ||
                       (request.nextUrl.pathname === '/api/hospitals' && request.method === 'GET') ||
