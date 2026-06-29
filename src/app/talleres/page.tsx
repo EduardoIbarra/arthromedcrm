@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check } from 'lucide-react'
+import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check, Award } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import Modal from '@/components/Modal'
 import SearchableSelect from '@/components/SearchableSelect'
 import { QRCodeSVG } from 'qrcode.react'
+import DiplomaBuilder from './_components/DiplomaBuilder'
+import DiplomaGeneratorModal from './_components/DiplomaGeneratorModal'
 
 interface Workshop {
   id: string
@@ -22,6 +24,8 @@ interface Workshop {
   congress_workshop_doctors?: { doctors: { name: string } }[]
   flyer?: string | null
   description?: string | null
+  diploma_template?: any
+  professor: string
 }
 
 export default function TalleresPage() {
@@ -34,6 +38,32 @@ export default function TalleresPage() {
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false)
   const [isQrModalOpen, setIsQrModalOpen] = useState(false)
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null)
+
+  // Diploma States
+  const [isDiplomaBuilderOpen, setIsDiplomaBuilderOpen] = useState(false)
+  const [isDiplomaGeneratorOpen, setIsDiplomaGeneratorOpen] = useState(false)
+  const [selectedStudentName, setSelectedStudentName] = useState('')
+
+  const handleOpenDiplomaBuilder = (workshop: Workshop) => {
+    setSelectedWorkshop(workshop)
+    setIsDiplomaBuilderOpen(true)
+  }
+
+  const handleGenerateDiploma = (studentName: string) => {
+    setSelectedStudentName(studentName)
+    setIsDiplomaGeneratorOpen(true)
+  }
+
+  const handleDiplomaSave = (updatedTemplate: any) => {
+    if (selectedWorkshop) {
+      setWorkshops(prev => prev.map(w => 
+        w.id === selectedWorkshop.id 
+          ? { ...w, diploma_template: updatedTemplate } 
+          : w
+      ))
+      setSelectedWorkshop(prev => prev ? { ...prev, diploma_template: updatedTemplate } : null)
+    }
+  }
 
   // Attendance management states
   const [enrolledUsers, setEnrolledUsers] = useState<any[]>([])
@@ -314,13 +344,22 @@ export default function TalleresPage() {
                   </div>
                   
                   {/* Action Buttons */}
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
-                    <button 
-                      onClick={() => handleOpenAttendance(w)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-colors"
-                    >
-                      <Users size={14} /> Asistentes
-                    </button>
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100 font-sans">
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handleOpenAttendance(w)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-colors"
+                      >
+                        <Users size={14} /> Asistentes
+                      </button>
+                      <button 
+                        onClick={() => handleOpenDiplomaBuilder(w)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-semibold transition-colors"
+                        title="Diseñar Diploma"
+                      >
+                        <Award size={14} /> Diploma
+                      </button>
+                    </div>
                     
                     <div className="flex items-center gap-2">
                       <button 
@@ -470,13 +509,22 @@ export default function TalleresPage() {
                             {client.phone && <span className="flex items-center gap-1"><Phone size={12} /> {client.phone}</span>}
                           </div>
                         </div>
-                        <button 
-                          onClick={() => handleUnenroll(client.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-650 hover:bg-red-50 rounded-md transition-colors shrink-0 ml-2"
-                          title="Eliminar del taller"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <button 
+                            onClick={() => handleGenerateDiploma(client.name)}
+                            className="p-1.5 text-amber-600 hover:text-amber-750 hover:bg-amber-55 rounded-md transition-colors"
+                            title="Generar Diploma"
+                          >
+                            <Award size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleUnenroll(client.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Eliminar del taller"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     )
                   })}
@@ -525,6 +573,26 @@ export default function TalleresPage() {
             </div>
           </div>
         </Modal>
+
+        {/* Diploma Builder Modal */}
+        {selectedWorkshop && isDiplomaBuilderOpen && (
+          <DiplomaBuilder 
+            isOpen={isDiplomaBuilderOpen}
+            onClose={() => setIsDiplomaBuilderOpen(false)}
+            taller={selectedWorkshop}
+            onSave={handleDiplomaSave}
+          />
+        )}
+
+        {/* Diploma Generator Modal */}
+        {selectedWorkshop && isDiplomaGeneratorOpen && (
+          <DiplomaGeneratorModal 
+            isOpen={isDiplomaGeneratorOpen}
+            onClose={() => setIsDiplomaGeneratorOpen(false)}
+            studentName={selectedStudentName}
+            taller={selectedWorkshop}
+          />
+        )}
 
       </div>
     </AppShell>

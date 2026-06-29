@@ -911,6 +911,7 @@ model congress_workshops {
   professor                     String
   flyer                         String?
   description                   String?
+  diploma_template              Json?
   congress_workshop_doctors     congress_workshop_doctors[]
   congress_workshop_enrollments congress_workshop_enrollments[]
   congress_workshop_members     congress_workshop_members[]

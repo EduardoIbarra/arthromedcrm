@@ -58,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await req.json()
-    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, itinerary, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, itinerary, flyer, description, diploma_template } = body
 
     const result = await prisma.$transaction(async (tx: any) => {
       if (doctorIds && Array.isArray(doctorIds)) {
@@ -110,6 +110,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           ...(professor && { professor }),
           ...(flyer !== undefined && { flyer }),
           ...(description !== undefined && { description }),
+          ...(diploma_template !== undefined && { diploma_template }),
           ...(doctorIds && Array.isArray(doctorIds) && {
             congress_workshop_doctors: {
               create: doctorIds.map((docId: string) => ({
