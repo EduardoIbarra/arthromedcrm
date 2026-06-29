@@ -210,8 +210,28 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
   const styles = getThemeStyles()
   const fontClass = template.fontFamily === 'serif' ? 'font-serif' : 'font-sans'
 
+  // Helper to ensure all images inside a node are fully loaded and decoded before capture
+  const waitForImagesToDecode = async (element: HTMLElement) => {
+    const images = Array.from(element.getElementsByTagName('img'))
+    await Promise.all(
+      images.map((img) => {
+        if (img.complete) return img.decode().catch(() => {})
+        return new Promise((resolve) => {
+          img.onload = () => img.decode().then(resolve).catch(resolve)
+          img.onerror = resolve
+        })
+      })
+    )
+  }
+
   // Print function: toggles display styles using a temporary class on document.body
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    // Wait for images inside the print layout to be fully decoded in the DOM
+    const printNode = document.getElementById('print-diploma-root')
+    if (printNode) {
+      await waitForImagesToDecode(printNode)
+    }
+
     // Add print style sheet dynamically
     const styleEl = document.createElement('style')
     styleEl.id = 'diploma-print-style'
@@ -266,6 +286,9 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
     try {
       // Small timeout for browser to ensure image rendering
       await new Promise(r => setTimeout(r, 200))
+      
+      // Wait for images to decode fully in memory to prevent blank canvas prints on Safari/iPad
+      await waitForImagesToDecode(node)
       
       // iOS Safari bug: call toBlob once to warm up WebKit cache and prevent blank images
       try {

@@ -120,8 +120,28 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
     reader.readAsDataURL(file)
   }
 
+  // Helper to ensure all images inside a node are fully loaded and decoded before capture
+  const waitForImagesToDecode = async (element: HTMLElement) => {
+    const images = Array.from(element.getElementsByTagName('img'))
+    await Promise.all(
+      images.map((img) => {
+        if (img.complete) return img.decode().catch(() => {})
+        return new Promise((resolve) => {
+          img.onload = () => img.decode().then(resolve).catch(resolve)
+          img.onerror = resolve
+        })
+      })
+    )
+  }
+
   // PDF print trigger
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    // Wait for images inside the print layout to be fully decoded in the DOM
+    const printNode = document.getElementById('print-badge-root')
+    if (printNode) {
+      await waitForImagesToDecode(printNode)
+    }
+
     const styleEl = document.createElement('style')
     styleEl.id = 'badge-print-style'
     styleEl.innerHTML = `
@@ -169,6 +189,9 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
     setIsGenerating(true)
     try {
       await new Promise(r => setTimeout(r, 200))
+      
+      // Wait for images to decode fully in memory to prevent blank canvas prints on Safari/iPad
+      await waitForImagesToDecode(node)
       
       // Warm up WebKit cache
       try {
