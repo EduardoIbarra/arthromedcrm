@@ -60,8 +60,9 @@ const DEFAULT_TEMPLATE = (workshopName: string, professor: string): DiplomaTempl
 export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, taller }: DiplomaGeneratorModalProps) {
   const [editableName, setEditableName] = useState(studentName)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [resolvedTemplate, setResolvedTemplate] = useState<DiplomaTemplate | null>(null)
   
-  const template: DiplomaTemplate = (() => {
+  const baseTemplate: DiplomaTemplate = (() => {
     if (taller.diploma_template && typeof taller.diploma_template === 'object') {
       return {
         ...DEFAULT_TEMPLATE(taller.name, taller.professor),
@@ -70,6 +71,59 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
     }
     return DEFAULT_TEMPLATE(taller.name, taller.professor)
   })()
+
+  const template = resolvedTemplate || baseTemplate
+
+  // Helper to convert images to Base64 to bypass Safari WebKit canvas rendering sandbox blocks
+  const convertUrlToBase64 = async (url: string): Promise<string> => {
+    if (!url) return ''
+    if (url.startsWith('data:')) return url
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Fetch failed')
+      const blob = await res.blob()
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = () => resolve(url)
+        reader.readAsDataURL(blob)
+      })
+    } catch (e) {
+      console.warn('Failed to convert image to base64:', e)
+      return url
+    }
+  }
+
+  // Pre-resolve all template images to base64 Data URLs
+  useEffect(() => {
+    if (!isOpen) {
+      setResolvedTemplate(null)
+      return
+    }
+    
+    const resolveImages = async () => {
+      const resolved = { ...baseTemplate }
+      try {
+        if (resolved.logo1 && !resolved.logo1.startsWith('data:')) {
+          resolved.logo1 = await convertUrlToBase64(resolved.logo1)
+        }
+        if (resolved.logo2 && !resolved.logo2.startsWith('data:')) {
+          resolved.logo2 = await convertUrlToBase64(resolved.logo2)
+        }
+        if (resolved.sig1_image && !resolved.sig1_image.startsWith('data:')) {
+          resolved.sig1_image = await convertUrlToBase64(resolved.sig1_image)
+        }
+        if (resolved.sig2_image && !resolved.sig2_image.startsWith('data:')) {
+          resolved.sig2_image = await convertUrlToBase64(resolved.sig2_image)
+        }
+      } catch (e) {
+        console.error('Error pre-resolving template images:', e)
+      }
+      setResolvedTemplate(resolved)
+    }
+
+    resolveImages()
+  }, [isOpen, taller.id])
 
   // Update editable name when prop changes
   useEffect(() => {

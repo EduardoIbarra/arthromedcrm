@@ -80,6 +80,31 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
   const fileInputSig1Ref = useRef<HTMLInputElement>(null)
   const fileInputSig2Ref = useRef<HTMLInputElement>(null)
 
+  // Pre-resolve relative assets (like default /logo.png) to base64 on mount to avoid WebKit canvas bugs
+  useEffect(() => {
+    const convertDefaultLogo = async () => {
+      if (template.logo1 && template.logo1.startsWith('/')) {
+        try {
+          const res = await fetch(template.logo1)
+          if (res.ok) {
+            const blob = await res.blob()
+            const reader = new FileReader()
+            reader.onloadend = () => {
+              setTemplate(prev => ({
+                ...prev,
+                logo1: reader.result as string
+              }))
+            }
+            reader.readAsDataURL(blob)
+          }
+        } catch (e) {
+          console.warn('Failed to convert default logo to base64 on builder mount:', e)
+        }
+      }
+    }
+    convertDefaultLogo()
+  }, [])
+
   // Listen to container resizing to scale preview
   useEffect(() => {
     if (!containerRef.current) return
