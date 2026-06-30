@@ -68,10 +68,228 @@ export async function POST(request: NextRequest) {
     // Schedule heavy operations to run in the background after returning the response
     after(async () => {
       try {
-        // 3. Fetch all available product lines for the parser
+        const cleanMsg = messageText.trim().toLowerCase();
+
+        // 1. COMMAND ROUTING (HUB)
+        if (
+          cleanMsg === 'hola' ||
+          cleanMsg === 'hi' ||
+          cleanMsg === 'hello' ||
+          cleanMsg === '/menu' ||
+          cleanMsg === '/ayuda' ||
+          cleanMsg === '/help' ||
+          cleanMsg === '/start' ||
+          cleanMsg.startsWith('buenos') ||
+          cleanMsg.startsWith('buenas')
+        ) {
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: `🤖 *ArthroNexus - Control Virtual* 🤖\n\nHola, soy tu asistente virtual de ArthroMed ERP. Aquí tienes las opciones y comandos disponibles:\n\n📝 *1. Generar Carta de Distribución*\nPídeme generar una carta directamente en lenguaje natural. Ej: _"Generar carta para Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver."_\n\n📅 *2. Consultar Recordatorios*\nEscribe */recordatorios* para ver los recordatorios activos de hoy.\n\n🏥 *3. Consultar Agenda*\nEscribe */agenda* para ver las cirugías, congresos y talleres de hoy.\n\n🧪 *4. Enviar Recordatorio de Prueba*\nEscribe */probar [ID_RECORDATORIO]* para enviarte un mensaje de prueba.\n\n💡 Escribe */ayuda* en cualquier momento para ver este menú.`
+          });
+          return;
+        }
+
+        if (cleanMsg.startsWith('/recordatorios')) {
+          const mxDate = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+          const todayStr = `${mxDate.getFullYear()}-${String(mxDate.getMonth() + 1).padStart(2, '0')}-${String(mxDate.getDate()).padStart(2, '0')}`;
+          
+          const reminders = await prisma.whatsapp_reminders.findMany({
+            where: { active: true }
+          });
+
+          const activeRemindersToday = [];
+          for (const r of reminders) {
+            let isActiveToday = false;
+            try {
+              if (!r.target_id || r.target_type === 'general' || r.target_type === 'none') {
+                isActiveToday = true;
+              } else if (r.target_type === 'surgery') {
+                const s = await prisma.cirugias.findUnique({ where: { id: r.target_id } });
+                if (s) {
+                  const sDateStr = new Date(s.fecha).toISOString().split('T')[0];
+                  if (sDateStr === todayStr) isActiveToday = true;
+                }
+              } else if (r.target_type === 'congress') {
+                const c = await prisma.congresos.findUnique({ where: { id: r.target_id } });
+                if (c) {
+                  const cStart = new Date(c.start_date);
+                  const cEnd = new Date(c.end_date);
+                  const todayDate = new Date(todayStr);
+                  if (todayDate >= cStart && todayDate <= cEnd) isActiveToday = true;
+                }
+              } else if (r.target_type === 'workshop') {
+                const w = await prisma.congress_workshops.findUnique({ where: { id: r.target_id } });
+                if (w) {
+                  const wStartStr = new Date(w.date_time).toISOString().split('T')[0];
+                  const wEndStr = w.end_date_time ? new Date(w.end_date_time).toISOString().split('T')[0] : wStartStr;
+                  if (todayStr >= wStartStr && todayStr <= wEndStr) isActiveToday = true;
+                }
+              }
+            } catch (err) {
+              console.error(`Error verifying reminder ${r.id} for today:`, err);
+            }
+
+            if (isActiveToday) {
+              const startOfToday = new Date(todayStr + 'T00:00:00.000Z');
+              const endOfToday = new Date(todayStr + 'T23:59:59.999Z');
+              const logs = await prisma.whatsapp_reminder_logs.findMany({
+                where: {
+                  reminder_id: r.id,
+                  sent_at: {
+                    gte: startOfToday,
+                    lte: endOfToday
+                  }
+                }
+              });
+
+              activeRemindersToday.push({
+                title: r.title,
+                time: r.time,
+                sent: logs.length > 0,
+                status: logs[0]?.status || 'pending'
+              });
+            }
+          }
+
+          let reply = `📅 *Recordatorios Activos de Hoy (${todayStr}):*\n\n`;
+          if (activeRemindersToday.length === 0) {
+            reply += `No hay recordatorios programados para hoy.`;
+          } else {
+            activeRemindersToday.forEach((r, idx) => {
+              reply += `${idx + 1}. *${r.title}* - ⏰ ${r.time}\n   Estatus: ${r.sent ? `✅ Enviado (${r.status})` : '⏳ Pendiente'}\n\n`;
+            });
+          }
+          await sendRespondMessage(phone, { type: 'text', text: reply });
+          return;
+        }
+
+        if (cleanMsg.startsWith('/agenda')) {
+          const mxDate = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+          const todayStr = `${mxDate.getFullYear()}-${String(mxDate.getMonth() + 1).padStart(2, '0')}-${String(mxDate.getDate()).padStart(2, '0')}`;
+          
+          const startOfToday = new Date(todayStr + 'T00:00:00.000Z');
+          const endOfToday = new Date(todayStr + 'T23:59:59.999Z');
+
+          const surgeries = await prisma.cirugias.findMany({
+            where: {
+              fecha: {
+                gte: startOfToday,
+                lte: endOfToday
+              }
+            }
+          });
+
+          const congresses = await prisma.congresos.findMany({
+            where: {
+              start_date: { lte: endOfToday },
+              end_date: { gte: startOfToday }
+            }
+          });
+
+          const workshops = await prisma.congress_workshops.findMany({
+            where: {
+              date_time: {
+                gte: startOfToday,
+                lte: endOfToday
+              }
+            }
+          });
+
+          let reply = `🏥 *Agenda de hoy (${todayStr}):*\n\n`;
+
+          reply += `*Cirugías:* ${surgeries.length === 0 ? '_Ninguna_' : ''}\n`;
+          surgeries.forEach((s: any) => {
+            const time = new Date(s.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });
+            reply += `• [${time}] *${s.nombre}* (Dr. ${s.medico}) - Estado: ${s.estado}\n`;
+          });
+
+          reply += `\n*Congresos:* ${congresses.length === 0 ? '_Ninguno_' : ''}\n`;
+          congresses.forEach((c: any) => {
+            reply += `• *${c.name}* (Ubicación: ${c.location})\n`;
+          });
+
+          reply += `\n*Talleres:* ${workshops.length === 0 ? '_Ninguno_' : ''}\n`;
+          workshops.forEach((w: any) => {
+            const time = new Date(w.date_time).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });
+            reply += `• [${time}] *${w.name}* (Prof. ${w.professor})\n`;
+          });
+
+          await sendRespondMessage(phone, { type: 'text', text: reply });
+          return;
+        }
+
+        if (cleanMsg.startsWith('/probar')) {
+          const parts = messageText.split(' ');
+          const reminderId = parts[1]?.trim();
+          if (!reminderId) {
+            await sendRespondMessage(phone, {
+              type: 'text',
+              text: `⚠️ Por favor especifica el ID del recordatorio.\nEjemplo: */probar 123e4567-e89b-12d3-a456-426614174000*`
+            });
+            return;
+          }
+
+          const reminder = await prisma.whatsapp_reminders.findUnique({
+            where: { id: reminderId }
+          });
+
+          if (!reminder) {
+            await sendRespondMessage(phone, {
+              type: 'text',
+              text: `⚠️ No se encontró ningún recordatorio con el ID *${reminderId}*.`
+            });
+            return;
+          }
+
+          let eventName = 'Evento de prueba';
+          let formattedText = reminder.message;
+
+          try {
+            if (reminder.target_type === 'surgery') {
+              const s = await prisma.cirugias.findUnique({ where: { id: reminder.target_id } });
+              if (s) {
+                formattedText = formatMessage(reminder.message, s, 'surgery');
+                eventName = s.nombre;
+              }
+            } else if (reminder.target_type === 'congress') {
+              const c = await prisma.congresos.findUnique({ where: { id: reminder.target_id } });
+              if (c) {
+                formattedText = formatMessage(reminder.message, c, 'congress');
+                eventName = c.name;
+              }
+            } else if (reminder.target_type === 'workshop') {
+              const w = await prisma.congress_workshops.findUnique({ where: { id: reminder.target_id } });
+              if (w) {
+                formattedText = formatMessage(reminder.message, w, 'workshop');
+                eventName = w.name;
+              }
+            }
+          } catch (err: any) {
+            console.error('Error formatting event variables:', err);
+          }
+
+          const success = await sendRespondMessage(phone, {
+            type: 'text',
+            text: `🧪 *[PRUEBA] Recordatorio: ${reminder.title}* (Evento: ${eventName})\n---\n${formattedText}`
+          });
+
+          if (success) {
+            await sendRespondMessage(phone, {
+              type: 'text',
+              text: `✅ Mensaje de prueba enviado exitosamente a tu número.`
+            });
+          } else {
+            await sendRespondMessage(phone, {
+              type: 'text',
+              text: `❌ Error al enviar el mensaje de prueba a través de respond.io.`
+            });
+          }
+          return;
+        }
+
+        // 2. FALL BACK TO EXISTING GEMINI PARSER FOR LETTER REQUESTS
         const allLines = await prisma.catalog_lines.findMany()
 
-        // 4. Query Gemini to parse the message
         const prompt = `Un miembro del personal de Arthromed está enviando un mensaje de WhatsApp en lenguaje natural para solicitar la generación de una Carta de Distribución para un distribuidor.
 
 Mensaje del usuario:
@@ -109,12 +327,11 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
 
         const extraction = parsed.object
 
-        // 5. Handle cases based on extraction result
         if (!extraction.isLetterRequest) {
-          console.log('Message is not a letter request. Sending general instructions.')
+          console.log('Message is not a letter request. Sending virtual hub menu.')
           await sendRespondMessage(phone, {
             type: 'text',
-            text: `¡Hola! Soy el asistente inteligente de Arthromed ERP. Puedo ayudarte a generar Cartas de Distribución directamente desde aquí.\n\nPara generar una, pídeme lo siguiente en un solo mensaje:\n1. El distribuidor (ej. Juan Pérez, o su código de distribuidor).\n2. La institución o destinatario (ej. Hospital Ángeles).\n3. Las líneas de producto (ej. Plasma, Shaver).\n\nEjemplo: 'Por favor genérame la carta para el distribuidor Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver.'`
+            text: `🤖 *ArthroNexus - Asistente Virtual* 🤖\n\nNo pude entender la solicitud de carta o comando. Aquí tienes las opciones y comandos disponibles:\n\n📝 *1. Generar Carta de Distribución*\nPídeme generar una carta directamente en lenguaje natural. Ej: _"Generar carta para Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver."_\n\n📅 *2. Consultar Recordatorios*\nEscribe */recordatorios* para ver los recordatorios activos de hoy.\n\n🏥 *3. Consultar Agenda*\nEscribe */agenda* para ver las cirugías, congresos y talleres de hoy.\n\n🧪 *4. Enviar Recordatorio de Prueba*\nEscribe */probar [ID_RECORDATORIO]* para enviarte un mensaje de prueba.\n\n💡 Escribe */ayuda* en cualquier momento para ver este menú.`
           })
           return
         }
@@ -165,7 +382,6 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
         if (extraction.expirationDate) {
           finalExpDate = extraction.expirationDate
         } else {
-          // Default validity is last day of next January
           const now = new Date()
           const nextYear = now.getFullYear() + 1
           const lastDay = new Date(nextYear, 1, 0)
@@ -190,7 +406,6 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
           coverage: extraction.coverage || undefined
         })
 
-        // Log the activity on the client profile
         await prisma.client_activities.create({
           data: {
             client_id: client.id,
@@ -199,7 +414,6 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
           }
         })
 
-        // Reply with text and attachment
         console.log('Sending letter PDF link and attachment back to respond.io...')
         await sendRespondMessage(phone, {
           type: 'text',
@@ -217,7 +431,7 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
         try {
           await sendRespondMessage(phone, {
             type: 'text',
-            text: `Hubo un error al generar la carta: ${err.message || err}. Por favor intenta de nuevo o comunícate con soporte.`
+            text: `Hubo un error al procesar tu solicitud: ${err.message || err}. Por favor intenta de nuevo o comunícate con soporte.`
           })
         } catch (e) {
           console.error('Failed to send error notification:', e)
@@ -231,4 +445,38 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
     console.error('Error in POST request validation:', err)
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
+}
+
+// Helper to format reminder templates dynamically
+function formatMessage(template: string, event: any, type: string): string {
+  let msg = template;
+  if (!event) return msg;
+  if (type === 'surgery') {
+    const dateStr = new Date(event.fecha).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'long' });
+    const timeStr = new Date(event.fecha).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit' });
+    msg = msg
+      .replace(/{nombre_evento}/g, event.nombre || '')
+      .replace(/{medico}/g, event.medico || '')
+      .replace(/{fecha}/g, `${dateStr} a las ${timeStr}`)
+      .replace(/{notas}/g, event.notas || '')
+      .replace(/{descripcion}/g, event.descripcion || '');
+  } else if (type === 'congress') {
+    const startStr = new Date(event.start_date).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'medium' });
+    const endStr = new Date(event.end_date).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'medium' });
+    msg = msg
+      .replace(/{nombre_evento}/g, event.name || '')
+      .replace(/{ubicacion}/g, event.location || '')
+      .replace(/{fecha_inicio}/g, startStr)
+      .replace(/{fecha_fin}/g, endStr)
+      .replace(/{descripcion}/g, event.description || '');
+  } else if (type === 'workshop') {
+    const dateStr = new Date(event.date_time).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'long' });
+    const timeStr = new Date(event.date_time).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit' });
+    msg = msg
+      .replace(/{nombre_evento}/g, event.name || '')
+      .replace(/{profesor}/g, event.professor || '')
+      .replace(/{fecha}/g, `${dateStr} a las ${timeStr}`)
+      .replace(/{descripcion}/g, event.description || '');
+  }
+  return msg;
 }

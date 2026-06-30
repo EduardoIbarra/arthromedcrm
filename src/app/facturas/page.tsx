@@ -8,6 +8,7 @@ import {
   Download, SlidersHorizontal, GripVertical
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
+import Modal from '@/components/Modal'
 import { useRouter } from 'next/navigation'
 
 interface FacturaProducto {
@@ -90,6 +91,8 @@ export default function FacturasPage() {
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [deliveryDays, setDeliveryDays] = useState<number>(25)
+  const [showDownloadModal, setShowDownloadModal] = useState(false)
+  const [downloadType, setDownloadType] = useState<'factura' | 'producto'>('factura')
 
   // Columns reordering & visibility states
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS)
@@ -259,7 +262,7 @@ export default function FacturasPage() {
     }
   }
 
-  const handleDownloadReport = async () => {
+  const handleDownloadReport = async (type: 'factura' | 'producto' = 'factura') => {
     try {
       setDownloading(true)
       const params = new URLSearchParams({
@@ -276,77 +279,147 @@ export default function FacturasPage() {
       const result = await res.json()
       const allInvoices: Factura[] = result.data || []
 
-      // Compile CSV
-      const headers = [
-        locale === 'en' ? 'Folio / Number' : locale === 'zh' ? '发票号' : 'Folio / Número',
-        locale === 'en' ? 'Client' : locale === 'zh' ? '客户' : 'Cliente',
-        locale === 'en' ? 'Tax ID (RFC)' : locale === 'zh' ? '税号(RFC)' : 'RFC',
-        locale === 'en' ? 'Issue Date' : locale === 'zh' ? '开票日期' : 'Fecha Expedición',
-        locale === 'en' ? 'Due Date' : locale === 'zh' ? '到期日期' : 'Vencimiento',
-        t('paymentDate' as any) || 'Fecha Pago',
-        locale === 'en' ? 'Subtotal' : locale === 'zh' ? '小计' : 'Subtotal',
-        locale === 'en' ? 'Tax (IVA)' : locale === 'zh' ? '税 (IVA)' : 'IVA',
-        locale === 'en' ? 'Total' : locale === 'zh' ? '总计' : 'Total',
-        locale === 'en' ? 'Fulfillment' : locale === 'zh' ? '发货履行' : 'Surtido',
-        locale === 'en' ? 'Payment Status' : locale === 'zh' ? '付款状态' : 'Estado Pago'
-      ]
-
       const escapeCSV = (val: string | number | null | undefined) => {
         if (val === null || val === undefined) return '""'
         const s = String(val)
         return `"${s.replace(/"/g, '""')}"`
       }
 
-      const rows = allInvoices.map(invoice => {
-        let statusLabel = STATUS_MAP[invoice.estado]?.label || invoice.estado
-        if (locale === 'en') {
-          if (invoice.estado === 'pendiente') statusLabel = 'Pending'
-          else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = 'Paid'
-          else if (invoice.estado === 'parcial') statusLabel = 'Partial'
-          else if (invoice.estado === 'completa') statusLabel = 'Complete'
-          else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = 'Cancelled'
-          else if (invoice.estado === 'borrador') statusLabel = 'Draft'
-        } else if (locale === 'zh') {
-          if (invoice.estado === 'pendiente') statusLabel = '待处理'
-          else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = '已付款'
-          else if (invoice.estado === 'parcial') statusLabel = '部分'
-          else if (invoice.estado === 'completa') statusLabel = '已完成'
-          else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = '已取消'
-          else if (invoice.estado === 'borrador') statusLabel = '草稿'
+      let CSV_CONTENT = ''
+      let filename = ''
+
+      if (type === 'producto') {
+        const headers = [
+          'fecha',
+          'folio',
+          'ESTADO',
+          'CLIENTE - CLIENTE',
+          'CLIENTE - RFC',
+          'fecha de pago',
+          'PRODUCTO - NOMBRE',
+          'PRODUCT',
+          'cantidad',
+          'precio unitario'
+        ]
+
+        const formatCsvDate = (dateStr: string | null | undefined) => {
+          if (!dateStr) return ''
+          const date = new Date(dateStr)
+          if (isNaN(date.getTime())) return ''
+          const day = String(date.getUTCDate()).padStart(2, '0')
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+          const year = date.getUTCFullYear()
+          return `${day}/${month}/${year}`
         }
 
-        const surtidoKey = invoice.estado_surtido === 'completa' ? 'completed' : invoice.estado_surtido === 'parcial' ? 'partial' : 'unfulfilled'
-        const surtidoLabel = t(surtidoKey as any) || ESTADO_SURTIDO_MAP[invoice.estado_surtido]?.label || invoice.estado_surtido || 'No Surtida'
+        const rows: string[] = []
+        allInvoices.forEach(invoice => {
+          const paymentDateStr = (['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago
+            ? formatCsvDate(invoice.fecha_pago)
+            : ''
 
-        const fechaPago = (['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
-          ? formatDate(invoice.fecha_pago) 
-          : '-'
-        const fechaExp = formatDate(invoice.fecha_expedicion)
-        const fechaVen = formatDate(invoice.fecha_vencimiento)
+          if (!invoice.factura_productos || invoice.factura_productos.length === 0) {
+            rows.push([
+              escapeCSV(formatCsvDate(invoice.fecha_expedicion)),
+              escapeCSV(invoice.numero_factura),
+              escapeCSV(invoice.estado),
+              escapeCSV(invoice.cliente_nombre),
+              escapeCSV(invoice.cliente_rfc || ''),
+              escapeCSV(paymentDateStr),
+              escapeCSV(''),
+              escapeCSV(''),
+              escapeCSV(''),
+              escapeCSV('')
+            ].join(','))
+          } else {
+            invoice.factura_productos.forEach(product => {
+              rows.push([
+                escapeCSV(formatCsvDate(invoice.fecha_expedicion)),
+                escapeCSV(invoice.numero_factura),
+                escapeCSV(invoice.estado),
+                escapeCSV(invoice.cliente_nombre),
+                escapeCSV(invoice.cliente_rfc || ''),
+                escapeCSV(paymentDateStr),
+                escapeCSV(product.producto_nombre),
+                escapeCSV(product.producto_codigo || ''),
+                product.cantidad_facturada,
+                product.precio_unitario !== null && product.precio_unitario !== undefined
+                  ? Number(product.precio_unitario).toFixed(2)
+                  : '0.00'
+              ].join(','))
+            })
+          }
+        })
 
-        return [
-          escapeCSV(invoice.numero_factura),
-          escapeCSV(invoice.cliente_nombre),
-          escapeCSV(invoice.cliente_rfc),
-          escapeCSV(fechaExp),
-          escapeCSV(fechaVen),
-          escapeCSV(fechaPago),
-          invoice.subtotal,
-          invoice.iva,
-          invoice.total,
-          escapeCSV(surtidoLabel),
-          escapeCSV(statusLabel)
+        CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows].join('\n')
+        filename = `reporte_facturas_productos_${new Date().toISOString().slice(0, 10)}.csv`
+      } else {
+        // Compile CSV by invoice
+        const headers = [
+          locale === 'en' ? 'Folio / Number' : locale === 'zh' ? '发票号' : 'Folio / Número',
+          locale === 'en' ? 'Client' : locale === 'zh' ? '客户' : 'Cliente',
+          locale === 'en' ? 'Tax ID (RFC)' : locale === 'zh' ? '税号(RFC)' : 'RFC',
+          locale === 'en' ? 'Issue Date' : locale === 'zh' ? '开票日期' : 'Fecha Expedición',
+          locale === 'en' ? 'Due Date' : locale === 'zh' ? '到期日期' : 'Vencimiento',
+          t('paymentDate' as any) || 'Fecha Pago',
+          locale === 'en' ? 'Subtotal' : locale === 'zh' ? '小计' : 'Subtotal',
+          locale === 'en' ? 'Tax (IVA)' : locale === 'zh' ? '税 (IVA)' : 'IVA',
+          locale === 'en' ? 'Total' : locale === 'zh' ? '总计' : 'Total',
+          locale === 'en' ? 'Fulfillment' : locale === 'zh' ? '发货履行' : 'Surtido',
+          locale === 'en' ? 'Payment Status' : locale === 'zh' ? '付款状态' : 'Estado Pago'
         ]
-      })
 
-      // UTF-8 BOM
-      const CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-      
+        const rows = allInvoices.map(invoice => {
+          let statusLabel = STATUS_MAP[invoice.estado]?.label || invoice.estado
+          if (locale === 'en') {
+            if (invoice.estado === 'pendiente') statusLabel = 'Pending'
+            else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = 'Paid'
+            else if (invoice.estado === 'parcial') statusLabel = 'Partial'
+            else if (invoice.estado === 'completa') statusLabel = 'Complete'
+            else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = 'Cancelled'
+            else if (invoice.estado === 'borrador') statusLabel = 'Draft'
+          } else if (locale === 'zh') {
+            if (invoice.estado === 'pendiente') statusLabel = '待处理'
+            else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = '已付款'
+            else if (invoice.estado === 'parcial') statusLabel = '部分'
+            else if (invoice.estado === 'completa') statusLabel = '已完成'
+            else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = '已取消'
+            else if (invoice.estado === 'borrador') statusLabel = '草稿'
+          }
+
+          const surtidoKey = invoice.estado_surtido === 'completa' ? 'completed' : invoice.estado_surtido === 'parcial' ? 'partial' : 'unfulfilled'
+          const surtidoLabel = t(surtidoKey as any) || ESTADO_SURTIDO_MAP[invoice.estado_surtido]?.label || invoice.estado_surtido || 'No Surtida'
+
+          const fechaPago = (['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
+            ? formatDate(invoice.fecha_pago) 
+            : '-'
+          const fechaExp = formatDate(invoice.fecha_expedicion)
+          const fechaVen = formatDate(invoice.fecha_vencimiento)
+
+          return [
+            escapeCSV(invoice.numero_factura),
+            escapeCSV(invoice.cliente_nombre),
+            escapeCSV(invoice.cliente_rfc),
+            escapeCSV(fechaExp),
+            escapeCSV(fechaVen),
+            escapeCSV(fechaPago),
+            invoice.subtotal,
+            invoice.iva,
+            invoice.total,
+            escapeCSV(surtidoLabel),
+            escapeCSV(statusLabel)
+          ].join(',')
+        })
+
+        CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows].join('\n')
+        filename = `reporte_facturas_${new Date().toISOString().slice(0, 10)}.csv`
+      }
+
       const blob = new Blob([CSV_CONTENT], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `reporte_facturas_${new Date().toISOString().slice(0, 10)}.csv`)
+      link.setAttribute('download', filename)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -600,9 +673,9 @@ export default function FacturasPage() {
             )}
 
             <button
-              onClick={handleDownloadReport}
+              onClick={() => setShowDownloadModal(true)}
               disabled={downloading}
-              className="btn-secondary flex items-center gap-2 whitespace-nowrap text-sm"
+              className="btn-secondary flex items-center gap-2 whitespace-nowrap text-sm cursor-pointer"
             >
               <Download className={`w-4 h-4 ${downloading ? 'animate-spin' : ''}`} />
               {downloading ? (locale === 'en' ? 'Downloading...' : locale === 'zh' ? '正在下载...' : 'Descargando...') : t('downloadReport' as any)}
@@ -963,6 +1036,95 @@ export default function FacturasPage() {
         </div>
 
       </div>
+      
+      {/* DOWNLOAD REPORT MODAL */}
+      <Modal
+        open={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+        title={locale === 'en' ? 'Download Report' : locale === 'zh' ? '下载报告' : 'Descargar Reporte'}
+        maxWidth="460px"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            {locale === 'en'
+              ? 'Select the format of the report to download:'
+              : locale === 'zh'
+              ? '选择要下载的报告格式：'
+              : 'Selecciona el tipo de reporte que deseas descargar:'}
+          </p>
+
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-[#0763a9] hover:bg-blue-50/20 cursor-pointer transition-all">
+              <input
+                type="radio"
+                name="downloadType"
+                value="factura"
+                checked={downloadType === 'factura'}
+                onChange={() => setDownloadType('factura')}
+                className="mt-1 text-[#0763a9] focus:ring-[#0763a9]"
+              />
+              <div>
+                <span className="text-sm font-semibold text-gray-800 block">
+                  {locale === 'en' ? 'By Invoice (Summary)' : locale === 'zh' ? '按发票 (汇总)' : 'Por Factura (Resumido)'}
+                </span>
+                <span className="text-xs text-gray-500 block mt-0.5">
+                  {locale === 'en'
+                    ? 'One row per invoice. Contains totals and general invoice details.'
+                    : locale === 'zh'
+                    ? '每张发票一行。包含总计和一般信息。'
+                    : 'Una fila por cada factura. Contiene los montos totales y la información general.'}
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-[#0763a9] hover:bg-blue-50/20 cursor-pointer transition-all">
+              <input
+                type="radio"
+                name="downloadType"
+                value="producto"
+                checked={downloadType === 'producto'}
+                onChange={() => setDownloadType('producto')}
+                className="mt-1 text-[#0763a9] focus:ring-[#0763a9]"
+              />
+              <div>
+                <span className="text-sm font-semibold text-gray-800 block">
+                  {locale === 'en'
+                    ? 'By Invoice Product (Detailed)'
+                    : locale === 'zh'
+                    ? '按发票产品 (详细)'
+                    : 'Por Producto de Factura (Desglosado)'}
+                </span>
+                <span className="text-xs text-gray-500 block mt-0.5">
+                  {locale === 'en'
+                    ? 'Shows every product within the invoice. Invoices with multiple products will appear in multiple rows.'
+                    : locale === 'zh'
+                    ? '显示发票中的每个产品。包含多个产品的发票会在报告中多次出现。'
+                    : 'Muestra cada producto dentro de la factura. Aquellas facturas con múltiples productos aparecerán en múltiples filas.'}
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+            <button
+              onClick={() => setShowDownloadModal(false)}
+              className="px-4 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              {locale === 'en' ? 'Cancel' : locale === 'zh' ? '取消' : 'Cancelar'}
+            </button>
+            <button
+              onClick={async () => {
+                setShowDownloadModal(false)
+                await handleDownloadReport(downloadType)
+              }}
+              className="px-4 py-2 bg-[#0763a9] hover:bg-[#054d85] text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download size={14} />
+              {locale === 'en' ? 'Download' : locale === 'zh' ? '下载' : 'Descargar'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   )
 }

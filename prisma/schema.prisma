@@ -2236,3 +2236,37 @@ model congreso_station_products {
   @@schema("public")
 }
 
+model whatsapp_reminders {
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                   String
+  message                 String                   @db.Text
+  target_type             String                   // "surgery", "congress", "workshop", "general"
+  target_id               String?                  @db.Uuid
+  time                    String                   @default("17:00") // Format HH:MM
+  notify_all_participants Boolean                  @default(true)
+  extra_contacts          String[]                 @default([]) // Array of user_profiles.id
+  created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  active                  Boolean                  @default(true)
+  whatsapp_reminder_logs  whatsapp_reminder_logs[]
+
+  @@index([active])
+  @@schema("public")
+}
+
+model whatsapp_reminder_logs {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reminder_id         String             @db.Uuid
+  recipient_phone     String
+  recipient_name      String?
+  sent_at             DateTime           @default(now()) @db.Timestamptz(6)
+  status              String             // "success", "failed"
+  error_message       String?
+  whatsapp_reminders  whatsapp_reminders @relation(fields: [reminder_id], references: [id], onDelete: Cascade)
+
+  @@index([reminder_id])
+  @@index([sent_at])
+  @@schema("public")
+}
+
+

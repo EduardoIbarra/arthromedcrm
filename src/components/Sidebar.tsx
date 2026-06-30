@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
   ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest, Bot, Sparkles, Ticket, Stethoscope, BookOpen,
-  Globe, Send, Palette, Car
+  Globe, Send, Palette, Car, Bell
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -72,6 +72,7 @@ export default function Sidebar() {
         { href: '/tickets', icon: Ticket, label: t('ticketsSidebar' as any) || 'Tickets', section: 'tickets' },
         { href: '/landing-pages', icon: Globe, label: t('landingPages' as any) || 'Landing Pages', section: 'landing_pages' },
         { href: '/communication', icon: Send, label: t('communication' as any) || 'Comunicaciones', section: 'communication' },
+        { href: '/recordatorios', icon: Bell, label: 'Recordatorios WA', section: 'communication' },
         { href: '/car-fleet', icon: Car, label: t('carFleet') || 'Flota Vehicular', section: 'car_fleet' },
       ],
     },
