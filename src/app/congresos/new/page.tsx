@@ -1,10 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
-import { ArrowLeft, Save, Upload, Loader2, FileText, X, Plus, Calendar, Users, DollarSign, User, Phone, Mail, LayoutTemplate, HandCoins, AlertCircle } from 'lucide-react'
+import { 
+  ArrowLeft, Save, Upload, Loader2, FileText, X, Plus, Calendar, Users, 
+  DollarSign, User, Phone, Mail, LayoutTemplate, HandCoins, AlertCircle,
+  Trash2, Edit, Clock, Car, ChevronDown, ChevronUp, Wrench, Shield
+} from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
@@ -15,7 +19,7 @@ export default function NewCongresoPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  const [activeTab, setActiveTab] = useState<'general' | 'talleres' | 'contactos' | 'gastos'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'talleres' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones' | 'contactos' | 'catalogos' | 'gastos'>('general')
 
   const [availableSpecialties, setAvailableSpecialties] = useState<{ id: string; name: string }[]>([])
   const [customSpecialty, setCustomSpecialty] = useState('')
@@ -44,6 +48,25 @@ export default function NewCongresoPage() {
   const [globalBudget, setGlobalBudget] = useState<string>('')
   const [gastosEstimados, setGastosEstimados] = useState<{ category_id: string; amount: string }[]>([])
 
+  const [staffList, setStaffList] = useState<any[]>([])
+  const [carList, setCarList] = useState<any[]>([])
+  const [memberIds, setMemberIds] = useState<string[]>([])
+  const [memberCarAssignments, setMemberCarAssignments] = useState<Record<string, string>>({})
+  const [tempMembers, setTempMembers] = useState<any[]>([])
+
+  const [itinerary, setItinerary] = useState<any[]>([])
+  const [itineraryForm, setItineraryForm] = useState({
+    date: '',
+    time: '',
+    description: '',
+    notes: '',
+    involvedMemberIds: [] as string[]
+  })
+  const [editingItineraryIndex, setEditingItineraryIndex] = useState<number | null>(null)
+  
+  const [availableCatalogs, setAvailableCatalogs] = useState<any[]>([])
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([])
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -68,10 +91,48 @@ export default function NewCongresoPage() {
         console.error(err)
       }
     }
+    const fetchStaff = async () => {
+      try {
+        const res = await fetch('/api/cirugias/usuarios')
+        const json = await res.json()
+        setStaffList(json.data || [])
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    const fetchCars = async () => {
+      try {
+        const res = await fetch('/api/car-fleet')
+        const json = await res.json()
+        setCarList(json.data || [])
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    const fetchAllCatalogs = async () => {
+      try {
+        const res = await fetch('/api/catalogos')
+        const json = await res.json()
+        setAvailableCatalogs(json.data || [])
+      } catch (err) {
+        console.error(err)
+      }
+    }
     
     fetchSpecialties()
     fetchSpendingCategories()
+    fetchStaff()
+    fetchCars()
+    fetchAllCatalogs()
   }, [])
+
+  // Pre-fill itinerary date when options change
+  useEffect(() => {
+    const opts = getItineraryDateOptions()
+    if (opts.length > 0 && !itineraryForm.date) {
+      setItineraryForm(p => ({ ...p, date: opts[3]?.dateStr || opts[0].dateStr }))
+    }
+  }, [formData.start_date, formData.end_date])
 
   const addWorkshop = () => {
     setWorkshops([...workshops, { name: '', date_time: '', end_date_time: '', max_people: 20, cost: 0, professor: '' }])
@@ -143,6 +204,222 @@ export default function NewCongresoPage() {
     setFormData(prev => ({ ...prev, video_urls: prev.video_urls.filter((_, i) => i !== index) }))
   }
 
+  // Staff checklist handlers
+  const handleToggleMember = (userId: string) => {
+    if (memberIds.includes(userId)) {
+      setMemberIds(memberIds.filter(id => id !== userId))
+      const updated = { ...memberCarAssignments }
+      delete updated[userId]
+      setMemberCarAssignments(updated)
+      setItinerary(itinerary.map(item => ({
+        ...item,
+        involvedMemberIds: item.involvedMemberIds.filter((id: string) => id !== userId)
+      })))
+    } else {
+      setMemberIds([...memberIds, userId])
+    }
+  }
+
+  const handleAssignCar = (userId: string, carId: string) => {
+    setMemberCarAssignments(prev => {
+      const next = { ...prev }
+      if (carId) {
+        next[userId] = carId
+      } else {
+        delete next[userId]
+      }
+      return next
+    })
+  }
+
+  const handleAddTempMember = () => {
+    const newId = crypto.randomUUID()
+    setTempMembers(prev => [
+      ...prev,
+      {
+        id: newId,
+        name: '',
+        phone: '',
+        carId: null
+      }
+    ])
+  }
+
+  const handleRemoveTempMember = (id: string) => {
+    setTempMembers(prev => prev.filter(tm => tm.id !== id))
+    const updatedAssignments = { ...memberCarAssignments }
+    delete updatedAssignments[id]
+    setMemberCarAssignments(updatedAssignments)
+    setItinerary(itinerary.map(item => ({
+      ...item,
+      involvedMemberIds: item.involvedMemberIds.filter((mid: string) => mid !== id)
+    })))
+  }
+
+  const handleUpdateTempMember = (id: string, field: string, value: any) => {
+    setTempMembers(prev => prev.map(tm => {
+      if (tm.id === id) {
+        return { ...tm, [field]: value }
+      }
+      return tm
+    }))
+  }
+
+  // Itinerary handlers
+  const handleAddOrUpdateItinerary = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!itineraryForm.date || !itineraryForm.description) return
+    
+    const newItem = {
+      date: itineraryForm.date,
+      time: itineraryForm.time,
+      description: itineraryForm.description,
+      notes: itineraryForm.notes,
+      involvedMemberIds: itineraryForm.involvedMemberIds
+    }
+    
+    if (editingItineraryIndex !== null) {
+      const updated = [...itinerary]
+      updated[editingItineraryIndex] = newItem
+      setItinerary(updated.sort((a, b) => {
+        const dtA = `${a.date}T${a.time || '00:00'}`
+        const dtB = `${b.date}T${b.time || '00:00'}`
+        return dtA.localeCompare(dtB)
+      }))
+      setEditingItineraryIndex(null)
+    } else {
+      setItinerary([...itinerary, newItem].sort((a, b) => {
+        const dtA = `${a.date}T${a.time || '00:00'}`
+        const dtB = `${b.date}T${b.time || '00:00'}`
+        return dtA.localeCompare(dtB)
+      }))
+    }
+    
+    setItineraryForm({
+      date: itineraryForm.date,
+      time: '',
+      description: '',
+      notes: '',
+      involvedMemberIds: []
+    })
+  }
+
+  const handleEditItinerary = (index: number) => {
+    const item = itinerary[index]
+    setItineraryForm({
+      date: item.date,
+      time: item.time || '',
+      description: item.description,
+      notes: item.notes || '',
+      involvedMemberIds: item.involvedMemberIds || []
+    })
+    setEditingItineraryIndex(index)
+  }
+
+  const handleDeleteItinerary = (index: number) => {
+    setItinerary(itinerary.filter((_, idx) => idx !== index))
+    if (editingItineraryIndex === index) {
+      setEditingItineraryIndex(null)
+    }
+  }
+
+  const toggleInvolvedMember = (userId: string) => {
+    const current = itineraryForm.involvedMemberIds
+    if (current.includes(userId)) {
+      setItineraryForm({ ...itineraryForm, involvedMemberIds: current.filter(id => id !== userId) })
+    } else {
+      setItineraryForm({ ...itineraryForm, involvedMemberIds: [...current, userId] })
+    }
+  }
+
+  const handleCatalogToggle = (catalogId: string) => {
+    setSelectedCatalogIds(prev => 
+      prev.includes(catalogId)
+        ? prev.filter(id => id !== catalogId)
+        : [...prev, catalogId]
+    )
+  }
+
+  const getItineraryDateOptions = () => {
+    if (!formData.start_date) return []
+    const start = new Date(formData.start_date)
+    const end = formData.end_date ? new Date(formData.end_date) : new Date(formData.start_date)
+    
+    const options: { dateStr: string; label: string }[] = []
+    
+    // 3 days before
+    for (let i = 3; i >= 1; i--) {
+      const d = new Date(start)
+      d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split('T')[0]
+      options.push({ dateStr, label: `${i} día(s) antes (${dateStr})` })
+    }
+    
+    // Congress days
+    let current = new Date(start)
+    let dayNum = 1
+    while (current < end || current.toDateString() === end.toDateString()) {
+      const dateStr = current.toISOString().split('T')[0]
+      options.push({ dateStr, label: `Día ${dayNum} (${dateStr})` })
+      current.setDate(current.getDate() + 1)
+      dayNum++
+      if (dayNum > 20) break // safety break
+    }
+    
+    // 3 days after
+    for (let i = 1; i <= 3; i++) {
+      const d = new Date(end)
+      d.setDate(d.getDate() + i)
+      const dateStr = d.toISOString().split('T')[0]
+      options.push({ dateStr, label: `${i} día(s) después (${dateStr})` })
+    }
+    
+    return options
+  }
+
+  const formatFriendlyDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    try {
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const d = new Date(year, month - 1, day)
+      return new Intl.DateTimeFormat('es-MX', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short'
+      }).format(d)
+    } catch (e) {
+      return dateStr
+    }
+  }
+
+  const assignedStaff = useMemo(() => {
+    const assigned = staffList.filter(s => memberIds.includes(s.id)).map(s => ({
+      id: s.id,
+      first_name: s.first_name || '',
+      last_name: s.last_name || '',
+      email: s.email || '',
+      phone: s.whatsapp || '',
+      whatsapp: s.whatsapp || '',
+      position: s.position || 'Staff',
+      isTemp: false,
+      carId: (memberCarAssignments[s.id] || null) as string | null
+    }))
+
+    const temps = tempMembers.map(tm => ({
+      id: tm.id,
+      first_name: tm.name,
+      last_name: '',
+      email: '',
+      phone: tm.phone || '',
+      whatsapp: tm.phone || '',
+      position: 'Staff Temporal',
+      isTemp: true,
+      carId: tm.carId || null
+    }))
+
+    return [...assigned, ...temps]
+  }, [staffList, memberIds, tempMembers, memberCarAssignments])
+
   const totalGastos = gastosEstimados.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
   const isBudgetExceeded = Boolean(globalBudget && totalGastos > Number(globalBudget))
 
@@ -164,7 +441,25 @@ export default function NewCongresoPage() {
         global_budget: globalBudget ? Number(globalBudget) : null,
         workshops,
         contacts: contacts.filter(c => c.name || c.number || c.email),
-        gastos_estimados: gastosEstimados.filter(g => g.amount && Number(g.amount) > 0)
+        gastos_estimados: gastosEstimados.filter(g => g.amount && Number(g.amount) > 0),
+        catalog_ids: selectedCatalogIds,
+        members: memberIds.map(userId => ({
+          userId,
+          carId: memberCarAssignments[userId] || null
+        })),
+        tempStaff: tempMembers.map(tm => ({
+          id: tm.id,
+          name: tm.name,
+          phone: tm.phone || null,
+          carId: tm.carId || null
+        })),
+        itinerary: itinerary.map(item => ({
+          date: item.date,
+          time: item.time || null,
+          description: item.description,
+          notes: item.notes || null,
+          involvedMemberIds: item.involvedMemberIds
+        }))
       }
       const res = await fetch('/api/congresos', {
         method: 'POST',
@@ -220,7 +515,7 @@ export default function NewCongresoPage() {
               <h1 className="text-2xl font-bold text-gray-900">
                 {t('newCongress')}
               </h1>
-              <p className="text-sm text-gray-500 mt-0.5">Configure los detalles generales, talleres y contactos.</p>
+              <p className="text-sm text-gray-500 mt-0.5">Configure los detalles generales y de logística.</p>
             </div>
           </div>
         </header>
@@ -249,10 +544,52 @@ export default function NewCongresoPage() {
           </button>
           <button
             type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'staff' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('staff')}
+          >
+            <Users size={16} /> Staff ({memberIds.length})
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'itinerary' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('itinerary')}
+          >
+            <Calendar size={16} /> Itinerario ({itinerary.length})
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'resumen' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('resumen')}
+          >
+            <FileText size={16} /> Resumen Logístico
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'hotel' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('hotel')}
+          >
+            <Car size={16} /> Hotel
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'estaciones' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('estaciones')}
+          >
+            <Users size={16} /> Estaciones
+          </button>
+          <button
+            type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'contactos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
             onClick={() => setActiveTab('contactos')}
           >
             <Users size={16} /> Contactos
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'catalogos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('catalogos')}
+          >
+            <FileText size={16} /> Catálogos
           </button>
           <button
             type="button"
@@ -393,7 +730,6 @@ export default function NewCongresoPage() {
                         className="erp-input flex-1"
                         value={videoInput}
                         onChange={e => setVideoInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addVideoUrl())}
                       />
                       <button 
                         type="button" 
@@ -592,6 +928,352 @@ export default function NewCongresoPage() {
             </div>
           )}
 
+          {activeTab === 'staff' && (
+            <div className="card p-6 space-y-6 bg-white shadow-sm border border-gray-150 rounded-2xl animate-in fade-in duration-200">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Personal de Staff Asignado</h3>
+                <p className="text-xs text-gray-500 mb-4">Selecciona los miembros de tu equipo que participarán u organizarán este congreso.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto p-2 bg-gray-50 rounded-xl border border-gray-100">
+                  {staffList.map((user) => {
+                    const isChecked = memberIds.includes(user.id)
+                    return (
+                      <div 
+                        key={user.id} 
+                        className={`flex flex-col justify-between p-3 rounded-xl border transition-all hover:bg-white
+                          ${isChecked 
+                            ? 'bg-blue-50/50 border-blue-200 shadow-sm' 
+                            : 'bg-white/80 border-gray-100'
+                          }
+                        `}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => handleToggleMember(user.id)}
+                            className="mt-1 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer" 
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {user.first_name || user.last_name 
+                                ? `${user.first_name || ''} ${user.last_name || ''}`.trim() 
+                                : user.email}
+                            </p>
+                            <p className="text-[10px] text-gray-400 truncate">{user.email}</p>
+                            {user.position && (
+                              <span className="inline-block mt-1 px-1.5 py-0.5 bg-blue-100 text-blue-800 text-[9px] font-bold rounded">
+                                {user.position}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Car assignment dropdown */}
+                        {isChecked && (
+                          <div className="mt-3 pt-3 border-t border-blue-100/50">
+                            <label className="block text-[10px] font-bold text-gray-500 mb-1">
+                              Vehículo Asignado
+                            </label>
+                            <select
+                              value={memberCarAssignments[user.id] || ''}
+                              onChange={(e) => handleAssignCar(user.id, e.target.value)}
+                              className="erp-input w-full py-1.5 px-2 text-xs bg-white/70 focus:bg-white"
+                            >
+                              <option value="">-- Sin Vehículo --</option>
+                              {carList.map((car) => (
+                                <option key={car.id} value={car.id}>
+                                  {car.alias || `${car.make} ${car.model} (${car.plate_number})`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {staffList.length === 0 && (
+                    <div className="col-span-full py-12 text-center text-gray-400 italic">No hay usuarios en el sistema.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Personal Temporal / Externo */}
+              <div className="pt-6 border-t border-gray-150 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900">Personal Temporal o Externo</h4>
+                    <p className="text-xs text-gray-500">Agrega colaboradores adicionales que participarán en este congreso temporalmente.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddTempMember}
+                    className="btn-secondary self-start sm:self-auto py-1.5 px-3 border-blue-200 text-blue-700 hover:bg-blue-50 text-xs flex items-center gap-1.5 rounded-xl transition-all font-semibold"
+                  >
+                    <Plus size={14} />
+                    Agregar Personal Temporal
+                  </button>
+                </div>
+
+                {tempMembers.length === 0 ? (
+                  <div className="p-5 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-center text-xs text-gray-400 italic">
+                    No hay personal temporal asignado.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {tempMembers.map((member) => (
+                      <div key={member.id} className="p-4 bg-gray-50/50 rounded-xl border border-gray-150 space-y-3 relative group">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTempMember(member.id)}
+                          className="absolute top-3 right-3 text-gray-400 hover:text-red-500 p-1 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Eliminar personal temporal"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        
+                        <div className="space-y-3 pr-6">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Nombre Completo *</label>
+                            <input
+                              type="text"
+                              value={member.name}
+                              onChange={(e) => handleUpdateTempMember(member.id, 'name', e.target.value)}
+                              placeholder="Ej. Juan Pérez"
+                              className="erp-input w-full py-1.5 px-2.5 text-xs bg-white focus:bg-white"
+                              required
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">WhatsApp (Celular)</label>
+                            <input
+                              type="tel"
+                              value={member.phone}
+                              onChange={(e) => handleUpdateTempMember(member.id, 'phone', e.target.value)}
+                              placeholder="Ej. 8110000000"
+                              className="erp-input w-full py-1.5 px-2.5 text-xs bg-white focus:bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Vehículo Asignado</label>
+                            <select
+                              value={member.carId || ''}
+                              onChange={(e) => handleUpdateTempMember(member.id, 'carId', e.target.value)}
+                              className="erp-input w-full py-1.5 px-2 text-xs bg-white focus:bg-white"
+                            >
+                              <option value="">-- Sin Vehículo --</option>
+                              {carList.map((car) => (
+                                <option key={car.id} value={car.id}>
+                                  {car.alias || `${car.make} ${car.model} (${car.plate_number})`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'itinerary' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="card p-6 bg-white shadow-sm border border-gray-150 rounded-2xl">
+                <h3 className="text-base font-bold text-gray-900 mb-4">
+                  {editingItineraryIndex !== null ? 'Editar Actividad' : 'Agregar Actividad al Itinerario'}
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Fecha de la Actividad *</label>
+                    <select 
+                      className="erp-input w-full"
+                      value={itineraryForm.date}
+                      onChange={e => setItineraryForm({ ...itineraryForm, date: e.target.value })}
+                    >
+                      <option value="">-- Selecciona un día --</option>
+                      {getItineraryDateOptions().map(opt => (
+                        <option key={opt.dateStr} value={opt.dateStr}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Hora (Opcional)</label>
+                    <input 
+                      type="time" 
+                      className="erp-input w-full"
+                      value={itineraryForm.time}
+                      onChange={e => setItineraryForm({ ...itineraryForm, time: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Descripción / Actividad *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. Registro de médicos y entrega de material"
+                    className="erp-input w-full"
+                    value={itineraryForm.description}
+                    onChange={e => setItineraryForm({ ...itineraryForm, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Notas Adicionales (Opcional)</label>
+                  <textarea 
+                    rows={2}
+                    placeholder="Lugar específico, indicaciones, etc."
+                    className="erp-input w-full"
+                    value={itineraryForm.notes}
+                    onChange={e => setItineraryForm({ ...itineraryForm, notes: e.target.value })}
+                  />
+                </div>
+
+                {/* Involved Staff Selector */}
+                <div className="mt-4">
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Miembros Involucrados</label>
+                  {assignedStaff.length === 0 ? (
+                    <p className="text-xs text-orange-500 italic">Debes asignar miembros al staff del congreso (en la pestaña Staff) para poder seleccionarlos en el itinerario.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-150">
+                      {assignedStaff.map(member => {
+                        const isChecked = itineraryForm.involvedMemberIds.includes(member.id)
+                        return (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => toggleInvolvedMember(member.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5
+                              ${isChecked 
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                              }
+                            `}
+                          >
+                            <User size={12} />
+                            {member.first_name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 border-t border-gray-100 mt-6">
+                  {editingItineraryIndex !== null && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setEditingItineraryIndex(null)
+                        setItineraryForm({ date: '', time: '', description: '', notes: '', involvedMemberIds: [] })
+                      }}
+                      className="btn-secondary"
+                    >
+                      Cancelar Edición
+                    </button>
+                  )}
+                  <button 
+                    type="button" 
+                    onClick={handleAddOrUpdateItinerary}
+                    disabled={!itineraryForm.date || !itineraryForm.description}
+                    className="btn-primary"
+                  >
+                    {editingItineraryIndex !== null ? 'Guardar Cambios de Actividad' : 'Agregar Actividad'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Timeline Display */}
+              <div className="card p-6 bg-white shadow-sm border border-gray-150 rounded-2xl space-y-4">
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <Calendar size={18} className="text-blue-500" /> Timeline del Itinerario
+                </h3>
+
+                {itinerary.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic text-center py-8">No hay actividades añadidas en el itinerario de este congreso.</p>
+                ) : (
+                  <div className="relative pl-6 border-l-2 border-blue-100 space-y-4 py-2">
+                    {itinerary.map((item, idx) => {
+                      const involved = staffList.filter(s => item.involvedMemberIds.includes(s.id))
+                      return (
+                        <div key={idx} className="relative group">
+                          {/* Dot indicator */}
+                          <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-blue-600 bg-white group-hover:scale-125 transition-transform" />
+                          
+                          <div className="flex items-start justify-between gap-4 p-4 border border-gray-100 rounded-xl hover:border-blue-200 transition-colors">
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                                  <Calendar size={11} /> {item.date}
+                                </span>
+                                {item.time && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-650 bg-gray-50 px-2 py-0.5 rounded">
+                                    <Clock size={11} /> {item.time} hs
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <h4 className="font-bold text-gray-900 text-sm">{item.description}</h4>
+                              {item.notes && <p className="text-xs text-gray-500 whitespace-pre-wrap">{item.notes}</p>}
+                              
+                              {involved.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {involved.map(inv => (
+                                    <span key={inv.id} className="inline-flex items-center gap-1 text-[10px] font-semibold bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">
+                                      <User size={10} /> {inv.first_name || inv.email}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={() => handleEditItinerary(idx)}
+                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                title="Editar"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteItinerary(idx)}
+                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {(activeTab === 'resumen' || activeTab === 'hotel' || activeTab === 'estaciones') && (
+            <div className="p-6 bg-slate-50 border border-gray-150 rounded-2xl flex flex-col items-center justify-center text-center py-16 space-y-4">
+              <div className="w-12 h-12 bg-blue-50 border border-blue-100 rounded-full flex items-center justify-center text-blue-600 shadow-sm">
+                <Shield size={24} />
+              </div>
+              <div className="space-y-1.5 max-w-md">
+                <h4 className="font-bold text-gray-900">Sección disponible al guardar</h4>
+                <p className="text-xs text-gray-500">
+                  Para poder gestionar las habitaciones de hotel, las estaciones logísticas, y ver el resumen logístico consolidado, guarde primero el congreso.
+                </p>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'contactos' && (
             <div className="card p-6 md:p-8 space-y-4 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-2">
@@ -660,6 +1342,52 @@ export default function NewCongresoPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'catalogos' && (
+            <div className="card p-6 md:p-8 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <FileText className="text-blue-600" size={20} />
+                  Catálogos Asociados
+                </h2>
+              </div>
+              {availableCatalogs.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">
+                  No hay catálogos globales creados. Puedes crear catálogos en la sección de "Catálogos" del menú principal.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {availableCatalogs.map(catalog => {
+                    const isChecked = selectedCatalogIds.includes(catalog.id)
+                    return (
+                      <label 
+                        key={catalog.id} 
+                        className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none
+                          ${isChecked 
+                            ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-50' 
+                            : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }
+                        `}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleCatalogToggle(catalog.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{catalog.name}</p>
+                          {catalog.description && (
+                            <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{catalog.description}</p>
+                          )}
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 

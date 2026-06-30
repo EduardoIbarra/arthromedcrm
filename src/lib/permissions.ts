@@ -3,20 +3,31 @@ export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | '*'
 export const SECTIONS = [
   'dashboard',
   'clients',
+  'doctors',
+  'catalogos',
   'products',
+  'inventario',
+  'checklists',
   'hospitals',
+  'repartition',
+  'calendario',
   'congresos',
-  'gastos',
-  'ventas',
+  'talleres',
   'cirugias',
-  'settings',
-  'users',
-  'roles',
   'warranties',
   'tickets',
   'landing_pages',
   'communication',
-  'car_fleet'
+  'recordatorios',
+  'car_fleet',
+  'ventas',
+  'facturas',
+  'gastos',
+  'previos',
+  'reportes',
+  'users',
+  'roles',
+  'settings'
 ] as const
 
 export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']

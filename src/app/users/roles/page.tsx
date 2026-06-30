@@ -33,13 +33,10 @@ export default function RolesPage() {
     setLoading(true)
     setError(null)
     try {
-      const { data, error } = await supabase
-        .from('roles')
-        .select('*')
-        .order('name', { ascending: true })
-
-      if (error) throw error
-      setRoles(data || [])
+      const res = await fetch('/api/roles')
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch roles')
+      setRoles(json.data || [])
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -52,25 +49,29 @@ export default function RolesPage() {
     setIsSaving(true)
     try {
       if (editingRole.id) {
-        const { error } = await supabase
-          .from('roles')
-          .update({
+        const res = await fetch(`/api/roles/${editingRole.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             name: editingRole.name,
             description: editingRole.description,
-            permissions: editingRole.permissions,
-            updated_at: new Date().toISOString()
+            permissions: editingRole.permissions
           })
-          .eq('id', editingRole.id)
-        if (error) throw error
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'Failed to update role')
       } else {
-        const { error } = await supabase
-          .from('roles')
-          .insert([{
+        const res = await fetch('/api/roles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             name: editingRole.name,
             description: editingRole.description,
             permissions: editingRole.permissions || {}
-          }])
-        if (error) throw error
+          })
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'Failed to create role')
       }
       setEditingRole(null)
       fetchRoles()
@@ -84,11 +85,11 @@ export default function RolesPage() {
   const handleDeleteRole = async (id: string) => {
     if (!confirm(t('confirm'))) return
     try {
-      const { error } = await supabase
-        .from('roles')
-        .delete()
-        .eq('id', id)
-      if (error) throw error
+      const res = await fetch(`/api/roles/${id}`, {
+        method: 'DELETE'
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to delete role')
       setRoles(roles.filter(r => r.id !== id))
     } catch (err: any) {
       alert(err.message)

@@ -38,56 +38,119 @@ export async function POST(request: NextRequest) {
       video_urls,
       workshops,
       contacts,
-      gastos_estimados
+      catalog_ids,
+      gastos_estimados,
+      members,
+      tempStaff,
+      itinerary
     } = body
 
     if (!name || !start_date || !end_date || !location) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const data = await prisma.congresos.create({
-      data: {
-        name,
-        start_date: new Date(start_date),
-        end_date: new Date(end_date),
-        location,
-        description: description || '',
-        flyer,
-        specialty_ids: specialty_ids || [],
-        terms_doctor: terms_doctor || '',
-        terms_distributor: terms_distributor || '',
-        enable_workshops: enable_workshops !== false,
-        global_budget: global_budget ? Number(global_budget) : null,
-        video_urls: video_urls || [],
-        congress_workshops: {
-          create: (workshops || []).map((w: any) => ({
-            name: w.name,
-            date_time: new Date(w.date_time),
-            end_date_time: w.end_date_time ? new Date(w.end_date_time) : null,
-            max_people: Number(w.max_people),
-            cost: w.cost ? Number(w.cost) : null,
-            professor: w.professor
-          }))
+    const data = await prisma.$transaction(async (tx: any) => {
+      const created = await tx.congresos.create({
+        data: {
+          name,
+          start_date: new Date(start_date),
+          end_date: new Date(end_date),
+          location,
+          description: description || '',
+          flyer,
+          specialty_ids: specialty_ids || [],
+          terms_doctor: terms_doctor || '',
+          terms_distributor: terms_distributor || '',
+          enable_workshops: enable_workshops !== false,
+          global_budget: global_budget ? Number(global_budget) : null,
+          video_urls: video_urls || [],
+          congress_workshops: {
+            create: (workshops || []).map((w: any) => ({
+              name: w.name,
+              date_time: new Date(w.date_time),
+              end_date_time: w.end_date_time ? new Date(w.end_date_time) : null,
+              max_people: Number(w.max_people),
+              cost: w.cost ? Number(w.cost) : null,
+              professor: w.professor
+            }))
+          },
+          congress_contacts: {
+            create: (contacts || []).map((c: any) => ({
+              name: c.name,
+              number: c.number,
+              email: c.email
+            }))
+          },
+          congreso_gastos_estimados: {
+            create: (gastos_estimados || []).map((ge: any) => ({
+              category_id: ge.category_id,
+              amount: Number(ge.amount)
+            }))
+          },
+          congress_catalogos: {
+            create: (catalog_ids || []).map((cid: string) => ({
+              catalog_id: cid
+            }))
+          },
+          congreso_members: {
+            create: (members || []).map((m: any) => ({
+              user_id: m.userId,
+              car_id: m.carId || null
+            }))
+          }
         },
-        congress_contacts: {
-          create: (contacts || []).map((c: any) => ({
-            name: c.name,
-            number: c.number,
-            email: c.email
-          }))
-        },
-        congreso_gastos_estimados: {
-          create: (gastos_estimados || []).map((ge: any) => ({
-            category_id: ge.category_id,
-            amount: Number(ge.amount)
-          }))
+        include: {
+          congress_workshops: true,
+          congress_contacts: true,
+          congreso_gastos_estimados: true,
+          congress_catalogos: {
+            include: {
+              catalogos: true
+            }
+          },
+          congreso_members: {
+            include: { user_profiles: true, car_fleet: true }
+          }
         }
-      },
-      include: {
-        congress_workshops: true,
-        congress_contacts: true,
-        congreso_gastos_estimados: true
+      })
+
+      const id = created.id
+
+      if (tempStaff && Array.isArray(tempStaff)) {
+        await tx.congreso_temp_staff.createMany({
+          data: tempStaff.map((ts: any) => ({
+            id: ts.id,
+            congress_id: id,
+            name: ts.name,
+            phone: ts.phone || null,
+            car_id: ts.carId || null
+          }))
+        })
       }
+
+      if (itinerary && Array.isArray(itinerary)) {
+        for (const item of itinerary) {
+          await tx.congreso_itinerarios.create({
+            data: {
+              congreso_id: id,
+              date: new Date(item.date),
+              time: item.time || null,
+              activity: item.description,
+              notes: item.notes || null,
+              involved_members: {
+                create: (item.involvedMemberIds || []).map((memberId: string) => {
+                  const isTemp = tempStaff && tempStaff.some((ts: any) => ts.id === memberId)
+                  return {
+                    ...(isTemp ? { temp_member_id: memberId } : { user_id: memberId })
+                  }
+                })
+              }
+            }
+          })
+        }
+      }
+
+      return created
     })
 
     return NextResponse.json({ data }, { status: 201 })

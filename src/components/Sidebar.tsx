@@ -48,31 +48,31 @@ export default function Sidebar() {
         { href: '/clients/new', icon: UserPlus, label: t('newClient'), section: 'clients', action: 'create' },
         { href: '/products', icon: Package, label: t('products'), section: 'products' },
         { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
-        { href: '/doctors', icon: Stethoscope, label: t('doctores'), section: 'clients' },
-        { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'congresos' },
-        { href: '/catalogos/lineas', icon: Palette, label: 'Líneas de Distribución', section: 'congresos' },
+        { href: '/doctors', icon: Stethoscope, label: t('doctores'), section: 'doctors' },
+        { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'catalogos' },
+        { href: '/catalogos/lineas', icon: Palette, label: 'Líneas de Distribución', section: 'catalogos' },
       ],
     },
     {
       title: t('inventory' as any) || 'Inventario',
       items: [
-        { href: '/inventario', icon: Warehouse, label: t('inventory' as any) || 'Inventario', section: 'products' },
-        { href: '/inventario/checklists', icon: ClipboardList, label: t('checklists'), section: 'products' },
-        { href: '/imports/repartition', icon: GitPullRequest, label: t('repartition' as any) || 'Repartición', section: 'clients', action: 'create' },
+        { href: '/inventario', icon: Warehouse, label: t('inventory' as any) || 'Inventario', section: 'inventario' },
+        { href: '/inventario/checklists', icon: ClipboardList, label: t('checklists'), section: 'checklists' },
+        { href: '/imports/repartition', icon: GitPullRequest, label: t('repartition' as any) || 'Repartición', section: 'repartition', action: 'create' },
       ],
     },
     {
       title: t('operations' as any) || 'Operaciones',
       items: [
-        { href: '/calendario', icon: CalendarDays, label: t('calendar'), section: 'congresos' },
+        { href: '/calendario', icon: CalendarDays, label: t('calendar'), section: 'calendario' },
         { href: '/congresos', icon: Calendar, label: t('congresos'), section: 'congresos' },
-        { href: '/talleres', icon: BookOpen, label: t('talleres'), section: 'congresos' },
+        { href: '/talleres', icon: BookOpen, label: t('talleres'), section: 'talleres' },
         { href: '/cirugias', icon: Scissors, label: t('surgeries' as any) || 'Cirugías', section: 'cirugias' },
         { href: '/garantias', icon: Wrench, label: t('warranties' as any) || 'Garantías', section: 'warranties' },
         { href: '/tickets', icon: Ticket, label: t('ticketsSidebar' as any) || 'Tickets', section: 'tickets' },
         { href: '/landing-pages', icon: Globe, label: t('landingPages' as any) || 'Landing Pages', section: 'landing_pages' },
         { href: '/communication', icon: Send, label: t('communication' as any) || 'Comunicaciones', section: 'communication' },
-        { href: '/recordatorios', icon: Bell, label: 'Recordatorios WA', section: 'communication' },
+        { href: '/recordatorios', icon: Bell, label: 'Recordatorios WA', section: 'recordatorios' },
         { href: '/car-fleet', icon: Car, label: t('carFleet') || 'Flota Vehicular', section: 'car_fleet' },
       ],
     },
@@ -80,15 +80,15 @@ export default function Sidebar() {
       title: t('finances' as any) || 'Finanzas',
       items: [
         { href: '/ventas', icon: TrendingUp, label: t('ventas'), section: 'ventas' },
-        { href: '/facturas', icon: FileText, label: t('customerInvoices' as any) || 'Facturas Clientes', section: 'ventas' },
+        { href: '/facturas', icon: FileText, label: t('customerInvoices' as any) || 'Facturas Clientes', section: 'facturas' },
         { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
-        { href: '/previos', icon: ClipboardList, label: t('previos' as any) || 'Previos', section: 'gastos' },
+        { href: '/previos', icon: ClipboardList, label: t('previos' as any) || 'Previos', section: 'previos' },
       ],
     },
     {
       title: t('reports' as any) || 'Reportes',
       items: [
-        { href: '/reportes/ventas', icon: TrendingUp, label: t('ventas'), section: 'ventas' }
+        { href: '/reportes/ventas', icon: TrendingUp, label: t('ventas'), section: 'reportes' }
       ],
     },
     {
