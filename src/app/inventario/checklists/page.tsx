@@ -130,6 +130,36 @@ export default function ChecklistsPage() {
   const [toastMessage, setToastMessage] = useState({ title: '', desc: '' })
   const [savedHistoryId, setSavedHistoryId] = useState<string | null>(null)
 
+  // Download report state
+  const [downloadingIds, setDownloadingIds] = useState<Record<string, boolean>>({})
+
+  const handleDownloadPdf = async (id: string, isBulk: boolean = false) => {
+    const loadingKey = isBulk ? 'bulk' : id
+    setDownloadingIds(prev => ({ ...prev, [loadingKey]: true }))
+    try {
+      const endpoint = isBulk 
+        ? `/api/checklists/history/bulk-pdf?ids=${id}`
+        : `/api/checklists/history/${id}/pdf`
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error(isBulk ? 'Error al generar PDF masivo' : 'Error al generar PDF')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = isBulk 
+        ? `Reporte_Checklists_Masivo.pdf` 
+        : `Reporte_Checklist_${id.replace('hlog_', '')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      alert((isBulk ? 'Error al descargar el PDF masivo: ' : 'Error al descargar el PDF: ') + err.message)
+    } finally {
+      setDownloadingIds(prev => ({ ...prev, [loadingKey]: false }))
+    }
+  }
+
   // ─── API Fetchers ──────────────────────────────────────────────────────────
 
   const fetchChecklists = useCallback(async () => {
@@ -1286,27 +1316,18 @@ export default function ChecklistsPage() {
                         {t('recreateChecklist')}
                       </button>
                       <button
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation()
-                          try {
-                            const res = await fetch(`/api/checklists/history/${selectedHistoryEntry.id}/pdf`)
-                            if (!res.ok) throw new Error('Error al generar PDF')
-                            const blob = await res.blob()
-                            const url = URL.createObjectURL(blob)
-                            const a = document.createElement('a')
-                            a.href = url
-                            a.download = `Reporte_Checklist_${selectedHistoryEntry.id.replace('hlog_', '')}.pdf`
-                            document.body.appendChild(a)
-                            a.click()
-                            document.body.removeChild(a)
-                            URL.revokeObjectURL(url)
-                          } catch (err: any) {
-                            alert('Error al descargar el PDF: ' + err.message)
-                          }
+                          handleDownloadPdf(selectedHistoryEntry.id)
                         }}
-                        className="bg-red-50 hover:bg-red-100 text-red-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-red-200 transition-all cursor-pointer shadow-sm"
+                        disabled={!!downloadingIds[selectedHistoryEntry.id]}
+                        className="bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-red-200 transition-all cursor-pointer shadow-sm"
                       >
-                        <FileSpreadsheet size={14} />
+                        {downloadingIds[selectedHistoryEntry.id] ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <FileSpreadsheet size={14} />
+                        )}
                         {t('downloadReport')}
                       </button>
                     </div>
@@ -1390,26 +1411,13 @@ export default function ChecklistsPage() {
                       <span className="text-blue-900 pl-2">{selectedHistoryIds.length} seleccionados</span>
                       <div className="flex gap-1.5">
                         <button
-                          onClick={async () => {
-                            try {
-                              const idsStr = selectedHistoryIds.join(',')
-                              const res = await fetch(`/api/checklists/history/bulk-pdf?ids=${idsStr}`)
-                              if (!res.ok) throw new Error('Error al generar PDF masivo')
-                              const blob = await res.blob()
-                              const url = URL.createObjectURL(blob)
-                              const a = document.createElement('a')
-                              a.href = url
-                              a.download = `Reporte_Checklists_Masivo.pdf`
-                              document.body.appendChild(a)
-                              a.click()
-                              document.body.removeChild(a)
-                              URL.revokeObjectURL(url)
-                            } catch (err: any) {
-                              alert('Error al descargar el PDF masivo: ' + err.message)
-                            }
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1 rounded-lg text-[11px] shadow transition-all"
+                          onClick={() => handleDownloadPdf(selectedHistoryIds.join(','), true)}
+                          disabled={!!downloadingIds['bulk']}
+                          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-3 py-1 rounded-lg text-[11px] shadow transition-all flex items-center gap-1"
                         >
+                          {downloadingIds['bulk'] ? (
+                            <Loader2 size={11} className="animate-spin" />
+                          ) : null}
                           Descargar Lote
                         </button>
                         <button
@@ -1507,28 +1515,19 @@ export default function ChecklistsPage() {
                               <RotateCcw size={16} />
                             </button>
                             <button
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation()
-                                try {
-                                  const res = await fetch(`/api/checklists/history/${entry.id}/pdf`)
-                                  if (!res.ok) throw new Error('Error al generar PDF')
-                                  const blob = await res.blob()
-                                  const url = URL.createObjectURL(blob)
-                                  const a = document.createElement('a')
-                                  a.href = url
-                                  a.download = `Reporte_Checklist_${entry.id.replace('hlog_', '')}.pdf`
-                                  document.body.appendChild(a)
-                                  a.click()
-                                  document.body.removeChild(a)
-                                  URL.revokeObjectURL(url)
-                                } catch (err: any) {
-                                  alert('Error al descargar el PDF: ' + err.message)
-                                }
+                                handleDownloadPdf(entry.id)
                               }}
-                              className="w-8 h-8 rounded-lg hover:bg-slate-100 text-gray-500 hover:text-red-600 flex items-center justify-center transition-all cursor-pointer mr-1"
+                              disabled={!!downloadingIds[entry.id]}
+                              className="w-8 h-8 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-500 hover:text-red-600 flex items-center justify-center transition-all cursor-pointer mr-1"
                               title={t('downloadReport')}
                             >
-                              <FileSpreadsheet size={16} />
+                              {downloadingIds[entry.id] ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <FileSpreadsheet size={16} />
+                              )}
                             </button>
                             <div>
                               <p className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100/50">
@@ -1575,26 +1574,17 @@ export default function ChecklistsPage() {
               <div className="flex flex-col gap-2 pt-2">
                 <button
                   onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/checklists/history/${savedHistoryId}/pdf`)
-                      if (!res.ok) throw new Error('Error al generar PDF')
-                      const blob = await res.blob()
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `Reporte_Checklist_${savedHistoryId.replace('hlog_', '')}.pdf`
-                      document.body.appendChild(a)
-                      a.click()
-                      document.body.removeChild(a)
-                      URL.revokeObjectURL(url)
-                      setSavedHistoryId(null)
-                    } catch (err: any) {
-                      alert('Error al descargar el PDF: ' + err.message)
-                    }
+                    await handleDownloadPdf(savedHistoryId)
+                    setSavedHistoryId(null)
                   }}
-                  className="w-full py-3 bg-[#0763a9] hover:bg-[#064e86] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow transition-all cursor-pointer text-sm"
+                  disabled={!!downloadingIds[savedHistoryId]}
+                  className="w-full py-3 bg-[#0763a9] hover:bg-[#064e86] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow transition-all cursor-pointer text-sm"
                 >
-                  <FileSpreadsheet size={18} />
+                  {downloadingIds[savedHistoryId] ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <FileSpreadsheet size={18} />
+                  )}
                   Descargar Reporte PDF
                 </button>
                 <button
