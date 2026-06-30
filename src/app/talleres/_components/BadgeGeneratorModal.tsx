@@ -209,8 +209,8 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
           left: 50%;
           top: 50%;
           transform: translate(-50%, -50%);
-          width: 320px !important;
-          height: 480px !important;
+          width: 10cm !important;
+          height: 15cm !important;
           margin: 0 !important;
           padding: 0 !important;
           box-shadow: none !important;
@@ -220,7 +220,7 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
           visibility: visible !important;
         }
         @page {
-          size: 320px 480px;
+          size: 10cm 15cm;
           margin: 0;
         }
       }
@@ -286,10 +286,10 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
   }
 
   // Badge Visual Component Layout (Shared between preview and export)
-  const BadgeLayout = ({ idAttr }: { idAttr?: string }) => (
+  const BadgeLayout = ({ idAttr, className = "w-[320px] h-[480px]" }: { idAttr?: string; className?: string }) => (
     <div
       id={idAttr}
-      className="w-[320px] h-[480px] bg-white border-2 border-gray-150 rounded-2xl flex flex-col justify-between select-none relative overflow-hidden font-sans shadow-md"
+      className={`${className} bg-white border-2 border-gray-150 rounded-2xl flex flex-col justify-between select-none relative overflow-hidden font-sans shadow-md`}
       style={{ boxSizing: 'border-box' }}
     >
       {/* Header Accent Bar */}
@@ -456,7 +456,7 @@ export default function BadgeGeneratorModal({ isOpen, onClose, client, taller, o
       {/* Screen/Printer layout for printing (using Portal to place directly under body) */}
       {typeof document !== 'undefined' && createPortal(
         <div id="print-badge-root" style={{ display: 'none' }}>
-          <BadgeLayout />
+          <BadgeLayout className="w-full h-full" />
         </div>,
         document.body
       )}
