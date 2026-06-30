@@ -309,7 +309,7 @@ export default function FacturasPage() {
           const day = String(date.getUTCDate()).padStart(2, '0')
           const month = String(date.getUTCMonth() + 1).padStart(2, '0')
           const year = date.getUTCFullYear()
-          return `${day}/${month}/${year}`
+          return `${month}/${day}/${year}`
         }
 
         const rows: string[] = []
@@ -464,11 +464,11 @@ export default function FacturasPage() {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-'
     const date = new Date(dateStr)
-    return date.toLocaleDateString(locale === 'es' ? 'es-MX' : 'en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+    if (isNaN(date.getTime())) return '-'
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const year = date.getUTCFullYear()
+    return `${month}/${day}/${year}`
   }
 
   const addBusinessDays = (startDateStr: string | Date, days: number): Date => {
