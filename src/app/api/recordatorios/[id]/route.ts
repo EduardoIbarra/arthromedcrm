@@ -28,6 +28,9 @@ export async function PATCH(
     } else if (body.target_id !== undefined) {
       updateData.target_id = body.target_id || null;
     }
+    if (body.dates !== undefined) {
+      updateData.dates = Array.isArray(body.dates) ? body.dates : [];
+    }
     if (body.time !== undefined) updateData.time = body.time;
     if (body.notify_all_participants !== undefined) updateData.notify_all_participants = Boolean(body.notify_all_participants);
     if (body.extra_contacts !== undefined) updateData.extra_contacts = Array.isArray(body.extra_contacts) ? body.extra_contacts : [];

@@ -51,13 +51,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Send the message using respond.io helper
+    const recipientName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Colaborador';
+    const testContent = `🧪 *[PRUEBA] Recordatorio: ${reminder.title}* (Evento: ${eventName})\n---\n${formattedText}`;
+
     const success = await sendRespondMessage(testPhone, {
-      type: 'text',
-      text: `🧪 *[PRUEBA] Recordatorio: ${reminder.title}* (Evento: ${eventName})\n---\n${formattedText}`
+      type: 'template',
+      template: {
+        name: 'recordatorio_general_staff',
+        language: {
+          code: 'es'
+        },
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              {
+                type: 'text',
+                text: recipientName
+              },
+              {
+                type: 'text',
+                text: testContent
+              }
+            ]
+          }
+        ]
+      }
     });
 
     if (!success) {
-      return NextResponse.json({ error: 'Failed to send WhatsApp message via respond.io' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to send WhatsApp template message via respond.io' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'Test message sent successfully' });

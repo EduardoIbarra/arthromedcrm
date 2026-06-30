@@ -23,6 +23,7 @@ interface Reminder {
   time: string
   notify_all_participants: boolean
   extra_contacts: string[]
+  dates?: string[]
   active: boolean
   created_at: string
   _count?: { whatsapp_reminder_logs: number }
@@ -66,6 +67,8 @@ export default function RecordatoriosPage() {
   const [formNotifyAll, setFormNotifyAll] = useState(true)
   const [formExtraContacts, setFormExtraContacts] = useState<string[]>([])
   const [formActive, setFormActive] = useState(true)
+  const [formDates, setFormDates] = useState<string[]>([])
+  const [dateInput, setDateInput] = useState('')
 
   // Quick Test Panel State
   const [testReminderId, setTestReminderId] = useState('')
@@ -189,6 +192,8 @@ export default function RecordatoriosPage() {
     setFormNotifyAll(true)
     setFormExtraContacts([])
     setFormActive(true)
+    setFormDates([])
+    setDateInput('')
     setIsModalOpen(true)
   };
 
@@ -202,6 +207,8 @@ export default function RecordatoriosPage() {
     setFormNotifyAll(reminder.notify_all_participants)
     setFormExtraContacts(reminder.extra_contacts || [])
     setFormActive(reminder.active)
+    setFormDates(reminder.dates || [])
+    setDateInput('')
     setIsModalOpen(true)
   };
 
@@ -223,7 +230,8 @@ export default function RecordatoriosPage() {
         time: formTime,
         notify_all_participants: isEventRequired ? formNotifyAll : false,
         extra_contacts: formExtraContacts,
-        active: formActive
+        active: formActive,
+        dates: formTargetType === 'general' ? formDates : []
       }
 
       let res
@@ -507,10 +515,29 @@ export default function RecordatoriosPage() {
                       <h3 className="font-semibold text-base mb-1" style={{ color: '#37383a' }}>{reminder.title}</h3>
                       
                       {/* Target Event Info */}
-                      <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-3 bg-blue-50/40 p-2 rounded-lg">
-                        <Calendar size={13} className="text-blue-500 shrink-0" />
-                        <span className="truncate">{getEventName(reminder.target_type, reminder.target_id)}</span>
-                      </p>
+                      <div className="text-xs text-gray-500 flex flex-col gap-1 mb-3 bg-blue-50/40 p-2.5 rounded-xl border border-blue-50/30">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={13} className="text-blue-500 shrink-0" />
+                          <span className="font-semibold truncate">
+                            {reminder.target_type === 'general' ? 'General (Sin vincular a evento)' : getEventName(reminder.target_type, reminder.target_id)}
+                          </span>
+                        </div>
+                        {reminder.target_type === 'general' && (
+                          <div className="text-[10px] text-gray-600 mt-1 pl-4.5 border-l border-blue-200">
+                            {reminder.dates && reminder.dates.length > 0 ? (
+                              <span className="block break-words">
+                                <span className="font-medium text-gray-400 uppercase tracking-wider text-[9px] block mb-0.5">Días Programados:</span>
+                                {reminder.dates.map(d => {
+                                  const [y, m, dayVal] = d.split('-');
+                                  return `${dayVal}/${m}`;
+                                }).join(', ')}
+                              </span>
+                            ) : (
+                              <span className="block italic text-gray-400">Todos los días</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Time and Options Row */}
                       <div className="flex items-center gap-4 text-xs text-gray-500 mb-4 font-medium">
@@ -751,6 +778,74 @@ export default function RecordatoriosPage() {
             )}
           </div>
 
+          {/* Manual Dates Selection for General type */}
+          {formTargetType === 'general' && (
+            <div className="p-4 bg-gray-50/60 border border-gray-100 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Seleccionar Fechas de Envío (Opcional)
+                </label>
+                {formDates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFormDates([])}
+                    className="text-[10px] text-red-500 hover:underline focus:outline-none"
+                  >
+                    Limpiar todas
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 -mt-1">
+                Si no seleccionas ninguna fecha, se enviará todos los días a la hora configurada.
+              </p>
+              
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={dateInput}
+                  onChange={e => setDateInput(e.target.value)}
+                  className="flex-1 rounded-xl border border-gray-200 p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (dateInput && !formDates.includes(dateInput)) {
+                      setFormDates([...formDates, dateInput].sort())
+                      setDateInput('')
+                    }
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-white rounded-xl transition shadow-sm hover:opacity-90 active:scale-95"
+                  style={{ backgroundColor: '#0763a9' }}
+                >
+                  Añadir
+                </button>
+              </div>
+
+              {formDates.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {formDates.map(date => {
+                    const [y, m, dayVal] = date.split('-')
+                    return (
+                      <span
+                        key={date}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg border border-blue-100 transition hover:bg-blue-100/50"
+                      >
+                        {`${dayVal}/${m}/${y}`}
+                        <button
+                          type="button"
+                          onClick={() => setFormDates(formDates.filter(d => d !== date))}
+                          className="hover:text-red-600 focus:outline-none font-bold text-sm leading-none"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Time Selector */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Hora de Envío (Hora Centro de México) *</label>
@@ -862,6 +957,10 @@ export default function RecordatoriosPage() {
               placeholder="Escribe el mensaje aquí. Puedes arrastrar o dar clic en los botones de arriba para usar variables. Ej: Hola, recuerda que hoy tenemos el taller {nombre_evento} con el profesor {profesor}."
               className="w-full rounded-xl border border-gray-200 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-sans"
             />
+            <p className="text-[10px] text-gray-500 mt-1.5 pl-1 flex items-center gap-1">
+              <span>💡</span>
+              <span>El mensaje se enviará integrado en la plantilla oficial de respond.io (<strong className="font-semibold text-blue-600">recordatorio_general_staff</strong>).</span>
+            </p>
           </div>
 
           {/* Participant Notifications settings */}

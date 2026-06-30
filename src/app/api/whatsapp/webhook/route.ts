@@ -102,7 +102,11 @@ export async function POST(request: NextRequest) {
             let isActiveToday = false;
             try {
               if (!r.target_id || r.target_type === 'general' || r.target_type === 'none') {
-                isActiveToday = true;
+                if (r.dates && r.dates.length > 0) {
+                  isActiveToday = r.dates.includes(todayStr);
+                } else {
+                  isActiveToday = true;
+                }
               } else if (r.target_type === 'surgery') {
                 const s = await prisma.cirugias.findUnique({ where: { id: r.target_id } });
                 if (s) {

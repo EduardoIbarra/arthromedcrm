@@ -60,7 +60,11 @@ async function handleSend(request: NextRequest) {
 
       try {
         if (!r.target_id || r.target_type === 'general' || r.target_type === 'none') {
-          shouldRunToday = true;
+          if (r.dates && r.dates.length > 0) {
+            shouldRunToday = r.dates.includes(todayStr);
+          } else {
+            shouldRunToday = true;
+          }
           event = null;
         } else if (r.target_type === 'surgery') {
           const s = await prisma.cirugias.findUnique({ where: { id: r.target_id } });
@@ -206,16 +210,38 @@ async function handleSend(request: NextRequest) {
         }
 
         const textToSend = formatMessage(r.message, event, r.target_type);
+        const recipientName = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || 'Colaborador';
+        
         const success = await sendRespondMessage(phone, {
-          type: 'text',
-          text: textToSend
+          type: 'template',
+          template: {
+            name: 'recordatorio_general_staff',
+            language: {
+              code: 'es'
+            },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  {
+                    type: 'text',
+                    text: recipientName
+                  },
+                  {
+                    type: 'text',
+                    text: textToSend
+                  }
+                ]
+              }
+            ]
+          }
         });
 
         await prisma.whatsapp_reminder_logs.create({
           data: {
             reminder_id: r.id,
             recipient_phone: phone,
-            recipient_name: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || recipient.email,
+            recipient_name: recipientName || recipient.email,
             status: success ? 'success' : 'failed',
             error_message: success ? null : 'Failed to send via respond.io API'
           }

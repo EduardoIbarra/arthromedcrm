@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
       time = '17:00',
       notify_all_participants = true,
       extra_contacts = [],
-      active = true
+      active = true,
+      dates = []
     } = body;
 
     if (!title || !message || !target_type) {
@@ -76,7 +77,8 @@ export async function POST(request: NextRequest) {
         time,
         notify_all_participants: Boolean(notify_all_participants),
         extra_contacts: Array.isArray(extra_contacts) ? extra_contacts : [],
-        active: Boolean(active)
+        active: Boolean(active),
+        dates: target_type === 'general' && Array.isArray(dates) ? dates : []
       }
     });
 

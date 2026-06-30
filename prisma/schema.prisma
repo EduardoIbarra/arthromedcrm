@@ -2245,6 +2245,7 @@ model whatsapp_reminders {
   time                    String                   @default("17:00") // Format HH:MM
   notify_all_participants Boolean                  @default(true)
   extra_contacts          String[]                 @default([]) // Array of user_profiles.id
+  dates                   String[]                 @default([]) // Specific dates YYYY-MM-DD for general reminders
   created_at              DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at              DateTime                 @default(now()) @db.Timestamptz(6)
   active                  Boolean                  @default(true)
