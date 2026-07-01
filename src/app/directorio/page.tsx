@@ -71,6 +71,12 @@ export default function DirectorioPage() {
   const [categoryError, setCategoryError] = useState('')
   const [contactError, setContactError] = useState('')
 
+  // Edit Category State
+  const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<DirectorioCategoria | null>(null)
+  const [editCategoryName, setEditCategoryName] = useState('')
+  const [editCategoryError, setEditCategoryError] = useState('')
+
   // Fetch initial data
   const fetchData = async () => {
     try {
@@ -252,6 +258,52 @@ export default function DirectorioPage() {
     }
   }
 
+  const openEditCategory = (cat: DirectorioCategoria) => {
+    setSelectedCategory(cat)
+    setEditCategoryName(cat.name)
+    setEditCategoryError('')
+    setIsEditCategoryModalOpen(true)
+  }
+
+  const handleUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedCategory) return
+    if (!editCategoryName.trim()) {
+      setEditCategoryError('El nombre es requerido')
+      return
+    }
+
+    setIsSaving(true)
+    setEditCategoryError('')
+    try {
+      const res = await fetch(`/api/directorio/categorias/${selectedCategory.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editCategoryName.trim() })
+      })
+
+      if (res.ok) {
+        const updatedName = editCategoryName.trim()
+        setCategories(prev => 
+          prev.map(c => c.id === selectedCategory.id ? { ...c, name: updatedName } : c)
+              .sort((a, b) => a.name.localeCompare(b.name))
+        )
+        setContacts(prev => 
+          prev.map(c => c.category_id === selectedCategory.id ? { ...c, category: { ...c.category!, name: updatedName } } : c)
+        )
+        setIsEditCategoryModalOpen(false)
+      } else {
+        const errData = await res.json()
+        setEditCategoryError(errData.error || 'Error al actualizar la categoría')
+      }
+    } catch (error) {
+      console.error(error)
+      setEditCategoryError('Error al conectar con el servidor')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -326,24 +378,36 @@ export default function DirectorioPage() {
                   const isActive = selectedCategoryId === cat.id
                   const count = categoryCounts[cat.id] || 0
                   return (
-                    <button
+                    <div
                       key={cat.id}
                       onClick={() => setSelectedCategoryId(cat.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-between ${
+                      className={`w-full text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-between cursor-pointer group/cat ${
                         isActive
                           ? 'bg-blue-50 text-[#0763a9]'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                     >
-                      <span className="truncate pr-2">{cat.name}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="truncate" title={cat.name}>{cat.name}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEditCategory(cat)
+                          }}
+                          className="p-0.5 text-gray-400 hover:text-[#0763a9] hover:bg-gray-200/50 rounded opacity-0 group-hover/cat:opacity-100 transition-opacity shrink-0"
+                          title="Editar nombre"
+                        >
+                          <Edit size={12} />
+                        </button>
+                      </div>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-semibold shrink-0 ${
                         isActive
                           ? 'bg-blue-100 text-[#0763a9]'
                           : 'bg-gray-100 text-gray-500'
                       }`}>
                         {count}
                       </span>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -625,6 +689,50 @@ export default function DirectorioPage() {
             <button
               type="button"
               onClick={() => setIsCategoryModalOpen(false)}
+              className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg shadow-sm flex items-center gap-1.5"
+            >
+              {isSaving && <Loader2 size={14} className="animate-spin" />}
+              Guardar
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Category Modification Modal */}
+      <Modal
+        open={isEditCategoryModalOpen}
+        onClose={() => setIsEditCategoryModalOpen(false)}
+        title="Editar Categoría"
+      >
+        <form onSubmit={handleUpdateCategory} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">
+              Nombre de la categoría *
+            </label>
+            <input
+              type="text"
+              placeholder="Ej. Proveedores, Logística, etc."
+              value={editCategoryName}
+              onChange={(e) => setEditCategoryName(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/20 focus:border-[#0763a9] transition-all"
+              required
+            />
+            {editCategoryError && (
+              <p className="text-xs text-red-500 mt-1 font-semibold">{editCategoryError}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsEditCategoryModalOpen(false)}
               className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-semibold rounded-lg transition-colors"
             >
               Cancelar
