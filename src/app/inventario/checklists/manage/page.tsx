@@ -255,13 +255,13 @@ export default function ChecklistManagePage() {
 
   // ─── Item Operations ───────────────────────────────────────────────────────
 
-  const openAddItemModal = () => {
+  const openAddItemModal = (preselectedGroupId?: string) => {
     setEditingItemId(null)
     setItemMaterial('')
     setItemModelo('')
     setItemCantidad('1')
     setItemObservaciones('')
-    setItemGroupId('')
+    setItemGroupId(preselectedGroupId || '')
     setShowItemModal(true)
   }
 
@@ -626,6 +626,15 @@ export default function ChecklistManagePage() {
                             </span>
                             <div className="flex items-center gap-2">
                               <button
+                                onClick={() => openAddItemModal(group.id)}
+                                className="flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-md transition-colors shadow-sm"
+                                title={`Agregar artículo al grupo ${group.nombre}`}
+                              >
+                                <Plus size={10} />
+                                Agregar artículo
+                              </button>
+                              <span className="text-gray-300">|</span>
+                              <button
                                 onClick={() => {
                                   const name = prompt(t('renameGroupPrompt' as any) || 'Nuevo nombre para el grupo:', group.nombre)
                                   if (name) handleRenameGroup(group.id, name)
@@ -644,8 +653,15 @@ export default function ChecklistManagePage() {
                             </div>
                           </div>
                           {items.length === 0 ? (
-                            <div className="p-4 text-center text-gray-400 text-xs italic">
-                              {t('emptyGroup' as any) || 'Este grupo no contiene artículos'}
+                            <div className="p-4 text-center space-y-2">
+                              <p className="text-gray-400 text-xs italic">{t('emptyGroup' as any) || 'Este grupo no contiene artículos'}</p>
+                              <button
+                                onClick={() => openAddItemModal(group.id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors"
+                              >
+                                <Plus size={12} />
+                                Agregar primer artículo
+                              </button>
                             </div>
                           ) : (
                             <div className="divide-y divide-gray-100">
