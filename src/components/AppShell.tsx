@@ -68,8 +68,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
     if (profile?.email && adminEmails.includes(profile.email)) {
       // Bypass all permission checks for admin emails
     } else {
-      const matchedRoute = Object.entries(ROUTE_PERMISSIONS).find(([route]) => 
-        pathname === route || (route !== '/' && pathname.startsWith(route))
+      const sortedRoutes = Object.entries(ROUTE_PERMISSIONS).sort((a, b) => b[0].length - a[0].length)
+      const matchedRoute = sortedRoutes.find(([route]) => 
+        pathname === route || (route !== '/' && (pathname + '/').startsWith(route + '/'))
       )
 
       if (matchedRoute) {
