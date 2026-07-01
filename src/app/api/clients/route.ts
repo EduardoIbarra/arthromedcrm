@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
   const assigned_to = searchParams.get('assigned_to') || ''
   if (source) {
     query = query.eq('source', source)
+  } else {
+    query = query.or('source.is.null,source.neq."Formulario Público"')
   }
   if (assigned_to) {
     query = query.eq('assigned_to', assigned_to)

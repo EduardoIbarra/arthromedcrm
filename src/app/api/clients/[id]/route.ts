@@ -59,6 +59,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   delete body.garantias
   delete body.orders
   delete body.product_prices
+  delete body.cartas_distribucion
+  delete body.kanban_client_columns
+  delete body.kanban_history
+  delete body.kanban_comments
 
   // Auto-assign distributor ID when status changes to Activo
   if (body.status === 'Activo') {

@@ -12,6 +12,7 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/': { section: 'dashboard', action: 'view' },
   '/chat': { section: 'dashboard', action: 'view' },
   '/clients': { section: 'clients', action: 'view' },
+  '/clients/kanban': { section: 'clients', action: 'view' },
   '/clients/new': { section: 'clients', action: 'create' },
   '/doctors': { section: 'doctors', action: 'view' },
   '/import': { section: 'clients', action: 'create' },

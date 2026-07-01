@@ -751,9 +751,69 @@ model clients {
   orders                        orders[]
   product_prices                product_prices[]
   cartas_distribucion           cartas_distribucion[]
+  kanban_client_columns         kanban_client_columns?
+  kanban_history                kanban_history[]
+  kanban_comments               kanban_comments[]
 
   @@index([status])
   @@index([distributor_id], map: "idx_clients_distributor_id")
+  @@schema("public")
+}
+
+model kanban_columns {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  position              Int                     @default(0)
+  color                 String                  @default("#0763a9")
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  kanban_client_columns kanban_client_columns[]
+
+  @@schema("public")
+}
+
+model kanban_client_columns {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  client_id  String          @unique @db.Uuid
+  column_id  String          @db.Uuid
+  position   Int             @default(0)
+  created_at DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at DateTime        @default(now()) @db.Timestamptz(6)
+  clients    clients         @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  column     kanban_columns  @relation(fields: [column_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([client_id], map: "idx_kanban_client_columns_client_id")
+  @@index([column_id], map: "idx_kanban_client_columns_column_id")
+  @@schema("public")
+}
+
+model kanban_history {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  client_id        String   @db.Uuid
+  from_column_id   String?  @db.Uuid
+  to_column_id     String   @db.Uuid
+  from_column_name String?
+  to_column_name   String
+  moved_by         String?  @db.Uuid
+  moved_by_name    String?
+  note             String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  clients          clients  @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([client_id], map: "idx_kanban_history_client_id")
+  @@schema("public")
+}
+
+model kanban_comments {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  client_id   String   @db.Uuid
+  author_id   String?  @db.Uuid
+  author_name String?
+  content     String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  clients     clients  @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([client_id], map: "idx_kanban_comments_client_id")
   @@schema("public")
 }
 

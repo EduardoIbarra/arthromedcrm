@@ -172,6 +172,25 @@ function ClientsContent() {
     } finally { setLoading(false) }
   }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter, page])
 
+  const handleAssigneeChange = async (clientId: string, newId: string) => {
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assigned_to: newId || null }),
+      })
+      if (res.ok) {
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, assigned_to: newId || null } : c))
+      } else {
+        const err = await res.json()
+        alert(`Error al asignar: ${err.error || 'error desconocido'}`)
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Error de red al asignar')
+    }
+  }
+
   useEffect(() => { fetchClients() }, [fetchClients])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter])
 
@@ -358,15 +377,20 @@ function ClientsContent() {
                         <td className="px-4 py-3 text-sm font-mono" style={{ color: '#5a5b5d' }}>{client.rfc || '—'}</td>
                         <td className="px-4 py-3 text-sm" style={{ color: '#5a5b5d' }}>{client.phone || '—'}</td>
                         <td className="px-4 py-3 text-sm max-w-[150px] truncate" style={{ color: '#5a5b5d' }}>{client.states?.slice(0, 2).join(', ') || '—'}</td>
-                        <td className="px-4 py-3">
-                          {client.assigned_to ? (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }}>
-                              <UserCheck size={10} />
-                              {staffUsers.find(u => u.id === client.assigned_to)?.first_name || '...'}
-                            </span>
-                          ) : (
-                            <span style={{ color: '#c4c5c7' }}>—</span>
-                          )}
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                          <select
+                            value={client.assigned_to || ''}
+                            onChange={e => handleAssigneeChange(client.id, e.target.value)}
+                            className="bg-transparent text-xs rounded-lg border border-[#d4e0ec] px-2 py-1 text-[#37383a] focus:outline-none focus:border-[#0763a9] cursor-pointer hover:bg-gray-50"
+                            style={{ maxWidth: '140px' }}
+                          >
+                            <option value="">Sin asignar</option>
+                            {staffUsers.map((u: any) => (
+                              <option key={u.id} value={u.id}>
+                                {u.first_name || u.last_name ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : u.email}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-4 py-3">{renderLetterIndicator(client)}</td>
                         <td className="px-4 py-3"><StatusBadge status={client.status} size="sm" /></td>
