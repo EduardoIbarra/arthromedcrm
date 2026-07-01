@@ -129,6 +129,11 @@ export default function ChecklistsPage() {
   const [createSearchQuery, setCreateSearchQuery] = useState('')
   const [staffList, setStaffList] = useState<StaffMember[]>([])
   const [selectedCoResponsableId, setSelectedCoResponsableId] = useState<string>('')
+  // Session groups: created on-the-fly during checklist generation (not saved to template)
+  const [sessionGroups, setSessionGroups] = useState<ChecklistGroup[]>([])
+  // Per-item group overrides: itemId → groupId (overrides the template's groupId for this session)
+  const [itemGroupOverrides, setItemGroupOverrides] = useState<Record<string, string>>({})
+  const [newSessionGroupName, setNewSessionGroupName] = useState('')
 
   // ─── Pending Tab State ─────────────────────────────────────────────────────
   const [activePendingList, setActivePendingList] = useState<PendingChecklist | null>(null)
@@ -316,6 +321,10 @@ export default function ChecklistsPage() {
       setCustomExpectedQtys(initialQtys)
       setCreatedCustomItems([])
       setSelectedCoResponsableId(activeChecklist.coResponsableId || '')
+      // Reset session groups and overrides when switching checklists
+      setSessionGroups([])
+      setItemGroupOverrides({})
+      setNewSessionGroupName('')
 
       const dateStr = new Date().toLocaleDateString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short' })
       setNewChecklistTitle(`Checklist ${getChecklistLabel(activeChecklist.id)} - ${dateStr}`)
@@ -333,18 +342,27 @@ export default function ChecklistsPage() {
     )
   }, [activeItems, createSearchQuery])
 
+  // All groups for the current session = template groups + session-created groups
+  const allCreateGroups = useMemo(() => {
+    const templateGroups = activeChecklist?.groups || []
+    return [...templateGroups, ...sessionGroups]
+  }, [activeChecklist, sessionGroups])
+
   const groupedCreateItems = useMemo(() => {
     if (!activeChecklist) return { ungrouped: [], grouped: [] }
-    const ungrouped = filteredCreateItems.filter(item => !item.groupId || !(activeChecklist.groups || []).some(g => g.id === item.groupId))
-    const groupedMap = (activeChecklist.groups || []).map(group => ({
+    // Effective groupId for an item: override takes precedence over template groupId
+    const effectiveGroupId = (item: ChecklistItem): string | undefined =>
+      itemGroupOverrides[item.id] !== undefined ? (itemGroupOverrides[item.id] || undefined) : item.groupId
+    const ungrouped = filteredCreateItems.filter(item => {
+      const gid = effectiveGroupId(item)
+      return !gid || !allCreateGroups.some(g => g.id === gid)
+    })
+    const groupedMap = allCreateGroups.map(group => ({
       group,
-      items: filteredCreateItems.filter(item => item.groupId === group.id)
+      items: filteredCreateItems.filter(item => effectiveGroupId(item) === group.id)
     }))
-    return {
-      ungrouped,
-      grouped: groupedMap
-    }
-  }, [filteredCreateItems, activeChecklist])
+    return { ungrouped, grouped: groupedMap }
+  }, [filteredCreateItems, activeChecklist, allCreateGroups, itemGroupOverrides])
 
   // Progress Calculations for verification run
   const verificationProgress = useMemo(() => {
@@ -475,7 +493,8 @@ export default function ChecklistsPage() {
           cantidad: customExpectedQtys[item.id] !== undefined ? customExpectedQtys[item.id] : (item.cantidad || 1),
           observaciones: item.observaciones,
           addedOnTheFly: item.addedOnTheFly,
-          groupId: item.groupId
+          // Apply session group overrides
+          groupId: itemGroupOverrides[item.id] !== undefined ? (itemGroupOverrides[item.id] || undefined) : item.groupId
         }))
 
       const coMember = staffList.find(s => s.id === selectedCoResponsableId)
@@ -488,7 +507,8 @@ export default function ChecklistsPage() {
         user: profile?.email || 'Usuario ERP',
         items: itemsToInspect,
         notes: newChecklistNotes.trim() || undefined,
-        groups: activeChecklist?.groups || [],
+        // Merge template groups with session-created groups
+        groups: allCreateGroups,
         coResponsableId: selectedCoResponsableId || undefined,
         coResponsableNombre: coMember ? `${coMember.first_name} ${coMember.last_name}` : undefined
       }
@@ -517,6 +537,8 @@ export default function ChecklistsPage() {
       setCreatedCustomItems([])
       setNewChecklistTitle('')
       setNewChecklistNotes('')
+      setSessionGroups([])
+      setItemGroupOverrides({})
       
       await fetchPendingLists()
       setActiveTab('pending')
@@ -989,6 +1011,75 @@ export default function ChecklistsPage() {
                         className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
                       />
                     </div>
+
+                    {/* ── Group Management Strip ── */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                          Grupos ({allCreateGroups.length})
+                        </span>
+                        {allCreateGroups.length > 0 && (
+                          <span className="text-[10px] text-blue-600">Asigna artículos a grupos usando el selector en cada fila →</span>
+                        )}
+                      </div>
+
+                      {allCreateGroups.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {allCreateGroups.map(g => (
+                            <span key={g.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white text-blue-800 text-[11px] font-bold rounded-full border border-blue-200 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>
+                              {g.nombre}
+                              {sessionGroups.some(sg => sg.id === g.id) && (
+                                <button
+                                  onClick={() => {
+                                    setSessionGroups(prev => prev.filter(sg => sg.id !== g.id))
+                                    setItemGroupOverrides(prev => {
+                                      const updated = { ...prev }
+                                      Object.keys(updated).forEach(k => { if (updated[k] === g.id) updated[k] = '' })
+                                      return updated
+                                    })
+                                  }}
+                                  className="ml-0.5 text-blue-400 hover:text-red-500 transition-colors"
+                                  title="Eliminar grupo"
+                                >
+                                  <X size={10} />
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newSessionGroupName}
+                          onChange={e => setNewSessionGroupName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (!newSessionGroupName.trim()) return
+                              setSessionGroups(prev => [...prev, { id: `sg_${Date.now()}`, nombre: newSessionGroupName.trim() }])
+                              setNewSessionGroupName('')
+                            }
+                          }}
+                          placeholder="Nombre del grupo (ej. Región Norte)..."
+                          className="flex-1 px-3 py-1.5 text-sm border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!newSessionGroupName.trim()) return
+                            setSessionGroups(prev => [...prev, { id: `sg_${Date.now()}`, nombre: newSessionGroupName.trim() }])
+                            setNewSessionGroupName('')
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm whitespace-nowrap"
+                        >
+                          <Plus size={13} /> Crear grupo
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* List of items */}
@@ -1003,17 +1094,21 @@ export default function ChecklistsPage() {
                         {/* Ungrouped items */}
                         {groupedCreateItems.ungrouped.length > 0 && (
                           <div>
-                            <div className="bg-slate-100/70 px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                              Artículos Sin Grupo
+                            <div className="bg-slate-100/70 px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                              <span>Artículos Sin Grupo ({groupedCreateItems.ungrouped.length})</span>
+                              {allCreateGroups.length === 0 && (
+                                <span className="text-[9px] text-slate-400 normal-case font-normal">Crea un grupo arriba para organizar artículos</span>
+                              )}
                             </div>
                             <div className="divide-y divide-gray-100">
                               {groupedCreateItems.ungrouped.map(item => {
                                 const isSelected = !!selectedInventoryItems[item.id]
+                                const currentGroupId = itemGroupOverrides[item.id] !== undefined ? itemGroupOverrides[item.id] : (item.groupId || '')
                                 return (
                                   <div
                                     key={item.id}
                                     onClick={() => handleToggleSelectItem(item.id)}
-                                    className={`flex items-center gap-4 p-4 md:p-5 cursor-pointer transition-all ${
+                                    className={`flex items-center gap-3 p-3 md:p-4 cursor-pointer transition-all ${
                                       isSelected 
                                         ? 'bg-blue-50/40 hover:bg-blue-50 border-l-4 border-blue-500' 
                                         : 'hover:bg-gray-50/50 border-l-4 border-transparent'
@@ -1030,18 +1125,30 @@ export default function ChecklistsPage() {
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                      <p className={`text-sm md:text-base font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900'}`}>
+                                      <p className={`text-sm font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900'}`}>
                                         {item.material}
                                       </p>
                                       {item.modelo && (
-                                        <span className="inline-block font-mono text-[10px] text-gray-400 bg-gray-50 px-1 py-0.2 rounded border border-gray-100 mt-1 font-semibold">
+                                        <span className="inline-block font-mono text-[10px] text-gray-400 bg-gray-50 px-1 rounded border border-gray-100 mt-0.5 font-semibold">
                                           {t('model')}: {item.modelo}
                                         </span>
                                       )}
                                     </div>
 
                                     <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                      <span className="text-xs text-gray-400 font-bold mr-1">{t('qtyHeader')}:</span>
+                                      {allCreateGroups.length > 0 && (
+                                        <select
+                                          value={currentGroupId}
+                                          onChange={e => setItemGroupOverrides(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                          className="text-[11px] font-semibold px-2 py-1 border border-gray-200 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400/30 max-w-[120px]"
+                                          title="Asignar a grupo"
+                                        >
+                                          <option value="">Sin grupo</option>
+                                          {allCreateGroups.map(g => (
+                                            <option key={g.id} value={g.id}>{g.nombre}</option>
+                                          ))}
+                                        </select>
+                                      )}
                                       <input
                                         type="number"
                                         min="0"
@@ -1051,7 +1158,7 @@ export default function ChecklistsPage() {
                                           handleUpdateExpectedQty(item.id, isNaN(val) ? 0 : val)
                                         }}
                                         disabled={!isSelected}
-                                        className="w-14 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:bg-white focus:outline-none disabled:opacity-40"
+                                        className="w-12 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:bg-white focus:outline-none disabled:opacity-40"
                                       />
                                     </div>
                                   </div>
@@ -1064,10 +1171,10 @@ export default function ChecklistsPage() {
                         {/* Grouped items */}
                         {groupedCreateItems.grouped.map(({ group, items }) => (
                           <div key={group.id}>
-                            <div className="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 flex items-center justify-between border-y border-gray-100">
+                            <div className="bg-blue-50/60 px-4 py-2 text-xs font-bold text-blue-900 flex items-center justify-between border-y border-blue-100">
                               <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
-                                {group.nombre} ({items.length})
+                                <span className="w-2 h-4 bg-blue-500 rounded-sm"></span>
+                                {group.nombre} <span className="text-blue-400 font-normal ml-1">({items.length} artículos)</span>
                               </span>
                               <button
                                 onClick={() => {
@@ -1077,32 +1184,23 @@ export default function ChecklistsPage() {
                                 className="flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-md transition-colors shadow-sm"
                               >
                                 <Plus size={10} />
-                                Agregar item aquí
+                                + Artículo personalizado
                               </button>
                             </div>
                             {items.length === 0 ? (
-                              <div className="p-4 text-center space-y-2">
-                                <p className="text-gray-400 text-xs italic">Este grupo no tiene artículos del catálogo</p>
-                                <button
-                                  onClick={() => {
-                                    setNewItemGroupId(group.id)
-                                    setShowAddModal(true)
-                                  }}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors"
-                                >
-                                  <Plus size={12} />
-                                  Agregar primer artículo al grupo
-                                </button>
+                              <div className="p-4 text-center space-y-1 bg-blue-50/30">
+                                <p className="text-blue-400 text-xs">Asigna artículos a este grupo usando el selector en cada fila</p>
                               </div>
                             ) : (
                               <div className="divide-y divide-gray-100">
                                 {items.map(item => {
                                   const isSelected = !!selectedInventoryItems[item.id]
+                                  const currentGroupId = itemGroupOverrides[item.id] !== undefined ? itemGroupOverrides[item.id] : (item.groupId || '')
                                   return (
                                     <div
                                       key={item.id}
                                       onClick={() => handleToggleSelectItem(item.id)}
-                                      className={`flex items-center gap-4 p-4 md:p-5 cursor-pointer transition-all ${
+                                      className={`flex items-center gap-3 p-3 md:p-4 cursor-pointer transition-all ${
                                         isSelected 
                                           ? 'bg-blue-50/40 hover:bg-blue-50 border-l-4 border-blue-500' 
                                           : 'hover:bg-gray-50/50 border-l-4 border-transparent'
@@ -1119,18 +1217,28 @@ export default function ChecklistsPage() {
                                       </div>
 
                                       <div className="flex-1 min-w-0">
-                                        <p className={`text-sm md:text-base font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900'}`}>
+                                        <p className={`text-sm font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900'}`}>
                                           {item.material}
                                         </p>
                                         {item.modelo && (
-                                          <span className="inline-block font-mono text-[10px] text-gray-400 bg-gray-50 px-1 py-0.2 rounded border border-gray-100 mt-1 font-semibold">
+                                          <span className="inline-block font-mono text-[10px] text-gray-400 bg-gray-50 px-1 rounded border border-gray-100 mt-0.5 font-semibold">
                                             {t('model')}: {item.modelo}
                                           </span>
                                         )}
                                       </div>
 
                                       <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                        <span className="text-xs text-gray-400 font-bold mr-1">{t('qtyHeader')}:</span>
+                                        <select
+                                          value={currentGroupId}
+                                          onChange={e => setItemGroupOverrides(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                          className="text-[11px] font-semibold px-2 py-1 border border-gray-200 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400/30 max-w-[120px]"
+                                          title="Cambiar grupo"
+                                        >
+                                          <option value="">Sin grupo</option>
+                                          {allCreateGroups.map(g => (
+                                            <option key={g.id} value={g.id}>{g.nombre}</option>
+                                          ))}
+                                        </select>
                                         <input
                                           type="number"
                                           min="0"
@@ -1140,7 +1248,7 @@ export default function ChecklistsPage() {
                                             handleUpdateExpectedQty(item.id, isNaN(val) ? 0 : val)
                                           }}
                                           disabled={!isSelected}
-                                          className="w-14 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:bg-white focus:outline-none disabled:opacity-40"
+                                          className="w-12 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:bg-white focus:outline-none disabled:opacity-40"
                                         />
                                       </div>
                                     </div>

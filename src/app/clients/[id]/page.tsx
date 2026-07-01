@@ -188,6 +188,9 @@ export default function ClientDetailPage() {
   const [noteText, setNoteText] = useState('')
   const [noteType, setNoteType] = useState('nota')
   const [addingNote, setAddingNote] = useState(false)
+  const [noteAttachmentFile, setNoteAttachmentFile] = useState<File | null>(null)
+  const [noteAttachmentUrl, setNoteAttachmentUrl] = useState<string>('')
+  const [uploadingNoteFile, setUploadingNoteFile] = useState(false)
 
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
@@ -586,13 +589,39 @@ export default function ClientDetailPage() {
     }
   }
 
+  const uploadNoteFile = async (file: File): Promise<string> => {
+    const ext = file.name.split('.').pop() || 'bin'
+    const fileName = `note_${id}_${Date.now()}.${ext}`
+    const { data, error } = await supabase.storage.from('documents').upload(`clients/${id}/${fileName}`, file)
+    if (error) throw error
+    const { data: urlData } = supabase.storage.from('documents').getPublicUrl(data.path)
+    return urlData.publicUrl
+  }
+
   const addNote = async () => {
-    if (!noteText.trim()) return
+    if (!noteText.trim() && !noteAttachmentFile) return
     setAddingNote(true)
-    await fetch(`/api/clients/${id}/activities`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: noteType, content: noteText }) })
-    const aRes = await fetch(`/api/clients/${id}/activities`)
-    setActivities((await aRes.json()).data || [])
-    setNoteText(''); setShowNote(false); setAddingNote(false)
+    try {
+      let attachmentUrl = noteAttachmentUrl
+      if (noteAttachmentFile && !noteAttachmentUrl) {
+        attachmentUrl = await uploadNoteFile(noteAttachmentFile)
+      }
+      // Store content as JSON if there's an attachment, else plain text
+      const content = attachmentUrl
+        ? JSON.stringify({ text: noteText, attachmentUrl, attachmentName: noteAttachmentFile?.name || 'Archivo adjunto' })
+        : noteText
+      await fetch(`/api/clients/${id}/activities`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: noteType, content }) })
+      const aRes = await fetch(`/api/clients/${id}/activities`)
+      setActivities((await aRes.json()).data || [])
+      setNoteText('')
+      setNoteAttachmentFile(null)
+      setNoteAttachmentUrl('')
+      setShowNote(false)
+    } catch (err: any) {
+      showToast('Error al guardar la nota: ' + err.message, 'error')
+    } finally {
+      setAddingNote(false)
+    }
   }
 
   const getAI = async () => {
@@ -1190,7 +1219,29 @@ export default function ClientDetailPage() {
                               {format(new Date(act.created_at), 'd MMM yyyy, HH:mm', { locale: dfLocale })}
                             </span>
                           </div>
-                          <p className="text-sm mt-0.5" style={{ color: '#37383a' }}>{act.content}</p>
+                          {(() => {
+                            let parsed: { text?: string; attachmentUrl?: string; attachmentName?: string } | null = null
+                            try { if (act.content?.startsWith('{')) parsed = JSON.parse(act.content) } catch {}
+                            if (parsed) {
+                              return (
+                                <div className="mt-0.5 space-y-1.5">
+                                  {parsed.text && <p className="text-sm" style={{ color: '#37383a' }}>{parsed.text}</p>}
+                                  {parsed.attachmentUrl && (
+                                    <a
+                                      href={parsed.attachmentUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 font-medium hover:bg-blue-100 transition-colors"
+                                    >
+                                      <FileText size={12} />
+                                      {parsed.attachmentName || 'Archivo adjunto'}
+                                    </a>
+                                  )}
+                                </div>
+                              )
+                            }
+                            return <p className="text-sm mt-0.5" style={{ color: '#37383a' }}>{act.content}</p>
+                          })()}
                         </div>
                       </div>
                     ))}
@@ -1631,7 +1682,7 @@ export default function ClientDetailPage() {
       </Modal>
 
       {/* Add note modal */}
-      <Modal open={showNote} onClose={() => setShowNote(false)} title={t('addNote')}>
+      <Modal open={showNote} onClose={() => { setShowNote(false); setNoteAttachmentFile(null); setNoteAttachmentUrl('') }} title={t('addNote')}>
         <div className="space-y-3">
           <div>
             <label className="text-xs font-medium block mb-1.5" style={{ color: '#5a5b5d' }}>Tipo</label>
@@ -1648,9 +1699,53 @@ export default function ClientDetailPage() {
             </div>
           </div>
           <textarea className="erp-input text-sm" rows={4} value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe aquí..." />
+
+          {/* File attachment */}
+          <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: '#5a5b5d' }}>Archivo adjunto (opcional)</label>
+            {noteAttachmentFile ? (
+              <div className="flex items-center gap-2 p-2 rounded-lg border border-blue-200 bg-blue-50">
+                <FileText size={14} className="text-blue-600 flex-shrink-0" />
+                <span className="text-xs text-blue-800 font-medium truncate flex-1">{noteAttachmentFile.name}</span>
+                <button
+                  onClick={() => { setNoteAttachmentFile(null); setNoteAttachmentUrl('') }}
+                  className="text-gray-400 hover:text-red-500"
+                >
+                  <X size={14} />
+                </button>
+                {uploadingNoteFile && <Loader2 size={14} className="animate-spin text-blue-600" />}
+              </div>
+            ) : (
+              <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                <Upload size={14} className="text-gray-400" />
+                <span className="text-xs text-gray-500">Seleccionar archivo...</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={async e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setNoteAttachmentFile(file)
+                    // Pre-upload in background
+                    setUploadingNoteFile(true)
+                    try {
+                      const url = await uploadNoteFile(file)
+                      setNoteAttachmentUrl(url)
+                    } catch (err) {
+                      showToast('Error al subir archivo', 'error')
+                      setNoteAttachmentFile(null)
+                    } finally {
+                      setUploadingNoteFile(false)
+                    }
+                  }}
+                />
+              </label>
+            )}
+          </div>
+
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowNote(false)} className="btn-secondary text-sm">{t('cancel')}</button>
-            <button onClick={addNote} disabled={addingNote || !noteText.trim()} className="btn-primary text-sm">
+            <button onClick={() => { setShowNote(false); setNoteAttachmentFile(null); setNoteAttachmentUrl('') }} className="btn-secondary text-sm">{t('cancel')}</button>
+            <button onClick={addNote} disabled={addingNote || uploadingNoteFile || (!noteText.trim() && !noteAttachmentFile)} className="btn-primary text-sm">
               {addingNote ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Guardar
             </button>
           </div>

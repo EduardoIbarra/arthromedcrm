@@ -4,7 +4,7 @@ import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import StatusBadge from '@/components/StatusBadge'
 import { Client, Congreso } from '@/types/database'
-import { Search, Filter, Download, UserPlus, Phone, Mail, MapPin, ChevronRight, X, Users } from 'lucide-react'
+import { Search, Filter, Download, UserPlus, Phone, Mail, MapPin, ChevronRight, X, Users, UserCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useRouter } from 'next/navigation'
@@ -113,6 +113,8 @@ function ClientsContent() {
   const [page, setPage] = useState(1)
   const [showFilters, setShowFilters] = useState(false)
   const [congresos, setCongresos] = useState<Congreso[]>([])
+  const [staffUsers, setStaffUsers] = useState<any[]>([])
+  const [responsableFilter, setResponsableFilter] = useState('')
   const debouncedSearch = useDebounce(search, 350)
 
   useEffect(() => {
@@ -144,6 +146,10 @@ function ClientsContent() {
       .then(r => r.json())
       .then(json => setCongresos(json.data || []))
       .catch(() => {})
+    fetch('/api/cirugias/usuarios')
+      .then(r => r.json())
+      .then(json => setStaffUsers(json.data || []))
+      .catch(() => {})
   }, [])
 
   const fetchClients = useCallback(async () => {
@@ -156,6 +162,7 @@ function ClientsContent() {
       ...(congresoFilter && { congreso: congresoFilter }),
       ...(isProspectFilter && { is_prospect: 'true' }),
       ...(sourceFilter && { source: sourceFilter }),
+      ...(responsableFilter && { assigned_to: responsableFilter }),
     })
     try {
       const res = await fetch(`/api/clients?${params}`)
@@ -163,10 +170,10 @@ function ClientsContent() {
       setClients(json.data || [])
       setTotal(json.count || 0)
     } finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, page])
+  }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter, page])
 
   useEffect(() => { fetchClients() }, [fetchClients])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter])
 
   const exportCsv = () => {
     const headers = ['Nombre', 'RFC', 'Teléfono', 'Email Contacto', 'Estados', 'Especialidades', 'Estatus']
@@ -212,9 +219,9 @@ function ClientsContent() {
             style={showFilters ? { color: '#0763a9', borderColor: '#0763a9' } : {}}
           >
             <Filter size={15} /> {t('filter')}
-            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter) && (
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter || responsableFilter) && (
               <span className="ml-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center" style={{ background: '#0763a9' }}>
-                {[statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter].filter(Boolean).length}
+                {[statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -268,12 +275,25 @@ function ClientsContent() {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium" style={{ color: '#5a5b5d' }}>Origen (Source)</label>
               <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="erp-input text-sm py-1.5" style={{ minWidth: 160 }}>
-                <option value="">{t('all')}</option>
+                <option value="">Todos</option>
                 <option value="Formulario Público">Formulario Público</option>
               </select>
             </div>
-            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter) && (
-              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setCongresoFilter(''); setIsProspectFilter(false); setSourceFilter('') }} className="btn-ghost text-xs self-end mb-0.5">
+            {staffUsers.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium flex items-center gap-1" style={{ color: '#5a5b5d' }}>
+                  <UserCheck size={12} /> Responsable
+                </label>
+                <select value={responsableFilter} onChange={e => setResponsableFilter(e.target.value)} className="erp-input text-sm py-1.5" style={{ minWidth: 180 }}>
+                  <option value="">Todos</option>
+                  {staffUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter || responsableFilter) && (
+              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setCongresoFilter(''); setIsProspectFilter(false); setSourceFilter(''); setResponsableFilter('') }} className="btn-ghost text-xs self-end mb-0.5">
                 <X size={13} /> Limpiar
               </button>
             )}
@@ -298,7 +318,7 @@ function ClientsContent() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #e8f1f9' }}>
-                      {['ID', t('name'), t('rfc'), t('phone'), t('state'), 'Carta', t('status'), ''].map(h => (
+                      {['ID', t('name'), t('rfc'), t('phone'), t('state'), 'Responsable', 'Carta', t('status'), ''].map(h => (
                         <th key={h} className="text-left text-xs font-semibold uppercase tracking-wide px-4 py-3" style={{ color: '#8a8b8d' }}>{h}</th>
                       ))}
                     </tr>
@@ -338,6 +358,16 @@ function ClientsContent() {
                         <td className="px-4 py-3 text-sm font-mono" style={{ color: '#5a5b5d' }}>{client.rfc || '—'}</td>
                         <td className="px-4 py-3 text-sm" style={{ color: '#5a5b5d' }}>{client.phone || '—'}</td>
                         <td className="px-4 py-3 text-sm max-w-[150px] truncate" style={{ color: '#5a5b5d' }}>{client.states?.slice(0, 2).join(', ') || '—'}</td>
+                        <td className="px-4 py-3">
+                          {client.assigned_to ? (
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#e8f1f9', color: '#0763a9', border: '1px solid #c5d9ee' }}>
+                              <UserCheck size={10} />
+                              {staffUsers.find(u => u.id === client.assigned_to)?.first_name || '...'}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#c4c5c7' }}>—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">{renderLetterIndicator(client)}</td>
                         <td className="px-4 py-3"><StatusBadge status={client.status} size="sm" /></td>
                         <td className="px-4 py-3">

@@ -40,8 +40,12 @@ export async function GET(request: NextRequest) {
   if (congreso) {
     query = query.contains('tags', [`congreso:${congreso}`])
   }
+  const assigned_to = searchParams.get('assigned_to') || ''
   if (source) {
     query = query.eq('source', source)
+  }
+  if (assigned_to) {
+    query = query.eq('assigned_to', assigned_to)
   }
 
   const { data, error, count } = await query
