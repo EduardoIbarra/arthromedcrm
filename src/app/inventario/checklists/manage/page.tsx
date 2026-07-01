@@ -548,7 +548,7 @@ export default function ChecklistManagePage() {
                 </div>
                 
                 <button
-                  onClick={openAddItemModal}
+                  onClick={() => openAddItemModal()}
                   className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold rounded-lg border border-blue-200 shadow-sm"
                 >
                   <Plus size={14} /> {t('addItem')}
