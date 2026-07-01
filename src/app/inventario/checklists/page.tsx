@@ -37,6 +37,12 @@ interface ChecklistItem {
   cantidad?: number
   observaciones?: string
   addedOnTheFly?: boolean
+  groupId?: string
+}
+
+interface ChecklistGroup {
+  id: string
+  nombre: string
 }
 
 interface Checklist {
@@ -44,6 +50,8 @@ interface Checklist {
   nombre: string
   descripcion: string
   items: ChecklistItem[]
+  groups?: ChecklistGroup[]
+  coResponsableId?: string
 }
 
 interface PendingChecklist {
@@ -55,6 +63,9 @@ interface PendingChecklist {
   user: string
   items: ChecklistItem[]
   notes?: string
+  groups?: ChecklistGroup[]
+  coResponsableId?: string
+  coResponsableNombre?: string
 }
 
 interface HistoryEntry {
@@ -74,7 +85,19 @@ interface HistoryEntry {
     cantidadContada?: number
     checked: boolean
     observaciones?: string
+    groupId?: string
   }[]
+  groups?: ChecklistGroup[]
+  coResponsableId?: string
+  coResponsableNombre?: string
+}
+
+interface StaffMember {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  position: string
 }
 
 export default function ChecklistsPage() {
@@ -104,6 +127,8 @@ export default function ChecklistsPage() {
   const [newChecklistNotes, setNewChecklistNotes] = useState('')
   const [creatingChecklist, setCreatingChecklist] = useState(false)
   const [createSearchQuery, setCreateSearchQuery] = useState('')
+  const [staffList, setStaffList] = useState<StaffMember[]>([])
+  const [selectedCoResponsableId, setSelectedCoResponsableId] = useState<string>('')
 
   // ─── Pending Tab State ─────────────────────────────────────────────────────
   const [activePendingList, setActivePendingList] = useState<PendingChecklist | null>(null)
@@ -218,10 +243,23 @@ export default function ChecklistsPage() {
     }
   }, [])
 
+  const fetchStaffList = useCallback(async () => {
+    try {
+      const res = await fetch('/api/cirugias/usuarios')
+      const json = await res.json()
+      if (res.ok) {
+        setStaffList(json.data || [])
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }, [])
+
   useEffect(() => {
     fetchChecklists()
     fetchPendingLists()
     fetchHistory()
+    fetchStaffList()
   }, [])
 
   // Auto-select history entry if ?historyId is present in URL
@@ -276,6 +314,7 @@ export default function ChecklistsPage() {
       setSelectedInventoryItems(initialSelected)
       setCustomExpectedQtys(initialQtys)
       setCreatedCustomItems([])
+      setSelectedCoResponsableId(activeChecklist.coResponsableId || '')
 
       const dateStr = new Date().toLocaleDateString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short' })
       setNewChecklistTitle(`Checklist ${getChecklistLabel(activeChecklist.id)} - ${dateStr}`)
@@ -292,6 +331,19 @@ export default function ChecklistsPage() {
       (item.observaciones && item.observaciones.toLowerCase().includes(query))
     )
   }, [activeItems, createSearchQuery])
+
+  const groupedCreateItems = useMemo(() => {
+    if (!activeChecklist) return { ungrouped: [], grouped: [] }
+    const ungrouped = filteredCreateItems.filter(item => !item.groupId || !(activeChecklist.groups || []).some(g => g.id === item.groupId))
+    const groupedMap = (activeChecklist.groups || []).map(group => ({
+      group,
+      items: filteredCreateItems.filter(item => item.groupId === group.id)
+    }))
+    return {
+      ungrouped,
+      grouped: groupedMap
+    }
+  }, [filteredCreateItems, activeChecklist])
 
   // Progress Calculations for verification run
   const verificationProgress = useMemo(() => {
@@ -324,6 +376,19 @@ export default function ChecklistsPage() {
       return matchesSearch
     })
   }, [activePendingList, verifyingSearchQuery, verificationChecked, verifyingFilter])
+
+  const groupedVerifyItems = useMemo(() => {
+    if (!activePendingList) return { ungrouped: [], grouped: [] }
+    const ungrouped = filteredVerifyItems.filter(item => !item.groupId || !(activePendingList.groups || []).some(g => g.id === item.groupId))
+    const groupedMap = (activePendingList.groups || []).map(group => ({
+      group,
+      items: filteredVerifyItems.filter(item => item.groupId === group.id)
+    }))
+    return {
+      ungrouped,
+      grouped: groupedMap
+    }
+  }, [filteredVerifyItems, activePendingList])
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
@@ -406,9 +471,11 @@ export default function ChecklistsPage() {
           modelo: item.modelo,
           cantidad: customExpectedQtys[item.id] !== undefined ? customExpectedQtys[item.id] : (item.cantidad || 1),
           observaciones: item.observaciones,
-          addedOnTheFly: item.addedOnTheFly
+          addedOnTheFly: item.addedOnTheFly,
+          groupId: item.groupId
         }))
 
+      const coMember = staffList.find(s => s.id === selectedCoResponsableId)
       const pendingEntry = {
         id: `pchk_${Date.now()}`,
         nombre: newChecklistTitle.trim(),
@@ -417,7 +484,10 @@ export default function ChecklistsPage() {
         date: new Date().toISOString(),
         user: profile?.email || 'Usuario ERP',
         items: itemsToInspect,
-        notes: newChecklistNotes.trim() || undefined
+        notes: newChecklistNotes.trim() || undefined,
+        groups: activeChecklist?.groups || [],
+        coResponsableId: selectedCoResponsableId || undefined,
+        coResponsableNombre: coMember ? `${coMember.first_name} ${coMember.last_name}` : undefined
       }
 
       const res = await fetch('/api/checklists/pending', {
@@ -541,9 +611,13 @@ export default function ChecklistsPage() {
             cantidad: expectedQty,
             cantidadContada: verificationCounted[item.id] !== undefined ? verificationCounted[item.id] : expectedQty,
             checked: !!verificationChecked[item.id],
-            observaciones: item.observaciones
+            observaciones: item.observaciones,
+            groupId: item.groupId
           }
-        })
+        }),
+        groups: activePendingList.groups || [],
+        coResponsableId: activePendingList.coResponsableId,
+        coResponsableNombre: activePendingList.coResponsableNombre
       }
 
       // 2. Submit to history
@@ -607,7 +681,8 @@ export default function ChecklistsPage() {
         modelo: item.modelo,
         cantidad: item.cantidad || 1,
         observaciones: item.observaciones,
-        addedOnTheFly: false
+        addedOnTheFly: false,
+        groupId: item.groupId
       }))
 
       const pendingEntry = {
@@ -618,7 +693,10 @@ export default function ChecklistsPage() {
         date: new Date().toISOString(),
         user: profile?.email || 'Usuario ERP',
         items: itemsToInspect,
-        notes: entry.notes || undefined
+        notes: entry.notes || undefined,
+        groups: entry.groups || [],
+        coResponsableId: entry.coResponsableId,
+        coResponsableNombre: entry.coResponsableNombre
       }
 
       const res = await fetch('/api/checklists/pending', {
@@ -669,6 +747,19 @@ export default function ChecklistsPage() {
       h => h.checklistInstanceId === selectedHistoryEntry.checklistInstanceId && h.id !== selectedHistoryEntry.id
     )
   }, [selectedHistoryEntry, historyList])
+
+  const groupedHistoryItems = useMemo(() => {
+    if (!selectedHistoryEntry) return { ungrouped: [], grouped: [] }
+    const ungrouped = selectedHistoryEntry.items.filter(item => !item.groupId || !(selectedHistoryEntry.groups || []).some(g => g.id === item.groupId))
+    const groupedMap = (selectedHistoryEntry.groups || []).map(group => ({
+      group,
+      items: selectedHistoryEntry.items.filter(item => item.groupId === group.id)
+    }))
+    return {
+      ungrouped,
+      grouped: groupedMap
+    }
+  }, [selectedHistoryEntry])
 
   // Progress Color Badge Helpers
   const getProgressColor = (pct: number) => {
@@ -801,6 +892,22 @@ export default function ChecklistsPage() {
                     </div>
 
                     <div>
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Co-Responsable</label>
+                      <select
+                        value={selectedCoResponsableId}
+                        onChange={(e) => setSelectedCoResponsableId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+                      >
+                        <option value="">{t('none') || 'Ninguno'}</option>
+                        {staffList.map(member => (
+                          <option key={member.id} value={member.id}>
+                            {member.first_name} {member.last_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
                       <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Notas / Instrucciones</label>
                       <textarea
                         rows={3}
@@ -889,57 +996,132 @@ export default function ChecklistsPage() {
                         <p className="text-sm font-medium">{t('noItemsFound')}</p>
                       </div>
                     ) : (
-                      filteredCreateItems.map(item => {
-                        const isSelected = !!selectedInventoryItems[item.id]
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => handleToggleSelectItem(item.id)}
-                            className={`flex items-center gap-4 p-4 md:p-5 cursor-pointer transition-all ${
-                              isSelected 
-                                ? 'bg-blue-50/40 hover:bg-blue-50 border-l-4 border-blue-500' 
-                                : 'hover:bg-gray-50/50 border-l-4 border-transparent'
-                            }`}
-                          >
-                            <div className="flex-shrink-0">
-                              {isSelected ? (
-                                <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white scale-105 transition-transform">
-                                  <Check size={14} strokeWidth={3} />
-                                </div>
-                              ) : (
-                                <div className="w-6 h-6 rounded-lg border-2 border-gray-300 hover:border-gray-400 bg-white transition-colors" />
-                              )}
+                      <>
+                        {/* Ungrouped items */}
+                        {groupedCreateItems.ungrouped.length > 0 && (
+                          <div>
+                            <div className="bg-slate-100/70 px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              Artículos Sin Grupo
                             </div>
+                            <div className="divide-y divide-gray-100">
+                              {groupedCreateItems.ungrouped.map(item => {
+                                const isSelected = !!selectedInventoryItems[item.id]
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => handleToggleSelectItem(item.id)}
+                                    className={`flex items-center gap-4 p-4 md:p-5 cursor-pointer transition-all ${
+                                      isSelected 
+                                        ? 'bg-blue-50/40 hover:bg-blue-50 border-l-4 border-blue-500' 
+                                        : 'hover:bg-gray-50/50 border-l-4 border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex-shrink-0">
+                                      {isSelected ? (
+                                        <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white scale-105 transition-transform">
+                                          <Check size={14} strokeWidth={3} />
+                                        </div>
+                                      ) : (
+                                        <div className="w-6 h-6 rounded-lg border-2 border-gray-300 hover:border-gray-400 bg-white transition-colors" />
+                                      )}
+                                    </div>
 
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm md:text-base font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900'}`}>
-                                {item.material}
-                              </p>
-                              {item.modelo && (
-                                <span className="inline-block font-mono text-[10px] text-gray-400 bg-gray-50 px-1 py-0.2 rounded border border-gray-100 mt-1 font-semibold">
-                                  {t('model')}: {item.modelo}
-                                </span>
-                              )}
-                            </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-sm md:text-base font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900'}`}>
+                                        {item.material}
+                                      </p>
+                                      {item.modelo && (
+                                        <span className="inline-block font-mono text-[10px] text-gray-400 bg-gray-50 px-1 py-0.2 rounded border border-gray-100 mt-1 font-semibold">
+                                          {t('model')}: {item.modelo}
+                                        </span>
+                                      )}
+                                    </div>
 
-                            {/* Quantity settings for creators */}
-                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              <span className="text-xs text-gray-400 font-bold mr-1">{t('qtyHeader')}:</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={customExpectedQtys[item.id] !== undefined ? customExpectedQtys[item.id] : (item.cantidad || 1)}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10)
-                                  handleUpdateExpectedQty(item.id, isNaN(val) ? 0 : val)
-                                }}
-                                disabled={!isSelected}
-                                className="w-14 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:bg-white focus:outline-none disabled:opacity-40"
-                              />
+                                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                      <span className="text-xs text-gray-400 font-bold mr-1">{t('qtyHeader')}:</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={customExpectedQtys[item.id] !== undefined ? customExpectedQtys[item.id] : (item.cantidad || 1)}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value, 10)
+                                          handleUpdateExpectedQty(item.id, isNaN(val) ? 0 : val)
+                                        }}
+                                        disabled={!isSelected}
+                                        className="w-14 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:bg-white focus:outline-none disabled:opacity-40"
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
-                        )
-                      })
+                        )}
+
+                        {/* Grouped items */}
+                        {groupedCreateItems.grouped.map(({ group, items }) => (
+                          items.length > 0 && (
+                            <div key={group.id}>
+                              <div className="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 flex items-center gap-1.5 border-y border-gray-100">
+                                <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
+                                {group.nombre} ({items.length})
+                              </div>
+                              <div className="divide-y divide-gray-100">
+                                {items.map(item => {
+                                  const isSelected = !!selectedInventoryItems[item.id]
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      onClick={() => handleToggleSelectItem(item.id)}
+                                      className={`flex items-center gap-4 p-4 md:p-5 cursor-pointer transition-all ${
+                                        isSelected 
+                                          ? 'bg-blue-50/40 hover:bg-blue-50 border-l-4 border-blue-500' 
+                                          : 'hover:bg-gray-50/50 border-l-4 border-transparent'
+                                      }`}
+                                    >
+                                      <div className="flex-shrink-0">
+                                        {isSelected ? (
+                                          <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white scale-105 transition-transform">
+                                            <Check size={14} strokeWidth={3} />
+                                          </div>
+                                        ) : (
+                                          <div className="w-6 h-6 rounded-lg border-2 border-gray-300 hover:border-gray-400 bg-white transition-colors" />
+                                        )}
+                                      </div>
+
+                                      <div className="flex-1 min-w-0">
+                                        <p className={`text-sm md:text-base font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900'}`}>
+                                          {item.material}
+                                        </p>
+                                        {item.modelo && (
+                                          <span className="inline-block font-mono text-[10px] text-gray-400 bg-gray-50 px-1 py-0.2 rounded border border-gray-100 mt-1 font-semibold">
+                                            {t('model')}: {item.modelo}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                        <span className="text-xs text-gray-400 font-bold mr-1">{t('qtyHeader')}:</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={customExpectedQtys[item.id] !== undefined ? customExpectedQtys[item.id] : (item.cantidad || 1)}
+                                          onChange={(e) => {
+                                            const val = parseInt(e.target.value, 10)
+                                            handleUpdateExpectedQty(item.id, isNaN(val) ? 0 : val)
+                                          }}
+                                          disabled={!isSelected}
+                                          className="w-14 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:bg-white focus:outline-none disabled:opacity-40"
+                                        />
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        ))}
+                      </>
                     )}
                   </div>
 
@@ -1144,100 +1326,218 @@ export default function ChecklistsPage() {
                       <p className="text-sm font-semibold">{t('noItemsFound')}</p>
                     </div>
                   ) : (
-                    filteredVerifyItems.map(item => {
-                      const isChecked = !!verificationChecked[item.id]
-                      const expectedQty = item.cantidad || 0
-                      const countedQty = verificationCounted[item.id] !== undefined ? verificationCounted[item.id] : expectedQty
-                      const diff = countedQty - expectedQty
-
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => handleToggleVerificationCheck(item.id)}
-                          className={`flex items-center gap-4 p-5 cursor-pointer select-none transition-all ${
-                            isChecked 
-                              ? 'bg-emerald-50/40 hover:bg-emerald-50 border-l-4 border-emerald-500' 
-                              : 'hover:bg-gray-50/50 border-l-4 border-transparent'
-                          }`}
-                        >
-                          <div className="flex-shrink-0">
-                            {isChecked ? (
-                              <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white scale-110 transition-transform shadow shadow-emerald-500/20">
-                                <Check size={18} strokeWidth={3} />
-                              </div>
-                            ) : (
-                              <div className="w-7 h-7 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors bg-white" />
-                            )}
+                    <>
+                      {/* Ungrouped items */}
+                      {groupedVerifyItems.ungrouped.length > 0 && (
+                        <div>
+                          <div className="bg-slate-100/70 px-5 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            Artículos Sin Grupo
                           </div>
+                          <div className="divide-y divide-gray-100">
+                            {groupedVerifyItems.ungrouped.map(item => {
+                              const isChecked = !!verificationChecked[item.id]
+                              const expectedQty = item.cantidad || 0
+                              const countedQty = verificationCounted[item.id] !== undefined ? verificationCounted[item.id] : expectedQty
+                              const diff = countedQty - expectedQty
 
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-base font-bold truncate ${isChecked ? 'text-emerald-950 font-bold' : 'text-gray-950'}`}>
-                              {item.material}
-                            </p>
-                            
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
-                              {item.modelo && (
-                                <span className="font-mono text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                                  {t('model')}: {item.modelo}
-                                </span>
-                              )}
-                              
-                              <span className="text-gray-400 font-bold">
-                                {t('expectedQtyHeader')}: {expectedQty}
-                              </span>
+                              return (
+                                <div
+                                  key={item.id}
+                                  onClick={() => handleToggleVerificationCheck(item.id)}
+                                  className={`flex items-center gap-4 p-5 cursor-pointer select-none transition-all ${
+                                    isChecked 
+                                      ? 'bg-emerald-50/40 hover:bg-emerald-50 border-l-4 border-emerald-500' 
+                                      : 'hover:bg-gray-50/50 border-l-4 border-transparent'
+                                  }`}
+                                >
+                                  <div className="flex-shrink-0">
+                                    {isChecked ? (
+                                      <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white scale-110 transition-transform shadow shadow-emerald-500/20">
+                                        <Check size={18} strokeWidth={3} />
+                                      </div>
+                                    ) : (
+                                      <div className="w-7 h-7 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors bg-white" />
+                                    )}
+                                  </div>
 
-                              {item.observaciones && (
-                                <span className="text-gray-500 italic max-w-[250px] truncate">
-                                  &ldquo;{item.observaciones}&rdquo;
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-base font-bold truncate ${isChecked ? 'text-emerald-950 font-bold' : 'text-gray-950'}`}>
+                                      {item.material}
+                                    </p>
+                                    
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
+                                      {item.modelo && (
+                                        <span className="font-mono text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                                          {t('model')}: {item.modelo}
+                                        </span>
+                                      )}
+                                      
+                                      <span className="text-gray-400 font-bold">
+                                        {t('expectedQtyHeader')}: {expectedQty}
+                                      </span>
 
-                          {/* Counted Quantity panel */}
-                          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateVerificationQty(item.id, countedQty - 1)}
-                              className="w-8 h-8 rounded-lg bg-gray-150 hover:bg-gray-200 border border-gray-250 flex items-center justify-center font-bold text-gray-700 active:scale-95 transition-transform"
-                            >
-                              -
-                            </button>
-                            
-                            <div className="flex flex-col items-center min-w-[50px]">
-                              <input
-                                type="number"
-                                min="0"
-                                value={countedQty}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10)
-                                  handleUpdateVerificationQty(item.id, isNaN(val) ? 0 : val)
-                                }}
-                                className="w-12 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:outline-none focus:border-blue-500 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              />
+                                      {item.observaciones && (
+                                        <span className="text-gray-500 italic max-w-[250px] truncate">
+                                          &ldquo;{item.observaciones}&rdquo;
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
 
-                              {diff !== 0 && (
-                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border mt-0.5 ${
-                                  diff < 0 
-                                    ? 'text-red-600 bg-red-50 border-red-100' 
-                                    : 'text-emerald-600 bg-emerald-50 border-emerald-100'
-                                }`}>
-                                  {diff > 0 ? `+${diff}` : diff}
-                                </span>
-                              )}
-                            </div>
+                                  <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateVerificationQty(item.id, countedQty - 1)}
+                                      className="w-8 h-8 rounded-lg bg-gray-150 hover:bg-gray-200 border border-gray-250 flex items-center justify-center font-bold text-gray-700 active:scale-95 transition-transform"
+                                    >
+                                      -
+                                    </button>
+                                    
+                                    <div className="flex flex-col items-center min-w-[50px]">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={countedQty}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value, 10)
+                                          handleUpdateVerificationQty(item.id, isNaN(val) ? 0 : val)
+                                        }}
+                                        className="w-12 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:outline-none focus:border-blue-500 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                      />
 
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateVerificationQty(item.id, countedQty + 1)}
-                              className="w-8 h-8 rounded-lg bg-gray-150 hover:bg-gray-200 border border-gray-250 flex items-center justify-center font-bold text-gray-700 active:scale-95 transition-transform"
-                            >
-                              +
-                            </button>
+                                      {diff !== 0 && (
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border mt-0.5 ${
+                                          diff < 0 
+                                            ? 'text-red-600 bg-red-50 border-red-100' 
+                                            : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                                        }`}>
+                                          {diff > 0 ? `+${diff}` : diff}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateVerificationQty(item.id, countedQty + 1)}
+                                      className="w-8 h-8 rounded-lg bg-gray-150 hover:bg-gray-200 border border-gray-250 flex items-center justify-center font-bold text-gray-700 active:scale-95 transition-transform"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
-                      )
-                    })
+                      )}
+
+                      {/* Grouped items */}
+                      {groupedVerifyItems.grouped.map(({ group, items }) => (
+                        items.length > 0 && (
+                          <div key={group.id}>
+                            <div className="bg-slate-50 px-5 py-2 text-xs font-bold text-slate-700 flex items-center gap-1.5 border-y border-gray-100">
+                              <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
+                              {group.nombre} ({items.length})
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                              {items.map(item => {
+                                const isChecked = !!verificationChecked[item.id]
+                                const expectedQty = item.cantidad || 0
+                                const countedQty = verificationCounted[item.id] !== undefined ? verificationCounted[item.id] : expectedQty
+                                const diff = countedQty - expectedQty
+
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => handleToggleVerificationCheck(item.id)}
+                                    className={`flex items-center gap-4 p-5 cursor-pointer select-none transition-all ${
+                                      isChecked 
+                                        ? 'bg-emerald-50/40 hover:bg-emerald-50 border-l-4 border-emerald-500' 
+                                        : 'hover:bg-gray-50/50 border-l-4 border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex-shrink-0">
+                                      {isChecked ? (
+                                        <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white scale-110 transition-transform shadow shadow-emerald-500/20">
+                                          <Check size={18} strokeWidth={3} />
+                                        </div>
+                                      ) : (
+                                        <div className="w-7 h-7 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors bg-white" />
+                                      )}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-base font-bold truncate ${isChecked ? 'text-emerald-950 font-bold' : 'text-gray-950'}`}>
+                                        {item.material}
+                                      </p>
+                                      
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
+                                        {item.modelo && (
+                                          <span className="font-mono text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                                            {t('model')}: {item.modelo}
+                                          </span>
+                                        )}
+                                        
+                                        <span className="text-gray-400 font-bold">
+                                          {t('expectedQtyHeader')}: {expectedQty}
+                                        </span>
+
+                                        {item.observaciones && (
+                                          <span className="text-gray-500 italic max-w-[250px] truncate">
+                                            &ldquo;{item.observaciones}&rdquo;
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateVerificationQty(item.id, countedQty - 1)}
+                                        className="w-8 h-8 rounded-lg bg-gray-150 hover:bg-gray-200 border border-gray-250 flex items-center justify-center font-bold text-gray-700 active:scale-95 transition-transform"
+                                      >
+                                        -
+                                      </button>
+                                      
+                                      <div className="flex flex-col items-center min-w-[50px]">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={countedQty}
+                                          onChange={(e) => {
+                                            const val = parseInt(e.target.value, 10)
+                                            handleUpdateVerificationQty(item.id, isNaN(val) ? 0 : val)
+                                          }}
+                                          className="w-12 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded py-0.5 focus:outline-none focus:border-blue-500 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+
+                                        {diff !== 0 && (
+                                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border mt-0.5 ${
+                                            diff < 0 
+                                              ? 'text-red-600 bg-red-50 border-red-100' 
+                                              : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                                          }`}>
+                                            {diff > 0 ? `+${diff}` : diff}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateVerificationQty(item.id, countedQty + 1)}
+                                        className="w-8 h-8 rounded-lg bg-gray-150 hover:bg-gray-200 border border-gray-250 flex items-center justify-center font-bold text-gray-700 active:scale-95 transition-transform"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      ))}
+                    </>
                   )}
                 </div>
 
@@ -1305,15 +1605,20 @@ export default function ChecklistsPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h4 className="font-bold text-gray-900 text-base">{selectedHistoryEntry.checklistName}</h4>
-                      <div className="flex items-center gap-4 text-xs text-gray-500 mt-1.5">
-                        <span className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 mt-1.5">
+                        <span className="flex items-center gap-1 font-semibold">
                           <Calendar size={13} /> 
                           {new Date(selectedHistoryEntry.date).toLocaleString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-semibold">
                           <User size={13} /> 
-                          {selectedHistoryEntry.user.split('@')[0]}
+                          Realizado por: {selectedHistoryEntry.user.split('@')[0]}
                         </span>
+                        {selectedHistoryEntry.coResponsableNombre && (
+                          <span className="flex items-center gap-1 bg-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                            Co-Responsable: {selectedHistoryEntry.coResponsableNombre}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 shrink-0">
@@ -1392,42 +1697,103 @@ export default function ChecklistsPage() {
 
                 <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{t('itemDetails')}</h5>
                 <div className="divide-y border rounded-2xl overflow-hidden bg-white">
-                  {selectedHistoryEntry.items.map((item, idx) => (
-                    <div key={idx} className={`p-3 text-xs flex items-start gap-2 justify-between ${item.checked ? 'bg-emerald-50/20' : 'bg-red-50/10'}`}>
-                      <div className="min-w-0">
-                        <p className={`font-semibold ${item.checked ? 'text-gray-900' : 'text-gray-400 line-through'}`}>
-                          {item.material}
-                        </p>
-                        {item.modelo && <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{t('model')}: {item.modelo}</p>}
-                        {item.observaciones && <p className="text-[10px] text-gray-400 italic mt-0.5">{item.observaciones}</p>}
+                  {/* Ungrouped items */}
+                  {groupedHistoryItems.ungrouped.length > 0 && (
+                    <div>
+                      <div className="bg-slate-100/70 px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Artículos Sin Grupo
                       </div>
-                      
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {item.cantidadContada !== undefined && item.cantidad !== undefined ? (
-                          <div className="text-right flex flex-col items-end mr-1">
-                            <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold">
-                              {t('qtyHeader')}: {item.cantidadContada} / {item.cantidad}
-                            </span>
-                            {item.cantidadContada !== item.cantidad && (
-                              <span className={`text-[9px] font-bold px-1 rounded mt-0.5 ${
-                                item.cantidadContada < item.cantidad ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                              }`}>
-                                {item.cantidadContada - item.cantidad > 0 ? `+${item.cantidadContada - item.cantidad}` : item.cantidadContada - item.cantidad}
-                              </span>
-                            )}
+                      <div className="divide-y divide-gray-100">
+                        {groupedHistoryItems.ungrouped.map((item, idx) => (
+                          <div key={idx} className={`p-3 text-xs flex items-start gap-2 justify-between ${item.checked ? 'bg-emerald-50/20' : 'bg-red-50/10'}`}>
+                            <div className="min-w-0">
+                              <p className={`font-semibold ${item.checked ? 'text-gray-900' : 'text-gray-400 line-through'}`}>
+                                {item.material}
+                              </p>
+                              {item.modelo && <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{t('model')}: {item.modelo}</p>}
+                              {item.observaciones && <p className="text-[10px] text-gray-400 italic mt-0.5">{item.observaciones}</p>}
+                            </div>
+                            
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {item.cantidadContada !== undefined && item.cantidad !== undefined ? (
+                                <div className="text-right flex flex-col items-end mr-1">
+                                  <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold">
+                                    {t('qtyHeader')}: {item.cantidadContada} / {item.cantidad}
+                                  </span>
+                                  {item.cantidadContada !== item.cantidad && (
+                                    <span className={`text-[9px] font-bold px-1 rounded mt-0.5 ${
+                                      item.cantidadContada < item.cantidad ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                                    }`}>
+                                      {item.cantidadContada - item.cantidad > 0 ? `+${item.cantidadContada - item.cantidad}` : item.cantidadContada - item.cantidad}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : item.cantidad !== undefined ? (
+                                <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold">
+                                  {t('qtyHeader')}: {item.cantidad}
+                                </span>
+                              ) : null}
+                              {item.checked ? (
+                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded">{t('ready')}</span>
+                              ) : (
+                                <span className="bg-red-100 text-red-800 text-[10px] font-bold px-1.5 py-0.5 rounded">{t('missingItem')}</span>
+                              )}
+                            </div>
                           </div>
-                        ) : item.cantidad !== undefined ? (
-                          <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold">
-                            {t('qtyHeader')}: {item.cantidad}
-                          </span>
-                        ) : null}
-                        {item.checked ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded">{t('ready')}</span>
-                        ) : (
-                          <span className="bg-red-100 text-red-800 text-[10px] font-bold px-1.5 py-0.5 rounded">{t('missingItem')}</span>
-                        )}
+                        ))}
                       </div>
                     </div>
+                  )}
+
+                  {/* Grouped items */}
+                  {groupedHistoryItems.grouped.map(({ group, items }) => (
+                    items.length > 0 && (
+                      <div key={group.id}>
+                        <div className="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 flex items-center gap-1.5 border-y border-gray-100">
+                          <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
+                          {group.nombre} ({items.length})
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                          {items.map((item, idx) => (
+                            <div key={idx} className={`p-3 text-xs flex items-start gap-2 justify-between ${item.checked ? 'bg-emerald-50/20' : 'bg-red-50/10'}`}>
+                              <div className="min-w-0">
+                                <p className={`font-semibold ${item.checked ? 'text-gray-900' : 'text-gray-400 line-through'}`}>
+                                  {item.material}
+                                </p>
+                                {item.modelo && <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{t('model')}: {item.modelo}</p>}
+                                {item.observaciones && <p className="text-[10px] text-gray-400 italic mt-0.5">{item.observaciones}</p>}
+                              </div>
+                              
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {item.cantidadContada !== undefined && item.cantidad !== undefined ? (
+                                  <div className="text-right flex flex-col items-end mr-1">
+                                    <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold">
+                                      {t('qtyHeader')}: {item.cantidadContada} / {item.cantidad}
+                                    </span>
+                                    {item.cantidadContada !== item.cantidad && (
+                                      <span className={`text-[9px] font-bold px-1 rounded mt-0.5 ${
+                                        item.cantidadContada < item.cantidad ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                                      }`}>
+                                        {item.cantidadContada - item.cantidad > 0 ? `+${item.cantidadContada - item.cantidad}` : item.cantidadContada - item.cantidad}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : item.cantidad !== undefined ? (
+                                  <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold">
+                                    {t('qtyHeader')}: {item.cantidad}
+                                  </span>
+                                ) : null}
+                                {item.checked ? (
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded">{t('ready')}</span>
+                                ) : (
+                                  <span className="bg-red-100 text-red-800 text-[10px] font-bold px-1.5 py-0.5 rounded">{t('missingItem')}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
                   ))}
                 </div>
               </div>

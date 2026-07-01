@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -29,6 +29,12 @@ interface ChecklistItem {
   modelo?: string
   cantidad?: number
   observaciones?: string
+  groupId?: string
+}
+
+interface ChecklistGroup {
+  id: string
+  nombre: string
 }
 
 interface Checklist {
@@ -36,6 +42,16 @@ interface Checklist {
   nombre: string
   descripcion: string
   items: ChecklistItem[]
+  groups?: ChecklistGroup[]
+  coResponsableId?: string
+}
+
+interface StaffMember {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  position: string
 }
 
 export default function ChecklistManagePage() {
@@ -61,6 +77,12 @@ export default function ChecklistManagePage() {
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
   const [editItems, setEditItems] = useState<ChecklistItem[]>([])
+  const [editGroups, setEditGroups] = useState<ChecklistGroup[]>([])
+  const [editCoResponsableId, setEditCoResponsableId] = useState<string>('')
+
+  // Staff list for Co-Responsable dropdown
+  const [staffList, setStaffList] = useState<StaffMember[]>([])
+  const [newGroupName, setNewGroupName] = useState('')
 
   // Item Form Modal (Adding or Editing)
   const [showItemModal, setShowItemModal] = useState(false)
@@ -69,6 +91,7 @@ export default function ChecklistManagePage() {
   const [itemModelo, setItemModelo] = useState('')
   const [itemCantidad, setItemCantidad] = useState('1')
   const [itemObservaciones, setItemObservaciones] = useState('')
+  const [itemGroupId, setItemGroupId] = useState<string>('')
 
   // ─── Fetch Checklist Definitions ───────────────────────────────────────────
 
@@ -89,6 +112,15 @@ export default function ChecklistManagePage() {
           setEditName(first.nombre)
           setEditDesc(first.descripcion)
           setEditItems(first.items)
+          setEditGroups(first.groups || [])
+          setEditCoResponsableId(first.coResponsableId || '')
+        }
+
+        // Fetch staff profiles
+        const staffRes = await fetch('/api/cirugias/usuarios')
+        const staffJson = await staffRes.json()
+        if (staffRes.ok) {
+          setStaffList(staffJson.data || [])
         }
       } catch (err: any) {
         setError(err.message)
@@ -109,6 +141,8 @@ export default function ChecklistManagePage() {
     setEditName(checklist.nombre)
     setEditDesc(checklist.descripcion)
     setEditItems(checklist.items)
+    setEditGroups(checklist.groups || [])
+    setEditCoResponsableId(checklist.coResponsableId || '')
     setSaveSuccess(false)
   }
 
@@ -123,7 +157,9 @@ export default function ChecklistManagePage() {
       id: newId,
       nombre: newChecklistName.trim(),
       descripcion: newChecklistDesc.trim(),
-      items: []
+      items: [],
+      groups: [],
+      coResponsableId: undefined
     }
 
     const updated = [...checklists, newChecklist]
@@ -134,6 +170,8 @@ export default function ChecklistManagePage() {
     setEditName(newChecklist.nombre)
     setEditDesc(newChecklist.descripcion)
     setEditItems([])
+    setEditGroups([])
+    setEditCoResponsableId('')
 
     // Close modal
     setShowNewChecklistModal(false)
@@ -161,13 +199,59 @@ export default function ChecklistManagePage() {
       setEditName(next.nombre)
       setEditDesc(next.descripcion)
       setEditItems(next.items)
+      setEditGroups(next.groups || [])
+      setEditCoResponsableId(next.coResponsableId || '')
     } else {
       setSelectedId('')
       setEditName('')
       setEditDesc('')
       setEditItems([])
+      setEditGroups([])
+      setEditCoResponsableId('')
     }
   }
+
+  // ─── Group Operations ──────────────────────────────────────────────────────
+
+  const handleAddGroup = () => {
+    if (!newGroupName.trim()) return
+    const newGroup: ChecklistGroup = {
+      id: `group_${Date.now()}`,
+      nombre: newGroupName.trim()
+    }
+    setEditGroups(prev => [...prev, newGroup])
+    setNewGroupName('')
+  }
+
+  const handleDeleteGroup = (groupId: string) => {
+    if (!confirm('¿Deseas eliminar este grupo? Los artículos de este grupo pasarán a estar "Sin grupo".')) return
+    setEditGroups(prev => prev.filter(g => g.id !== groupId))
+    setEditItems(prev => prev.map(item => {
+      if (item.groupId === groupId) {
+        const { groupId: _, ...rest } = item
+        return rest
+      }
+      return item
+    }))
+  }
+
+  const handleRenameGroup = (groupId: string, newName: string) => {
+    if (!newName.trim()) return
+    setEditGroups(prev => prev.map(g => g.id === groupId ? { ...g, nombre: newName.trim() } : g))
+  }
+
+  // Group selector for items
+  const groupedEditItems = useMemo(() => {
+    const ungrouped = editItems.filter(item => !item.groupId || !editGroups.some(g => g.id === item.groupId))
+    const groupedMap = editGroups.map(group => ({
+      group,
+      items: editItems.filter(item => item.groupId === group.id)
+    }))
+    return {
+      ungrouped,
+      grouped: groupedMap
+    }
+  }, [editItems, editGroups])
 
   // ─── Item Operations ───────────────────────────────────────────────────────
 
@@ -177,6 +261,7 @@ export default function ChecklistManagePage() {
     setItemModelo('')
     setItemCantidad('1')
     setItemObservaciones('')
+    setItemGroupId('')
     setShowItemModal(true)
   }
 
@@ -186,6 +271,7 @@ export default function ChecklistManagePage() {
     setItemModelo(item.modelo || '')
     setItemCantidad(item.cantidad !== undefined ? String(item.cantidad) : '1')
     setItemObservaciones(item.observaciones || '')
+    setItemGroupId(item.groupId || '')
     setShowItemModal(true)
   }
 
@@ -202,7 +288,8 @@ export default function ChecklistManagePage() {
         material: itemMaterial.trim(),
         modelo: itemModelo.trim() || undefined,
         cantidad: isNaN(qty) ? undefined : qty,
-        observaciones: itemObservaciones.trim() || undefined
+        observaciones: itemObservaciones.trim() || undefined,
+        groupId: itemGroupId || undefined
       }
       setEditItems(prev => [...prev, newItem])
     } else {
@@ -214,7 +301,8 @@ export default function ChecklistManagePage() {
             material: itemMaterial.trim(),
             modelo: itemModelo.trim() || undefined,
             cantidad: isNaN(qty) ? undefined : qty,
-            observaciones: itemObservaciones.trim() || undefined
+            observaciones: itemObservaciones.trim() || undefined,
+            groupId: itemGroupId || undefined
           }
         }
         return item
@@ -246,7 +334,9 @@ export default function ChecklistManagePage() {
             ...c,
             nombre: editName.trim(),
             descripcion: editDesc.trim(),
-            items: editItems
+            items: editItems,
+            groups: editGroups,
+            coResponsableId: editCoResponsableId || undefined
           }
         }
         return c
@@ -388,26 +478,65 @@ export default function ChecklistManagePage() {
             <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 md:p-6 space-y-6">
               
               {/* Template Metadata form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('checklistNameLabel')}</label>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder={t('checklistNamePlaceholder')}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/20"
-                  />
+              <div className="space-y-4 pb-4 border-b">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('checklistNameLabel')}</label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder={t('checklistNamePlaceholder')}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('checklistDescLabel')}</label>
+                    <input
+                      type="text"
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      placeholder={t('checklistDescPlaceholder')}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('checklistDescLabel')}</label>
-                  <input
-                    type="text"
-                    value={editDesc}
-                    onChange={(e) => setEditDesc(e.target.value)}
-                    placeholder={t('checklistDescPlaceholder')}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 focus:ring-2 focus:ring-blue-500/20"
-                  />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Co-Responsable</label>
+                    <select
+                      value={editCoResponsableId}
+                      onChange={(e) => setEditCoResponsableId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-800 bg-white focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="">{t('none') || 'Ninguno'}</option>
+                      {staffList.map(member => (
+                        <option key={member.id} value={member.id}>
+                          {member.first_name} {member.last_name} ({member.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Crear Grupo</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="Nombre del nuevo grupo"
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 focus:ring-2 focus:ring-blue-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddGroup}
+                        className="px-4 py-2 bg-slate-800 text-white font-bold rounded-xl text-sm hover:bg-slate-900 shadow-sm"
+                      >
+                        {t('add' as any) || 'Agregar'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -435,7 +564,7 @@ export default function ChecklistManagePage() {
                   <span className="col-span-2 text-right pr-2">{t('actionsHeader')}</span>
                 </div>
 
-                <div className="divide-y divide-gray-100 max-h-[40vh] overflow-y-auto bg-white">
+                <div className="divide-y divide-gray-100 max-h-[50vh] overflow-y-auto bg-white">
                   {editItems.length === 0 ? (
                     <div className="p-10 text-center text-gray-400 space-y-1">
                       <AlertCircle className="w-8 h-8 text-gray-200 mx-auto" />
@@ -443,47 +572,120 @@ export default function ChecklistManagePage() {
                       <p className="text-xs">{t('checklistEmptyDesc')}</p>
                     </div>
                   ) : (
-                    editItems.map((item, idx) => (
-                      <div key={item.id || idx} className="p-3 text-xs md:text-sm grid grid-cols-12 gap-2 items-center hover:bg-slate-50/50">
-                        
-                        {/* Name/Material */}
-                        <div className="col-span-5 md:col-span-6 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{item.material}</p>
-                          {item.observaciones && (
-                            <p className="text-[10px] text-gray-400 italic truncate">{item.observaciones}</p>
+                    <>
+                      {/* Ungrouped Items */}
+                      {groupedEditItems.ungrouped.length > 0 && (
+                        <div>
+                          <div className="bg-slate-100/70 px-3 py-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            {t('ungroupedItems' as any) || 'Artículos Sin Grupo'}
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {groupedEditItems.ungrouped.map((item: ChecklistItem, idx: number) => (
+                              <div key={item.id || idx} className="p-3 text-xs md:text-sm grid grid-cols-12 gap-2 items-center hover:bg-slate-50/50">
+                                <div className="col-span-5 md:col-span-6 min-w-0">
+                                  <p className="font-semibold text-gray-900 truncate">{item.material}</p>
+                                  {item.observaciones && (
+                                    <p className="text-[10px] text-gray-400 italic truncate">{item.observaciones}</p>
+                                  )}
+                                </div>
+                                <span className="col-span-3 md:col-span-2 font-mono text-xs text-gray-500 truncate">
+                                  {item.modelo || '—'}
+                                </span>
+                                <span className="col-span-2 text-center font-bold text-gray-700 bg-gray-50 border rounded px-1.5 py-0.5 max-w-[50px] mx-auto text-xs">
+                                  {item.cantidad !== undefined ? item.cantidad : '—'}
+                                </span>
+                                <div className="col-span-2 flex items-center justify-end gap-1 pr-1">
+                                  <button
+                                    onClick={() => openEditItemModal(item)}
+                                    className="w-7 h-7 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center justify-center border border-transparent hover:border-blue-100"
+                                    title={t('edit')}
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    className="w-7 h-7 rounded-lg hover:bg-red-50 text-red-600 flex items-center justify-center border border-transparent hover:border-red-100"
+                                    title={t('delete')}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Grouped Items */}
+                      {groupedEditItems.grouped.map(({ group, items }: { group: ChecklistGroup; items: ChecklistItem[] }) => (
+                        <div key={group.id} className="border-t border-gray-100 first:border-t-0">
+                          <div className="bg-slate-50 px-3 py-2 flex items-center justify-between text-xs font-bold text-slate-700">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
+                              {group.nombre} ({items.length})
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  const name = prompt(t('renameGroupPrompt' as any) || 'Nuevo nombre para el grupo:', group.nombre)
+                                  if (name) handleRenameGroup(group.id, name)
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-[10px]"
+                              >
+                                {t('rename' as any) || 'Renombrar'}
+                              </button>
+                              <span className="text-gray-300">|</span>
+                              <button
+                                onClick={() => handleDeleteGroup(group.id)}
+                                className="text-red-600 hover:text-red-800 text-[10px]"
+                              >
+                                {t('delete') || 'Eliminar'}
+                              </button>
+                            </div>
+                          </div>
+                          {items.length === 0 ? (
+                            <div className="p-4 text-center text-gray-400 text-xs italic">
+                              {t('emptyGroup' as any) || 'Este grupo no contiene artículos'}
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-gray-100">
+                              {items.map((item: ChecklistItem, idx: number) => (
+                                <div key={item.id || idx} className="p-3 text-xs md:text-sm grid grid-cols-12 gap-2 items-center hover:bg-slate-50/50">
+                                  <div className="col-span-5 md:col-span-6 min-w-0">
+                                    <p className="font-semibold text-gray-900 truncate">{item.material}</p>
+                                    {item.observaciones && (
+                                      <p className="text-[10px] text-gray-400 italic truncate">{item.observaciones}</p>
+                                    )}
+                                  </div>
+                                  <span className="col-span-3 md:col-span-2 font-mono text-xs text-gray-500 truncate">
+                                    {item.modelo || '—'}
+                                  </span>
+                                  <span className="col-span-2 text-center font-bold text-gray-700 bg-gray-50 border rounded px-1.5 py-0.5 max-w-[50px] mx-auto text-xs">
+                                    {item.cantidad !== undefined ? item.cantidad : '—'}
+                                  </span>
+                                  <div className="col-span-2 flex items-center justify-end gap-1 pr-1">
+                                    <button
+                                      onClick={() => openEditItemModal(item)}
+                                      className="w-7 h-7 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center justify-center border border-transparent hover:border-blue-100"
+                                      title={t('edit')}
+                                    >
+                                      <Edit size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteItem(item.id)}
+                                      className="w-7 h-7 rounded-lg hover:bg-red-50 text-red-600 flex items-center justify-center border border-transparent hover:border-red-100"
+                                      title={t('delete')}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-
-                        {/* Model */}
-                        <span className="col-span-3 md:col-span-2 font-mono text-xs text-gray-500 truncate">
-                          {item.modelo || '—'}
-                        </span>
-
-                        {/* Quantity */}
-                        <span className="col-span-2 text-center font-bold text-gray-700 bg-gray-50 border rounded px-1.5 py-0.5 max-w-[50px] mx-auto text-xs">
-                          {item.cantidad !== undefined ? item.cantidad : '—'}
-                        </span>
-
-                        {/* Actions */}
-                        <div className="col-span-2 flex items-center justify-end gap-1 pr-1">
-                          <button
-                            onClick={() => openEditItemModal(item)}
-                            className="w-7 h-7 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center justify-center border border-transparent hover:border-blue-100"
-                            title={t('edit')}
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="w-7 h-7 rounded-lg hover:bg-red-50 text-red-600 flex items-center justify-center border border-transparent hover:border-red-100"
-                            title={t('delete')}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-
-                      </div>
-                    ))
+                      ))}
+                    </>
                   )}
                 </div>
               </div>
@@ -630,6 +832,20 @@ export default function ChecklistManagePage() {
                     placeholder={t('itemNotesPlaceholder')}
                     className="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Grupo</label>
+                  <select
+                    value={itemGroupId}
+                    onChange={(e) => setItemGroupId(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">Ninguno</option>
+                    {editGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.nombre}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="pt-3 flex gap-2 justify-end">

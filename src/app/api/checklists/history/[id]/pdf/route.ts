@@ -229,8 +229,9 @@ export async function GET(
     })
 
     // General Metainfo Block
+    const hasCoResponsable = !!entry.coResponsableNombre
     y -= 30
-    const metaBoxH = 65
+    const metaBoxH = hasCoResponsable ? 79 : 65
     page.drawRectangle({
       x: LEFT,
       y: y - metaBoxH,
@@ -248,6 +249,12 @@ export async function GET(
     metaY -= 14
     page.drawText('Realizado por:', { x: LEFT + 12, y: metaY, size: 9, font: bold, color: GRAY })
     page.drawText(String(entry.user || ''), { x: LEFT + 85, y: metaY, size: 9, font: regular, color: DARK })
+
+    if (hasCoResponsable) {
+      metaY -= 14
+      page.drawText('Co-Responsable:', { x: LEFT + 12, y: metaY, size: 9, font: bold, color: GRAY })
+      page.drawText(String(entry.coResponsableNombre || ''), { x: LEFT + 85, y: metaY, size: 9, font: regular, color: DARK })
+    }
 
     metaY -= 14
     page.drawText('Fecha:', { x: LEFT + 12, y: metaY, size: 9, font: bold, color: GRAY })
@@ -372,74 +379,131 @@ export async function GET(
     page.drawText('Estado', { x: colStatusX + 5, y: initHeaderY, size: 7.5, font: bold, color: rgb(1, 1, 1) })
     page.drawText('Observaciones', { x: colObsX + 5, y: initHeaderY, size: 7.5, font: bold, color: rgb(1, 1, 1) })
 
+    // Group the items
+    const groupsList = entry.groups || []
+    const ungrouped = (entry.items || []).filter((item: any) => !item.groupId || !groupsList.some((g: any) => g.id === item.groupId))
+    const groupedData = groupsList.map((g: any) => ({
+      groupName: g.nombre,
+      items: (entry.items || []).filter((item: any) => item.groupId === g.id)
+    }))
+
+    // Build the ordered flat list of rows to render (either group headers or items)
+    const rowsToRender: ({ type: 'group'; name: string } | { type: 'item'; item: any; index: number })[] = []
+    
+    if (ungrouped.length > 0) {
+      if (groupsList.length > 0) {
+        rowsToRender.push({ type: 'group', name: 'Artículos Sin Grupo' })
+      }
+      ungrouped.forEach((item: any, idx: number) => {
+        rowsToRender.push({ type: 'item', item, index: idx })
+      })
+    }
+
+    let globalItemIdx = ungrouped.length
+    groupedData.forEach((gData: any) => {
+      if (gData.items.length > 0) {
+        rowsToRender.push({ type: 'group', name: gData.groupName })
+        gData.items.forEach((item: any) => {
+          rowsToRender.push({ type: 'item', item, index: globalItemIdx++ })
+        })
+      }
+    })
+
     // Draw rows
-    const items = entry.items || []
-    for (let idx = 0; idx < items.length; idx++) {
-      const item = items[idx]
-      const wrappedMaterial = wrapText(item.material || '', regular, 7, colMaterialW - 10)
-      const wrappedObs = wrapText(item.observaciones || '', regular, 7, colObsW - 10)
-      
-      const linesCount = Math.max(wrappedMaterial.length, wrappedObs.length, 1)
-      const rowHeight = 12 + (linesCount - 1) * 8.5
+    for (let rIdx = 0; rIdx < rowsToRender.length; rIdx++) {
+      const row = rowsToRender[rIdx]
 
-      ensureSpace(rowHeight + 5, true)
+      if (row.type === 'group') {
+        const headerHeight = 16
+        ensureSpace(headerHeight + 5, true)
+        
+        page.drawRectangle({
+          x: LEFT,
+          y: y - headerHeight,
+          width: CONTENT_W,
+          height: headerHeight,
+          color: rgb(0.85, 0.9, 0.95),
+          borderColor: rgb(0.75, 0.8, 0.85),
+          borderWidth: 0.5
+        })
 
-      const isEven = idx % 2 === 0
-      const bgCol = isEven ? rgb(0.96, 0.97, 0.98) : rgb(1, 1, 1)
+        page.drawText(row.name.toUpperCase(), {
+          x: LEFT + 8,
+          y: y - headerHeight + 5.5,
+          size: 7.5,
+          font: bold,
+          color: rgb(0.1, 0.3, 0.5)
+        })
 
-      page.drawRectangle({
-        x: LEFT,
-        y: y - rowHeight,
-        width: CONTENT_W,
-        height: rowHeight,
-        color: bgCol
-      })
+        y -= headerHeight
+      } else {
+        const item = row.item
+        const idx = row.index
+        const wrappedMaterial = wrapText(item.material || '', regular, 7, colMaterialW - 10)
+        const wrappedObs = wrapText(item.observaciones || '', regular, 7, colObsW - 10)
+        
+        const linesCount = Math.max(wrappedMaterial.length, wrappedObs.length, 1)
+        const rowHeight = 12 + (linesCount - 1) * 8.5
 
-      page.drawRectangle({
-        x: LEFT,
-        y: y - rowHeight,
-        width: CONTENT_W,
-        height: rowHeight,
-        borderWidth: 0.2,
-        borderColor: rgb(0.88, 0.88, 0.88)
-      })
+        ensureSpace(rowHeight + 5, true)
 
-      const textY = y - 9.5
-      // Draw wrapped Material
-      let matLineY = textY
-      for (const line of wrappedMaterial) {
-        page.drawText(line, { x: colMaterialX + 5, y: matLineY, size: 7, font: regular, color: DARK })
-        matLineY -= 8.5
+        const isEven = idx % 2 === 0
+        const bgCol = isEven ? rgb(0.96, 0.97, 0.98) : rgb(1, 1, 1)
+
+        page.drawRectangle({
+          x: LEFT,
+          y: y - rowHeight,
+          width: CONTENT_W,
+          height: rowHeight,
+          color: bgCol
+        })
+
+        page.drawRectangle({
+          x: LEFT,
+          y: y - rowHeight,
+          width: CONTENT_W,
+          height: rowHeight,
+          borderWidth: 0.2,
+          borderColor: rgb(0.88, 0.88, 0.88)
+        })
+
+        const textY = y - 9.5
+        // Draw wrapped Material
+        let matLineY = textY
+        for (const line of wrappedMaterial) {
+          page.drawText(line, { x: colMaterialX + 5, y: matLineY, size: 7, font: regular, color: DARK })
+          matLineY -= 8.5
+        }
+
+        // Draw Modelo
+        if (item.modelo) {
+          page.drawText(item.modelo, { x: colModeloX + 5, y: textY, size: 7, font: regular, color: DARK })
+        }
+
+        // Draw Esperado
+        const expectedStr = String(item.cantidad !== undefined ? item.cantidad : '-')
+        page.drawText(expectedStr, { x: colExpectedX + 5, y: textY, size: 7, font: regular, color: DARK })
+
+        // Draw Contado
+        const countedStr = String(item.cantidadContada !== undefined ? item.cantidadContada : '-')
+        const isMismatch = item.cantidadContada !== undefined && item.cantidad !== undefined && item.cantidadContada !== item.cantidad
+        const countedColor = isMismatch ? rgb(0.75, 0.1, 0.1) : DARK
+        page.drawText(countedStr, { x: colCountedX + 5, y: textY, size: 7, font: isMismatch ? bold : regular, color: countedColor })
+
+        // Draw Status
+        const statusText = item.checked ? 'Listo' : 'Faltante'
+        const statusColor = item.checked ? rgb(0.04, 0.48, 0.28) : rgb(0.75, 0.1, 0.1)
+        page.drawText(statusText, { x: colStatusX + 5, y: textY, size: 7, font: bold, color: statusColor })
+
+        // Draw wrapped Observaciones
+        let obsLineY = textY
+        for (const line of wrappedObs) {
+          page.drawText(line, { x: colObsX + 5, y: obsLineY, size: 7, font: regular, color: DARK })
+          obsLineY -= 8.5
+        }
+
+        y -= rowHeight
       }
-
-      // Draw Modelo
-      if (item.modelo) {
-        page.drawText(item.modelo, { x: colModeloX + 5, y: textY, size: 7, font: regular, color: DARK })
-      }
-
-      // Draw Esperado
-      const expectedStr = String(item.cantidad !== undefined ? item.cantidad : '-')
-      page.drawText(expectedStr, { x: colExpectedX + 5, y: textY, size: 7, font: regular, color: DARK })
-
-      // Draw Contado
-      const countedStr = String(item.cantidadContada !== undefined ? item.cantidadContada : '-')
-      const isMismatch = item.cantidadContada !== undefined && item.cantidad !== undefined && item.cantidadContada !== item.cantidad
-      const countedColor = isMismatch ? rgb(0.75, 0.1, 0.1) : DARK
-      page.drawText(countedStr, { x: colCountedX + 5, y: textY, size: 7, font: isMismatch ? bold : regular, color: countedColor })
-
-      // Draw Status
-      const statusText = item.checked ? 'Listo' : 'Faltante'
-      const statusColor = item.checked ? rgb(0.04, 0.48, 0.28) : rgb(0.75, 0.1, 0.1)
-      page.drawText(statusText, { x: colStatusX + 5, y: textY, size: 7, font: bold, color: statusColor })
-
-      // Draw wrapped Observaciones
-      let obsLineY = textY
-      for (const line of wrappedObs) {
-        page.drawText(line, { x: colObsX + 5, y: obsLineY, size: 7, font: regular, color: DARK })
-        obsLineY -= 8.5
-      }
-
-      y -= rowHeight
     }
 
     // Save and stream the PDF
