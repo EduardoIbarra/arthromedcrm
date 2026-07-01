@@ -61,6 +61,7 @@ interface HistoryEntry {
   id: string
   checklistId: string
   checklistName: string
+  checklistInstanceId?: string
   date: string
   user: string
   checkedCount: number
@@ -526,6 +527,7 @@ export default function ChecklistsPage() {
         id: `hlog_${Date.now()}`,
         checklistId: activePendingList.areaId,
         checklistName: activePendingList.nombre,
+        checklistInstanceId: activePendingList.id,
         date: new Date().toISOString(),
         user: profile?.email || 'Inspector ERP',
         checkedCount: verificationProgress.checked,
@@ -593,12 +595,14 @@ export default function ChecklistsPage() {
     if (!confirm(t('confirmRecreateChecklist') || '¿Deseas generar una nueva lista de chequeo basada en esta y enviarla a Pendientes de Chequeo?')) return
 
     try {
+      // eslint-disable-next-line react-hooks/purity
+      const timestamp = Date.now()
       const dateStr = new Date().toLocaleDateString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short' })
       const baseName = entry.checklistName.split(' - ')[0]
       const newTitle = `${baseName} - ${dateStr}`
 
       const itemsToInspect = entry.items.map((item, index) => ({
-        id: `otf_${Date.now()}_${index}`,
+        id: `otf_${timestamp}_${index}`,
         material: item.material,
         modelo: item.modelo,
         cantidad: item.cantidad || 1,
@@ -607,7 +611,7 @@ export default function ChecklistsPage() {
       }))
 
       const pendingEntry = {
-        id: `pchk_${Date.now()}`,
+        id: entry.checklistInstanceId || `pchk_${timestamp}`,
         nombre: newTitle,
         areaId: entry.checklistId || 'manual',
         areaNombre: entry.checklistName.split(' - ')[0] || 'Manual',
@@ -657,6 +661,14 @@ export default function ChecklistsPage() {
       (entry.notes && entry.notes.toLowerCase().includes(query))
     )
   }, [historyList, historySearchQuery])
+
+  // Get historical runs for the same instance
+  const instanceHistory = useMemo(() => {
+    if (!selectedHistoryEntry?.checklistInstanceId) return []
+    return historyList.filter(
+      h => h.checklistInstanceId === selectedHistoryEntry.checklistInstanceId && h.id !== selectedHistoryEntry.id
+    )
+  }, [selectedHistoryEntry, historyList])
 
   // Progress Color Badge Helpers
   const getProgressColor = (pct: number) => {
@@ -1347,6 +1359,36 @@ export default function ChecklistsPage() {
                     </div>
                   )}
                 </div>
+
+                {instanceHistory.length > 0 && (
+                  <div className="bg-slate-50/50 rounded-2xl p-4 border border-gray-150 space-y-2">
+                    <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      {locale === 'en' ? 'Previous Runs' : locale === 'zh' ? '历史运行' : 'Ejecuciones Anteriores'}
+                    </h5>
+                    <div className="space-y-2">
+                      {instanceHistory.map(run => (
+                        <div 
+                          key={run.id}
+                          onClick={() => setSelectedHistoryEntry(run)}
+                          className="bg-white hover:bg-blue-50 border border-gray-100 p-2.5 rounded-xl flex items-center justify-between text-xs transition-all cursor-pointer shadow-sm hover:shadow"
+                        >
+                          <div className="space-y-0.5 min-w-0">
+                            <p className="font-bold text-gray-700 truncate">{run.checklistName}</p>
+                            <p className="text-[10px] text-gray-400">
+                              {new Date(run.date).toLocaleString(locale === 'zh' ? 'zh-CN' : locale === 'en' ? 'en-US' : 'es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0 flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
+                              {run.checkedCount} / {run.totalCount}
+                            </span>
+                            <ChevronRight size={14} className="text-gray-400" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{t('itemDetails')}</h5>
                 <div className="divide-y border rounded-2xl overflow-hidden bg-white">
