@@ -150,6 +150,7 @@ export default function ChecklistsPage() {
   const [newItemModel, setNewItemModel] = useState('')
   const [newItemQty, setNewItemQty] = useState('1')
   const [newItemNotes, setNewItemNotes] = useState('')
+  const [newItemGroupId, setNewItemGroupId] = useState('')
 
   // Toast / Notifications
   const [submitSuccess, setSubmitSuccess] = useState(false)
@@ -428,7 +429,8 @@ export default function ChecklistsPage() {
       modelo: newItemModel.trim() || undefined,
       cantidad: isNaN(qty) ? undefined : qty,
       observaciones: newItemNotes.trim() || undefined,
-      addedOnTheFly: true
+      addedOnTheFly: true,
+      groupId: newItemGroupId || undefined
     }
 
     setCreatedCustomItems(prev => [...prev, newOtfItem])
@@ -447,6 +449,7 @@ export default function ChecklistsPage() {
     setNewItemModel('')
     setNewItemQty('1')
     setNewItemNotes('')
+    setNewItemGroupId('')
   }
 
   const handleCreateChecklistSubmit = async () => {
@@ -1060,12 +1063,38 @@ export default function ChecklistsPage() {
 
                         {/* Grouped items */}
                         {groupedCreateItems.grouped.map(({ group, items }) => (
-                          items.length > 0 && (
-                            <div key={group.id}>
-                              <div className="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 flex items-center gap-1.5 border-y border-gray-100">
+                          <div key={group.id}>
+                            <div className="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 flex items-center justify-between border-y border-gray-100">
+                              <span className="flex items-center gap-1.5">
                                 <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
                                 {group.nombre} ({items.length})
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setNewItemGroupId(group.id)
+                                  setShowAddModal(true)
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-md transition-colors shadow-sm"
+                              >
+                                <Plus size={10} />
+                                Agregar item aquí
+                              </button>
+                            </div>
+                            {items.length === 0 ? (
+                              <div className="p-4 text-center space-y-2">
+                                <p className="text-gray-400 text-xs italic">Este grupo no tiene artículos del catálogo</p>
+                                <button
+                                  onClick={() => {
+                                    setNewItemGroupId(group.id)
+                                    setShowAddModal(true)
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors"
+                                >
+                                  <Plus size={12} />
+                                  Agregar primer artículo al grupo
+                                </button>
                               </div>
+                            ) : (
                               <div className="divide-y divide-gray-100">
                                 {items.map(item => {
                                   const isSelected = !!selectedInventoryItems[item.id]
@@ -1118,21 +1147,24 @@ export default function ChecklistsPage() {
                                   )
                                 })}
                               </div>
-                            </div>
-                          )
+                            )}
+                          </div>
                         ))}
                       </>
                     )}
                   </div>
 
                   {/* Add Custom Item trigger */}
-                  <div className="p-4 bg-gray-50 border-t border-gray-150 text-right">
+                  <div className="p-4 bg-gray-50 border-t border-gray-150 flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-gray-400">
+                      ¿Falta algo? Agrega un artículo personalizado y asígnalo a un grupo.
+                    </p>
                     <button
-                      onClick={() => setShowAddModal(true)}
-                      className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all border border-blue-200"
+                      onClick={() => { setNewItemGroupId(''); setShowAddModal(true) }}
+                      className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all border border-blue-200 whitespace-nowrap"
                     >
                       <Plus size={14} />
-                      Agregar Item al Vuelo
+                      Agregar artículo personalizado
                     </button>
                   </div>
                 </div>
@@ -2013,10 +2045,10 @@ export default function ChecklistsPage() {
               <div className="p-5 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
                   <PlusCircle className="text-blue-600" size={20} />
-                  Agregar Elemento al Vuelo
+                  Agregar Artículo Personalizado
                 </h3>
                 <button 
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => { setShowAddModal(false); setNewItemGroupId('') }}
                   className="w-8 h-8 rounded-full hover:bg-gray-150 flex items-center justify-center text-gray-500"
                 >
                   <X size={18} />
@@ -2029,6 +2061,7 @@ export default function ChecklistsPage() {
                   <input
                     type="text"
                     required
+                    autoFocus
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     placeholder={t('itemNamePlaceholder')}
@@ -2070,10 +2103,32 @@ export default function ChecklistsPage() {
                   />
                 </div>
 
+                {activeChecklist && (activeChecklist.groups || []).length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Asignar a grupo</label>
+                    <select
+                      value={newItemGroupId}
+                      onChange={(e) => setNewItemGroupId(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">Sin grupo</option>
+                      {(activeChecklist.groups || []).map(g => (
+                        <option key={g.id} value={g.id}>{g.nombre}</option>
+                      ))}
+                    </select>
+                    {newItemGroupId && (
+                      <p className="text-[11px] text-blue-600 font-semibold mt-1 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>
+                        Se agregará al grupo: {(activeChecklist.groups || []).find(g => g.id === newItemGroupId)?.nombre}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="pt-3 flex gap-2 justify-end">
                   <button
                     type="button"
-                    onClick={() => setShowAddModal(false)}
+                    onClick={() => { setShowAddModal(false); setNewItemGroupId('') }}
                     className="px-4 py-2 border rounded-xl text-sm text-gray-700 bg-white hover:bg-gray-50 font-semibold"
                   >
                     {t('cancel')}
