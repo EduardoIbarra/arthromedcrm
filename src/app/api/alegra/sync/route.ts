@@ -237,7 +237,8 @@ export async function GET(_request: NextRequest) {
                   cantidad_facturada: Math.round(item.quantity) || 1,
                   precio_unitario:    item.price || 0,
                   importe:            (item.price || 0) * (item.quantity || 0),
-                  linea:              linea || null
+                  linea:              linea || null,
+                  alegra_id:          item.id ? String(item.id) : null
                 }
               })
             })
