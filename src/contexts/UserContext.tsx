@@ -8,7 +8,7 @@ interface UserContextType {
   profile: UserProfile | null
   loading: boolean
   hasPermission: (section: Section, action: PermissionAction) => boolean
-  refreshProfile: () => Promise<void>
+  refreshProfile: (showLoading?: boolean) => Promise<void>
 }
 
 const UserContext = createContext<UserContextType>({
@@ -23,8 +23,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
-  const refreshProfile = async () => {
-    setLoading(true)
+  const refreshProfile = async (showLoading = false) => {
+    if (showLoading) setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -44,15 +44,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       console.error('Error fetching user profile:', err)
       setProfile(null)
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }
 
   useEffect(() => {
-    refreshProfile()
+    refreshProfile(true)
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      refreshProfile()
+      refreshProfile(false)
     })
 
     return () => subscription.unsubscribe()
