@@ -42,6 +42,7 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/communication': { section: 'communication', action: 'view' },
   '/recordatorios': { section: 'recordatorios', action: 'view' },
   '/car-fleet': { section: 'car_fleet', action: 'view' },
+  '/directorio': { section: 'directorio', action: 'view' },
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {

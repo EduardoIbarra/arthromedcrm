@@ -305,4 +305,22 @@ export interface WorkshopItinerary {
   updated_at?: string
 }
 
+export interface DirectorioCategoria {
+  id: string
+  name: string
+  created_at?: string | null
+  contacts?: DirectorioContacto[]
+}
+
+export interface DirectorioContacto {
+  id: string
+  category_id: string
+  name: string
+  phone: string | null
+  email: string | null
+  notes: string | null
+  created_at?: string | null
+  category?: DirectorioCategoria
+}
+
 

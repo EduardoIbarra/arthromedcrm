@@ -20,6 +20,7 @@ export const SECTIONS = [
   'communication',
   'recordatorios',
   'car_fleet',
+  'directorio',
   'ventas',
   'facturas',
   'gastos',

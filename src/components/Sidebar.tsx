@@ -74,6 +74,7 @@ export default function Sidebar() {
         { href: '/communication', icon: Send, label: t('communication' as any) || 'Comunicaciones', section: 'communication' },
         { href: '/recordatorios', icon: Bell, label: 'Recordatorios WA', section: 'recordatorios' },
         { href: '/car-fleet', icon: Car, label: t('carFleet') || 'Flota Vehicular', section: 'car_fleet' },
+        { href: '/directorio', icon: Users, label: t('directorio') || 'Directorio', section: 'directorio' },
       ],
     },
     {
