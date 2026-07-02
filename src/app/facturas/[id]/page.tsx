@@ -261,22 +261,17 @@ export default function FacturaDetailPage() {
 
   const handleSaveRemision = async () => {
     if (!invoice) return
-    if (!remisionNumero.trim() && !editingRemision) {
-      alert('El número de remisión es requerido')
-      return
-    }
     try {
       setIsSavingRemision(true)
       const itemsPayload = invoice.factura_productos.map(fp => ({
         factura_producto_id: fp.id,
-        producto_id: null, // products linked by name for simplicity
         producto_nombre: fp.producto_nombre,
         cantidad: remisionItems[fp.id] || 0
       }))
 
       const body = editingRemision
         ? { action: 'edit', remision_id: editingRemision.id, observaciones: remisionObservaciones, items: itemsPayload }
-        : { action: 'create', numero_remision: remisionNumero.trim(), observaciones: remisionObservaciones, items: itemsPayload }
+        : { action: 'create', observaciones: remisionObservaciones, items: itemsPayload }
 
       const res = await fetch(`/api/invoices/${invoice.id}/remisiones`, {
         method: 'POST',
@@ -1485,19 +1480,11 @@ export default function FacturaDetailPage() {
 
           {/* Modal Body */}
           <div className="flex-1 overflow-y-auto p-6 space-y-5">
-            {/* Numero remision */}
+            {/* Auto-generated number hint */}
             {!editingRemision && (
-              <div>
-                <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
-                  Número de Remisión <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={remisionNumero}
-                  onChange={e => setRemisionNumero(e.target.value)}
-                  placeholder="Ej: REM-001"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
-                />
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100">
+                <span className="text-blue-500 text-xs">ℹ</span>
+                <p className="text-xs text-blue-700 font-medium">El número de remisión se generará automáticamente (ej: REM-0001)</p>
               </div>
             )}
 
@@ -1556,7 +1543,10 @@ export default function FacturaDetailPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-gray-400 mt-2 italic">La factura cambiará a estado <strong>Parcial</strong> al guardar.</p>
+              <p className="text-xs text-gray-400 mt-2 italic">
+                El estado de surtido de la factura se recalculará automáticamente: 
+                <strong> No Surtida</strong>, <strong>Parcial</strong> o <strong>Completa</strong>.
+              </p>
             </div>
           </div>
 
