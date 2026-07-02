@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 
 interface FacturaProducto {
@@ -134,6 +134,14 @@ export default function FacturaDetailPage() {
   const [invoicePayMethod, setInvoicePayMethod] = useState('Efectivo')
   const [isSavingInvoicePayment, setIsSavingInvoicePayment] = useState(false)
 
+  // Remision Modal State
+  const [showRemisionModal, setShowRemisionModal] = useState(false)
+  const [editingRemision, setEditingRemision] = useState<Remision | null>(null)
+  const [remisionNumero, setRemisionNumero] = useState('')
+  const [remisionObservaciones, setRemisionObservaciones] = useState('')
+  const [remisionItems, setRemisionItems] = useState<Record<string, number>>({})
+  const [isSavingRemision, setIsSavingRemision] = useState(false)
+
   const handleConfirmInvoicePayment = async () => {
     try {
       setIsSavingInvoicePayment(true)
@@ -223,6 +231,71 @@ export default function FacturaDetailPage() {
       alert('Error al guardar surtido')
     } finally {
       setIsSavingFulfillment(false)
+    }
+  }
+
+  // Remision Handlers
+  const openCreateRemision = () => {
+    setEditingRemision(null)
+    setRemisionNumero('')
+    setRemisionObservaciones('')
+    const initItems: Record<string, number> = {}
+    invoice?.factura_productos.forEach(fp => { initItems[fp.id] = 0 })
+    setRemisionItems(initItems)
+    setShowRemisionModal(true)
+  }
+
+  const openEditRemision = (remision: Remision) => {
+    setEditingRemision(remision)
+    setRemisionNumero(remision.numero_remision)
+    setRemisionObservaciones(remision.observaciones || '')
+    // Map existing delivered per factura_producto via producto_nombre matching
+    const initItems: Record<string, number> = {}
+    invoice?.factura_productos.forEach(fp => {
+      const existing = remision.remision_productos.find(rp => rp.producto_nombre === fp.producto_nombre)
+      initItems[fp.id] = existing?.cantidad || 0
+    })
+    setRemisionItems(initItems)
+    setShowRemisionModal(true)
+  }
+
+  const handleSaveRemision = async () => {
+    if (!invoice) return
+    if (!remisionNumero.trim() && !editingRemision) {
+      alert('El número de remisión es requerido')
+      return
+    }
+    try {
+      setIsSavingRemision(true)
+      const itemsPayload = invoice.factura_productos.map(fp => ({
+        factura_producto_id: fp.id,
+        producto_id: null, // products linked by name for simplicity
+        producto_nombre: fp.producto_nombre,
+        cantidad: remisionItems[fp.id] || 0
+      }))
+
+      const body = editingRemision
+        ? { action: 'edit', remision_id: editingRemision.id, observaciones: remisionObservaciones, items: itemsPayload }
+        : { action: 'create', numero_remision: remisionNumero.trim(), observaciones: remisionObservaciones, items: itemsPayload }
+
+      const res = await fetch(`/api/invoices/${invoice.id}/remisiones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error al guardar remisión')
+      }
+
+      setShowRemisionModal(false)
+      await fetchInvoice()
+    } catch (error: any) {
+      console.error(error)
+      alert(error.message || 'Error al guardar remisión')
+    } finally {
+      setIsSavingRemision(false)
     }
   }
 
@@ -507,6 +580,7 @@ export default function FacturaDetailPage() {
   const validation = validateForm()
 
   return (
+    <>
     <AppShell>
       <div className="max-w-5xl mx-auto p-6 md:p-8 space-y-6 animate-fade-in">
         
@@ -1292,23 +1366,40 @@ export default function FacturaDetailPage() {
         </div>
 
         {/* Remisiones Asociadas */}
-        {invoice.remisiones && invoice.remisiones.length > 0 && (
+        {invoice.remisiones !== undefined && (
           <div className="bg-white rounded-2xl border border-[#e8f1f9] shadow-sm overflow-hidden mt-6">
-            <div className="p-6 bg-gray-50/50 border-b border-[#e8f1f9]">
+            <div className="p-6 bg-gray-50/50 border-b border-[#e8f1f9] flex items-center justify-between">
               <h4 className="text-sm font-extrabold uppercase text-gray-800 tracking-wider flex items-center gap-2">
                 <span className="bg-[#0763a9] w-2 h-2 rounded-full"></span>
                 Remisiones Asociadas
               </h4>
+              <button
+                onClick={openCreateRemision}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0763a9] hover:bg-[#0a86e3] text-white text-xs font-bold transition-colors shadow-sm"
+              >
+                <Plus size={13} />
+                Generar Remisión
+              </button>
             </div>
             <div className="p-6 space-y-6">
+              {invoice.remisiones.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                  <PackageOpen size={36} className="mb-2 opacity-40" />
+                  <p className="text-sm font-medium">Sin remisiones aún</p>
+                  <p className="text-xs mt-1">Genera la primera remisión con el botón de arriba</p>
+                </div>
+              )}
               {invoice.remisiones.map((remision) => (
                 <div key={remision.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                   <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                    <div>
-                      <span className="text-xs text-gray-400 uppercase font-bold tracking-wider mr-2">Remisión:</span>
-                      <span className="font-extrabold text-gray-900">{remision.numero_remision}</span>
+                    <div className="flex items-center gap-3">
+                      <Truck size={15} className="text-[#0763a9]" />
+                      <div>
+                        <span className="text-xs text-gray-400 uppercase font-bold tracking-wider mr-2">Remisión:</span>
+                        <span className="font-extrabold text-gray-900">{remision.numero_remision}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-500 font-semibold flex items-center gap-1">
                         <Calendar size={12} className="text-gray-400" />
                         {formatDate(remision.fecha_remision)}
@@ -1316,6 +1407,13 @@ export default function FacturaDetailPage() {
                       <span className="inline-flex px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
                         {remision.estado}
                       </span>
+                      <button
+                        onClick={() => openEditRemision(remision)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg border border-[#0763a9] text-[#0763a9] hover:bg-[#0763a9]/5 text-xs font-bold transition-colors"
+                      >
+                        <Edit size={11} />
+                        Editar
+                      </button>
                     </div>
                   </div>
                   {remision.observaciones && (
@@ -1357,5 +1455,136 @@ export default function FacturaDetailPage() {
 
       </div>
     </AppShell>
+
+    {/* Remision Modal */}
+    {showRemisionModal && invoice && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#0763a9]/10 flex items-center justify-center">
+                <Truck size={18} className="text-[#0763a9]" />
+              </div>
+              <div>
+                <h2 className="text-base font-extrabold text-gray-900">
+                  {editingRemision ? 'Editar Remisión' : 'Generar Remisión'}
+                </h2>
+                <p className="text-xs text-gray-400">
+                  {editingRemision ? `Remisión ${editingRemision.numero_remision}` : invoice.numero_factura}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowRemisionModal(false)}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Modal Body */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            {/* Numero remision */}
+            {!editingRemision && (
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                  Número de Remisión <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={remisionNumero}
+                  onChange={e => setRemisionNumero(e.target.value)}
+                  placeholder="Ej: REM-001"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+                />
+              </div>
+            )}
+
+            {/* Observaciones */}
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Observaciones
+              </label>
+              <textarea
+                value={remisionObservaciones}
+                onChange={e => setRemisionObservaciones(e.target.value)}
+                placeholder="Notas adicionales (opcional)..."
+                rows={2}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition resize-none"
+              />
+            </div>
+
+            {/* Products Table */}
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-2">
+                Piezas entregadas en esta remisión
+              </label>
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-4 py-2.5 text-left text-xs font-bold uppercase text-gray-500 tracking-wider">Producto</th>
+                      <th className="px-4 py-2.5 text-center text-xs font-bold uppercase text-gray-500 tracking-wider w-28">Facturado</th>
+                      <th className="px-4 py-2.5 text-center text-xs font-bold uppercase text-gray-500 tracking-wider w-28">Ya entregado</th>
+                      <th className="px-4 py-2.5 text-center text-xs font-bold uppercase text-gray-500 tracking-wider w-28">Esta remisión</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {invoice.factura_productos.map((fp) => (
+                      <tr key={fp.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-900 text-sm">{fp.producto_nombre}</td>
+                        <td className="px-4 py-3 text-center text-gray-500">{fp.cantidad_facturada}</td>
+                        <td className="px-4 py-3 text-center text-gray-500">
+                          {editingRemision
+                            ? (fp.cantidad_entregada ?? 0) - (editingRemision.remision_productos.find(rp => rp.producto_nombre === fp.producto_nombre)?.cantidad || 0)
+                            : (fp.cantidad_entregada ?? 0)
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="number"
+                            min={0}
+                            max={fp.cantidad_facturada}
+                            value={remisionItems[fp.id] ?? 0}
+                            onChange={e => setRemisionItems(prev => ({ ...prev, [fp.id]: Math.max(0, Number(e.target.value)) }))}
+                            className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center font-semibold focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-400 mt-2 italic">La factura cambiará a estado <strong>Parcial</strong> al guardar.</p>
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+            <button
+              onClick={() => setShowRemisionModal(false)}
+              disabled={isSavingRemision}
+              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSaveRemision}
+              disabled={isSavingRemision}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0763a9] hover:bg-[#0a86e3] text-white text-sm font-bold transition-colors shadow-sm disabled:opacity-60"
+            >
+              {isSavingRemision ? (
+                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Check size={15} />
+              )}
+              {editingRemision ? 'Guardar Cambios' : 'Generar Remisión'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
