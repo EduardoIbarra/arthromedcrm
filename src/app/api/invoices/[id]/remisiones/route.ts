@@ -73,7 +73,7 @@ export async function POST(
             cliente_nombre: factura.cliente_nombre,
             numero_factura: factura.numero_factura,
             observaciones: observaciones || null,
-            estado: 'entregado',
+            estado: 'preparando',
             tipo: 'venta'
           }
         })
