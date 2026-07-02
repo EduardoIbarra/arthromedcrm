@@ -169,10 +169,10 @@ export default function HospitalPricesPage({ params }: { params: Promise<{ id: s
       const aVal = a[sortField]
       const bVal = b[sortField]
       if (aVal === bVal) return 0
-      if (aVal === null) return 1
-      if (bVal === null) return -1
+      if (aVal === null || aVal === undefined) return 1
+      if (bVal === null || bVal === undefined) return -1
       
-      const comparison = aVal < bVal ? -1 : 1
+      const comparison = (aVal as any) < (bVal as any) ? -1 : 1
       return sortAsc ? comparison : -comparison
     })
 
