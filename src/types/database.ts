@@ -81,6 +81,9 @@ export interface Product {
   category: string | null
   specialty_ids: string[] | null
   image_urls: string[] | null
+  alegra_id: string | null
+  orden: number | null
+  line_color?: string | null
   created_at: string
   updated_at: string
 }

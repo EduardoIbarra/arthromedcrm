@@ -5,16 +5,31 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const data = await prisma.productos.findMany({
-      orderBy: { nombre: 'asc' },
-    })
+    const [data, catalogLines] = await Promise.all([
+      prisma.productos.findMany({
+        orderBy: [
+          { orden: 'asc' },
+          { nombre: 'asc' }
+        ]
+      }),
+      prisma.catalog_lines.findMany({
+        select: { name: true, color: true }
+      })
+    ])
+
+    const lineColors = new Map<string, string>()
+    for (const line of catalogLines) {
+      lineColors.set(line.name.toLowerCase(), line.color)
+    }
+
     const mapped = data.map((p: any) => ({
       ...p,
       description: p.nombre,
       sale_price: p.precio_unitario !== null ? Number(p.precio_unitario) : null,
       base_hospital_price: p.base_hospital_price !== null ? Number(p.base_hospital_price) : null,
       category: p.categoria,
-      type: p.tipo
+      type: p.tipo,
+      line_color: p.line ? (lineColors.get(p.line.toLowerCase()) || null) : null
     }))
     return NextResponse.json({ data: mapped })
   } catch (error: any) {

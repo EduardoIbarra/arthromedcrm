@@ -64,7 +64,7 @@ const PRODUCT_CATEGORIES = [
   'Sistema > Lentes > Lente de 30°',
 ]
 
-type SortField = keyof Pick<Product, 'description' | 'model' | 'order_code' | 'line' | 'sale_price' | 'base_hospital_price' | 'type' | 'subtipo'>
+type SortField = keyof Pick<Product, 'description' | 'model' | 'order_code' | 'line' | 'sale_price' | 'base_hospital_price' | 'type' | 'subtipo' | 'orden'>
 
 type FormState = {
   description: string
@@ -117,7 +117,7 @@ export default function ProductsPage() {
 
   // Table state
   const [search, setSearch] = useState('')
-  const [sortField, setSortField] = useState<SortField>('description')
+  const [sortField, setSortField] = useState<SortField>('orden')
   const [sortAsc, setSortAsc] = useState(true)
   const [lineFilter, setLineFilter] = useState('')
   const [tipoFilter, setTipoFilter] = useState('')
@@ -575,7 +575,18 @@ export default function ProductsPage() {
                         )}
                       </td>
                       <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{product.model || '-'}</td>
-                      <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{product.line || '-'}</td>
+                      <td className="p-4 text-sm text-gray-655 whitespace-nowrap">
+                        {product.line ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border" style={{
+                            backgroundColor: (product as any).line_color ? `${(product as any).line_color}15` : '#F3F4F6',
+                            borderColor: (product as any).line_color || '#E5E7EB',
+                            color: (product as any).line_color || '#374151'
+                          }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: (product as any).line_color || '#9CA3AF' }} />
+                            {product.line}
+                          </span>
+                        ) : '-'}
+                      </td>
                       <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{product.type || '-'}</td>
                       <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{(product as any).subtipo || '-'}</td>
                       <td className="p-4 font-medium text-gray-900 whitespace-nowrap">{formatCurrency(product.sale_price)}</td>

@@ -1633,6 +1633,7 @@ model productos {
   tipo                   String?
   orden                  Int?
   consecutivo_alg        String?
+  alegra_id              String?
   descripcion_angeles    String?
   descripcion_hospitales String?
   nombre_lista           String?
