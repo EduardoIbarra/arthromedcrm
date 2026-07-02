@@ -107,6 +107,7 @@ export default function FacturaDetailPage() {
   const [fulfillmentStatus, setFulfillmentStatus] = useState('')
   const [fulfillmentItems, setFulfillmentItems] = useState<Record<string, number>>({})
   const [isSavingFulfillment, setIsSavingFulfillment] = useState(false)
+  const [isSavingEntregada, setIsSavingEntregada] = useState(false)
 
   // Payment Plan State
   const [paymentPlan, setPaymentPlan] = useState<PlanPago | null>(null)
@@ -231,6 +232,30 @@ export default function FacturaDetailPage() {
       alert('Error al guardar surtido')
     } finally {
       setIsSavingFulfillment(false)
+    }
+  }
+
+
+  // Direct Entregada inline save
+  const handleSaveEntregada = async (updatedItems: Record<string, number>) => {
+    if (!invoice) return
+    try {
+      setIsSavingEntregada(true)
+      const itemsPayload = invoice.factura_productos.map(p => ({
+        id: p.id,
+        cantidad_entregada: updatedItems[p.id] ?? p.cantidad_entregada ?? 0
+      }))
+      const res = await fetch(`/api/invoices/${invoice.id}/fulfillment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsPayload })
+      })
+      if (!res.ok) throw new Error('Error al guardar')
+      await fetchInvoice()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsSavingEntregada(false)
     }
   }
 
@@ -774,7 +799,15 @@ export default function FacturaDetailPage() {
                     <th className="p-4">Concepto / Producto</th>
                     <th className="p-4">Código</th>
                     <th className="p-4 text-center border-l border-gray-100">Facturada</th>
-                    <th className="p-4 text-center bg-blue-50/30">Entregada</th>
+                    <th className="p-4 text-center bg-blue-50/30">
+                      <span className="flex items-center justify-center gap-1.5">
+                        Entregada
+                        {isSavingEntregada
+                          ? <span className="inline-block w-3 h-3 border-2 border-[#0763a9]/30 border-t-[#0763a9] rounded-full animate-spin" />
+                          : <span className="text-[10px] text-[#0763a9] font-normal normal-case">(editable)</span>
+                        }
+                      </span>
+                    </th>
                     <th className="p-4 text-right border-l border-gray-100">Precio Unit.</th>
                     <th className="p-4 text-right">Importe</th>
                   </tr>
@@ -787,20 +820,27 @@ export default function FacturaDetailPage() {
                         <td className="p-4 text-gray-500 font-mono text-xs">{prod.producto_codigo || '-'}</td>
                         <td className="p-4 text-center border-l border-gray-100 font-semibold">{prod.cantidad_facturada}</td>
                         <td className="p-4 text-center font-bold bg-blue-50/10">
-                          {editFulfillmentMode && fulfillmentStatus === 'parcial' ? (
-                            <input
-                              type="number"
-                              min="0"
-                              max={prod.cantidad_facturada}
-                              className="erp-input w-20 text-center !py-1.5 !px-2 text-sm mx-auto shadow-inner bg-white"
-                              value={fulfillmentItems[prod.id] ?? 0}
-                              onChange={(e) => setFulfillmentItems(prev => ({ ...prev, [prod.id]: parseInt(e.target.value) || 0 }))}
-                            />
-                          ) : (
-                            <span className={prod.cantidad_entregada >= prod.cantidad_facturada ? 'text-emerald-600' : prod.cantidad_entregada > 0 ? 'text-amber-600' : 'text-rose-600'}>
-                              {prod.cantidad_entregada || 0}
-                            </span>
-                          )}
+                          <input
+                            type="number"
+                            min={0}
+                            max={prod.cantidad_facturada}
+                            className="w-16 border border-gray-200 rounded-lg px-1 py-1 text-sm text-center font-semibold focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition disabled:bg-gray-50 disabled:text-gray-400"
+                            value={fulfillmentItems[prod.id] ?? prod.cantidad_entregada ?? 0}
+                            disabled={isSavingEntregada}
+                            onChange={e => {
+                              const val = Math.max(0, Math.min(prod.cantidad_facturada, parseInt(e.target.value) || 0))
+                              setFulfillmentItems(prev => ({ ...prev, [prod.id]: val }))
+                            }}
+                            onBlur={e => {
+                              const val = Math.max(0, Math.min(prod.cantidad_facturada, parseInt(e.target.value) || 0))
+                              const updated = { ...fulfillmentItems, [prod.id]: val }
+                              setFulfillmentItems(updated)
+                              handleSaveEntregada(updated)
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                            }}
+                          />
                         </td>
                         <td className="p-4 text-right font-mono text-gray-600 border-l border-gray-100">{formatCurrency(prod.precio_unitario)}</td>
                         <td className="p-4 text-right font-bold text-gray-900 font-mono">{formatCurrency(prod.importe)}</td>
