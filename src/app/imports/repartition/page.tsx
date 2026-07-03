@@ -367,10 +367,10 @@ export default function ImportRepartitionPage() {
 
   // ── Grouped results ─────────────────────────────────────
   const allocationsByInvoice = useMemo(() => {
-    const groups: Record<string, { folio: string; customerName: string; shippingLimit: string | null; items: Allocation[] }> = {}
+    const groups: Record<string, { folio: string; customerName: string; paymentDate: string | null; shippingLimit: string | null; items: Allocation[] }> = {}
     for (const alloc of allocations) {
       if (!groups[alloc.folio]) {
-        groups[alloc.folio] = { folio: alloc.folio, customerName: alloc.customerName, shippingLimit: alloc.shippingLimit || null, items: [] }
+        groups[alloc.folio] = { folio: alloc.folio, customerName: alloc.customerName, paymentDate: alloc.paymentDate || null, shippingLimit: alloc.shippingLimit || null, items: [] }
       }
       groups[alloc.folio].items.push(alloc)
     }
@@ -824,7 +824,7 @@ export default function ImportRepartitionPage() {
                           const totalAlloc = group.items.reduce((s, i) => s + i.allocatedQty, 0)
                           const missing = group.items.reduce((s, i) => s + (i.requestedQty - i.allocatedQty), 0)
                           const pct = totalReq > 0 ? Math.round((totalAlloc / totalReq) * 100) : 0
-                          const sInfo = shippingInfo(group.shippingLimit ? new Date(group.shippingLimit).toISOString() : null)
+                          const sInfo = shippingInfo(group.paymentDate ? new Date(group.paymentDate).toISOString() : null)
                           // The shippingLimit here comes from AI payload which already has shippingLimit set
                           return (
                             <div key={group.folio} className="p-5">
@@ -858,7 +858,12 @@ export default function ImportRepartitionPage() {
                                 <tbody className="divide-y divide-gray-50">
                                   {group.items.map(alloc => (
                                     <tr key={alloc.id} className="hover:bg-white">
-                                      <td className="px-3 py-2 text-gray-900 text-xs">{alloc.product}</td>
+                                      <td className="px-3 py-2 text-gray-900 text-xs font-medium">
+                                        {alloc.product}
+                                        {alloc.allocatedQty < alloc.requestedQty && (
+                                          <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
+                                        )}
+                                      </td>
                                       <td className="px-3 py-2 text-center text-gray-500 font-mono text-xs">{alloc.requestedQty}</td>
                                       <td className="px-3 py-2 text-center">
                                         <input type="number" min={0} max={alloc.requestedQty} value={alloc.allocatedQty}
@@ -910,7 +915,12 @@ export default function ImportRepartitionPage() {
                                         <td className="px-3 py-2">
                                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${si.cls}`}>{si.label}</span>
                                         </td>
-                                        <td className="px-3 py-2 text-gray-700">{alloc.product}</td>
+                                        <td className="px-3 py-2 text-gray-700 font-medium">
+                                          {alloc.product}
+                                          {alloc.allocatedQty < alloc.requestedQty && (
+                                            <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
+                                          )}
+                                        </td>
                                         <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.requestedQty}</td>
                                         <td className="px-3 py-2 text-center">
                                           <input type="number" min={0} max={alloc.requestedQty} value={alloc.allocatedQty}
@@ -963,7 +973,12 @@ export default function ImportRepartitionPage() {
                                     const si = shippingInfo(alloc.shippingLimit || null)
                                     return (
                                       <tr key={alloc.id} className="hover:bg-white">
-                                        <td className="px-3 py-2 font-mono font-medium text-gray-900">{alloc.folio}</td>
+                                        <td className="px-3 py-2 font-mono font-medium text-gray-900">
+                                          {alloc.folio}
+                                          {alloc.allocatedQty < alloc.requestedQty && (
+                                            <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
+                                          )}
+                                        </td>
                                         <td className="px-3 py-2 text-gray-600 max-w-[130px] truncate">{alloc.customerName}</td>
                                         <td className="px-3 py-2">
                                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${si.cls}`}>{si.label}</span>

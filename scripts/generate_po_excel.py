@@ -20,7 +20,10 @@ def generate_po(config_path):
     except Exception as e:
         formatted_date = datetime.now().strftime('%m/%d/%Y')
         
-    wb = openpyxl.load_workbook('/Users/ed/Downloads/PO BONSS Medical actualizado.xlsx', data_only=False)
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(script_dir, 'PO_BONSS_Medical_actualizado.xlsx')
+    wb = openpyxl.load_workbook(template_path, data_only=False)
     ws = wb.active
     
     # Update date in E3

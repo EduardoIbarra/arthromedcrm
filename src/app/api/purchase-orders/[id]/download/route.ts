@@ -13,7 +13,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const scratchDir = '/Users/ed/.gemini/antigravity-ide/scratch'
+  const scratchDir = '/tmp'
   let configPath = ''
   let outputPath = ''
   
@@ -63,7 +63,7 @@ export async function GET(
     await fs.writeFile(configPath, JSON.stringify(configData, null, 2), 'utf8')
 
     // 4. Run python script
-    const scriptPath = '/Users/ed/Projects/arthromed/erp/scripts/generate_po_excel.py'
+    const scriptPath = path.join(process.cwd(), 'scripts', 'generate_po_excel.py')
     await execAsync(`python3 ${scriptPath} ${configPath}`)
 
     // 5. Read generated Excel file

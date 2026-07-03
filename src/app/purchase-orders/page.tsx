@@ -402,17 +402,9 @@ export default function PurchaseOrdersPage() {
                         {order.notes || <span className="text-gray-400 italic">Sin observaciones</span>}
                       </td>
                       <td className="p-4">
-                        <div className="text-xs text-gray-700 max-w-sm space-y-1">
-                          {(order.items || []).map((item, idx) => (
-                            <div key={idx} className="truncate">
-                              • <span className="font-semibold">{item.quantity}x</span> {item.productos?.description || 'Producto Desconocido'}
-                              {item.productos?.model ? ` (${item.productos.model})` : ''}
-                            </div>
-                          ))}
-                          {(order.items || []).length === 0 && (
-                            <span className="text-gray-400 italic">Sin productos</span>
-                          )}
-                        </div>
+                        <span className="text-sm text-gray-700">
+                          {(order.items || []).length} {(order.items || []).length === 1 ? 'producto' : 'productos'}
+                        </span>
                       </td>
                       <td className="p-4 text-sm text-gray-500">
                         {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
