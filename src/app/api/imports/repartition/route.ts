@@ -45,21 +45,31 @@ export async function POST(req: Request) {
       // New segunda DB path: aggregate pending items from selected orders
       const placeholders = selectedOrderIds.map((_: any, i: number) => `$${i + 1}`).join(', ');
       const productos = await querySegundaDB<{
+        producto_id: string | null;
         producto_nombre: string;
         cantidad_ordenada: number;
         cantidad_recibida: number | null;
       }>(`
-        SELECT producto_nombre, cantidad_ordenada, COALESCE(cantidad_recibida, 0) AS cantidad_recibida
+        SELECT producto_id, producto_nombre, cantidad_ordenada, COALESCE(cantidad_recibida, 0) AS cantidad_recibida
         FROM orden_productos
         WHERE orden_id IN (${placeholders})
           AND (cantidad_recibida IS NULL OR cantidad_recibida < cantidad_ordenada)
       `, selectedOrderIds);
 
+      // Resolve nombre_lista from main DB
+      const productIds = productos.map((p: any) => p.producto_id).filter(Boolean) as string[];
+      const mainProducts = await prisma.productos.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, nombre_lista: true }
+      });
+      const nameMap = new Map<string, string | null>(mainProducts.map((p: any) => [p.id, p.nombre_lista]));
+
       for (const p of productos) {
-        if (p.producto_nombre) {
+        const resolvedName = (p.producto_id ? nameMap.get(p.producto_id) : null) || p.producto_nombre;
+        if (resolvedName) {
           const pendiente = (p.cantidad_ordenada || 0) - (Number(p.cantidad_recibida) || 0);
           if (pendiente > 0) {
-            inventoryMap[p.producto_nombre] = (inventoryMap[p.producto_nombre] || 0) + pendiente;
+            inventoryMap[resolvedName] = (inventoryMap[resolvedName] || 0) + pendiente;
           }
         }
       }
@@ -95,6 +105,13 @@ export async function POST(req: Request) {
         factura_productos: {
           where: {
             cantidad_pendiente: { gt: 0 }
+          },
+          include: {
+            productos: {
+              select: {
+                nombre_lista: true
+              }
+            }
           }
         }
       }
@@ -104,38 +121,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ allocations: [], remainingInventory: inventoryMap, aiReasoning: 'No hay facturas pendientes o válidas seleccionadas.', invoiceIdFromChina });
     }
 
-    // Calculate customer spend for priority
-    const clientIds = Array.from(new Set(pendingFacturas.map((f: any) => f.cliente_id).filter(Boolean))) as string[];
-    const spendGroups = await prisma.facturas_cliente.groupBy({
-      by: ['cliente_id'],
-      where: {
-        cliente_id: { in: clientIds },
-        estado: 'pagada'
-      },
-      _sum: {
-        total: true
-      }
-    });
-
-    const spendMap: Record<string, number> = {};
-    spendGroups.forEach((g: any) => {
-      if (g.cliente_id) {
-        spendMap[g.cliente_id] = Number(g._sum.total || 0);
-      }
-    });
-
-    // Prepare AI payload
+    // Prepare AI payload (priority to paymentDate, omit ranking/customerSpend)
     const ordersForAi = pendingFacturas.flatMap((f: any) => {
-      const spend = f.cliente_id ? (spendMap[f.cliente_id] || 0) : 0;
+      const invoiceTotalRequestedQty = f.factura_productos.reduce((sum: number, fp: any) => sum + (fp.cantidad_pendiente || 0), 0);
+
       return f.factura_productos.map((fp: any) => ({
         id: fp.id,
         folio: f.numero_factura,
         customerName: f.cliente_nombre,
         paymentDate: f.fecha_pago ? f.fecha_pago.toISOString() : null,
         issueDate: f.fecha_expedicion.toISOString(),
-        customerSpend: spend,
-        product: fp.producto_nombre,
-        requestedQty: fp.cantidad_pendiente || 0
+        product: fp.productos?.nombre_lista || fp.producto_nombre,
+        requestedQty: fp.cantidad_pendiente || 0,
+        invoiceTotalRequestedQty
       }));
     });
 
@@ -174,9 +172,9 @@ ${JSON.stringify(relevantOrders, null, 2)}
 
 Allocation Rules:
 1. You cannot allocate more than the available inventory for each product.
-2. Prioritize orders based on "paymentDate" (earliest first). Orders with a null paymentDate (unpaid) have the lowest priority.
-3. As a secondary priority, prioritize customers with higher "customerSpend" (best buyers served first).
-4. REDUCE IMPACT: If a supplier didn't send enough to fulfill a high-priority order and a low-priority order, try to reduce impact by allocating at least some parts to the smaller order (e.g. if A needs 10 and B needs 2, and we have 10, giving A 8 and B 2 is better than giving A 10 and B 0). But don't overly punish the best buyers. Use your best judgment to balance "reduce impact" with "rewarding best buyers".
+2. Prioritize orders based on "paymentDate" (earliest first). Orders with a null paymentDate (unpaid) have the lowest priority. Do NOT use any customer spend metrics or client ranking.
+3. CRITICAL RULE: If the total allocated quantity to a given invoice (folio) would be 20% or less of its total requested quantity ("invoiceTotalRequestedQty"), DO NOT allocate any items to that invoice. Set all allocations for that invoice to 0, and allocate those products to other eligible invoices instead.
+4. REDUCE IMPACT: If a supplier didn't send enough to fulfill a high-priority order and a low-priority order, try to reduce impact by allocating at least some parts to the smaller order (e.g. if A needs 10 and B needs 2, and we have 10, giving A 8 and B 2 is better than giving A 10 and B 0). Respect the 20% rule above first.
 5. For each product, allocate the quantities across the requested orders.
 6. Provide a brief reasoning for the allocation strategy you chose, in ${languageString}.
 

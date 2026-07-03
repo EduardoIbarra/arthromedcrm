@@ -69,9 +69,23 @@ export async function GET(request: NextRequest) {
       ORDER BY producto_nombre ASC
     `, orderIds)
 
+    // Fetch nombre_lista from main database to resolve names
+    const prisma = (await import('@/lib/prisma')).default;
+    const productIds = productos.map((p: any) => p.producto_id).filter(Boolean) as string[];
+    const mainProducts = await prisma.productos.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, nombre_lista: true }
+    });
+    const nameMap = new Map<string, string | null>(mainProducts.map((p: any) => [p.id, p.nombre_lista]));
+
+    const resolvedProductos = productos.map((p: any) => ({
+      ...p,
+      producto_nombre: (p.producto_id ? nameMap.get(p.producto_id) : null) || p.producto_nombre
+    })) as OrdenProducto[];
+
     // Group products by order and compute totals
     const productosByOrder = new Map<string, OrdenProducto[]>()
-    for (const p of productos) {
+    for (const p of resolvedProductos) {
       if (!productosByOrder.has(p.orden_id)) {
         productosByOrder.set(p.orden_id, [])
       }

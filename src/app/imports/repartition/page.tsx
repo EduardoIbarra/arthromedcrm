@@ -7,7 +7,7 @@ import AppShell from '@/components/AppShell'
 import {
   Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
   AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
-  RefreshCw,
+  RefreshCw, Download, FileText, User, Tag
 } from 'lucide-react'
 
 interface OrdenProducto {
@@ -40,11 +40,15 @@ interface Allocation {
   product: string
   requestedQty: number
   allocatedQty: number
+  paymentDate?: string | null
   manualAdjustment?: boolean
 }
 
 export default function ImportRepartitionPage() {
   const { t, locale } = useI18n()
+
+  // ── Tab state for grouping results ─────────────────────
+  const [activeTab, setActiveTab] = useState<'invoice' | 'customer' | 'product'>('invoice')
 
   // ── Ordenes de compra (segunda DB) ──────────────────────
   const [ordenes, setOrdenes] = useState<OrdenCompra[]>([])
@@ -105,11 +109,13 @@ export default function ImportRepartitionPage() {
             merged.push(inv)
           }
         }
-        // Sort: no_surtida first, then parcial; within each group by date asc
+        // Sort: earliest payment date (fecha_pago) first. Unpaid invoices to the end
         merged.sort((a, b) => {
-          if (a.estado_surtido !== b.estado_surtido) {
-            return a.estado_surtido === 'no_surtida' ? -1 : 1
+          if (a.fecha_pago && b.fecha_pago) {
+            return new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime()
           }
+          if (a.fecha_pago) return -1
+          if (b.fecha_pago) return 1
           return new Date(a.fecha_expedicion).getTime() - new Date(b.fecha_expedicion).getTime()
         })
         setPendingInvoices(merged)
@@ -276,18 +282,119 @@ export default function ImportRepartitionPage() {
     }
   }
 
-  // ── Computed ─────────────────────────────────────────────
-  const groupedAllocations = allocations.reduce((acc, curr) => {
-    if (!acc[curr.product]) acc[curr.product] = []
-    acc[curr.product].push(curr)
-    return acc
-  }, {} as Record<string, Allocation[]>)
+  // ── CSV Export ───────────────────────────────────────────
+  const handleExportCSV = () => {
+    if (allocations.length === 0) return
 
-  const groupedByCustomer = allocations.reduce((acc, curr) => {
-    if (!acc[curr.customerName]) acc[curr.customerName] = []
-    acc[curr.customerName].push(curr)
-    return acc
-  }, {} as Record<string, Allocation[]>)
+    // Sort allocations by payment date (earliest first, nulls last)
+    const sorted = [...allocations].sort((a, b) => {
+      if (!a.paymentDate && !b.paymentDate) return 0
+      if (!a.paymentDate) return 1
+      if (!b.paymentDate) return -1
+      return new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
+    })
+
+    const headers = ['Folio Factura', 'Cliente', 'Fecha de Pago', 'Producto', 'Cantidad Pendiente', 'Cantidad Asignada']
+    const rows = sorted.map(a => [
+      a.folio,
+      a.customerName,
+      a.paymentDate ? new Date(a.paymentDate).toLocaleDateString() : 'Sin Pago',
+      a.product,
+      a.requestedQty,
+      a.allocatedQty
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+
+    // Add BOM for proper UTF-8 formatting in Excel
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `reparticion_asignaciones_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // ── Grouped Computations ─────────────────────────────────
+  
+  // 1. Grouped by Invoice (Sorted by paymentDate: earliest first, nulls last)
+  const allocationsByInvoice = React.useMemo(() => {
+    const groups: Record<string, { folio: string; customerName: string; paymentDate: string | null; items: Allocation[] }> = {}
+    for (const alloc of allocations) {
+      if (!groups[alloc.folio]) {
+        groups[alloc.folio] = {
+          folio: alloc.folio,
+          customerName: alloc.customerName,
+          paymentDate: alloc.paymentDate || null,
+          items: []
+        }
+      }
+      groups[alloc.folio].items.push(alloc)
+    }
+
+    return Object.values(groups).sort((a, b) => {
+      if (!a.paymentDate && !b.paymentDate) return 0
+      if (!a.paymentDate) return 1
+      if (!b.paymentDate) return -1
+      return new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
+    })
+  }, [allocations])
+
+  // 2. Grouped by Customer (Sorted by earliest paymentDate of customer's invoices)
+  const allocationsByCustomer = React.useMemo(() => {
+    const groups: Record<string, { customerName: string; minPaymentDate: string | null; items: Allocation[] }> = {}
+    for (const alloc of allocations) {
+      if (!groups[alloc.customerName]) {
+        groups[alloc.customerName] = {
+          customerName: alloc.customerName,
+          minPaymentDate: alloc.paymentDate || null,
+          items: []
+        }
+      } else if (alloc.paymentDate) {
+        if (!groups[alloc.customerName].minPaymentDate || new Date(alloc.paymentDate).getTime() < new Date(groups[alloc.customerName].minPaymentDate!).getTime()) {
+          groups[alloc.customerName].minPaymentDate = alloc.paymentDate
+        }
+      }
+      groups[alloc.customerName].items.push(alloc)
+    }
+
+    return Object.values(groups).sort((a, b) => {
+      if (!a.minPaymentDate && !b.minPaymentDate) return 0
+      if (!a.minPaymentDate) return 1
+      if (!b.minPaymentDate) return -1
+      return new Date(a.minPaymentDate).getTime() - new Date(b.minPaymentDate).getTime()
+    })
+  }, [allocations])
+
+  // 3. Grouped by Product (Inside each product, sorted by paymentDate of allocations)
+  const allocationsByProduct = React.useMemo(() => {
+    const groups: Record<string, { product: string; items: Allocation[] }> = {}
+    for (const alloc of allocations) {
+      if (!groups[alloc.product]) {
+        groups[alloc.product] = {
+          product: alloc.product,
+          items: []
+        }
+      }
+      groups[alloc.product].items.push(alloc)
+    }
+
+    for (const g of Object.values(groups)) {
+      g.items.sort((a, b) => {
+        if (!a.paymentDate && !b.paymentDate) return 0
+        if (!a.paymentDate) return 1
+        if (!b.paymentDate) return -1
+        return new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
+      })
+    }
+
+    return Object.values(groups).sort((a, b) => a.product.localeCompare(b.product))
+  }, [allocations])
 
   // Displayed invoices (merge pending + search results, filter by search)
   const displayedInvoicesMap = new Map()
@@ -351,7 +458,7 @@ export default function ImportRepartitionPage() {
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 flex items-start gap-3 shadow-sm">
           <Info className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium">Al completar la repartición, se notificará automáticamente al personal asignado (vía WhatsApp) para que confirmen la dirección de envío con sus clientes.</p>
+            <p className="text-sm font-medium font-sans">Al completar la repartición, se notificará automáticamente al personal asignado (vía WhatsApp) para que confirmen la dirección de envío con sus clientes.</p>
           </div>
         </motion.div>
 
@@ -528,8 +635,8 @@ export default function ImportRepartitionPage() {
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-gray-900 text-sm flex items-center gap-2 flex-wrap">
                           Folio: {inv.numero_factura}
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">
-                            {new Date(inv.fecha_expedicion).toLocaleDateString()}
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-150">
+                            {inv.fecha_pago ? `Pago: ${new Date(inv.fecha_pago).toLocaleDateString()}` : 'Sin pago'}
                           </span>
                           {surtidoBadge(inv.estado_surtido)}
                           {!isSelected && <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-400">Omitida</span>}
@@ -584,8 +691,8 @@ export default function ImportRepartitionPage() {
                     </div>
                   </div>
                   <h3 className="text-xl font-bold text-indigo-900 mb-2">La IA está analizando</h3>
-                  <p className="text-indigo-600 text-center max-w-sm">
-                    Procesando el inventario disponible y cruzando datos con los clientes seleccionados...
+                  <p className="text-indigo-600 text-center max-w-sm font-sans">
+                    Procesando el inventario disponible y distribuyendo según prioridad de pago...
                   </p>
                 </motion.div>
               )}
@@ -606,12 +713,12 @@ export default function ImportRepartitionPage() {
                       <Sparkles className="w-5 h-5 text-violet-600" />
                       <h3 className="font-bold text-violet-900">{t('aiReasoning')}</h3>
                     </div>
-                    <p className="text-violet-800 text-sm leading-relaxed whitespace-pre-wrap">{aiReasoning}</p>
+                    <p className="text-violet-800 text-sm leading-relaxed whitespace-pre-wrap font-sans">{aiReasoning}</p>
                   </div>
                 </motion.div>
               )}
 
-              {!loading && Object.keys(groupedAllocations).length > 0 && (
+              {!loading && allocations.length > 0 && (
                 <motion.div
                   key="allocations-dashboard"
                   initial={{ opacity: 0, y: 20 }}
@@ -619,85 +726,123 @@ export default function ImportRepartitionPage() {
                   exit={{ opacity: 0, y: 20 }}
                   className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
                 >
-                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-gray-900">{t('allocationDashboard')}</h2>
+                  {/* Dashboard Header */}
+                  <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">{t('allocationDashboard')}</h2>
+                      <p className="text-xs text-gray-500 mt-0.5">Asignación ordenada según la prioridad de fecha de pago.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleExportCSV}
+                        className="py-2 px-3 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Exportar CSV</span>
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={loading || successMsg !== ''}
+                        className="py-2 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        {t('saveAllocation')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tabs Toggle */}
+                  <div className="flex border-b border-gray-100 bg-gray-50/50 p-1.5 gap-1.5">
                     <button
-                      onClick={handleSave}
-                      disabled={loading || successMsg !== ''}
-                      className="py-2 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                      onClick={() => setActiveTab('invoice')}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${activeTab === 'invoice' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                     >
-                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                      {t('saveAllocation')}
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Por factura</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('customer')}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${activeTab === 'customer' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>Por Cliente</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('product')}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${activeTab === 'product' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                    >
+                      <Tag className="w-3.5 h-3.5" />
+                      <span>Por Producto</span>
                     </button>
                   </div>
 
+                  {/* Tab Contents */}
                   <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-                    <div className="p-4 bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
-                      <h3 className="text-lg font-bold text-gray-800">Por Producto</h3>
-                    </div>
-                    {Object.entries(groupedAllocations).map(([product, items]) => {
-                      const totalReceived = initialInventory[product] || 0
-                      const currentAllocated = items.reduce((acc, curr) => acc + curr.allocatedQty, 0)
-                      const rem = remainingInventory[product] || 0
+                    
+                    {/* Tab 1: Grouped by Invoice */}
+                    {activeTab === 'invoice' && allocationsByInvoice.map(group => {
+                      const totalRequested = group.items.reduce((s, item) => s + item.requestedQty, 0)
+                      const totalAllocated = group.items.reduce((s, item) => s + item.allocatedQty, 0)
+                      const missingCount = group.items.reduce((s, item) => s + (item.requestedQty - item.allocatedQty), 0)
+                      const pct = totalRequested > 0 ? Math.round((totalAllocated / totalRequested) * 100) : 0
+
                       return (
-                        <div key={product} className="p-6 hover:bg-gray-50/50 transition-colors">
+                        <div key={group.folio} className="p-6 hover:bg-gray-50/50 transition-colors">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">{product.charAt(0)}</div>
+                              <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">F</div>
                               <div>
-                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                  {product}
-                                  {items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0) > 0 && (
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+                                  Folio: {group.folio}
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-800">
+                                    {group.paymentDate ? `Pago: ${new Date(group.paymentDate).toLocaleDateString()}` : 'Sin pago'}
+                                  </span>
+                                  {missingCount > 0 && (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-xs font-medium border border-red-100">
-                                      <AlertCircle className="w-3 h-3" /> Faltan {items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0)}
+                                      <AlertCircle className="w-3.5 h-3.5" /> Faltan {missingCount}
                                     </span>
                                   )}
                                 </h4>
-                                <p className="text-xs text-gray-500">{t('received')}: {totalReceived}</p>
+                                <p className="text-xs text-gray-500 font-sans mt-0.5">Cliente: {group.customerName}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-4 text-sm">
-                              <div className="text-center px-3 py-1 bg-green-50 text-green-700 rounded-md font-medium">{t('allocated')}: {currentAllocated}</div>
-                              <div className={`text-center px-3 py-1 rounded-md font-medium ${rem > 0 ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{t('pendingAllocation')}: {rem}</div>
+                            <div className="flex items-center gap-3 text-sm">
+                              <div className="text-center px-3 py-1.5 bg-green-50 text-green-700 rounded-md font-medium">Asignado: {totalAllocated}/{totalRequested} ({pct}%)</div>
                             </div>
                           </div>
 
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                              <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
+                              <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] tracking-wider">
                                 <tr>
-                                  <th className="px-4 py-2 rounded-l-lg">{t('orderFolio')}</th>
-                                  <th className="px-4 py-2">{t('customer')}</th>
-                                  <th className="px-4 py-2 text-center">{t('qtyPending')}</th>
-                                  <th className="px-4 py-2 text-center rounded-r-lg w-40">{t('qtyAllocated')}</th>
+                                  <th className="px-4 py-2 rounded-l-lg">Producto</th>
+                                  <th className="px-4 py-2 text-center w-28">Pendiente</th>
+                                  <th className="px-4 py-2 text-center w-36 rounded-r-lg">Asignado</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-100">
-                                {items.map(alloc => (
+                                {group.items.map(alloc => (
                                   <tr key={alloc.id} className="hover:bg-white transition-colors">
-                                    <td className="px-4 py-3 font-medium text-gray-900">{alloc.folio}</td>
-                                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={alloc.customerName}>
+                                    <td className="px-4 py-3 text-gray-900 font-medium font-sans">
                                       <div className="flex items-center gap-2">
-                                        <span>{alloc.customerName}</span>
+                                        <span>{alloc.product}</span>
                                         {alloc.requestedQty - alloc.allocatedQty > 0 && (
                                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-medium border border-red-100">
-                                            <AlertCircle className="w-3 h-3" /> Faltan {alloc.requestedQty - alloc.allocatedQty}
+                                            Faltan {alloc.requestedQty - alloc.allocatedQty}
                                           </span>
                                         )}
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-center font-medium text-gray-500">{alloc.requestedQty}</td>
-                                    <td className="px-4 py-3">
-                                      <div className="flex items-center justify-center gap-2">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max={alloc.requestedQty}
-                                          value={alloc.allocatedQty}
-                                          onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
-                                          className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
-                                        />
-                                      </div>
+                                    <td className="px-4 py-3 text-center text-gray-500 font-mono font-medium">{alloc.requestedQty}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={alloc.requestedQty}
+                                        value={alloc.allocatedQty}
+                                        onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
+                                        className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
+                                      />
                                     </td>
                                   </tr>
                                 ))}
@@ -708,75 +853,137 @@ export default function ImportRepartitionPage() {
                       )
                     })}
 
-                    <div className="p-4 bg-gray-50 border-y border-gray-200 mt-4 sticky top-0 z-10">
-                      <h3 className="text-lg font-bold text-gray-800">Por Cliente</h3>
-                    </div>
-                    {Object.entries(groupedByCustomer).map(([customerName, items]) => {
-                      const customerMissing = items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0)
-                      const customerRequested = items.reduce((acc, curr) => acc + curr.requestedQty, 0)
-                      const customerAllocated = items.reduce((acc, curr) => acc + curr.allocatedQty, 0)
+                    {/* Tab 2: Grouped by Customer */}
+                    {activeTab === 'customer' && allocationsByCustomer.map(group => {
+                      const totalRequested = group.items.reduce((s, item) => s + item.requestedQty, 0)
+                      const totalAllocated = group.items.reduce((s, item) => s + item.allocatedQty, 0)
+                      const missingCount = group.items.reduce((s, item) => s + (item.requestedQty - item.allocatedQty), 0)
+
                       return (
-                        <div key={customerName} className="p-6 hover:bg-gray-50/50 transition-colors">
+                        <div key={group.customerName} className="p-6 hover:bg-gray-50/50 transition-colors">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold">
-                                {customerName.charAt(0).toUpperCase()}
-                              </div>
+                              <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold">C</div>
                               <div>
-                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                  {customerName}
-                                  {customerMissing > 0 && (
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+                                  {group.customerName}
+                                  {missingCount > 0 && (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-xs font-medium border border-red-100">
-                                      <AlertCircle className="w-3 h-3" /> Faltan {customerMissing}
+                                      <AlertCircle className="w-3.5 h-3.5" /> Faltan {missingCount}
                                     </span>
                                   )}
                                 </h4>
-                                <p className="text-xs text-gray-500">Total Solicitado: {customerRequested} | Total Asignado: {customerAllocated}</p>
+                                <p className="text-xs text-gray-500 font-sans mt-0.5">
+                                  {group.minPaymentDate ? `Prioridad de Pago: ${new Date(group.minPaymentDate).toLocaleDateString()}` : 'Sin pago registrado'}
+                                </p>
                               </div>
                             </div>
+                            <div className="flex items-center gap-3 text-sm">
+                              <div className="text-center px-3 py-1.5 bg-green-50 text-green-700 rounded-md font-medium">Asignado: {totalAllocated}/{totalRequested}</div>
+                            </div>
                           </div>
+
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                              <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
+                              <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] tracking-wider">
                                 <tr>
-                                  <th className="px-4 py-2 rounded-l-lg">{t('orderFolio')}</th>
+                                  <th className="px-4 py-2 rounded-l-lg">Factura</th>
+                                  <th className="px-4 py-2">Fecha Pago</th>
                                   <th className="px-4 py-2">Producto</th>
-                                  <th className="px-4 py-2 text-center">{t('qtyPending')}</th>
-                                  <th className="px-4 py-2 text-center rounded-r-lg w-40">{t('qtyAllocated')}</th>
+                                  <th className="px-4 py-2 text-center w-28">Pendiente</th>
+                                  <th className="px-4 py-2 text-center w-36 rounded-r-lg">Asignado</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-100">
-                                {items.map(alloc => {
-                                  const isMissing = alloc.requestedQty - alloc.allocatedQty > 0
-                                  return (
-                                    <tr key={`cust-${alloc.id}`} className="hover:bg-white transition-colors">
-                                      <td className="px-4 py-3 font-medium text-gray-900">{alloc.folio}</td>
-                                      <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={alloc.product}>
-                                        <div className="flex items-center gap-2">
-                                          <span>{alloc.product}</span>
-                                          {isMissing && (
-                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-medium border border-red-100">
-                                              <AlertCircle className="w-3 h-3" /> Faltan {alloc.requestedQty - alloc.allocatedQty}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="px-4 py-3 text-center font-medium text-gray-500">{alloc.requestedQty}</td>
-                                      <td className="px-4 py-3">
-                                        <div className="flex items-center justify-center gap-2">
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            max={alloc.requestedQty}
-                                            value={alloc.allocatedQty}
-                                            onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
-                                            className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
-                                          />
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )
-                                })}
+                                {group.items.map(alloc => (
+                                  <tr key={`cust-alloc-${alloc.id}`} className="hover:bg-white transition-colors">
+                                    <td className="px-4 py-3 text-gray-900 font-semibold font-mono">{alloc.folio}</td>
+                                    <td className="px-4 py-3 text-gray-600 font-sans text-xs">
+                                      {alloc.paymentDate ? new Date(alloc.paymentDate).toLocaleDateString() : 'Sin pago'}
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-700 font-sans">{alloc.product}</td>
+                                    <td className="px-4 py-3 text-center text-gray-500 font-mono font-medium">{alloc.requestedQty}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={alloc.requestedQty}
+                                        value={alloc.allocatedQty}
+                                        onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
+                                        className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
+                                      />
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {/* Tab 3: Grouped by Product */}
+                    {activeTab === 'product' && allocationsByProduct.map(group => {
+                      const totalReceived = initialInventory[group.product] || 0
+                      const currentAllocated = group.items.reduce((acc, curr) => acc + curr.allocatedQty, 0)
+                      const rem = remainingInventory[group.product] || 0
+                      const missingCount = group.items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0)
+
+                      return (
+                        <div key={group.product} className="p-6 hover:bg-gray-50/50 transition-colors">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">{group.product.charAt(0)}</div>
+                              <div>
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+                                  {group.product}
+                                  {missingCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-xs font-medium border border-red-100">
+                                      <AlertCircle className="w-3.5 h-3.5" /> Faltan {missingCount}
+                                    </span>
+                                  )}
+                                </h4>
+                                <p className="text-xs text-gray-500 font-sans mt-0.5">{t('received')}: {totalReceived}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs font-semibold">
+                              <div className="text-center px-2.5 py-1 bg-green-50 text-green-700 rounded border border-green-150">Asignado: {currentAllocated}</div>
+                              <div className={`text-center px-2.5 py-1 rounded border ${rem > 0 ? 'bg-amber-50 text-amber-700 border-amber-150' : 'bg-gray-50 text-gray-600 border-gray-150'}`}>Excedente: {rem}</div>
+                            </div>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                              <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] tracking-wider">
+                                <tr>
+                                  <th className="px-4 py-2 rounded-l-lg">Factura</th>
+                                  <th className="px-4 py-2">Cliente</th>
+                                  <th className="px-4 py-2">Fecha Pago</th>
+                                  <th className="px-4 py-2 text-center w-28">Pendiente</th>
+                                  <th className="px-4 py-2 text-center w-36 rounded-r-lg">Asignado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {group.items.map(alloc => (
+                                  <tr key={`prod-alloc-${alloc.id}`} className="hover:bg-white transition-colors">
+                                    <td className="px-4 py-3 font-semibold text-gray-900 font-mono">{alloc.folio}</td>
+                                    <td className="px-4 py-3 text-gray-600 font-sans max-w-[180px] truncate" title={alloc.customerName}>{alloc.customerName}</td>
+                                    <td className="px-4 py-3 text-gray-500 font-sans text-xs">
+                                      {alloc.paymentDate ? new Date(alloc.paymentDate).toLocaleDateString() : 'Sin pago'}
+                                    </td>
+                                    <td className="px-4 py-3 text-center text-gray-500 font-mono font-medium">{alloc.requestedQty}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={alloc.requestedQty}
+                                        value={alloc.allocatedQty}
+                                        onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
+                                        className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
+                                      />
+                                    </td>
+                                  </tr>
+                                ))}
                               </tbody>
                             </table>
                           </div>
@@ -787,7 +994,7 @@ export default function ImportRepartitionPage() {
                 </motion.div>
               )}
 
-              {!loading && Object.keys(groupedAllocations).length === 0 && !aiReasoning && (
+              {!loading && allocations.length === 0 && !aiReasoning && (
                 <motion.div
                   key="empty-state"
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -796,7 +1003,7 @@ export default function ImportRepartitionPage() {
                   className="h-full min-h-[400px] flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-white p-6"
                 >
                   <ShoppingCart className="w-12 h-12 mb-3 text-gray-300" />
-                  <p className="font-medium text-gray-500">Selecciona órdenes y facturas para comenzar</p>
+                  <p className="font-semibold text-gray-500">Selecciona órdenes y facturas para comenzar</p>
                   <p className="text-sm mt-1">La IA analizará la mejor distribución del inventario pendiente.</p>
                 </motion.div>
               )}
