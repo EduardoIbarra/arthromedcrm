@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { querySegundaDB } from '@/lib/segundaDB'
 import path from 'path'
+import fs from 'fs/promises'
 import ExcelJS from 'exceljs'
 
 export const dynamic = 'force-dynamic'
@@ -61,11 +62,51 @@ export async function GET(
       throw new Error('Worksheet not found in template')
     }
 
-    // Update date in E3
-    ws.getCell('E3').value = `Date ${formattedDate}`
+    // ── Insert 3 rows at the top for the logo ──────────────
+    // spliceRows(start, deleteCount, ...insertRows)
+    ws.spliceRows(1, 0, [], [], [])
 
-    // Update title in A4
-    ws.getCell('A4').value = `Pre-Order ${order.numero_orden}`
+    // Set height for logo rows (total ~70pt for logo area)
+    ws.getRow(1).height = 30
+    ws.getRow(2).height = 30
+    ws.getRow(3).height = 20
+
+    // Add logo image
+    const logoPath = path.join(process.cwd(), 'scripts', 'arthromed_logo.png')
+    let logoId: number | null = null
+    try {
+      const logoBuffer = await fs.readFile(logoPath)
+      logoId = wb.addImage({
+        buffer: logoBuffer as any,
+        extension: 'png',
+      })
+    } catch (e) {
+      // Logo not found — skip gracefully
+    }
+
+    if (logoId !== null) {
+      // Place logo centered across all 6 columns (A–F), spanning rows 1–3
+      // tl = top-left, br = bottom-right (0-based col, 0-based row)
+      ws.addImage(logoId, {
+        tl: { col: 1.5, row: 0 } as any,
+        br: { col: 4.5, row: 2.8 } as any,
+        editAs: 'oneCell',
+      })
+    }
+
+    // ── After inserting 3 rows, original rows shift by +3 ──
+    // Original row 3 (date)  → now row 6
+    // Original row 4 (title) → now row 7
+    // Original row 6 (header)→ now row 9
+    // Original row 7 (first product) → now row 10
+    // Original row 142 (last product)→ now row 145
+    // Original row 143 (TOTAL)       → now row 146
+
+    // Update date in E6 (was E3)
+    ws.getCell('E6').value = `Date ${formattedDate}`
+
+    // Update title in A7 (was A4)
+    ws.getCell('A7').value = `Pre-Order ${order.numero_orden}`
 
     // Map ordered items by model:code
     const orderedItems = new Map<string, number>()
@@ -77,8 +118,8 @@ export async function GET(
 
     const rowsToDelete: number[] = []
 
-    // Product rows go from 142 down to 7
-    for (let r = 142; r >= 7; r--) {
+    // Product rows now go from 145 down to 10 (shifted +3 from original 142..7)
+    for (let r = 145; r >= 10; r--) {
       const cellModel = ws.getCell(`B${r}`).value
       const cellCode = ws.getCell(`C${r}`).value
 
@@ -92,7 +133,7 @@ export async function GET(
       } else {
         // Try match by model only
         for (const [key, val] of orderedItems.entries()) {
-          const [m, c] = key.split(':')
+          const [m] = key.split(':')
           if (mKey && m === mKey) {
             qty = val
             break
@@ -101,7 +142,7 @@ export async function GET(
         // Try match by code only
         if (qty === null) {
           for (const [key, val] of orderedItems.entries()) {
-            const [m, c] = key.split(':')
+            const [, c] = key.split(':')
             if (cKey && c === cKey) {
               qty = val
               break
@@ -117,14 +158,14 @@ export async function GET(
       }
     }
 
-    // Delete rows (already in descending order)
+    // Delete non-ordered rows (already in descending order)
     for (const r of rowsToDelete) {
       ws.spliceRows(r, 1)
     }
 
-    // Find the new total row
+    // Find the new TOTAL row and update SUM formula
     let totalRow: number | null = null
-    for (let r = 7; r <= ws.rowCount; r++) {
+    for (let r = 10; r <= ws.rowCount; r++) {
       const val = ws.getCell(`A${r}`).value
       if (val === 'TOTAL') {
         totalRow = r
@@ -134,7 +175,7 @@ export async function GET(
 
     if (totalRow) {
       ws.getCell(`E${totalRow}`).value = {
-        formula: `SUM(E7:E${totalRow - 1})`
+        formula: `SUM(E10:E${totalRow - 1})`
       }
     }
 
