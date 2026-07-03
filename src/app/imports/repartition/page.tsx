@@ -200,7 +200,12 @@ export default function ImportRepartitionPage() {
           return la.getTime() - lb.getTime()
         })
         setPendingInvoices(merged)
-        setSelectedInvoices(merged)
+        // Select only those that are past due
+        const initialSelected = merged.filter(inv => {
+          const info = shippingInfo(inv.fecha_pago)
+          return info.pastDue
+        })
+        setSelectedInvoices(initialSelected)
       } catch (err) { console.error(err) }
     }
     fetchPending()
@@ -529,7 +534,7 @@ export default function ImportRepartitionPage() {
           <>
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 flex items-start gap-3 shadow-sm">
               <Info className="w-5 h-5 shrink-0 mt-0.5" />
-              <p className="text-sm font-medium">Solo se asignarán productos a facturas cuyo <strong>límite de envío</strong> (fecha de pago + 4 semanas) ya haya vencido.</p>
+              <p className="text-sm font-medium">Se priorizarán los productos según su <strong>límite de envío</strong>, pero puedes incluir cualquier factura seleccionada.</p>
             </motion.div>
 
             {error && (
@@ -684,7 +689,7 @@ export default function ImportRepartitionPage() {
                 {/* ── Facturas a Surtir ───────────────────── */}
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 360 }}>
                   <h2 className="text-base font-semibold text-gray-900 mb-3">Facturas a surtir</h2>
-                  <p className="text-xs text-gray-500 mb-2">Solo se asignarán artículos a facturas con límite de envío vencido.</p>
+                  <p className="text-xs text-gray-500 mb-2">Las facturas no vencidas se cargarán desmarcadas por defecto.</p>
 
                   <div className="relative mb-3">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -757,7 +762,7 @@ export default function ImportRepartitionPage() {
                         <Brain className="w-8 h-8 text-indigo-600 animate-bounce" />
                       </div>
                       <h3 className="text-xl font-bold text-indigo-900 mb-2">La IA está analizando</h3>
-                      <p className="text-indigo-600 text-center max-w-sm text-sm">Procesando inventario y facturas vencidas...</p>
+                      <p className="text-indigo-600 text-center max-w-sm text-sm">Procesando inventario y asignación de facturas...</p>
                     </motion.div>
                   )}
 

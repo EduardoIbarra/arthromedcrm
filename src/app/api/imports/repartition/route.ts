@@ -127,36 +127,30 @@ export async function POST(req: Request) {
       });
     }
 
-    const now = new Date();
-
-    // Build AI orders — ONLY include invoices where shipping limit has PASSED
+    // Build AI orders
     const ordersForAi = pendingFacturas.flatMap((f: any) => {
-      // If no payment date → cannot compute shipping limit → skip (not past due)
-      if (!f.fecha_pago) return [];
-
-      const shippingLimit = getShippingLimit(new Date(f.fecha_pago));
-      // Only allocate if shipping limit is past due
-      if (shippingLimit > now) return [];
+      const baseDate = f.fecha_pago || f.fecha_expedicion || new Date()
+      const shippingLimit = getShippingLimit(new Date(baseDate))
 
       return f.factura_productos.map((fp: any) => ({
         id: fp.id,
         folio: f.numero_factura,
         customerName: f.cliente_nombre,
-        paymentDate: f.fecha_pago.toISOString(),
+        paymentDate: f.fecha_pago ? f.fecha_pago.toISOString() : null,
         shippingLimit: shippingLimit.toISOString(),
-        issueDate: f.fecha_expedicion.toISOString(),
+        issueDate: f.fecha_expedicion ? f.fecha_expedicion.toISOString() : null,
         product: fp.productos?.nombre_lista || fp.producto_nombre,
         requestedQty: fp.cantidad_pendiente || 0,
-      }));
-    });
+      }))
+    })
 
     if (ordersForAi.length === 0) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'No hay facturas con límite de envío vencido. Solo se asigna a facturas cuyo límite de envío (fecha de pago + 4 semanas) ya haya pasado.',
+        aiReasoning: 'No hay facturas pendientes válidas seleccionadas.',
         invoiceIdFromChina,
-      });
+      })
     }
 
     // Match to received inventory using fuzzy matching
@@ -176,7 +170,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'Ninguno de los productos en el inventario concuerda con los productos pendientes en las facturas vencidas.',
+        aiReasoning: 'Ninguno de los productos en el inventario concuerda con los productos pendientes en las facturas seleccionadas.',
         invoiceIdFromChina,
       });
     }
@@ -185,11 +179,11 @@ export async function POST(req: Request) {
     const languageString = locale === 'en' ? 'English' : locale === 'zh' ? 'Chinese' : 'Spanish';
     const prompt = `
 You are an expert supply chain allocation AI.
-You need to allocate an inventory of medical products to pending orders that are PAST their shipping limit.
+You need to allocate an inventory of medical products to pending orders.
 Here is the available inventory:
 ${JSON.stringify(inventoryMap, null, 2)}
 
-Here are the pending orders (all past their shipping limit and eligible for allocation):
+Here are the pending orders (eligible for allocation):
 ${JSON.stringify(relevantOrders, null, 2)}
 
 Allocation Rules:
