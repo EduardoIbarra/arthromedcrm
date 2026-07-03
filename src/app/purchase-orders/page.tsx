@@ -13,7 +13,8 @@ import {
   X,
   PlusCircle,
   FileCheck,
-  AlertCircle
+  AlertCircle,
+  FileSpreadsheet
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
@@ -47,7 +48,7 @@ export default function PurchaseOrdersPage() {
 
   // Form State
   const [notes, setNotes] = useState('')
-  const [status, setStatus] = useState<'PENDING' | 'COMPLETED' | 'CANCELLED'>('PENDING')
+  const [status, setStatus] = useState<'PENDING' | 'COMPLETED' | 'CANCELLED' | 'PARTIAL'>('PENDING')
   const [items, setItems] = useState<{ product_id: string; quantity: number }[]>([])
   
   const [isSaving, setIsSaving] = useState(false)
@@ -232,11 +233,34 @@ export default function PurchaseOrdersPage() {
 
       setIsEditModalOpen(false)
       fetchOrders()
+      if (!selectedOrder && json.data) {
+        handleDownloadExcel(json.data)
+      }
     } catch (err: any) {
       console.error(err)
       setFormError(err.message)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  // Download PO Excel
+  const handleDownloadExcel = async (order: any) => {
+    try {
+      const res = await fetch(`/api/purchase-orders/${order.id}/download`)
+      if (!res.ok) throw new Error('Error al descargar el archivo Excel')
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `PO_${order.numero_orden || order.id}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Error al descargar Excel')
     }
   }
 
@@ -272,6 +296,12 @@ export default function PurchaseOrdersPage() {
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Surtida
+          </span>
+        )
+      case 'PARTIAL':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            Parcial
           </span>
         )
       case 'CANCELLED':
@@ -351,19 +381,19 @@ export default function PurchaseOrdersPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Orden ID</th>
+                    <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider"># Orden</th>
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</th>
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Notas</th>
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Productos</th>
-                    <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha Creación</th>
-                    <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right w-24">Acciones</th>
+                    <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right w-32">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {paginatedOrders.map(order => (
                     <tr key={order.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="p-4 font-mono text-xs text-gray-600">
-                        {order.id.slice(0, 8)}...
+                      <td className="p-4">
+                        <span className="font-semibold text-sm text-gray-800">{(order as any).numero_orden || order.id.slice(0, 8)}</span>
                       </td>
                       <td className="p-4">
                         {getStatusBadge(order.status)}
@@ -389,6 +419,13 @@ export default function PurchaseOrdersPage() {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleDownloadExcel(order)}
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="Descargar Excel"
+                          >
+                            <FileSpreadsheet size={16} />
+                          </button>
                           <PermissionGuard section="purchase_orders" action="edit">
                             <button
                               onClick={() => handleOpenEdit(order)}
@@ -487,6 +524,7 @@ export default function PurchaseOrdersPage() {
                 >
                   <option value="PENDING">Pendiente</option>
                   <option value="COMPLETED">Surtida</option>
+                  <option value="PARTIAL">Parcial</option>
                   <option value="CANCELLED">Cancelada</option>
                 </select>
               </div>

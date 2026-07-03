@@ -334,10 +334,12 @@ export interface DirectorioContacto {
 
 export interface PurchaseOrder {
   id: string
-  status: 'PENDING' | 'COMPLETED' | 'CANCELLED'
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'PARTIAL'
   notes?: string | null
   created_at: string
   updated_at: string
+  numero_orden?: string
+  proveedor?: string
   items?: PurchaseOrderItem[]
 }
 
