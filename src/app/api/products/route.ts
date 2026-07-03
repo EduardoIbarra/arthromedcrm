@@ -57,6 +57,11 @@ export async function POST(request: NextRequest) {
       category,
       specialty_ids,
       image_urls,
+      measurement_unit,
+      height,
+      width,
+      depth,
+      weight,
     } = body
 
     if (!description) {
@@ -81,6 +86,11 @@ export async function POST(request: NextRequest) {
         categoria: category || null,
         specialty_ids: specialty_ids || [],
         image_urls: image_urls || [],
+        measurement_unit: measurement_unit || null,
+        height: height !== '' && height !== null && height !== undefined ? Number(height) : null,
+        width: width !== '' && width !== null && width !== undefined ? Number(width) : null,
+        depth: depth !== '' && depth !== null && depth !== undefined ? Number(depth) : null,
+        weight: weight !== '' && weight !== null && weight !== undefined ? Number(weight) : null,
       },
     })
 

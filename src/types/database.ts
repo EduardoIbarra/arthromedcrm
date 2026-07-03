@@ -72,6 +72,11 @@ export interface Product {
   generic_description: string | null
   new_alg_description: string | null
   measurements: string | null
+  measurement_unit?: 'cm' | 'in' | 'mm' | null
+  height?: number | null
+  width?: number | null
+  depth?: number | null
+  weight?: number | null
   alg_description: string | null
   sale_price: number | null
   base_hospital_price: number | null
@@ -326,4 +331,24 @@ export interface DirectorioContacto {
   category?: DirectorioCategoria
 }
 
+export interface PurchaseOrder {
+  id: string
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED'
+  notes?: string | null
+  created_at: string
+  updated_at: string
+  items?: PurchaseOrderItem[]
+}
 
+export interface PurchaseOrderItem {
+  id: string
+  purchase_order_id: string
+  product_id: string
+  quantity: number
+  created_at?: string
+  updated_at?: string
+  productos?: Product
+}
+
+export type PurchaseOrderInsert = Omit<PurchaseOrder, 'id' | 'created_at' | 'updated_at' | 'items'> & { id?: string }
+export type PurchaseOrderItemInsert = Omit<PurchaseOrderItem, 'id' | 'created_at' | 'updated_at'> & { id?: string }

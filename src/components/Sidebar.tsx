@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
   ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest, Bot, Sparkles, Ticket, Stethoscope, BookOpen,
-  Globe, Send, Palette, Car, Bell, LayoutGrid
+  Globe, Send, Palette, Car, Bell, LayoutGrid, Box
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -57,6 +57,8 @@ export default function Sidebar() {
       title: t('inventory' as any) || 'Inventario',
       items: [
         { href: '/inventario', icon: Warehouse, label: t('inventory' as any) || 'Inventario', section: 'inventario' },
+        { href: '/cajas', icon: Box, label: 'Cajas', section: 'cajas' },
+        { href: '/purchase-orders', icon: ClipboardList, label: 'Órdenes de Compra', section: 'purchase_orders' },
         { href: '/inventario/checklists', icon: ClipboardList, label: t('checklists'), section: 'checklists' },
         { href: '/imports/repartition', icon: GitPullRequest, label: t('repartition' as any) || 'Repartición', section: 'repartition', action: 'create' },
       ],

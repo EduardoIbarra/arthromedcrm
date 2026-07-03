@@ -19,6 +19,8 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/imports/repartition': { section: 'repartition', action: 'create' },
   '/products': { section: 'products', action: 'view' },
   '/inventario': { section: 'inventario', action: 'view' },
+  '/cajas': { section: 'cajas', action: 'view' },
+  '/purchase-orders': { section: 'purchase_orders', action: 'view' },
   '/inventario/checklists': { section: 'checklists', action: 'view' },
   '/hospitals': { section: 'hospitals', action: 'view' },
   '/catalogos': { section: 'catalogos', action: 'view' },

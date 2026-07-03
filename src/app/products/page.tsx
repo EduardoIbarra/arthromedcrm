@@ -74,6 +74,11 @@ type FormState = {
   generic_description: string
   new_alg_description: string
   measurements: string
+  measurement_unit: string
+  height: number | ''
+  width: number | ''
+  depth: number | ''
+  weight: number | ''
   alg_description: string
   sale_price: number | ''
   base_hospital_price: number | ''
@@ -93,6 +98,11 @@ const EMPTY_FORM: FormState = {
   generic_description: '',
   new_alg_description: '',
   measurements: '',
+  measurement_unit: 'cm',
+  height: '',
+  width: '',
+  depth: '',
+  weight: '',
   alg_description: '',
   sale_price: '',
   base_hospital_price: '',
@@ -175,6 +185,11 @@ export default function ProductsPage() {
       generic_description: product.generic_description || '',
       new_alg_description: product.new_alg_description || '',
       measurements: product.measurements || '',
+      measurement_unit: product.measurement_unit || 'cm',
+      height: product.height !== null && product.height !== undefined ? product.height : '',
+      width: product.width !== null && product.width !== undefined ? product.width : '',
+      depth: product.depth !== null && product.depth !== undefined ? product.depth : '',
+      weight: product.weight !== null && product.weight !== undefined ? product.weight : '',
       alg_description: product.alg_description || '',
       sale_price: product.sale_price !== null ? product.sale_price : '',
       base_hospital_price: product.base_hospital_price !== null ? product.base_hospital_price : '',
@@ -573,6 +588,13 @@ export default function ProductsPage() {
                         {product.generic_description && (
                           <div className="text-xs text-gray-500 mt-0.5">{product.generic_description}</div>
                         )}
+                        {(product.depth || product.width || product.height) && (
+                          <div className="text-xs text-[#0763a9] font-medium mt-1 flex items-center gap-1">
+                            <span className="bg-blue-50 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase">Caja</span>
+                            <span>{product.depth || '-'} × {product.width || '-'} × {product.height || '-'} {product.measurement_unit || 'cm'}</span>
+                            {product.weight ? <span className="text-gray-400">| {product.weight} kg</span> : null}
+                          </div>
+                        )}
                       </td>
                       <td className="p-4 text-sm text-gray-655 whitespace-nowrap">{product.model || '-'}</td>
                       <td className="p-4 text-sm text-gray-655 whitespace-nowrap">
@@ -747,7 +769,7 @@ export default function ProductsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Medidas</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Medidas (Texto)</label>
               <input
                 type="text"
                 value={form.measurements}
@@ -755,6 +777,69 @@ export default function ProductsPage() {
                 className="erp-input"
                 placeholder="ej. 10x5cm"
               />
+            </div>
+          </div>
+
+          {/* Box Measures (height, width, depth, weight, unit) */}
+          <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Medidas de Empaque (Caja)</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Largo (Profundidad)</label>
+                <input 
+                  type="number" 
+                  step="any"
+                  placeholder="0.0"
+                  className="erp-input w-full text-sm" 
+                  value={form.depth} 
+                  onChange={e => setField('depth', e.target.value === '' ? '' : Number(e.target.value))} 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Ancho</label>
+                <input 
+                  type="number" 
+                  step="any"
+                  placeholder="0.0"
+                  className="erp-input w-full text-sm" 
+                  value={form.width} 
+                  onChange={e => setField('width', e.target.value === '' ? '' : Number(e.target.value))} 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Alto</label>
+                <input 
+                  type="number" 
+                  step="any"
+                  placeholder="0.0"
+                  className="erp-input w-full text-sm" 
+                  value={form.height} 
+                  onChange={e => setField('height', e.target.value === '' ? '' : Number(e.target.value))} 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Unidad</label>
+                <select 
+                  className="erp-input w-full text-sm py-2 px-1"
+                  value={form.measurement_unit} 
+                  onChange={e => setField('measurement_unit', e.target.value)}
+                >
+                  <option value="cm">cm</option>
+                  <option value="in">in</option>
+                  <option value="mm">mm</option>
+                </select>
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Peso (kg)</label>
+                <input 
+                  type="number" 
+                  step="any"
+                  placeholder="0.0"
+                  className="erp-input w-full text-sm" 
+                  value={form.weight} 
+                  onChange={e => setField('weight', e.target.value === '' ? '' : Number(e.target.value))} 
+                />
+              </div>
             </div>
           </div>
 
