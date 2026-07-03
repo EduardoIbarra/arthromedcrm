@@ -650,7 +650,7 @@ export default function ProductsPage() {
                 </tbody>
               </table>
             </div>
-            
+
             {/* Pagination Controls */}
             <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-600">
               <div className="flex items-center gap-2">
@@ -667,7 +667,7 @@ export default function ProductsPage() {
                 </select>
                 <span>por página</span>
               </div>
-              
+
               <div>
                 {filteredAndSorted.length > 0 ? (
                   <span>
@@ -788,43 +788,43 @@ export default function ProductsPage() {
             <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Medidas de Empaque (Caja)</h4>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Largo (Profundidad)</label>
-                <input 
-                  type="number" 
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Largo</label>
+                <input
+                  type="number"
                   step="any"
                   placeholder="0.0"
-                  className="erp-input w-full text-sm" 
-                  value={form.depth} 
-                  onChange={e => setField('depth', e.target.value === '' ? '' : Number(e.target.value))} 
+                  className="erp-input w-full text-sm"
+                  value={form.depth}
+                  onChange={e => setField('depth', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Ancho</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   step="any"
                   placeholder="0.0"
-                  className="erp-input w-full text-sm" 
-                  value={form.width} 
-                  onChange={e => setField('width', e.target.value === '' ? '' : Number(e.target.value))} 
+                  className="erp-input w-full text-sm"
+                  value={form.width}
+                  onChange={e => setField('width', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Alto</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   step="any"
                   placeholder="0.0"
-                  className="erp-input w-full text-sm" 
-                  value={form.height} 
-                  onChange={e => setField('height', e.target.value === '' ? '' : Number(e.target.value))} 
+                  className="erp-input w-full text-sm"
+                  value={form.height}
+                  onChange={e => setField('height', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Unidad</label>
-                <select 
+                <select
                   className="erp-input w-full text-sm py-2 px-1"
-                  value={form.measurement_unit} 
+                  value={form.measurement_unit}
                   onChange={e => setField('measurement_unit', e.target.value)}
                 >
                   <option value="cm">cm</option>
@@ -834,13 +834,13 @@ export default function ProductsPage() {
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Peso (kg)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   step="any"
                   placeholder="0.0"
-                  className="erp-input w-full text-sm" 
-                  value={form.weight} 
-                  onChange={e => setField('weight', e.target.value === '' ? '' : Number(e.target.value))} 
+                  className="erp-input w-full text-sm"
+                  value={form.weight}
+                  onChange={e => setField('weight', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
             </div>
