@@ -1,42 +1,70 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import Papa from 'papaparse';
+import { querySegundaDB } from '@/lib/segundaDB';
 import { google } from '@ai-sdk/google';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 
 export async function POST(req: Request) {
   try {
-    const { csvContent, facturas, locale } = await req.json();
+    const body = await req.json();
+    const { facturas, locale } = body;
 
-    if (!csvContent || !facturas || !Array.isArray(facturas)) {
-      return NextResponse.json({ error: 'Faltan datos requeridos (csvContent, facturas)' }, { status: 400 });
+    // Support both legacy CSV mode and new ordenes mode
+    const { csvContent, selectedOrderIds } = body;
+
+    if (!facturas || !Array.isArray(facturas)) {
+      return NextResponse.json({ error: 'Faltan datos requeridos (facturas)' }, { status: 400 });
     }
 
-    // 1. Parse CSV to aggregate inventory by PRODUCTO
-    // The new format has no headers. 
-    // Col 0: Invoice ID (only on first row) or empty
-    // Col 1: Product Name
-    // Col 2: Quantity
-    const parsed = Papa.parse(csvContent, { header: false, skipEmptyLines: true });
+    // ──────────────────────────────────────────────────
+    // Build inventory map
+    // Either from CSV (legacy) or from segunda DB orders
+    // ──────────────────────────────────────────────────
     const inventoryMap: Record<string, number> = {};
     let invoiceIdFromChina = '';
 
-    for (let i = 0; i < parsed.data.length; i++) {
-      const row = parsed.data[i] as string[];
-      
-      // Extract invoice ID from A1
-      if (i === 0 && row[0]) {
-        invoiceIdFromChina = row[0].trim();
+    if (csvContent) {
+      // Legacy CSV path
+      const Papa = (await import('papaparse')).default;
+      const parsed = Papa.parse(csvContent, { header: false, skipEmptyLines: true });
+
+      for (let i = 0; i < parsed.data.length; i++) {
+        const row = parsed.data[i] as string[];
+        if (i === 0 && row[0]) {
+          invoiceIdFromChina = row[0].trim();
+        }
+        const producto = row[1]?.trim();
+        const cantidadStr = row[2]?.trim();
+        const cantidad = parseInt(cantidadStr || '0', 10);
+        if (producto && !isNaN(cantidad) && cantidad > 0) {
+          inventoryMap[producto] = (inventoryMap[producto] || 0) + cantidad;
+        }
       }
-      
-      const producto = row[1]?.trim();
-      const cantidadStr = row[2]?.trim();
-      const cantidad = parseInt(cantidadStr || '0', 10);
-      
-      if (producto && !isNaN(cantidad) && cantidad > 0) {
-        inventoryMap[producto] = (inventoryMap[producto] || 0) + cantidad;
+    } else if (selectedOrderIds && Array.isArray(selectedOrderIds) && selectedOrderIds.length > 0) {
+      // New segunda DB path: aggregate pending items from selected orders
+      const placeholders = selectedOrderIds.map((_: any, i: number) => `$${i + 1}`).join(', ');
+      const productos = await querySegundaDB<{
+        producto_nombre: string;
+        cantidad_ordenada: number;
+        cantidad_recibida: number | null;
+      }>(`
+        SELECT producto_nombre, cantidad_ordenada, COALESCE(cantidad_recibida, 0) AS cantidad_recibida
+        FROM orden_productos
+        WHERE orden_id IN (${placeholders})
+          AND (cantidad_recibida IS NULL OR cantidad_recibida < cantidad_ordenada)
+      `, selectedOrderIds);
+
+      for (const p of productos) {
+        if (p.producto_nombre) {
+          const pendiente = (p.cantidad_ordenada || 0) - (Number(p.cantidad_recibida) || 0);
+          if (pendiente > 0) {
+            inventoryMap[p.producto_nombre] = (inventoryMap[p.producto_nombre] || 0) + pendiente;
+          }
+        }
       }
+    } else {
+      return NextResponse.json({ error: 'Se requiere csvContent o selectedOrderIds' }, { status: 400 });
     }
 
     // Filter out products with 0 quantity
@@ -44,15 +72,24 @@ export async function POST(req: Request) {
       if (inventoryMap[key] <= 0) delete inventoryMap[key];
     });
 
+    if (Object.keys(inventoryMap).length === 0) {
+      return NextResponse.json({
+        allocations: [],
+        remainingInventory: {},
+        aiReasoning: 'No hay productos pendientes en las órdenes seleccionadas.',
+        invoiceIdFromChina,
+      });
+    }
+
     // Allow 'F-240' notation to match '240'
     const expandedFacturas = Array.from(new Set(
       facturas.flatMap((f: string) => [f, f.replace(/^F-?/i, '')])
     ));
 
-    // 2. Fetch pending orders for the provided facturas
+    // Fetch pending orders for the provided facturas
     const pendingFacturas = await prisma.facturas_cliente.findMany({
-      where: { 
-        numero_factura: { in: expandedFacturas } 
+      where: {
+        numero_factura: { in: expandedFacturas }
       },
       include: {
         factura_productos: {
@@ -64,7 +101,7 @@ export async function POST(req: Request) {
     });
 
     if (pendingFacturas.length === 0) {
-      return NextResponse.json({ allocations: [], inventory: inventoryMap, aiReasoning: 'No hay facturas pendientes o válidas seleccionadas.' });
+      return NextResponse.json({ allocations: [], remainingInventory: inventoryMap, aiReasoning: 'No hay facturas pendientes o válidas seleccionadas.', invoiceIdFromChina });
     }
 
     // Calculate customer spend for priority
@@ -79,7 +116,7 @@ export async function POST(req: Request) {
         total: true
       }
     });
-    
+
     const spendMap: Record<string, number> = {};
     spendGroups.forEach((g: any) => {
       if (g.cliente_id) {
@@ -87,14 +124,14 @@ export async function POST(req: Request) {
       }
     });
 
-    // 3. Prepare AI payload
+    // Prepare AI payload
     const ordersForAi = pendingFacturas.flatMap((f: any) => {
       const spend = f.cliente_id ? (spendMap[f.cliente_id] || 0) : 0;
       return f.factura_productos.map((fp: any) => ({
         id: fp.id,
         folio: f.numero_factura,
         customerName: f.cliente_nombre,
-        paymentDate: f.fecha_pago ? f.fecha_pago.toISOString() : null, // null means unpaid -> lowest priority
+        paymentDate: f.fecha_pago ? f.fecha_pago.toISOString() : null,
         issueDate: f.fecha_expedicion.toISOString(),
         customerSpend: spend,
         product: fp.producto_nombre,
@@ -102,29 +139,29 @@ export async function POST(req: Request) {
       }));
     });
 
-    // Remove orders for products we didn't receive
-    // Use lax matching to account for prefixes like "Radiofrecuencia de Plasma " in the DB
+    // Match to received inventory using fuzzy matching
     const relevantOrders = ordersForAi.filter((o: any) => {
-      const matchKey = Object.keys(inventoryMap).find(invKey => 
-        o.product.toLowerCase().includes(invKey.toLowerCase()) || 
+      const matchKey = Object.keys(inventoryMap).find(invKey =>
+        o.product.toLowerCase().includes(invKey.toLowerCase()) ||
         invKey.toLowerCase().includes(o.product.toLowerCase())
       );
       if (matchKey) {
-        o.product = matchKey; // Normalize to match inventoryMap exactly
+        o.product = matchKey;
         return true;
       }
       return false;
     });
 
     if (relevantOrders.length === 0) {
-      return NextResponse.json({ 
-        allocations: [], 
-        inventory: inventoryMap, 
-        aiReasoning: 'Ninguno de los productos recibidos en la importación concuerda con los productos pendientes en las facturas seleccionadas.' 
+      return NextResponse.json({
+        allocations: [],
+        remainingInventory: inventoryMap,
+        aiReasoning: 'Ninguno de los productos recibidos en la importación concuerda con los productos pendientes en las facturas seleccionadas.',
+        invoiceIdFromChina,
       });
     }
 
-    // 4. Call Google AI
+    // Call Google AI
     const languageString = locale === 'en' ? 'English' : locale === 'zh' ? 'Chinese' : 'Spanish';
     const prompt = `
 You are an expert supply chain allocation AI.

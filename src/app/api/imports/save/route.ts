@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
       // 2. Aggregate allocations by product to calculate total received vs assigned
       const itemsMap: Record<string, { asignada: number; recibida: number }> = {};
-      
+
       // Calculate allocated amount per product
       for (const alloc of allocations) {
         if (!itemsMap[alloc.product]) {
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         itemsMap[alloc.product].asignada += alloc.allocatedQty;
       }
 
-      // Add remaining inventory to get total received
+      // Add remaining inventory to get total received per product
       for (const product in remainingInventory) {
         if (!itemsMap[product]) {
           itemsMap[product] = { asignada: 0, recibida: 0 };
@@ -39,7 +39,8 @@ export async function POST(req: Request) {
         itemsMap[product].recibida = itemsMap[product].asignada + remainingInventory[product];
       }
 
-      // 3. Create import_items and their allocations
+      // 3. Create importacion_items and importacion_asignaciones (log only — no mutations to
+      //    factura_productos or inventario_productos)
       for (const [productName, data] of Object.entries(itemsMap)) {
         const importItem = await tx.importacion_items.create({
           data: {
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
           }
         });
 
-        // Create specific allocations for this product
+        // Record each per-invoice allocation as a pure log entry
         const productAllocations = allocations.filter((a: any) => a.product === productName);
         for (const alloc of productAllocations) {
           if (alloc.allocatedQty > 0) {
@@ -63,60 +64,12 @@ export async function POST(req: Request) {
                 manual_adjustment: alloc.manualAdjustment || false
               }
             });
-
-            // 4. Update factura_productos
-            await tx.factura_productos.update({
-              where: { id: alloc.id },
-              data: {
-                cantidad_entregada: { increment: alloc.allocatedQty }
-                // Note: cantidad_pendiente is a generated column in the schema `(cantidad_facturada - cantidad_entregada)`
-              }
-            });
-          }
-        }
-
-        // 5. Add remaining to inventario_productos for Almacén Principal
-        if (remainingInventory[productName] > 0) {
-          // Find the product by name. We assume product name matches uniquely.
-          // If not, we might need more advanced matching, but for now we try to update.
-          const productRecords = await tx.productos.findMany({
-            where: { nombre: productName }
-          });
-          
-          if (productRecords.length > 0) {
-            const product = productRecords[0];
-
-            let defaultInv = await tx.tipos_inventario.findFirst({ where: { nombre: 'Almacén Principal' } });
-            if (!defaultInv) {
-              defaultInv = await tx.tipos_inventario.findFirst();
-            }
-
-            if (defaultInv) {
-              await tx.inventario_productos.upsert({
-                where: {
-                  tipo_inventario_id_producto_id: {
-                    tipo_inventario_id: defaultInv.id,
-                    producto_id: product.id,
-                  }
-                },
-                update: {
-                  stock_actual: { increment: remainingInventory[productName] },
-                  stock_updated_at: new Date()
-                },
-                create: {
-                  tipo_inventario_id: defaultInv.id,
-                  producto_id: product.id,
-                  stock_actual: remainingInventory[productName],
-                  stock_updated_at: new Date()
-                }
-              });
-            }
           }
         }
       }
     });
 
-    // 6. Send WhatsApp notifications to staff members assigned to the affected clients
+    // 4. Send WhatsApp notifications to staff members assigned to the affected clients
     if (allocations && allocations.length > 0) {
       const allocIds = allocations.map((a: any) => a.id);
       const f_prods = await prisma.factura_productos.findMany({
@@ -127,7 +80,9 @@ export async function POST(req: Request) {
       });
 
       // Collect unique customer names from the affected invoices
-      const uniqueCustomerNames = Array.from(new Set(f_prods.map((fp: any) => fp.facturas_cliente?.cliente_nombre).filter(Boolean))) as string[];
+      const uniqueCustomerNames = Array.from(
+        new Set(f_prods.map((fp: any) => fp.facturas_cliente?.cliente_nombre).filter(Boolean))
+      ) as string[];
 
       // Lookup the CRM client records to find the assigned_to
       const crmClients = await prisma.clients.findMany({
@@ -146,12 +101,11 @@ export async function POST(req: Request) {
         }
       }
 
-      // Send the notifications
+      // Send the notifications asynchronously
       for (const [userId, clientSet] of Object.entries(notificationsMap)) {
         const clientList = Array.from(clientSet).join(', ');
         const msg = `Hola, se ha completado una repartición de inventario. Por favor, confirma la dirección de envío con los siguientes clientes: ${clientList}.`;
-        
-        // Send asynchronously
+
         sendNotificationToUser(userId, msg).catch(err => {
           console.error(`Failed to send WhatsApp to user ${userId}:`, err);
         });

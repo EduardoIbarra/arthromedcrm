@@ -1,10 +1,37 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
-import { FileUp, Save, Brain, Info, CheckCircle2, Search, ArrowRight, Loader2, Sparkles, X, AlertCircle } from 'lucide-react'
+import {
+  Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
+  AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
+  RefreshCw,
+} from 'lucide-react'
+
+interface OrdenProducto {
+  id: string
+  orden_id: string
+  producto_id: string | null
+  producto_nombre: string | null
+  cantidad_ordenada: number
+  cantidad_recibida: number | null
+}
+
+interface OrdenCompra {
+  id: string
+  numero_orden: string
+  proveedor: string | null
+  fecha_orden: string | null
+  fecha_esperada: string | null
+  estado: string | null
+  observaciones: string | null
+  created_at: string | null
+  productos: OrdenProducto[]
+  total_ordenado: number
+  total_recibido: number
+}
 
 interface Allocation {
   id: string
@@ -18,87 +45,113 @@ interface Allocation {
 
 export default function ImportRepartitionPage() {
   const { t, locale } = useI18n()
-  const [csvContent, setCsvContent] = useState<string>('')
-  const [fileName, setFileName] = useState<string>('')
+
+  // ── Ordenes de compra (segunda DB) ──────────────────────
+  const [ordenes, setOrdenes] = useState<OrdenCompra[]>([])
+  const [loadingOrdenes, setLoadingOrdenes] = useState(true)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
+
+  // ── Facturas a surtir ───────────────────────────────────
   const [invoiceSearch, setInvoiceSearch] = useState('')
   const [invoiceResults, setInvoiceResults] = useState<any[]>([])
   const [isSearchingInvoices, setIsSearchingInvoices] = useState(false)
   const [selectedInvoices, setSelectedInvoices] = useState<any[]>([])
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([])
 
-  useEffect(() => {
-    const fetchPending = async () => {
-      try {
-        const res = await fetch('/api/invoices?status=pagada&estado_surtido=no_surtida&pageSize=500')
-        const data = await res.json()
-        if (data.data) {
-          setPendingInvoices(data.data)
-          setSelectedInvoices(data.data)
-        }
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    fetchPending()
-  }, [])
+  // ── Process results ──────────────────────────────────────
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
-  
   const [allocations, setAllocations] = useState<Allocation[]>([])
   const [remainingInventory, setRemainingInventory] = useState<Record<string, number>>({})
   const [initialInventory, setInitialInventory] = useState<Record<string, number>>({})
   const [aiReasoning, setAiReasoning] = useState<string>('')
   const [invoiceIdFromChina, setInvoiceIdFromChina] = useState<string>('')
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setFileName(file.name)
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setCsvContent(event.target?.result as string)
+  // ── Load ordenes de compra ───────────────────────────────
+  const fetchOrdenes = async () => {
+    setLoadingOrdenes(true)
+    try {
+      const res = await fetch('/api/ordenes-compra')
+      const data = await res.json()
+      if (data.data) {
+        setOrdenes(data.data)
+        // Check all by default
+        setSelectedOrderIds(new Set(data.data.map((o: OrdenCompra) => o.id)))
       }
-      reader.readAsText(file)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingOrdenes(false)
     }
   }
 
+  // ── Load facturas (no_surtida + parcial) ─────────────────
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        // Fetch no_surtida
+        const [res1, res2] = await Promise.all([
+          fetch('/api/invoices?status=pagada&estado_surtido=no_surtida&pageSize=500'),
+          fetch('/api/invoices?status=pagada&estado_surtido=parcial&pageSize=500'),
+        ])
+        const [d1, d2] = await Promise.all([res1.json(), res2.json()])
+        const merged: any[] = []
+        const seen = new Set<string>()
+        for (const inv of [...(d1.data || []), ...(d2.data || [])]) {
+          if (!seen.has(inv.id)) {
+            seen.add(inv.id)
+            merged.push(inv)
+          }
+        }
+        // Sort: no_surtida first, then parcial; within each group by date asc
+        merged.sort((a, b) => {
+          if (a.estado_surtido !== b.estado_surtido) {
+            return a.estado_surtido === 'no_surtida' ? -1 : 1
+          }
+          return new Date(a.fecha_expedicion).getTime() - new Date(b.fecha_expedicion).getTime()
+        })
+        setPendingInvoices(merged)
+        setSelectedInvoices(merged)
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    fetchPending()
+    fetchOrdenes()
+  }, [])
+
+  // ── Invoice search ───────────────────────────────────────
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (invoiceSearch.length < 2) {
-         setInvoiceResults([])
-         return
+        setInvoiceResults([])
+        return
       }
       setIsSearchingInvoices(true)
       try {
-        const isMultiple = invoiceSearch.includes(',');
-        const size = isMultiple ? 100 : 5;
+        const isMultiple = invoiceSearch.includes(',')
+        const size = isMultiple ? 100 : 5
         const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=${size}`)
         const data = await res.json()
-        const results = data.data || [];
+        const results = data.data || []
         setInvoiceResults(results)
-        
         if (isMultiple && results.length > 0) {
-          const terms = invoiceSearch.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-          const cleanedTerms = terms.map(s => s.replace(/^F-/i, ''));
-          
+          const terms = invoiceSearch.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean)
+          const cleanedTerms = terms.map((s: string) => s.replace(/^F-/i, ''))
           const matches = results.filter((inv: any) => {
-            const folUpper = String(inv.numero_factura).toUpperCase();
-            return terms.includes(folUpper) || cleanedTerms.some(t => folUpper.includes(t));
-          });
-          
+            const folUpper = String(inv.numero_factura).toUpperCase()
+            return terms.includes(folUpper) || cleanedTerms.some((t: string) => folUpper.includes(t))
+          })
           if (matches.length > 0) {
             setSelectedInvoices(prev => {
-              const newSelection = [...prev];
+              const newSel = [...prev]
               matches.forEach((m: any) => {
-                if (!newSelection.find(i => i.numero_factura === m.numero_factura)) {
-                  newSelection.push(m);
-                }
-              });
-              return newSelection;
-            });
+                if (!newSel.find(i => i.numero_factura === m.numero_factura)) newSel.push(m)
+              })
+              return newSel
+            })
           }
         }
       } catch (err) {
@@ -110,6 +163,25 @@ export default function ImportRepartitionPage() {
     return () => clearTimeout(delay)
   }, [invoiceSearch])
 
+  // ── Toggle helpers ───────────────────────────────────────
+  const toggleOrder = (id: string) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleExpandOrder = (id: string) => {
+    setExpandedOrders(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const toggleInvoice = (invoice: any) => {
     if (selectedInvoices.find(i => i.numero_factura === invoice.numero_factura)) {
       setSelectedInvoices(prev => prev.filter(i => i.numero_factura !== invoice.numero_factura))
@@ -118,26 +190,12 @@ export default function ImportRepartitionPage() {
     }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (file && file.name.endsWith('.csv')) {
-      setFileName(file.name)
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setCsvContent(event.target?.result as string)
-      }
-      reader.readAsText(file)
-    }
-  }
-
+  // ── Process ──────────────────────────────────────────────
   const handleProcess = async () => {
-    if (!csvContent) {
-      setError(t('uploadCsvDesc'))
+    if (selectedOrderIds.size === 0) {
+      setError('Selecciona al menos una orden de compra.')
       return
     }
-    
-    // Parse folios from selected invoices
     const facturas = selectedInvoices.map(i => String(i.numero_factura))
     if (facturas.length === 0) {
       setError(t('invoicesToFulfill'))
@@ -157,26 +215,22 @@ export default function ImportRepartitionPage() {
       const res = await fetch('/api/imports/repartition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csvContent, facturas, locale })
+        body: JSON.stringify({ selectedOrderIds: Array.from(selectedOrderIds), facturas, locale }),
       })
       const data = await res.json()
-      
       if (!res.ok) throw new Error(data.error || 'Error processing repartition')
-      
+
       setAllocations(data.allocations || [])
       setRemainingInventory(data.remainingInventory || {})
       setAiReasoning(data.aiReasoning || '')
-      if (data.invoiceIdFromChina) {
-        setInvoiceIdFromChina(data.invoiceIdFromChina)
-      }
+      if (data.invoiceIdFromChina) setInvoiceIdFromChina(data.invoiceIdFromChina)
 
-      // Calculate initial inventory from allocations + remaining
+      // Build initial inventory from allocations + remaining
       const initInv: Record<string, number> = { ...data.remainingInventory }
       data.allocations?.forEach((a: Allocation) => {
         initInv[a.product] = (initInv[a.product] || 0) + a.allocatedQty
       })
       setInitialInventory(initInv)
-
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -189,29 +243,16 @@ export default function ImportRepartitionPage() {
       const copy = [...prev]
       const index = copy.findIndex(a => a.id === id)
       if (index === -1) return prev
-
       const oldAlloc = copy[index]
       const product = oldAlloc.product
-      
-      // Calculate max available to avoid overallocating
       const totalAllocatedOther = copy.filter(a => a.product === product && a.id !== id).reduce((acc, curr) => acc + curr.allocatedQty, 0)
       const totalAvailable = initialInventory[product] || 0
       const maxAllowed = totalAvailable - totalAllocatedOther
-      
       let validQty = Math.max(0, Math.min(newQty, maxAllowed))
-      
-      // Cap at requested amount to prevent logic bugs
       validQty = Math.min(validQty, oldAlloc.requestedQty)
-
       copy[index] = { ...oldAlloc, allocatedQty: validQty, manualAdjustment: true }
-
-      // Update remaining inventory
       const newTotalAllocated = totalAllocatedOther + validQty
-      setRemainingInventory(prevInv => ({
-        ...prevInv,
-        [product]: totalAvailable - newTotalAllocated
-      }))
-
+      setRemainingInventory(prevInv => ({ ...prevInv, [product]: totalAvailable - newTotalAllocated }))
       return copy
     })
   }
@@ -223,11 +264,10 @@ export default function ImportRepartitionPage() {
       const res = await fetch('/api/imports/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allocations, remainingInventory, aiReasoning, invoiceIdFromChina })
+        body: JSON.stringify({ allocations, remainingInventory, aiReasoning, invoiceIdFromChina }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error saving allocations')
-      
       setSuccessMsg(t('saveAllocationSuccess'))
     } catch (err: any) {
       setError(err.message)
@@ -236,422 +276,534 @@ export default function ImportRepartitionPage() {
     }
   }
 
-  // Group allocations by product
+  // ── Computed ─────────────────────────────────────────────
   const groupedAllocations = allocations.reduce((acc, curr) => {
     if (!acc[curr.product]) acc[curr.product] = []
     acc[curr.product].push(curr)
     return acc
   }, {} as Record<string, Allocation[]>)
 
-  // Group allocations by customer
   const groupedByCustomer = allocations.reduce((acc, curr) => {
     if (!acc[curr.customerName]) acc[curr.customerName] = []
     acc[curr.customerName].push(curr)
     return acc
   }, {} as Record<string, Allocation[]>)
 
+  // Displayed invoices (merge pending + search results, filter by search)
   const displayedInvoicesMap = new Map()
   pendingInvoices.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
   selectedInvoices.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
   invoiceResults.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
-
   let displayedInvoices = Array.from(displayedInvoicesMap.values())
-
   if (invoiceSearch.trim()) {
-    const terms = invoiceSearch.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
-    const cleanedTerms = terms.map(s => s.replace(/^F-/i, ''))
-    
+    const terms = invoiceSearch.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean)
+    const cleanedTerms = terms.map((s: string) => s.replace(/^F-/i, ''))
     displayedInvoices = displayedInvoices.filter((inv: any) => {
       const folUpper = String(inv.numero_factura).toUpperCase()
       const cliUpper = String(inv.cliente_nombre || '').toUpperCase()
-      return terms.includes(folUpper) || 
-             cleanedTerms.some(t => folUpper.includes(t)) ||
-             cliUpper.includes(invoiceSearch.trim().toUpperCase())
+      return terms.includes(folUpper) ||
+        cleanedTerms.some(t => folUpper.includes(t)) ||
+        cliUpper.includes(invoiceSearch.trim().toUpperCase())
     })
   }
 
+  // Totals for selected orders
+  const selectedOrdenesData = ordenes.filter(o => selectedOrderIds.has(o.id))
+  const totalSelOrdenado = selectedOrdenesData.reduce((s, o) => s + (o.total_ordenado || 0), 0)
+  const totalSelRecibido = selectedOrdenesData.reduce((s, o) => s + (o.total_recibido || 0), 0)
+
+  // ── Status badge helper ───────────────────────────────────
+  const estadoBadge = (estado: string | null) => {
+    switch (estado) {
+      case 'pendiente':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Pendiente</span>
+      case 'parcial':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">Parcial</span>
+      case 'completa':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700 border border-green-200">Completa</span>
+      default:
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">{estado || '—'}</span>
+    }
+  }
+
+  const surtidoBadge = (estado_surtido: string | null) => {
+    switch (estado_surtido) {
+      case 'no_surtida':
+        return <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 font-medium border border-red-200">No surtida</span>
+      case 'parcial':
+        return <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 font-medium border border-amber-200">Parcial</span>
+      default:
+        return null
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
   return (
     <AppShell>
       <div className="p-6 max-w-7xl mx-auto min-h-screen space-y-8 bg-gray-50/50">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('repartition')}</h1>
-          <p className="text-gray-500 mt-1">{t('tagline')}</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('repartition')}</h1>
+            <p className="text-gray-500 mt-1">{t('tagline')}</p>
+          </div>
         </div>
-      </div>
 
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 flex items-start gap-3 shadow-sm">
-        <Info className="w-5 h-5 shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium">Al completar la repartición, se notificará automáticamente al personal asignado (vía WhatsApp) para que confirmen la dirección de envío con sus clientes.</p>
-        </div>
-      </motion.div>
-
-      {error && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 flex items-start gap-3">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 flex items-start gap-3 shadow-sm">
           <Info className="w-5 h-5 shrink-0 mt-0.5" />
-          <p className="text-sm font-medium">{error}</p>
-        </motion.div>
-      )}
-
-      {successMsg && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-green-50 text-green-700 rounded-xl border border-green-100 flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
-          <p className="text-sm font-medium">{successMsg}</p>
-        </motion.div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Input Section */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('uploadCsvTitle')}</h2>
-            <div 
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-indigo-500 hover:bg-indigo-50/50 transition-colors cursor-pointer group"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".csv" className="hidden" />
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <FileUp className="w-6 h-6" />
-              </div>
-              <p className="text-sm font-medium text-gray-700 mb-1">
-                {fileName || t('importBtn')}
-              </p>
-              <p className="text-xs text-gray-500">{t('uploadCsvDesc')}</p>
-            </div>
+          <div>
+            <p className="text-sm font-medium">Al completar la repartición, se notificará automáticamente al personal asignado (vía WhatsApp) para que confirmen la dirección de envío con sus clientes.</p>
           </div>
+        </motion.div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[500px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('invoicesToFulfill')}</h2>
-            
-            <div className="relative mb-4">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="w-4 h-4 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Buscar facturas por folio, cliente, RFC..."
-                value={invoiceSearch}
-                onChange={(e) => setInvoiceSearch(e.target.value)}
-                className="erp-input pl-10 w-full"
-              />
-              {isSearchingInvoices && (
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 flex items-start gap-3">
+            <Info className="w-5 h-5 shrink-0 mt-0.5" />
+            <p className="text-sm font-medium">{error}</p>
+          </motion.div>
+        )}
+
+        {successMsg && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-green-50 text-green-700 rounded-xl border border-green-100 flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+            <p className="text-sm font-medium">{successMsg}</p>
+          </motion.div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* ── Left Column ──────────────────────────────── */}
+          <div className="lg:col-span-1 space-y-6">
+
+            {/* Ordenes de Compra */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="w-4 h-4 text-indigo-600" />
+                  <h2 className="text-base font-semibold text-gray-900">Órdenes de compra pendientes</h2>
                 </div>
-              )}
-            </div>
-
-            <div className="flex-1 min-h-[300px] border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 shadow-sm bg-gray-50/30">
-              {displayedInvoices.length > 0 ? displayedInvoices.map(inv => {
-                const isSelected = !!selectedInvoices.find(i => i.numero_factura === inv.numero_factura)
-                return (
-                  <div 
-                    key={inv.id} 
-                    onClick={() => toggleInvoice(inv)}
-                    className={`p-3 cursor-pointer transition-colors flex items-start gap-3 hover:bg-indigo-50/50 ${isSelected ? 'bg-indigo-50/30' : 'bg-white'}`}
-                  >
-                    <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white'}`}>
-                      {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                        Folio: {inv.numero_factura}
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">{new Date(inv.fecha_expedicion).toLocaleDateString()}</span>
-                        {!isSelected && <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-400">Omitida</span>}
-                      </div>
-                      <div className="text-xs text-gray-500 line-clamp-1">{inv.cliente_nombre}</div>
-                    </div>
-                  </div>
-                )
-              }) : (
-                <div className="p-6 text-center text-gray-400 flex flex-col items-center justify-center h-full">
-                  <Search className="w-8 h-8 mb-2 opacity-50" />
-                  <p className="text-sm">No se encontraron facturas</p>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-2 flex justify-between items-center text-sm">
-              <span className="text-gray-500 font-medium">Seleccionadas: <span className="text-indigo-600 font-bold">{selectedInvoices.length}</span></span>
-              <button 
-                onClick={() => setSelectedInvoices(displayedInvoices)}
-                className="text-indigo-600 hover:text-indigo-700 font-medium text-xs"
-              >
-                Seleccionar todas visibles
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={handleProcess}
-            disabled={loading || !csvContent || selectedInvoices.length === 0}
-            className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            <span>Analizar y Repartir</span>
-          </button>
-        </div>
-
-        {/* Results Section */}
-        <div className="lg:col-span-2 space-y-6">
-          <AnimatePresence mode="popLayout">
-            {loading && (
-              <motion.div
-                key="loading-state"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="h-full min-h-[400px] flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-2xl bg-indigo-50/50 p-6"
-              >
-                <div className="relative mb-6">
-                  <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center animate-pulse">
-                    <Brain className="w-8 h-8 text-indigo-600 animate-bounce" />
-                  </div>
-                  <div className="absolute top-0 right-0 -mt-1 -mr-1">
-                    <Sparkles className="w-6 h-6 text-violet-500 animate-ping" />
-                  </div>
-                </div>
-                <h3 className="text-xl font-bold text-indigo-900 mb-2">La IA está analizando</h3>
-                <p className="text-indigo-600 text-center max-w-sm">
-                  Procesando el inventario disponible y cruzando datos con los clientes seleccionados...
-                </p>
-              </motion.div>
-            )}
-
-            {!loading && aiReasoning && (
-              <motion.div 
-                key="ai-reasoning"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-gradient-to-br from-violet-50 to-fuchsia-50 p-6 rounded-2xl border border-violet-100 shadow-sm relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <Brain className="w-24 h-24 text-violet-600" />
-                </div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="w-5 h-5 text-violet-600" />
-                    <h3 className="font-bold text-violet-900">{t('aiReasoning')}</h3>
-                  </div>
-                  <p className="text-violet-800 text-sm leading-relaxed whitespace-pre-wrap">
-                    {aiReasoning}
-                  </p>
-                </div>
-              </motion.div>
-            )}
-
-            {!loading && Object.keys(groupedAllocations).length > 0 && (
-              <motion.div 
-                key="allocations-dashboard"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
-              >
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900">{t('allocationDashboard')}</h2>
+                <div className="flex items-center gap-2">
+                  {selectedOrderIds.size > 0 && (
+                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                      {totalSelRecibido}/{totalSelOrdenado} uds.
+                    </span>
+                  )}
                   <button
-                    onClick={handleSave}
-                    disabled={loading || successMsg !== ''}
-                    className="py-2 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    onClick={fetchOrdenes}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+                    title="Recargar"
                   >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {t('saveAllocation')}
+                    <RefreshCw className="w-3.5 h-3.5" />
                   </button>
                 </div>
+              </div>
 
-                <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-                  <div className="p-4 bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
-                    <h3 className="text-lg font-bold text-gray-800">Por Producto</h3>
+              <div className="max-h-[420px] overflow-y-auto divide-y divide-gray-50">
+                {loadingOrdenes ? (
+                  <div className="flex items-center justify-center py-10 gap-2 text-gray-400">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Cargando órdenes...</span>
                   </div>
-                  {Object.entries(groupedAllocations).map(([product, items]) => {
-                    const totalReceived = initialInventory[product] || 0
-                    const currentAllocated = items.reduce((acc, curr) => acc + curr.allocatedQty, 0)
-                    const rem = remainingInventory[product] || 0
+                ) : ordenes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                    <Package className="w-8 h-8 mb-2 opacity-50" />
+                    <p className="text-sm">No hay órdenes pendientes</p>
+                  </div>
+                ) : ordenes.map(orden => {
+                  const isSelected = selectedOrderIds.has(orden.id)
+                  const isExpanded = expandedOrders.has(orden.id)
+                  const pendingCount = orden.productos.filter(
+                    p => (p.cantidad_recibida || 0) < p.cantidad_ordenada
+                  ).length
 
-                    return (
-                      <div key={product} className="p-6 hover:bg-gray-50/50 transition-colors">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
-                              {product.charAt(0)}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                {product}
-                                {items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0) > 0 && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-xs font-medium border border-red-100">
-                                    <AlertCircle className="w-3 h-3" /> Faltan {items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0)}
-                                  </span>
-                                )}
-                              </h4>
-                              <p className="text-xs text-gray-500">{t('received')}: {totalReceived}</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-4 text-sm">
-                            <div className="text-center px-3 py-1 bg-green-50 text-green-700 rounded-md font-medium">
-                              {t('allocated')}: {currentAllocated}
-                            </div>
-                            <div className={`text-center px-3 py-1 rounded-md font-medium ${rem > 0 ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
-                              {t('pendingAllocation')}: {rem}
-                            </div>
-                          </div>
+                  return (
+                    <div key={orden.id} className={`transition-colors ${isSelected ? 'bg-indigo-50/30' : 'bg-white'}`}>
+                      <div
+                        className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-indigo-50/50 group"
+                        onClick={() => toggleOrder(orden.id)}
+                      >
+                        {/* Checkbox */}
+                        <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white'}`}>
+                          {isSelected && <CheckCircle2 className="w-3 h-3" />}
                         </div>
 
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
-                              <tr>
-                                <th className="px-4 py-2 rounded-l-lg">{t('orderFolio')}</th>
-                                <th className="px-4 py-2">{t('customer')}</th>
-                                <th className="px-4 py-2 text-center">{t('qtyPending')}</th>
-                                <th className="px-4 py-2 text-center rounded-r-lg w-40">{t('qtyAllocated')}</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {items.map(alloc => (
-                                <tr key={alloc.id} className="hover:bg-white transition-colors">
-                                  <td className="px-4 py-3 font-medium text-gray-900">{alloc.folio}</td>
-                                  <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={alloc.customerName}>
-                                    <div className="flex items-center gap-2">
-                                      <span>{alloc.customerName}</span>
-                                      {alloc.requestedQty - alloc.allocatedQty > 0 && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-medium border border-red-100" title={`Faltan ${alloc.requestedQty - alloc.allocatedQty}`}>
-                                          <AlertCircle className="w-3 h-3" /> Faltan {alloc.requestedQty - alloc.allocatedQty}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-center font-medium text-gray-500">
-                                    {alloc.requestedQty}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <input 
-                                        type="number"
-                                        min="0"
-                                        max={alloc.requestedQty}
-                                        value={alloc.allocatedQty}
-                                        onChange={(e) => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
-                                        className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
-                                      />
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900 text-sm">{orden.numero_orden}</span>
+                            {estadoBadge(orden.estado)}
+                            {/* Units indicator */}
+                            <span className={`text-xs font-mono font-medium ${orden.total_recibido < orden.total_ordenado ? 'text-amber-700 bg-amber-50 border border-amber-200' : 'text-green-700 bg-green-50 border border-green-200'} px-1.5 py-0.5 rounded`}>
+                              ({orden.total_recibido}/{orden.total_ordenado})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-gray-500 truncate">{orden.proveedor || '—'}</span>
+                            {orden.fecha_orden && (
+                              <span className="text-xs text-gray-400">{new Date(orden.fecha_orden).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                          {pendingCount > 0 && (
+                            <span className="text-[10px] text-amber-600 font-medium">{pendingCount} artículo{pendingCount !== 1 ? 's' : ''} pendiente{pendingCount !== 1 ? 's' : ''}</span>
+                          )}
                         </div>
+
+                        {/* Expand toggle */}
+                        <button
+                          onClick={e => { e.stopPropagation(); toggleExpandOrder(orden.id) }}
+                          className="p-1 rounded hover:bg-gray-200 transition-colors text-gray-400 shrink-0"
+                        >
+                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        </button>
                       </div>
-                    )
-                  })}
 
-                  <div className="p-4 bg-gray-50 border-y border-gray-200 mt-4 sticky top-0 z-10">
-                    <h3 className="text-lg font-bold text-gray-800">Por Cliente</h3>
-                  </div>
-                  {Object.entries(groupedByCustomer).map(([customerName, items]) => {
-                    const customerMissing = items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0);
-                    const customerRequested = items.reduce((acc, curr) => acc + curr.requestedQty, 0);
-                    const customerAllocated = items.reduce((acc, curr) => acc + curr.allocatedQty, 0);
-
-                    return (
-                      <div key={customerName} className="p-6 hover:bg-gray-50/50 transition-colors">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold">
-                              {customerName.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                {customerName}
-                                {customerMissing > 0 && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-xs font-medium border border-red-100">
-                                    <AlertCircle className="w-3 h-3" /> Faltan {customerMissing}
+                      {/* Products sub-list */}
+                      {isExpanded && (
+                        <div className="px-4 pb-3 bg-gray-50/50 border-t border-gray-100">
+                          <div className="space-y-1 pt-2">
+                            {orden.productos.map(p => {
+                              const recibida = p.cantidad_recibida || 0
+                              const pendiente = p.cantidad_ordenada - recibida
+                              return (
+                                <div key={p.id} className="flex items-center justify-between text-xs gap-2">
+                                  <span className="text-gray-700 truncate flex-1" title={p.producto_nombre || ''}>{p.producto_nombre}</span>
+                                  <span className={`font-mono font-semibold shrink-0 ${pendiente > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                                    ({recibida}/{p.cantidad_ordenada})
                                   </span>
-                                )}
-                              </h4>
-                              <p className="text-xs text-gray-500">Total Solicitado: {customerRequested} | Total Asignado: {customerAllocated}</p>
-                            </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
 
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
-                              <tr>
-                                <th className="px-4 py-2 rounded-l-lg">{t('orderFolio')}</th>
-                                <th className="px-4 py-2">Producto</th>
-                                <th className="px-4 py-2 text-center">{t('qtyPending')}</th>
-                                <th className="px-4 py-2 text-center rounded-r-lg w-40">{t('qtyAllocated')}</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {items.map(alloc => {
-                                const isMissing = alloc.requestedQty - alloc.allocatedQty > 0;
-                                return (
-                                  <tr key={`cust-${alloc.id}`} className="hover:bg-white transition-colors">
+              <div className="px-4 py-2.5 border-t border-gray-100 flex justify-between items-center">
+                <span className="text-xs text-gray-500">
+                  Seleccionadas: <span className="font-semibold text-indigo-600">{selectedOrderIds.size}</span>/<span className="text-gray-700">{ordenes.length}</span>
+                </span>
+                <div className="flex gap-2">
+                  <button onClick={() => setSelectedOrderIds(new Set(ordenes.map(o => o.id)))} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Todas</button>
+                  <span className="text-gray-300">|</span>
+                  <button onClick={() => setSelectedOrderIds(new Set())} className="text-xs text-gray-500 hover:text-gray-700 font-medium">Ninguna</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Facturas a Surtir */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 380 }}>
+              <h2 className="text-base font-semibold text-gray-900 mb-3">{t('invoicesToFulfill')}</h2>
+
+              <div className="relative mb-3">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="w-4 h-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar facturas por folio, cliente, RFC..."
+                  value={invoiceSearch}
+                  onChange={e => setInvoiceSearch(e.target.value)}
+                  className="erp-input pl-10 w-full"
+                />
+                {isSearchingInvoices && (
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 shadow-sm bg-gray-50/30" style={{ maxHeight: 280 }}>
+                {displayedInvoices.length > 0 ? displayedInvoices.map(inv => {
+                  const isSelected = !!selectedInvoices.find(i => i.numero_factura === inv.numero_factura)
+                  return (
+                    <div
+                      key={inv.id}
+                      onClick={() => toggleInvoice(inv)}
+                      className={`p-3 cursor-pointer transition-colors flex items-start gap-3 hover:bg-indigo-50/50 ${isSelected ? 'bg-indigo-50/30' : 'bg-white'}`}
+                    >
+                      <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white'}`}>
+                        {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm flex items-center gap-2 flex-wrap">
+                          Folio: {inv.numero_factura}
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">
+                            {new Date(inv.fecha_expedicion).toLocaleDateString()}
+                          </span>
+                          {surtidoBadge(inv.estado_surtido)}
+                          {!isSelected && <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-400">Omitida</span>}
+                        </div>
+                        <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">{inv.cliente_nombre}</div>
+                      </div>
+                    </div>
+                  )
+                }) : (
+                  <div className="p-6 text-center text-gray-400 flex flex-col items-center justify-center h-full">
+                    <Search className="w-8 h-8 mb-2 opacity-50" />
+                    <p className="text-sm">No se encontraron facturas</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-between items-center text-sm">
+                <span className="text-gray-500 font-medium">Seleccionadas: <span className="text-indigo-600 font-bold">{selectedInvoices.length}</span></span>
+                <button onClick={() => setSelectedInvoices(displayedInvoices)} className="text-indigo-600 hover:text-indigo-700 font-medium text-xs">
+                  Seleccionar todas visibles
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={handleProcess}
+              disabled={loading || selectedOrderIds.size === 0 || selectedInvoices.length === 0}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+              <span>Analizar y Repartir</span>
+            </button>
+          </div>
+
+          {/* ── Right Column: Results ─────────────────────── */}
+          <div className="lg:col-span-2 space-y-6">
+            <AnimatePresence mode="popLayout">
+              {loading && (
+                <motion.div
+                  key="loading-state"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="h-full min-h-[400px] flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-2xl bg-indigo-50/50 p-6"
+                >
+                  <div className="relative mb-6">
+                    <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center animate-pulse">
+                      <Brain className="w-8 h-8 text-indigo-600 animate-bounce" />
+                    </div>
+                    <div className="absolute top-0 right-0 -mt-1 -mr-1">
+                      <Sparkles className="w-6 h-6 text-violet-500 animate-ping" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-indigo-900 mb-2">La IA está analizando</h3>
+                  <p className="text-indigo-600 text-center max-w-sm">
+                    Procesando el inventario disponible y cruzando datos con los clientes seleccionados...
+                  </p>
+                </motion.div>
+              )}
+
+              {!loading && aiReasoning && (
+                <motion.div
+                  key="ai-reasoning"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-gradient-to-br from-violet-50 to-fuchsia-50 p-6 rounded-2xl border border-violet-100 shadow-sm relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Brain className="w-24 h-24 text-violet-600" />
+                  </div>
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="w-5 h-5 text-violet-600" />
+                      <h3 className="font-bold text-violet-900">{t('aiReasoning')}</h3>
+                    </div>
+                    <p className="text-violet-800 text-sm leading-relaxed whitespace-pre-wrap">{aiReasoning}</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {!loading && Object.keys(groupedAllocations).length > 0 && (
+                <motion.div
+                  key="allocations-dashboard"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                >
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-gray-900">{t('allocationDashboard')}</h2>
+                    <button
+                      onClick={handleSave}
+                      disabled={loading || successMsg !== ''}
+                      className="py-2 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      {t('saveAllocation')}
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+                    <div className="p-4 bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                      <h3 className="text-lg font-bold text-gray-800">Por Producto</h3>
+                    </div>
+                    {Object.entries(groupedAllocations).map(([product, items]) => {
+                      const totalReceived = initialInventory[product] || 0
+                      const currentAllocated = items.reduce((acc, curr) => acc + curr.allocatedQty, 0)
+                      const rem = remainingInventory[product] || 0
+                      return (
+                        <div key={product} className="p-6 hover:bg-gray-50/50 transition-colors">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">{product.charAt(0)}</div>
+                              <div>
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  {product}
+                                  {items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0) > 0 && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-xs font-medium border border-red-100">
+                                      <AlertCircle className="w-3 h-3" /> Faltan {items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0)}
+                                    </span>
+                                  )}
+                                </h4>
+                                <p className="text-xs text-gray-500">{t('received')}: {totalReceived}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm">
+                              <div className="text-center px-3 py-1 bg-green-50 text-green-700 rounded-md font-medium">{t('allocated')}: {currentAllocated}</div>
+                              <div className={`text-center px-3 py-1 rounded-md font-medium ${rem > 0 ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{t('pendingAllocation')}: {rem}</div>
+                            </div>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                              <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
+                                <tr>
+                                  <th className="px-4 py-2 rounded-l-lg">{t('orderFolio')}</th>
+                                  <th className="px-4 py-2">{t('customer')}</th>
+                                  <th className="px-4 py-2 text-center">{t('qtyPending')}</th>
+                                  <th className="px-4 py-2 text-center rounded-r-lg w-40">{t('qtyAllocated')}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {items.map(alloc => (
+                                  <tr key={alloc.id} className="hover:bg-white transition-colors">
                                     <td className="px-4 py-3 font-medium text-gray-900">{alloc.folio}</td>
-                                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={alloc.product}>
+                                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={alloc.customerName}>
                                       <div className="flex items-center gap-2">
-                                        <span>{alloc.product}</span>
-                                        {isMissing && (
-                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-medium border border-red-100" title={`Faltan ${alloc.requestedQty - alloc.allocatedQty}`}>
+                                        <span>{alloc.customerName}</span>
+                                        {alloc.requestedQty - alloc.allocatedQty > 0 && (
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-medium border border-red-100">
                                             <AlertCircle className="w-3 h-3" /> Faltan {alloc.requestedQty - alloc.allocatedQty}
                                           </span>
                                         )}
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-center font-medium text-gray-500">
-                                      {alloc.requestedQty}
-                                    </td>
+                                    <td className="px-4 py-3 text-center font-medium text-gray-500">{alloc.requestedQty}</td>
                                     <td className="px-4 py-3">
                                       <div className="flex items-center justify-center gap-2">
-                                        <input 
+                                        <input
                                           type="number"
                                           min="0"
                                           max={alloc.requestedQty}
                                           value={alloc.allocatedQty}
-                                          onChange={(e) => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
+                                          onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
                                           className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
                                         />
                                       </div>
                                     </td>
                                   </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </motion.div>
-            )}
-            
-            {!loading && Object.keys(groupedAllocations).length === 0 && !aiReasoning && (
-              <motion.div 
-                key="empty-state"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="h-full min-h-[400px] flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-white p-6"
-              >
-                <Search className="w-12 h-12 mb-3 text-gray-300" />
-                <p className="font-medium text-gray-500">Sube un archivo y folios para comenzar</p>
-                <p className="text-sm mt-1">La IA analizará la mejor distribución de tu inventario.</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                      )
+                    })}
+
+                    <div className="p-4 bg-gray-50 border-y border-gray-200 mt-4 sticky top-0 z-10">
+                      <h3 className="text-lg font-bold text-gray-800">Por Cliente</h3>
+                    </div>
+                    {Object.entries(groupedByCustomer).map(([customerName, items]) => {
+                      const customerMissing = items.reduce((acc, curr) => acc + (curr.requestedQty - curr.allocatedQty), 0)
+                      const customerRequested = items.reduce((acc, curr) => acc + curr.requestedQty, 0)
+                      const customerAllocated = items.reduce((acc, curr) => acc + curr.allocatedQty, 0)
+                      return (
+                        <div key={customerName} className="p-6 hover:bg-gray-50/50 transition-colors">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold">
+                                {customerName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  {customerName}
+                                  {customerMissing > 0 && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-xs font-medium border border-red-100">
+                                      <AlertCircle className="w-3 h-3" /> Faltan {customerMissing}
+                                    </span>
+                                  )}
+                                </h4>
+                                <p className="text-xs text-gray-500">Total Solicitado: {customerRequested} | Total Asignado: {customerAllocated}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                              <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
+                                <tr>
+                                  <th className="px-4 py-2 rounded-l-lg">{t('orderFolio')}</th>
+                                  <th className="px-4 py-2">Producto</th>
+                                  <th className="px-4 py-2 text-center">{t('qtyPending')}</th>
+                                  <th className="px-4 py-2 text-center rounded-r-lg w-40">{t('qtyAllocated')}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {items.map(alloc => {
+                                  const isMissing = alloc.requestedQty - alloc.allocatedQty > 0
+                                  return (
+                                    <tr key={`cust-${alloc.id}`} className="hover:bg-white transition-colors">
+                                      <td className="px-4 py-3 font-medium text-gray-900">{alloc.folio}</td>
+                                      <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={alloc.product}>
+                                        <div className="flex items-center gap-2">
+                                          <span>{alloc.product}</span>
+                                          {isMissing && (
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-medium border border-red-100">
+                                              <AlertCircle className="w-3 h-3" /> Faltan {alloc.requestedQty - alloc.allocatedQty}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 text-center font-medium text-gray-500">{alloc.requestedQty}</td>
+                                      <td className="px-4 py-3">
+                                        <div className="flex items-center justify-center gap-2">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max={alloc.requestedQty}
+                                            value={alloc.allocatedQty}
+                                            onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
+                                            className={`w-16 text-center border rounded-md py-1 px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
+                                          />
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
+              {!loading && Object.keys(groupedAllocations).length === 0 && !aiReasoning && (
+                <motion.div
+                  key="empty-state"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="h-full min-h-[400px] flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-white p-6"
+                >
+                  <ShoppingCart className="w-12 h-12 mb-3 text-gray-300" />
+                  <p className="font-medium text-gray-500">Selecciona órdenes y facturas para comenzar</p>
+                  <p className="text-sm mt-1">La IA analizará la mejor distribución del inventario pendiente.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
-    </div>
     </AppShell>
   )
 }
-
