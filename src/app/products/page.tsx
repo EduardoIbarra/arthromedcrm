@@ -82,6 +82,7 @@ type FormState = {
   alg_description: string
   sale_price: number | ''
   base_hospital_price: number | ''
+  purchase_price: number | ''
   line: string
   type: string
   subtipo: string
@@ -106,6 +107,7 @@ const EMPTY_FORM: FormState = {
   alg_description: '',
   sale_price: '',
   base_hospital_price: '',
+  purchase_price: '',
   line: '',
   type: 'consumable',
   subtipo: '',
@@ -193,6 +195,7 @@ export default function ProductsPage() {
       alg_description: product.alg_description || '',
       sale_price: product.sale_price !== null ? product.sale_price : '',
       base_hospital_price: product.base_hospital_price !== null ? product.base_hospital_price : '',
+      purchase_price: product.purchase_price !== null && product.purchase_price !== undefined ? product.purchase_price : '',
       line: product.line || '',
       type: product.type || 'consumable',
       subtipo: (product as any).subtipo || '',
@@ -844,7 +847,7 @@ export default function ProductsPage() {
           </div>
 
           {/* Prices */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('salePrice')}</label>
               <input
@@ -867,6 +870,18 @@ export default function ProductsPage() {
                 onChange={e => setField('base_hospital_price', e.target.value === '' ? '' : Number(e.target.value))}
                 className="erp-input"
                 placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Precio de Compra</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.purchase_price}
+                onChange={e => setField('purchase_price', e.target.value === '' ? '' : Number(e.target.value))}
+                className="erp-input"
+                placeholder="0.00 (opcional)"
               />
             </div>
           </div>

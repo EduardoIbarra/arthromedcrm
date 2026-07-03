@@ -46,6 +46,7 @@ export async function PUT(
       width,
       depth,
       weight,
+      purchase_price,
     } = body
 
     if (!description) {
@@ -76,6 +77,7 @@ export async function PUT(
         width: width !== '' && width !== null && width !== undefined ? Number(width) : null,
         depth: depth !== '' && depth !== null && depth !== undefined ? Number(depth) : null,
         weight: weight !== '' && weight !== null && weight !== undefined ? Number(weight) : null,
+        purchase_price: purchase_price !== '' && purchase_price !== null && purchase_price !== undefined ? Number(purchase_price) : null,
       },
     })
 

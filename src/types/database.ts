@@ -77,6 +77,7 @@ export interface Product {
   width?: number | null
   depth?: number | null
   weight?: number | null
+  purchase_price?: number | null
   alg_description: string | null
   sale_price: number | null
   base_hospital_price: number | null

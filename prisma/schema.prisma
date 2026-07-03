@@ -1674,6 +1674,7 @@ model productos {
   width                  Float?
   depth                  Float?
   weight                 Float?
+  purchase_price         Float?
   cirugia_productos         cirugia_productos[]
   purchase_order_items   purchase_order_items[]
   detalle_plan_pago         detalle_plan_pago[]
