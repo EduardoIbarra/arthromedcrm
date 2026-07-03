@@ -1,42 +1,16 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
     return NextResponse.json({
       data: [
-        { id: 'almacen-propio', nombre: 'Almacén Propio' }
+        { id: 'segunda-db-stock', nombre: 'Almacén Segunda DB' }
       ]
     })
   } catch (err: any) {
     console.error('[GET /api/inventario/tipos]', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
-  }
-}
-
-export async function POST(req: Request) {
-  try {
-    const body = await req.json()
-    const { nombre, descripcion, activo } = body
-
-    if (!nombre) {
-      return NextResponse.json({ error: 'El nombre es obligatorio' }, { status: 400 })
-    }
-
-    const nuevoTipo = await prisma.tipos_inventario.create({
-      data: {
-        nombre,
-        descripcion,
-        activo: activo ?? true,
-      },
-    })
-
-    return NextResponse.json({ data: nuevoTipo })
-  } catch (err: any) {
-    console.error('[POST /api/inventario/tipos]', err)
-    if (err.code === 'P2002') {
-      return NextResponse.json({ error: 'Ya existe un tipo de inventario con ese nombre.' }, { status: 400 })
-    }
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

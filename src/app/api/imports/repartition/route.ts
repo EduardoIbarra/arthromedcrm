@@ -5,44 +5,46 @@ import { google } from '@ai-sdk/google';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 
+const SHIPPING_WEEKS = 4; // fecha_pago + 4 weeks = shipping limit
+
+function getShippingLimit(fechaPago: Date): Date {
+  const d = new Date(fechaPago);
+  d.setDate(d.getDate() + SHIPPING_WEEKS * 7);
+  return d;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { facturas, locale } = body;
-
-    // Support both legacy CSV mode and new ordenes mode
-    const { csvContent, selectedOrderIds } = body;
+    const { facturas, locale, selectedOrderIds, selectedStockFisico, csvContent } = body;
 
     if (!facturas || !Array.isArray(facturas)) {
       return NextResponse.json({ error: 'Faltan datos requeridos (facturas)' }, { status: 400 });
     }
 
     // ──────────────────────────────────────────────────
-    // Build inventory map
-    // Either from CSV (legacy) or from segunda DB orders
+    // Build inventory map from all selected sources
     // ──────────────────────────────────────────────────
     const inventoryMap: Record<string, number> = {};
     let invoiceIdFromChina = '';
 
+    // Source 1: Legacy CSV
     if (csvContent) {
-      // Legacy CSV path
       const Papa = (await import('papaparse')).default;
       const parsed = Papa.parse(csvContent, { header: false, skipEmptyLines: true });
-
       for (let i = 0; i < parsed.data.length; i++) {
         const row = parsed.data[i] as string[];
-        if (i === 0 && row[0]) {
-          invoiceIdFromChina = row[0].trim();
-        }
+        if (i === 0 && row[0]) invoiceIdFromChina = row[0].trim();
         const producto = row[1]?.trim();
-        const cantidadStr = row[2]?.trim();
-        const cantidad = parseInt(cantidadStr || '0', 10);
+        const cantidad = parseInt(row[2]?.trim() || '0', 10);
         if (producto && !isNaN(cantidad) && cantidad > 0) {
           inventoryMap[producto] = (inventoryMap[producto] || 0) + cantidad;
         }
       }
-    } else if (selectedOrderIds && Array.isArray(selectedOrderIds) && selectedOrderIds.length > 0) {
-      // New segunda DB path: aggregate pending items from selected orders
+    }
+
+    // Source 2: Órdenes de compra from segunda DB
+    if (selectedOrderIds && Array.isArray(selectedOrderIds) && selectedOrderIds.length > 0) {
       const placeholders = selectedOrderIds.map((_: any, i: number) => `$${i + 1}`).join(', ');
       const productos = await querySegundaDB<{
         producto_id: string | null;
@@ -56,12 +58,11 @@ export async function POST(req: Request) {
           AND (cantidad_recibida IS NULL OR cantidad_recibida < cantidad_ordenada)
       `, selectedOrderIds);
 
-      // Resolve nombre_lista from main DB
       const productIds = productos.map((p: any) => p.producto_id).filter(Boolean) as string[];
-      const mainProducts = await prisma.productos.findMany({
+      const mainProducts = productIds.length > 0 ? await prisma.productos.findMany({
         where: { id: { in: productIds } },
         select: { id: true, nombre_lista: true }
-      });
+      }) : [];
       const nameMap = new Map<string, string | null>(mainProducts.map((p: any) => [p.id, p.nombre_lista]));
 
       for (const p of productos) {
@@ -73,8 +74,16 @@ export async function POST(req: Request) {
           }
         }
       }
-    } else {
-      return NextResponse.json({ error: 'Se requiere csvContent o selectedOrderIds' }, { status: 400 });
+    }
+
+    // Source 3: Stock físico from segunda DB
+    if (selectedStockFisico && Array.isArray(selectedStockFisico) && selectedStockFisico.length > 0) {
+      // selectedStockFisico is an array of { nombre, cantidad } items chosen by user
+      for (const item of selectedStockFisico as { nombre: string; cantidad: number }[]) {
+        if (item.nombre && item.cantidad > 0) {
+          inventoryMap[item.nombre] = (inventoryMap[item.nombre] || 0) + item.cantidad;
+        }
+      }
     }
 
     // Filter out products with 0 quantity
@@ -86,7 +95,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: {},
-        aiReasoning: 'No hay productos pendientes en las órdenes seleccionadas.',
+        aiReasoning: 'No hay productos pendientes en las fuentes seleccionadas.',
         invoiceIdFromChina,
       });
     }
@@ -98,44 +107,57 @@ export async function POST(req: Request) {
 
     // Fetch pending orders for the provided facturas
     const pendingFacturas = await prisma.facturas_cliente.findMany({
-      where: {
-        numero_factura: { in: expandedFacturas }
-      },
+      where: { numero_factura: { in: expandedFacturas } },
       include: {
         factura_productos: {
-          where: {
-            cantidad_pendiente: { gt: 0 }
-          },
+          where: { cantidad_pendiente: { gt: 0 } },
           include: {
-            productos: {
-              select: {
-                nombre_lista: true
-              }
-            }
+            productos: { select: { nombre_lista: true } }
           }
         }
       }
     });
 
     if (pendingFacturas.length === 0) {
-      return NextResponse.json({ allocations: [], remainingInventory: inventoryMap, aiReasoning: 'No hay facturas pendientes o válidas seleccionadas.', invoiceIdFromChina });
+      return NextResponse.json({
+        allocations: [],
+        remainingInventory: inventoryMap,
+        aiReasoning: 'No hay facturas pendientes o válidas seleccionadas.',
+        invoiceIdFromChina
+      });
     }
 
-    // Prepare AI payload (priority to paymentDate, omit ranking/customerSpend)
+    const now = new Date();
+
+    // Build AI orders — ONLY include invoices where shipping limit has PASSED
     const ordersForAi = pendingFacturas.flatMap((f: any) => {
-      const invoiceTotalRequestedQty = f.factura_productos.reduce((sum: number, fp: any) => sum + (fp.cantidad_pendiente || 0), 0);
+      // If no payment date → cannot compute shipping limit → skip (not past due)
+      if (!f.fecha_pago) return [];
+
+      const shippingLimit = getShippingLimit(new Date(f.fecha_pago));
+      // Only allocate if shipping limit is past due
+      if (shippingLimit > now) return [];
 
       return f.factura_productos.map((fp: any) => ({
         id: fp.id,
         folio: f.numero_factura,
         customerName: f.cliente_nombre,
-        paymentDate: f.fecha_pago ? f.fecha_pago.toISOString() : null,
+        paymentDate: f.fecha_pago.toISOString(),
+        shippingLimit: shippingLimit.toISOString(),
         issueDate: f.fecha_expedicion.toISOString(),
         product: fp.productos?.nombre_lista || fp.producto_nombre,
         requestedQty: fp.cantidad_pendiente || 0,
-        invoiceTotalRequestedQty
       }));
     });
+
+    if (ordersForAi.length === 0) {
+      return NextResponse.json({
+        allocations: [],
+        remainingInventory: inventoryMap,
+        aiReasoning: 'No hay facturas con límite de envío vencido. Solo se asigna a facturas cuyo límite de envío (fecha de pago + 4 semanas) ya haya pasado.',
+        invoiceIdFromChina,
+      });
+    }
 
     // Match to received inventory using fuzzy matching
     const relevantOrders = ordersForAi.filter((o: any) => {
@@ -154,7 +176,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'Ninguno de los productos recibidos en la importación concuerda con los productos pendientes en las facturas seleccionadas.',
+        aiReasoning: 'Ninguno de los productos en el inventario concuerda con los productos pendientes en las facturas vencidas.',
         invoiceIdFromChina,
       });
     }
@@ -163,23 +185,22 @@ export async function POST(req: Request) {
     const languageString = locale === 'en' ? 'English' : locale === 'zh' ? 'Chinese' : 'Spanish';
     const prompt = `
 You are an expert supply chain allocation AI.
-You need to allocate an inventory of medical products to pending orders.
+You need to allocate an inventory of medical products to pending orders that are PAST their shipping limit.
 Here is the available inventory:
 ${JSON.stringify(inventoryMap, null, 2)}
 
-Here are the pending orders:
+Here are the pending orders (all past their shipping limit and eligible for allocation):
 ${JSON.stringify(relevantOrders, null, 2)}
 
 Allocation Rules:
 1. You cannot allocate more than the available inventory for each product.
-2. Prioritize orders based on "paymentDate" (earliest first). Orders with a null paymentDate (unpaid) have the lowest priority. Do NOT use any customer spend metrics or client ranking.
-3. CRITICAL RULE: If the total allocated quantity to a given invoice (folio) would be 20% or less of its total requested quantity ("invoiceTotalRequestedQty"), DO NOT allocate any items to that invoice. Set all allocations for that invoice to 0, and allocate those products to other eligible invoices instead.
-4. REDUCE IMPACT: If a supplier didn't send enough to fulfill a high-priority order and a low-priority order, try to reduce impact by allocating at least some parts to the smaller order (e.g. if A needs 10 and B needs 2, and we have 10, giving A 8 and B 2 is better than giving A 10 and B 0). Respect the 20% rule above first.
-5. For each product, allocate the quantities across the requested orders.
-6. Provide a brief reasoning for the allocation strategy you chose, in ${languageString}.
+2. Prioritize orders based on "shippingLimit" (earliest first — most overdue first). Do NOT use customer spending or ranking.
+3. REDUCE IMPACT: If inventory is insufficient to fully fulfill a high-priority order, try to reduce impact by distributing at least some quantity to smaller orders too. Use your best judgment.
+4. For each product, allocate the quantities across the requested orders.
+5. Provide a brief reasoning for the allocation strategy you chose, in ${languageString}.
 
 Output a JSON object with:
-- "allocations": array of objects containing "id" (the order id) and "allocatedQty" (the amount given).
+- "allocations": array of objects containing "id" (the order item id) and "allocatedQty" (the amount given).
 - "aiReasoning": your brief reasoning in ${languageString}.
 `;
 
@@ -198,10 +219,9 @@ Output a JSON object with:
     // Combine AI results with full order data
     const finalAllocations = relevantOrders.map((order: any) => {
       const aiAlloc = object.allocations.find((a: any) => a.id === order.id);
-      const allocatedQty = aiAlloc ? aiAlloc.allocatedQty : 0;
       return {
         ...order,
-        allocatedQty
+        allocatedQty: aiAlloc ? aiAlloc.allocatedQty : 0
       };
     });
 

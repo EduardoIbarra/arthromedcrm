@@ -1,29 +1,37 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { querySegundaDB } from '@/lib/segundaDB'
 
-// GET /api/inventario — returns all almacen_propio items
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
-    const items = await prisma.almacen_propio.findMany({
-      orderBy: { nombre: 'asc' }
-    })
+    const items = await querySegundaDB<{
+      producto_id: string
+      nombre: string
+      cantidad: string
+    }>(`
+      SELECT producto_id, nombre, cantidad
+      FROM stock_por_producto
+      ORDER BY nombre ASC
+    `)
 
-    const mapped = items.map((p: any) => {
+    const mapped = items.map((p) => {
+      const cantidadNum = parseInt(p.cantidad || '0', 10)
       return {
-        id: p.id,
+        id: p.producto_id,
         nombre: p.nombre,
-        categoria: p.lote || 'Sin Lote',
-        tipo: p.ubicacion || 'General',
+        categoria: 'General',
+        tipo: 'General',
         activo: true,
-        stock_actual: p.cantidad,
+        stock_actual: cantidadNum,
         precio_unitario: 0,
-        stock_updated_at: p.updated_at,
+        stock_updated_at: new Date().toISOString(),
         inventarios: [
           {
-            id: 'almacen-propio',
-            nombre: 'Almacén Propio',
-            stock: p.cantidad,
-            updated_at: p.updated_at
+            id: 'segunda-db-stock',
+            nombre: 'Almacén Segunda DB',
+            stock: cantidadNum,
+            updated_at: new Date().toISOString()
           }
         ]
       }

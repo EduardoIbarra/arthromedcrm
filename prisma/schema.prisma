@@ -1355,6 +1355,9 @@ model importacion_items {
   producto_nombre          String
   cantidad_recibida        Int
   cantidad_asignada        Int                        @default(0)
+  fuente_id                String?
+  tipo_fuente              String?
+  numero_fuente            String?
   created_at               DateTime                   @default(now()) @db.Timestamptz(6)
   importacion_asignaciones importacion_asignaciones[]
   importaciones_recepcion  importaciones_recepcion    @relation(fields: [importacion_id], references: [id], onDelete: Cascade)
@@ -1369,6 +1372,19 @@ model importaciones_recepcion {
   created_at        DateTime            @default(now()) @db.Timestamptz(6)
   invoice_id_china  String?
   importacion_items importacion_items[]
+  importacion_fuentes importacion_fuentes[]
+
+  @@schema("public")
+}
+
+model importacion_fuentes {
+  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  importacion_id          String                  @db.Uuid
+  tipo_fuente             String // 'orden_compra' or 'stock_fisico'
+  fuente_id               String? // PO UUID or 'stock_fisico'
+  numero_fuente           String? // PO Number or 'Stock Físico'
+  created_at              DateTime                @default(now()) @db.Timestamptz(6)
+  importaciones_recepcion importaciones_recepcion @relation(fields: [importacion_id], references: [id], onDelete: Cascade)
 
   @@schema("public")
 }
