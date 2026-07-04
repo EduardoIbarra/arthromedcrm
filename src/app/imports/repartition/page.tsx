@@ -913,7 +913,7 @@ export default function ImportRepartitionPage() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                   {group.items.map(alloc => {
-                                    const si = shippingInfo(alloc.shippingLimit || null)
+                                    const si = shippingInfo(alloc.paymentDate || null)
                                     return (
                                       <tr key={alloc.id} className="hover:bg-white">
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">{alloc.folio}</td>
@@ -977,7 +977,7 @@ export default function ImportRepartitionPage() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                   {group.items.map(alloc => {
-                                    const si = shippingInfo(alloc.shippingLimit || null)
+                                    const si = shippingInfo(alloc.paymentDate || null)
                                     return (
                                       <tr key={alloc.id} className="hover:bg-white">
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">
