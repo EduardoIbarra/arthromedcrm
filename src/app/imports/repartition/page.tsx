@@ -78,6 +78,7 @@ interface Allocation {
   folio: string
   customerName: string
   product: string
+  facturadaQty: number
   requestedQty: number
   allocatedQty: number
   paymentDate?: string | null
@@ -825,7 +826,6 @@ export default function ImportRepartitionPage() {
                           const missing = group.items.reduce((s, i) => s + (i.requestedQty - i.allocatedQty), 0)
                           const pct = totalReq > 0 ? Math.round((totalAlloc / totalReq) * 100) : 0
                           const sInfo = shippingInfo(group.paymentDate ? new Date(group.paymentDate).toISOString() : null)
-                          // The shippingLimit here comes from AI payload which already has shippingLimit set
                           return (
                             <div key={group.folio} className="p-5">
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
@@ -851,6 +851,8 @@ export default function ImportRepartitionPage() {
                                 <thead className="bg-gray-50 text-[10px] text-gray-500 uppercase">
                                   <tr>
                                     <th className="px-3 py-1.5 text-left rounded-l">Producto</th>
+                                    <th className="px-3 py-1.5 text-center w-20">Límite Envío</th>
+                                    <th className="px-3 py-1.5 text-center w-20">Facturada</th>
                                     <th className="px-3 py-1.5 text-center w-24">Pendiente</th>
                                     <th className="px-3 py-1.5 text-center w-32 rounded-r">Asignado</th>
                                   </tr>
@@ -864,6 +866,8 @@ export default function ImportRepartitionPage() {
                                           <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
                                         )}
                                       </td>
+                                      <td className="px-3 py-2 text-center text-gray-400 font-mono text-xs">{alloc.shippingLimit ? new Date(alloc.shippingLimit).toLocaleDateString() : '—'}</td>
+                                      <td className="px-3 py-2 text-center text-gray-400 font-mono text-xs">{alloc.facturadaQty ?? '—'}</td>
                                       <td className="px-3 py-2 text-center text-gray-500 font-mono text-xs">{alloc.requestedQty}</td>
                                       <td className="px-3 py-2 text-center">
                                         <input type="number" min={0} max={alloc.requestedQty} value={alloc.allocatedQty}
@@ -902,6 +906,7 @@ export default function ImportRepartitionPage() {
                                     <th className="px-3 py-1.5 text-left rounded-l">Factura</th>
                                     <th className="px-3 py-1.5">Límite Envío</th>
                                     <th className="px-3 py-1.5">Producto</th>
+                                    <th className="px-3 py-1.5 text-center w-16">Fact.</th>
                                     <th className="px-3 py-1.5 text-center w-20">Pend.</th>
                                     <th className="px-3 py-1.5 text-center w-28 rounded-r">Asig.</th>
                                   </tr>
@@ -913,7 +918,7 @@ export default function ImportRepartitionPage() {
                                       <tr key={alloc.id} className="hover:bg-white">
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">{alloc.folio}</td>
                                         <td className="px-3 py-2">
-                                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${si.cls}`}>{si.label}</span>
+                                          <span className="text-xs text-gray-600">{new Date(alloc.shippingLimit).toLocaleDateString()}</span>
                                         </td>
                                         <td className="px-3 py-2 text-gray-700 font-medium">
                                           {alloc.product}
@@ -921,6 +926,7 @@ export default function ImportRepartitionPage() {
                                             <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
                                           )}
                                         </td>
+                                        <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.facturadaQty ?? '—'}</td>
                                         <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.requestedQty}</td>
                                         <td className="px-3 py-2 text-center">
                                           <input type="number" min={0} max={alloc.requestedQty} value={alloc.allocatedQty}
@@ -964,6 +970,7 @@ export default function ImportRepartitionPage() {
                                     <th className="px-3 py-1.5 text-left rounded-l">Factura</th>
                                     <th className="px-3 py-1.5">Cliente</th>
                                     <th className="px-3 py-1.5">Límite Envío</th>
+                                    <th className="px-3 py-1.5 text-center w-16">Fact.</th>
                                     <th className="px-3 py-1.5 text-center w-20">Pend.</th>
                                     <th className="px-3 py-1.5 text-center w-28 rounded-r">Asig.</th>
                                   </tr>
@@ -983,6 +990,7 @@ export default function ImportRepartitionPage() {
                                         <td className="px-3 py-2">
                                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${si.cls}`}>{si.label}</span>
                                         </td>
+                                        <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.facturadaQty ?? '—'}</td>
                                         <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.requestedQty}</td>
                                         <td className="px-3 py-2 text-center">
                                           <input type="number" min={0} max={alloc.requestedQty} value={alloc.allocatedQty}

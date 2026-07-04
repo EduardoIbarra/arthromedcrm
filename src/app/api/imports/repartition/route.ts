@@ -140,6 +140,7 @@ export async function POST(req: Request) {
         shippingLimit: shippingLimit.toISOString(),
         issueDate: f.fecha_expedicion ? f.fecha_expedicion.toISOString() : null,
         product: fp.productos?.nombre_lista || fp.producto_nombre,
+        facturadaQty: fp.cantidad_facturada || 0,
         requestedQty: fp.cantidad_pendiente || 0,
       }))
     })

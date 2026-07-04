@@ -114,6 +114,8 @@ export default function ReparticionDetailPage() {
       byInvoice[folio].items.push({
         producto: item.producto_nombre,
         cantidad: asig.cantidad_asignada,
+        facturada: fp.cantidad_facturada ?? null,
+        pendiente: fp.cantidad_pendiente ?? null,
         ai_reasoning: asig.ai_reasoning
       })
     })
@@ -270,6 +272,9 @@ export default function ReparticionDetailPage() {
                   <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                     <tr>
                       <th className="px-4 py-2 text-left rounded-l-md">Producto</th>
+                      <th className="px-4 py-2 text-center">Original</th>
+                      <th className="px-4 py-2 text-center">Facturada</th>
+                      <th className="px-4 py-2 text-center">Pendiente</th>
                       <th className="px-4 py-2 text-center rounded-r-md">Asignado</th>
                     </tr>
                   </thead>
@@ -277,6 +282,9 @@ export default function ReparticionDetailPage() {
                     {group.items.map((item, i) => (
                       <tr key={i} className="hover:bg-gray-50/50">
                         <td className="px-4 py-2 text-gray-700">{item.producto}</td>
+                        <td className="px-4 py-2 text-center font-mono text-gray-400">{(item.facturada ?? 0) + (item.pendiente ?? 0)}</td>
+                        <td className="px-4 py-2 text-center font-mono text-gray-400">{item.facturada ?? '—'}</td>
+                        <td className="px-4 py-2 text-center font-mono text-gray-500">{item.pendiente ?? '—'}</td>
                         <td className="px-4 py-2 text-center font-mono font-semibold text-indigo-700">{item.cantidad}</td>
                       </tr>
                     ))}
