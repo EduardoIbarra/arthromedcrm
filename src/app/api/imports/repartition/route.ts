@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         SELECT producto_id, producto_nombre, cantidad_ordenada, COALESCE(cantidad_recibida, 0) AS cantidad_recibida
         FROM orden_productos
         WHERE orden_id IN (${placeholders})
-          AND (cantidad_recibida IS NULL OR cantidad_recibida < cantidad_ordenada)
+          AND COALESCE(cantidad_recibida, 0) > 0
       `, selectedOrderIds);
 
       const productIds = productos.map((p: any) => p.producto_id).filter(Boolean) as string[];
@@ -68,9 +68,9 @@ export async function POST(req: Request) {
       for (const p of productos) {
         const resolvedName = (p.producto_id ? nameMap.get(p.producto_id) : null) || p.producto_nombre;
         if (resolvedName) {
-          const pendiente = (p.cantidad_ordenada || 0) - (Number(p.cantidad_recibida) || 0);
-          if (pendiente > 0) {
-            inventoryMap[resolvedName] = (inventoryMap[resolvedName] || 0) + pendiente;
+          const recibida = Number(p.cantidad_recibida) || 0;
+          if (recibida > 0) {
+            inventoryMap[resolvedName] = (inventoryMap[resolvedName] || 0) + recibida;
           }
         }
       }
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: {},
-        aiReasoning: 'No hay productos pendientes en las fuentes seleccionadas.',
+        aiReasoning: 'No hay productos recibidos en las fuentes seleccionadas.',
         invoiceIdFromChina,
       });
     }
