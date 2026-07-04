@@ -9,7 +9,7 @@ import {
   Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
   AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
   RefreshCw, Download, FileText, User, Tag, History, ArrowRight,
-  Clock, Calendar, Warehouse, Plus, X
+  Clock, Calendar, Warehouse, Plus, X, MessageSquare
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -123,6 +123,7 @@ interface Allocation {
   shippingLimit?: string | null
   manualAdjustment?: boolean
   isManual?: boolean
+  comment?: string
 }
 
 interface HistoryEntry {
@@ -174,7 +175,9 @@ export default function ImportRepartitionPage() {
   const [invoiceIdFromChina, setInvoiceIdFromChina] = useState('')
   const [hasProcessed, setHasProcessed] = useState(false)
   const [addingProductFolio, setAddingProductFolio] = useState<string | null>(null)
-  const [newProduct, setNewProduct] = useState({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0 })
+  const [newProduct, setNewProduct] = useState({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0, comment: '' })
+  const [repartitionComment, setRepartitionComment] = useState('')
+  const [invoiceComments, setInvoiceComments] = useState<Record<string, string>>({})
 
   // ── History ───────────────────────────────────────────
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -309,6 +312,7 @@ export default function ImportRepartitionPage() {
     setLoading(true); setError(''); setSuccessMsg('')
     setAllocations([]); setRemainingInventory({}); setInitialInventory({}); setAiReasoning('')
     setHasProcessed(false); setAddingProductFolio(null)
+    setRepartitionComment(''); setInvoiceComments({})
 
     try {
       const selectedStockFisico = useStockFisico
@@ -369,6 +373,19 @@ export default function ImportRepartitionPage() {
     })
   }
 
+  const availableStockProducts = useMemo(
+    () => Object.keys(initialInventory).filter(p => (initialInventory[p] || 0) > 0).sort((a, b) => a.localeCompare(b)),
+    [initialInventory]
+  )
+
+  const handleAllocationCommentChange = (id: string, comment: string) => {
+    setAllocations(prev => prev.map(a => a.id === id ? { ...a, comment, manualAdjustment: true } : a))
+  }
+
+  const handleInvoiceCommentChange = (folio: string, comment: string) => {
+    setInvoiceComments(prev => ({ ...prev, [folio]: comment }))
+  }
+
   const handleManualFieldChange = (id: string, field: keyof Allocation, value: string | number) => {
     setAllocations(prev => {
       const copy = [...prev]
@@ -378,9 +395,11 @@ export default function ImportRepartitionPage() {
       const oldProduct = oldAlloc.product
 
       if (field === 'product') {
-        copy[index] = { ...oldAlloc, product: String(value), manualAdjustment: true }
+        const nextProduct = String(value)
+        if (!initialInventory[nextProduct]) return prev
+        copy[index] = { ...oldAlloc, product: nextProduct, allocatedQty: 0, manualAdjustment: true }
         syncRemainingForProduct(copy, oldProduct)
-        syncRemainingForProduct(copy, String(value))
+        syncRemainingForProduct(copy, nextProduct)
         return copy
       }
 
@@ -401,7 +420,8 @@ export default function ImportRepartitionPage() {
 
   const handleAddManualProduct = (group: { folio: string; customerName: string; paymentDate: string | null; shippingLimit: string | null }) => {
     const product = newProduct.product.trim()
-    if (!product) { setError('Ingresa el nombre del producto.'); return }
+    if (!product) { setError('Selecciona un producto del inventario.'); return }
+    if (!initialInventory[product]) { setError('El producto debe estar disponible en el inventario procesado.'); return }
     const facturadaQty = Math.max(0, newProduct.facturadaQty)
     const requestedQty = Math.max(0, newProduct.requestedQty)
     const totalAvailable = initialInventory[product] || 0
@@ -420,6 +440,7 @@ export default function ImportRepartitionPage() {
       shippingLimit: group.shippingLimit,
       isManual: true,
       manualAdjustment: true,
+      comment: newProduct.comment.trim() || undefined,
     }
 
     setAllocations(prev => {
@@ -427,7 +448,7 @@ export default function ImportRepartitionPage() {
       syncRemainingForProduct(next, product)
       return next
     })
-    setNewProduct({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0 })
+    setNewProduct({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0, comment: '' })
     setAddingProductFolio(null)
     setError('')
   }
@@ -455,7 +476,15 @@ export default function ImportRepartitionPage() {
       const res = await fetch('/api/imports/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allocations, remainingInventory, aiReasoning, invoiceIdFromChina, selectedSources }),
+        body: JSON.stringify({
+          allocations,
+          remainingInventory,
+          aiReasoning,
+          invoiceIdFromChina,
+          selectedSources,
+          repartitionComment,
+          invoiceComments,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -952,6 +981,19 @@ export default function ImportRepartitionPage() {
                         </div>
                       </div>
 
+                      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/40">
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 mb-1.5">
+                          <MessageSquare className="w-3.5 h-3.5" /> Comentarios de la repartición
+                        </label>
+                        <textarea
+                          value={repartitionComment}
+                          onChange={e => setRepartitionComment(e.target.value)}
+                          rows={2}
+                          placeholder="Notas generales sobre esta repartición..."
+                          className="w-full border border-gray-200 rounded-lg py-2 px-3 text-xs outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+                        />
+                      </div>
+
                       {/* Results tabs */}
                       <div className="flex bg-gray-50/50 border-b border-gray-100 p-1.5 gap-1.5">
                         {[
@@ -997,6 +1039,16 @@ export default function ImportRepartitionPage() {
                                   {totalAlloc}/{totalReq} ({pct}%)
                                 </div>
                               </div>
+                              <div className="mb-3">
+                                <label className="text-[10px] text-gray-500 block mb-0.5">Comentarios de la factura</label>
+                                <textarea
+                                  value={invoiceComments[group.folio] || ''}
+                                  onChange={e => handleInvoiceCommentChange(group.folio, e.target.value)}
+                                  rows={2}
+                                  placeholder="Notas para esta factura..."
+                                  className="w-full border border-gray-200 rounded-lg py-1.5 px-2 text-xs outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+                                />
+                              </div>
                               <table className="w-full text-sm">
                                 <thead className="bg-gray-50 text-[10px] text-gray-500 uppercase">
                                   <tr>
@@ -1004,13 +1056,14 @@ export default function ImportRepartitionPage() {
                                     <th className="px-3 py-1.5 text-center w-20">Límite Envío</th>
                                     <th className="px-3 py-1.5 text-center w-20">Facturada</th>
                                     <th className="px-3 py-1.5 text-center w-24">Pendiente</th>
-                                    <th className="px-3 py-1.5 text-center w-32 rounded-r">Asignado</th>
+                                    <th className="px-3 py-1.5 text-center w-24">Asignado</th>
+                                    <th className="px-3 py-1.5 text-left rounded-r">Comentario</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                   {group.items.length === 0 && (
                                     <tr>
-                                      <td colSpan={5} className="px-3 py-3 text-center text-xs text-gray-400">Sin productos asignados</td>
+                                      <td colSpan={6} className="px-3 py-3 text-center text-xs text-gray-400">Sin productos asignados</td>
                                     </tr>
                                   )}
                                   {group.items.map(alloc => (
@@ -1018,12 +1071,18 @@ export default function ImportRepartitionPage() {
                                       <td className="px-3 py-2 text-gray-900 text-xs font-medium">
                                         {alloc.isManual ? (
                                           <div className="flex items-center gap-1">
-                                            <input
-                                              type="text"
+                                            <select
                                               value={alloc.product}
                                               onChange={e => handleManualFieldChange(alloc.id, 'product', e.target.value)}
-                                              className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
-                                            />
+                                              className="w-full border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                                            >
+                                              <option value="">Seleccionar...</option>
+                                              {availableStockProducts.map(p => (
+                                                <option key={p} value={p}>
+                                                  {p} ({remainingInventory[p] ?? 0} disp.)
+                                                </option>
+                                              ))}
+                                            </select>
                                             <button onClick={() => handleRemoveManualProduct(alloc.id)} className="text-gray-400 hover:text-red-600 shrink-0" title="Eliminar">
                                               <X className="w-3.5 h-3.5" />
                                             </button>
@@ -1062,16 +1121,32 @@ export default function ImportRepartitionPage() {
                                           className={`w-14 text-center border rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500 ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
                                         />
                                       </td>
+                                      <td className="px-3 py-2">
+                                        <input
+                                          type="text"
+                                          value={alloc.comment || ''}
+                                          onChange={e => handleAllocationCommentChange(alloc.id, e.target.value)}
+                                          placeholder="Comentario..."
+                                          className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                      </td>
                                     </tr>
                                   ))}
                                   <tr className="bg-gray-50/50">
-                                    <td colSpan={5} className="px-3 py-2">
+                                    <td colSpan={6} className="px-3 py-2">
                                       {addingProductFolio === group.folio ? (
                                         <div className="flex flex-wrap items-end gap-2">
-                                          <div className="flex-1 min-w-[120px]">
-                                            <label className="text-[10px] text-gray-500 block mb-0.5">Producto</label>
-                                            <input type="text" value={newProduct.product} onChange={e => setNewProduct(p => ({ ...p, product: e.target.value }))}
-                                              className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500" />
+                                          <div className="flex-1 min-w-[160px]">
+                                            <label className="text-[10px] text-gray-500 block mb-0.5">Producto (inventario)</label>
+                                            <select value={newProduct.product} onChange={e => setNewProduct(p => ({ ...p, product: e.target.value }))}
+                                              className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500">
+                                              <option value="">Seleccionar producto...</option>
+                                              {availableStockProducts.map(p => (
+                                                <option key={p} value={p}>
+                                                  {p} ({remainingInventory[p] ?? 0}/{initialInventory[p] ?? 0})
+                                                </option>
+                                              ))}
+                                            </select>
                                           </div>
                                           <div>
                                             <label className="text-[10px] text-gray-500 block mb-0.5">Facturado</label>
@@ -1088,12 +1163,21 @@ export default function ImportRepartitionPage() {
                                             <input type="number" min={0} value={newProduct.allocatedQty} onChange={e => setNewProduct(p => ({ ...p, allocatedQty: parseInt(e.target.value || '0', 10) }))}
                                               className="w-16 text-center border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500" />
                                           </div>
-                                          <button onClick={() => handleAddManualProduct(group)} className="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700">Agregar</button>
-                                          <button onClick={() => { setAddingProductFolio(null); setNewProduct({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0 }) }} className="px-2.5 py-1 border border-gray-200 text-gray-600 rounded text-xs hover:bg-gray-100">Cancelar</button>
+                                          <div className="flex-1 min-w-[140px]">
+                                            <label className="text-[10px] text-gray-500 block mb-0.5">Comentario</label>
+                                            <input type="text" value={newProduct.comment} onChange={e => setNewProduct(p => ({ ...p, comment: e.target.value }))}
+                                              className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500" />
+                                          </div>
+                                          <button onClick={() => handleAddManualProduct(group)} disabled={!newProduct.product || availableStockProducts.length === 0} className="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">Agregar</button>
+                                          <button onClick={() => { setAddingProductFolio(null); setNewProduct({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0, comment: '' }) }} className="px-2.5 py-1 border border-gray-200 text-gray-600 rounded text-xs hover:bg-gray-100">Cancelar</button>
                                         </div>
                                       ) : (
-                                        <button onClick={() => setAddingProductFolio(group.folio)} className="flex items-center gap-1 text-xs text-indigo-600 font-medium hover:text-indigo-800">
-                                          <Plus className="w-3.5 h-3.5" /> Agregar producto
+                                        <button
+                                          onClick={() => setAddingProductFolio(group.folio)}
+                                          disabled={availableStockProducts.length === 0}
+                                          className="flex items-center gap-1 text-xs text-indigo-600 font-medium hover:text-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" /> Agregar producto del inventario
                                         </button>
                                       )}
                                     </td>
@@ -1129,13 +1213,14 @@ export default function ImportRepartitionPage() {
                                     <th className="px-3 py-1.5">Producto</th>
                                     <th className="px-3 py-1.5 text-center w-16">Fact.</th>
                                     <th className="px-3 py-1.5 text-center w-20">Pend.</th>
-                                    <th className="px-3 py-1.5 text-center w-28 rounded-r">Asig.</th>
+                                    <th className="px-3 py-1.5 text-center w-24">Asig.</th>
+                                    <th className="px-3 py-1.5 text-left rounded-r">Comentario</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                   {group.items.length === 0 && (
                                     <tr>
-                                      <td colSpan={6} className="px-3 py-3 text-center text-xs text-gray-400">Sin productos asignados</td>
+                                      <td colSpan={7} className="px-3 py-3 text-center text-xs text-gray-400">Sin productos asignados</td>
                                     </tr>
                                   )}
                                   {group.items.map(alloc => {
@@ -1148,6 +1233,7 @@ export default function ImportRepartitionPage() {
                                         </td>
                                         <td className="px-3 py-2 text-gray-700 font-medium">
                                           {alloc.product}
+                                          {alloc.isManual && <span className="ml-1 text-[10px] text-indigo-600">(extra)</span>}
                                           {alloc.allocatedQty < alloc.requestedQty && (
                                             <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
                                           )}
@@ -1155,9 +1241,20 @@ export default function ImportRepartitionPage() {
                                         <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.facturadaQty ?? '—'}</td>
                                         <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.requestedQty}</td>
                                         <td className="px-3 py-2 text-center">
-                                          <input type="number" min={0} max={alloc.requestedQty} value={alloc.allocatedQty}
-                                            onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
+                                          <input type="number" min={0} max={alloc.isManual ? undefined : alloc.requestedQty} value={alloc.allocatedQty}
+                                            onChange={e => alloc.isManual
+                                              ? handleManualFieldChange(alloc.id, 'allocatedQty', parseInt(e.target.value || '0', 10))
+                                              : handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
                                             className={`w-14 text-center border rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500 ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          <input
+                                            type="text"
+                                            value={alloc.comment || ''}
+                                            onChange={e => handleAllocationCommentChange(alloc.id, e.target.value)}
+                                            placeholder="Comentario..."
+                                            className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
                                           />
                                         </td>
                                       </tr>
@@ -1198,7 +1295,8 @@ export default function ImportRepartitionPage() {
                                     <th className="px-3 py-1.5">Límite Envío</th>
                                     <th className="px-3 py-1.5 text-center w-16">Fact.</th>
                                     <th className="px-3 py-1.5 text-center w-20">Pend.</th>
-                                    <th className="px-3 py-1.5 text-center w-28 rounded-r">Asig.</th>
+                                    <th className="px-3 py-1.5 text-center w-24">Asig.</th>
+                                    <th className="px-3 py-1.5 text-left rounded-r">Comentario</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
@@ -1208,6 +1306,7 @@ export default function ImportRepartitionPage() {
                                       <tr key={alloc.id} className="hover:bg-white">
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">
                                           {alloc.folio}
+                                          {alloc.isManual && <span className="ml-1 text-[10px] text-indigo-600">(extra)</span>}
                                           {alloc.allocatedQty < alloc.requestedQty && (
                                             <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
                                           )}
@@ -1219,9 +1318,20 @@ export default function ImportRepartitionPage() {
                                         <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.facturadaQty ?? '—'}</td>
                                         <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.requestedQty}</td>
                                         <td className="px-3 py-2 text-center">
-                                          <input type="number" min={0} max={alloc.requestedQty} value={alloc.allocatedQty}
-                                            onChange={e => handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
+                                          <input type="number" min={0} max={alloc.isManual ? undefined : alloc.requestedQty} value={alloc.allocatedQty}
+                                            onChange={e => alloc.isManual
+                                              ? handleManualFieldChange(alloc.id, 'allocatedQty', parseInt(e.target.value || '0', 10))
+                                              : handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
                                             className={`w-14 text-center border rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500 ${alloc.manualAdjustment ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'border-gray-200'}`}
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          <input
+                                            type="text"
+                                            value={alloc.comment || ''}
+                                            onChange={e => handleAllocationCommentChange(alloc.id, e.target.value)}
+                                            placeholder="Comentario..."
+                                            className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
                                           />
                                         </td>
                                       </tr>

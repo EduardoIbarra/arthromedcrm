@@ -10,7 +10,15 @@ export interface SelectedSource {
 
 export async function POST(req: Request) {
   try {
-    const { allocations, remainingInventory, aiReasoning, invoiceIdFromChina, selectedSources } = await req.json();
+    const {
+      allocations,
+      remainingInventory,
+      aiReasoning,
+      invoiceIdFromChina,
+      selectedSources,
+      repartitionComment,
+      invoiceComments,
+    } = await req.json();
 
     if (!allocations || !Array.isArray(allocations)) {
       return NextResponse.json({ error: 'Asignaciones inválidas' }, { status: 400 });
@@ -21,10 +29,14 @@ export async function POST(req: Request) {
     // We use a transaction to ensure all DB operations succeed or fail together
     await prisma.$transaction(async (tx: any) => {
       // 1. Create the main import record
+      const manualAllocations = (allocations as any[]).filter(a => a.isManual);
       const importacion = await tx.importaciones_recepcion.create({
         data: {
           status: 'applied',
-          invoice_id_china: invoiceIdFromChina || null
+          invoice_id_china: invoiceIdFromChina || null,
+          comentarios: repartitionComment?.trim() || null,
+          comentarios_facturas: invoiceComments && Object.keys(invoiceComments).length > 0 ? invoiceComments : undefined,
+          asignaciones_manuales: manualAllocations.length > 0 ? manualAllocations : undefined,
         }
       });
 
@@ -74,13 +86,14 @@ export async function POST(req: Request) {
 
         const productAllocations = allocations.filter((a: any) => a.product === productName);
         for (const alloc of productAllocations) {
-          if (alloc.allocatedQty > 0 && !alloc.isManual) {
+          if (!alloc.isManual && (alloc.allocatedQty > 0 || alloc.comment?.trim())) {
             await tx.importacion_asignaciones.create({
               data: {
                 item_id: importItem.id,
                 factura_producto_id: alloc.id,
                 cantidad_asignada: alloc.allocatedQty,
                 ai_reasoning: aiReasoning || null,
+                comentario: alloc.comment?.trim() || null,
                 manual_adjustment: alloc.manualAdjustment || false
               }
             });

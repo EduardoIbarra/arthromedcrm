@@ -1341,6 +1341,7 @@ model importacion_asignaciones {
   factura_producto_id String            @db.Uuid
   cantidad_asignada   Int
   ai_reasoning        String?
+  comentario          String?
   manual_adjustment   Boolean           @default(false)
   created_at          DateTime          @default(now()) @db.Timestamptz(6)
   factura_productos   factura_productos @relation(fields: [factura_producto_id], references: [id], onDelete: Cascade)
@@ -1366,13 +1367,16 @@ model importacion_items {
 }
 
 model importaciones_recepcion {
-  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fecha             DateTime            @default(now()) @db.Timestamptz(6)
-  status            String              @default("pending")
-  created_at        DateTime            @default(now()) @db.Timestamptz(6)
-  invoice_id_china  String?
-  importacion_items importacion_items[]
-  importacion_fuentes importacion_fuentes[]
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fecha                 DateTime            @default(now()) @db.Timestamptz(6)
+  status                String              @default("pending")
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  invoice_id_china      String?
+  comentarios           String?
+  comentarios_facturas  Json?
+  asignaciones_manuales Json?
+  importacion_items     importacion_items[]
+  importacion_fuentes   importacion_fuentes[]
 
   @@schema("public")
 }

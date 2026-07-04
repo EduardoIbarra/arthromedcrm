@@ -95,6 +95,9 @@ export default function ReparticionDetailPage() {
     }
   }
 
+  const invoiceComments = (data?.comentarios_facturas || {}) as Record<string, string>
+  const manualAllocations = (data?.asignaciones_manuales || []) as any[]
+
   // Group allocations by invoice folio
   const byInvoice: Record<string, { folio: string; clientName: string; fechaPago: string | null; items: any[] }> = {}
   data?.importacion_items?.forEach((item: any) => {
@@ -116,10 +119,32 @@ export default function ReparticionDetailPage() {
         cantidad: asig.cantidad_asignada,
         facturada: fp.cantidad_facturada ?? null,
         pendiente: fp.cantidad_pendiente ?? null,
-        ai_reasoning: asig.ai_reasoning
+        comentario: asig.comentario || null,
+        ai_reasoning: asig.ai_reasoning,
+        isManual: false,
       })
     })
   })
+
+  for (const alloc of manualAllocations) {
+    const folio = alloc.folio || '—'
+    if (!byInvoice[folio]) {
+      byInvoice[folio] = {
+        folio,
+        clientName: alloc.customerName || '—',
+        fechaPago: alloc.paymentDate || null,
+        items: []
+      }
+    }
+    byInvoice[folio].items.push({
+      producto: alloc.product,
+      cantidad: alloc.allocatedQty || 0,
+      facturada: alloc.facturadaQty ?? null,
+      pendiente: alloc.requestedQty ?? null,
+      comentario: alloc.comment || null,
+      isManual: true,
+    })
+  }
 
   const invoiceGroups = Object.values(byInvoice).sort((a, b) => {
     if (!a.fechaPago && !b.fechaPago) return 0
@@ -228,6 +253,15 @@ export default function ReparticionDetailPage() {
           </div>
         )}
 
+        {data.comentarios && (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" /> Comentarios de la repartición
+            </p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{data.comentarios}</p>
+          </div>
+        )}
+
         {/* AI Reasoning */}
         {data.importacion_items?.[0]?.importacion_asignaciones?.[0]?.ai_reasoning && (
           <div className="bg-gradient-to-br from-violet-50 to-fuchsia-50 p-5 rounded-xl border border-violet-100 shadow-sm">
@@ -263,6 +297,11 @@ export default function ReparticionDetailPage() {
                     <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
                       <User className="w-3.5 h-3.5" /> {group.clientName}
                     </p>
+                    {invoiceComments[group.folio] && (
+                      <p className="text-xs text-gray-600 mt-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 whitespace-pre-wrap">
+                        <span className="font-medium">Comentario factura:</span> {invoiceComments[group.folio]}
+                      </p>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500">
                     {group.items.reduce((s, i) => s + i.cantidad, 0)} uds. asignadas
@@ -275,17 +314,22 @@ export default function ReparticionDetailPage() {
                       <th className="px-4 py-2 text-center">Original</th>
                       <th className="px-4 py-2 text-center">Facturada</th>
                       <th className="px-4 py-2 text-center">Pendiente</th>
-                      <th className="px-4 py-2 text-center rounded-r-md">Asignado</th>
+                      <th className="px-4 py-2 text-center">Asignado</th>
+                      <th className="px-4 py-2 text-left rounded-r-md">Comentario</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {group.items.map((item, i) => (
                       <tr key={i} className="hover:bg-gray-50/50">
-                        <td className="px-4 py-2 text-gray-700">{item.producto}</td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {item.producto}
+                          {item.isManual && <span className="ml-1 text-[10px] text-indigo-600">(extra)</span>}
+                        </td>
                         <td className="px-4 py-2 text-center font-mono text-gray-400">{(item.facturada ?? 0) + (item.pendiente ?? 0)}</td>
                         <td className="px-4 py-2 text-center font-mono text-gray-400">{item.facturada ?? '—'}</td>
                         <td className="px-4 py-2 text-center font-mono text-gray-500">{item.pendiente ?? '—'}</td>
                         <td className="px-4 py-2 text-center font-mono font-semibold text-indigo-700">{item.cantidad}</td>
+                        <td className="px-4 py-2 text-gray-600 text-xs">{item.comentario || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
