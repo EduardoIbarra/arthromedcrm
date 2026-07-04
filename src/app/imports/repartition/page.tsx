@@ -918,7 +918,7 @@ export default function ImportRepartitionPage() {
                                       <tr key={alloc.id} className="hover:bg-white">
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">{alloc.folio}</td>
                                         <td className="px-3 py-2">
-                                          <span className="text-xs text-gray-600">{new Date(alloc.shippingLimit).toLocaleDateString()}</span>
+                                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${si.cls}`}>{si.label}</span>
                                         </td>
                                         <td className="px-3 py-2 text-gray-700 font-medium">
                                           {alloc.product}
