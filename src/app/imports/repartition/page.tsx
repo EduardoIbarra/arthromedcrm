@@ -69,7 +69,10 @@ function buildAllocationFromInvoiceProduct(inv: any, fp: any, allocatedQty = 0):
 function productRowStyle(product: string, lineColors: Record<string, string>): React.CSSProperties {
   const color = lineColors[product.trim().toLowerCase()]
   if (!color) return {}
-  return { backgroundColor: `${color}18` }
+  return {
+    backgroundColor: `${color}55`,
+    borderLeft: `4px solid ${color}`,
+  }
 }
 
 function mergeAllocationsWithSelectedInvoices(apiAllocations: Allocation[], selectedInvoices: any[]): Allocation[] {
