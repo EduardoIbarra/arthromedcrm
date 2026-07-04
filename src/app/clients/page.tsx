@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, type ReactNode } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import StatusBadge from '@/components/StatusBadge'
 import { Client, Congreso } from '@/types/database'
-import { Search, Filter, Download, UserPlus, Phone, Mail, MapPin, ChevronRight, X, Users, UserCheck } from 'lucide-react'
+import { Search, Filter, Download, UserPlus, Phone, Mail, MapPin, ChevronRight, X, Users, UserCheck, ShoppingBag } from 'lucide-react'
 import Link from 'next/link'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useRouter } from 'next/navigation'
@@ -97,6 +97,69 @@ const renderLetterIndicator = (client: any, isMobile = false) => {
   )
 }
 
+const renderPurchaseIndicator = (client: Client, isMobile = false) => {
+  if (!client.last_purchase_date) {
+    return isMobile ? null : <span className="text-gray-400">—</span>
+  }
+
+  const purchaseDate = new Date(client.last_purchase_date)
+  const revocationDate = addMonths(purchaseDate, 3)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  revocationDate.setHours(0, 0, 0, 0)
+
+  const daysRemaining = differenceInDays(revocationDate, today)
+
+  let badge: ReactNode
+  if (daysRemaining <= 0) {
+    badge = (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 w-fit">
+        Revocada
+      </span>
+    )
+  } else if (daysRemaining < 30) {
+    badge = (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100 w-fit animate-pulse">
+        Revoca en {daysRemaining}d
+      </span>
+    )
+  } else {
+    const monthsRemaining = Math.floor(daysRemaining / 30)
+    const remainingText = monthsRemaining > 0
+      ? `Revoca en ~${monthsRemaining}m`
+      : `Revoca en ${daysRemaining}d`
+    badge = (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 w-fit">
+        {remainingText}
+      </span>
+    )
+  }
+
+  return (
+    <div className={`flex flex-col gap-0.5 ${isMobile ? 'items-end' : ''}`} onClick={e => e.stopPropagation()}>
+      {client.last_factura_id ? (
+        <Link
+          href={`/facturas/${client.last_factura_id}`}
+          className="text-sm font-medium hover:underline w-fit"
+          style={{ color: '#0763a9' }}
+        >
+          {format(purchaseDate, 'dd/MM/yyyy')}
+        </Link>
+      ) : (
+        <span className="text-sm font-medium" style={{ color: '#37383a' }}>
+          {format(purchaseDate, 'dd/MM/yyyy')}
+        </span>
+      )}
+      {badge}
+      {client.last_factura_numero && (
+        <span className="text-[10px] text-gray-400">
+          {client.last_factura_numero}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function ClientsContent() {
   const { t } = useI18n()
   const router = useRouter()
@@ -115,6 +178,7 @@ function ClientsContent() {
   const [congresos, setCongresos] = useState<Congreso[]>([])
   const [staffUsers, setStaffUsers] = useState<any[]>([])
   const [responsableFilter, setResponsableFilter] = useState('')
+  const [withPurchasesFilter, setWithPurchasesFilter] = useState(false)
   const debouncedSearch = useDebounce(search, 350)
 
   useEffect(() => {
@@ -163,6 +227,7 @@ function ClientsContent() {
       ...(isProspectFilter && { is_prospect: 'true' }),
       ...(sourceFilter && { source: sourceFilter }),
       ...(responsableFilter && { assigned_to: responsableFilter }),
+      ...(withPurchasesFilter && { with_purchases: 'true' }),
     })
     try {
       const res = await fetch(`/api/clients?${params}`)
@@ -170,7 +235,7 @@ function ClientsContent() {
       setClients(json.data || [])
       setTotal(json.count || 0)
     } finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter, page])
+  }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter, withPurchasesFilter, page])
 
   const handleAssigneeChange = async (clientId: string, newId: string) => {
     try {
@@ -192,7 +257,7 @@ function ClientsContent() {
   }
 
   useEffect(() => { fetchClients() }, [fetchClients])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter, withPurchasesFilter])
 
   const exportCsv = () => {
     const headers = ['Nombre', 'RFC', 'Teléfono', 'Email Contacto', 'Estados', 'Especialidades', 'Estatus']
@@ -238,9 +303,9 @@ function ClientsContent() {
             style={showFilters ? { color: '#0763a9', borderColor: '#0763a9' } : {}}
           >
             <Filter size={15} /> {t('filter')}
-            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter || responsableFilter) && (
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter || responsableFilter || withPurchasesFilter) && (
               <span className="ml-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center" style={{ background: '#0763a9' }}>
-                {[statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter].filter(Boolean).length}
+                {[statusFilter, stateFilter, congresoFilter, isProspectFilter, sourceFilter, responsableFilter, withPurchasesFilter].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -311,8 +376,22 @@ function ClientsContent() {
                 </select>
               </div>
             )}
-            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter || responsableFilter) && (
-              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setCongresoFilter(''); setIsProspectFilter(false); setSourceFilter(''); setResponsableFilter('') }} className="btn-ghost text-xs self-end mb-0.5">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium flex items-center gap-1" style={{ color: '#5a5b5d' }}>
+                <ShoppingBag size={12} /> Compras
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer self-start mt-1">
+                <input
+                  type="checkbox"
+                  checked={withPurchasesFilter}
+                  onChange={e => setWithPurchasesFilter(e.target.checked)}
+                  className="rounded border-gray-300 text-[#0763a9] focus:ring-[#0763a9]"
+                />
+                <span className="text-sm" style={{ color: '#37383a' }}>Clientes con compras</span>
+              </label>
+            </div>
+            {(statusFilter || stateFilter || congresoFilter || isProspectFilter || sourceFilter || responsableFilter || withPurchasesFilter) && (
+              <button onClick={() => { setStatusFilter(''); setStateFilter(''); setCongresoFilter(''); setIsProspectFilter(false); setSourceFilter(''); setResponsableFilter(''); setWithPurchasesFilter(false) }} className="btn-ghost text-xs self-end mb-0.5">
                 <X size={13} /> Limpiar
               </button>
             )}
@@ -337,7 +416,11 @@ function ClientsContent() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #e8f1f9' }}>
-                      {['ID', t('name'), t('rfc'), t('phone'), t('state'), 'Responsable', 'Carta', t('status'), ''].map(h => (
+                      {[
+                        'ID', t('name'), t('rfc'), t('phone'), t('state'), 'Responsable',
+                        ...(withPurchasesFilter ? ['Última compra'] : []),
+                        'Carta', t('status'), '',
+                      ].map(h => (
                         <th key={h} className="text-left text-xs font-semibold uppercase tracking-wide px-4 py-3" style={{ color: '#8a8b8d' }}>{h}</th>
                       ))}
                     </tr>
@@ -392,6 +475,9 @@ function ClientsContent() {
                             ))}
                           </select>
                         </td>
+                        {withPurchasesFilter && (
+                          <td className="px-4 py-3">{renderPurchaseIndicator(client)}</td>
+                        )}
                         <td className="px-4 py-3">{renderLetterIndicator(client)}</td>
                         <td className="px-4 py-3"><StatusBadge status={client.status} size="sm" /></td>
                         <td className="px-4 py-3">
@@ -415,6 +501,7 @@ function ClientsContent() {
                         <p className="text-sm font-semibold truncate" style={{ color: '#37383a' }}>{client.name}</p>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <StatusBadge status={client.status} size="sm" />
+                          {withPurchasesFilter && renderPurchaseIndicator(client, true)}
                           {renderLetterIndicator(client, true)}
                         </div>
                       </div>

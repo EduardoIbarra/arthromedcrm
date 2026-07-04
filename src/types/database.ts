@@ -32,6 +32,12 @@ export interface Client {
   avatar_url?: string | null
   addresses?: { name: string; address: string; zip_code?: string | null; is_dhl?: boolean }[] | null
   updated_at: string
+  // Enriched from facturas_cliente (RFC/name match)
+  latest_payment_date?: string | null
+  last_purchase_date?: string | null
+  last_factura_id?: string | null
+  last_factura_numero?: string | null
+  cartas_count?: number
 }
 
 // All fields optional except name — easy to use for inserts/imports
