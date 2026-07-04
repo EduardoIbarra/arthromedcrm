@@ -66,6 +66,12 @@ function buildAllocationFromInvoiceProduct(inv: any, fp: any, allocatedQty = 0):
   }
 }
 
+function productRowStyle(product: string, lineColors: Record<string, string>): React.CSSProperties {
+  const color = lineColors[product.trim().toLowerCase()]
+  if (!color) return {}
+  return { backgroundColor: `${color}18` }
+}
+
 function mergeAllocationsWithSelectedInvoices(apiAllocations: Allocation[], selectedInvoices: any[]): Allocation[] {
   const byId = new Map(apiAllocations.map(a => [a.id, a]))
   const result = [...apiAllocations]
@@ -175,9 +181,11 @@ export default function ImportRepartitionPage() {
   const [invoiceIdFromChina, setInvoiceIdFromChina] = useState('')
   const [hasProcessed, setHasProcessed] = useState(false)
   const [addingProductFolio, setAddingProductFolio] = useState<string | null>(null)
-  const [newProduct, setNewProduct] = useState({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0, comment: '' })
+  const [newProduct, setNewProduct] = useState({ product: '', allocatedQty: 0, comment: '' })
   const [repartitionComment, setRepartitionComment] = useState('')
   const [invoiceComments, setInvoiceComments] = useState<Record<string, string>>({})
+  const [allocationsSearch, setAllocationsSearch] = useState('')
+  const [productLineColors, setProductLineColors] = useState<Record<string, string>>({})
 
   // ── History ───────────────────────────────────────────
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -313,6 +321,7 @@ export default function ImportRepartitionPage() {
     setAllocations([]); setRemainingInventory({}); setInitialInventory({}); setAiReasoning('')
     setHasProcessed(false); setAddingProductFolio(null)
     setRepartitionComment(''); setInvoiceComments({})
+    setAllocationsSearch('')
 
     try {
       const selectedStockFisico = useStockFisico
@@ -365,7 +374,7 @@ export default function ImportRepartitionPage() {
       const totalAllocatedOther = copy.filter(a => a.product === product && a.id !== id).reduce((acc, curr) => acc + curr.allocatedQty, 0)
       const totalAvailable = initialInventory[product] || 0
       const maxAllowed = totalAvailable - totalAllocatedOther
-      const maxQty = oldAlloc.isManual ? Math.max(oldAlloc.requestedQty, totalAvailable) : oldAlloc.requestedQty
+      const maxQty = oldAlloc.isManual ? maxAllowed : oldAlloc.requestedQty
       let validQty = Math.max(0, Math.min(newQty, maxAllowed, maxQty))
       copy[index] = { ...oldAlloc, allocatedQty: validQty, manualAdjustment: true }
       syncRemainingForProduct(copy, product)
@@ -373,9 +382,19 @@ export default function ImportRepartitionPage() {
     })
   }
 
+  const getMaxAllocatable = (product: string, allocs: Allocation[], excludeId?: string) => {
+    const totalAvailable = initialInventory[product] || 0
+    const totalAllocatedOther = allocs
+      .filter(a => a.product === product && a.id !== excludeId)
+      .reduce((acc, curr) => acc + curr.allocatedQty, 0)
+    return Math.max(0, totalAvailable - totalAllocatedOther)
+  }
+
   const availableStockProducts = useMemo(
-    () => Object.keys(initialInventory).filter(p => (initialInventory[p] || 0) > 0).sort((a, b) => a.localeCompare(b)),
-    [initialInventory]
+    () => Object.keys(initialInventory)
+      .filter(p => getMaxAllocatable(p, allocations) > 0)
+      .sort((a, b) => a.localeCompare(b)),
+    [initialInventory, allocations]
   )
 
   const handleAllocationCommentChange = (id: string, comment: string) => {
@@ -408,7 +427,7 @@ export default function ImportRepartitionPage() {
         const totalAllocatedOther = copy.filter(a => a.product === oldAlloc.product && a.id !== id).reduce((acc, curr) => acc + curr.allocatedQty, 0)
         const totalAvailable = initialInventory[oldAlloc.product] || 0
         const maxAllowed = totalAvailable - totalAllocatedOther
-        const validQty = Math.max(0, Math.min(num, maxAllowed, oldAlloc.requestedQty))
+        const validQty = Math.max(0, Math.min(num, maxAllowed))
         copy[index] = { ...oldAlloc, allocatedQty: validQty, manualAdjustment: true }
         syncRemainingForProduct(copy, oldAlloc.product)
         return copy
@@ -422,19 +441,22 @@ export default function ImportRepartitionPage() {
     const product = newProduct.product.trim()
     if (!product) { setError('Selecciona un producto del inventario.'); return }
     if (!initialInventory[product]) { setError('El producto debe estar disponible en el inventario procesado.'); return }
-    const facturadaQty = Math.max(0, newProduct.facturadaQty)
-    const requestedQty = Math.max(0, newProduct.requestedQty)
-    const totalAvailable = initialInventory[product] || 0
-    const totalAllocated = allocations.filter(a => a.product === product).reduce((acc, curr) => acc + curr.allocatedQty, 0)
-    const allocatedQty = Math.min(Math.max(0, newProduct.allocatedQty), requestedQty, Math.max(0, totalAvailable - totalAllocated))
+    const maxAlloc = getMaxAllocatable(product, allocations)
+    if (maxAlloc <= 0) { setError(`No hay stock disponible de ${product}.`); return }
+    const requestedQty = Math.max(0, newProduct.allocatedQty)
+    if (requestedQty <= 0) { setError('Ingresa la cantidad a asignar.'); return }
+    const allocatedQty = Math.min(requestedQty, maxAlloc)
+    if (allocatedQty < requestedQty) {
+      setError(`Solo hay ${maxAlloc} unidades disponibles de ${product}. Se asignaron ${allocatedQty}.`)
+    }
 
     const alloc: Allocation = {
       id: `manual-${crypto.randomUUID()}`,
       folio: group.folio,
       customerName: group.customerName,
       product,
-      facturadaQty,
-      requestedQty,
+      facturadaQty: 0,
+      requestedQty: 0,
       allocatedQty,
       paymentDate: group.paymentDate,
       shippingLimit: group.shippingLimit,
@@ -448,9 +470,9 @@ export default function ImportRepartitionPage() {
       syncRemainingForProduct(next, product)
       return next
     })
-    setNewProduct({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0, comment: '' })
+    setNewProduct({ product: '', allocatedQty: 0, comment: '' })
     setAddingProductFolio(null)
-    setError('')
+    if (allocatedQty >= requestedQty) setError('')
   }
 
   const handleRemoveManualProduct = (id: string) => {
@@ -496,6 +518,46 @@ export default function ImportRepartitionPage() {
     finally { setLoading(false) }
   }
 
+  useEffect(() => {
+    if (!hasProcessed) return
+    fetch('/api/products')
+      .then(r => r.json())
+      .then(d => {
+        const map: Record<string, string> = {}
+        for (const p of d.data || []) {
+          if (!p.line_color) continue
+          const keys = [p.nombre_lista, p.nombre, p.description].filter(Boolean) as string[]
+          for (const key of keys) map[key.trim().toLowerCase()] = p.line_color
+        }
+        setProductLineColors(map)
+      })
+      .catch(err => console.error(err))
+  }, [hasProcessed])
+
+  const allocationsSearchQuery = allocationsSearch.trim().toLowerCase()
+
+  const allocationMatchesSearch = (alloc: Allocation) => {
+    if (!allocationsSearchQuery) return true
+    return (
+      alloc.folio.toLowerCase().includes(allocationsSearchQuery) ||
+      alloc.customerName.toLowerCase().includes(allocationsSearchQuery) ||
+      alloc.product.toLowerCase().includes(allocationsSearchQuery)
+    )
+  }
+
+  const invoiceMatchesSearch = (folio: string, customerName: string) => {
+    if (!allocationsSearchQuery) return true
+    return (
+      folio.toLowerCase().includes(allocationsSearchQuery) ||
+      customerName.toLowerCase().includes(allocationsSearchQuery)
+    )
+  }
+
+  const filteredAllocations = useMemo(
+    () => allocations.filter(allocationMatchesSearch),
+    [allocations, allocationsSearchQuery]
+  )
+
   // ── CSV Export ──────────────────────────────────────────
   const handleExportCSV = () => {
     if (!allocations.length) return
@@ -525,6 +587,7 @@ export default function ImportRepartitionPage() {
 
     for (const inv of selectedInvoices) {
       const folio = inv.numero_factura
+      if (!invoiceMatchesSearch(folio, inv.cliente_nombre)) continue
       if (!groups[folio]) {
         groups[folio] = {
           folio,
@@ -536,25 +599,28 @@ export default function ImportRepartitionPage() {
       }
     }
 
-    for (const alloc of allocations) {
+    for (const alloc of filteredAllocations) {
       if (!groups[alloc.folio]) {
         groups[alloc.folio] = { folio: alloc.folio, customerName: alloc.customerName, paymentDate: alloc.paymentDate || null, shippingLimit: alloc.shippingLimit || null, items: [] }
       }
       groups[alloc.folio].items.push(alloc)
     }
-    return Object.values(groups).sort((a, b) => {
-      if (!a.shippingLimit && !b.shippingLimit) return 0
-      if (!a.shippingLimit) return 1
-      if (!b.shippingLimit) return -1
-      return new Date(a.shippingLimit).getTime() - new Date(b.shippingLimit).getTime()
-    })
-  }, [allocations, selectedInvoices])
+    return Object.values(groups)
+      .filter(g => g.items.length > 0 || invoiceMatchesSearch(g.folio, g.customerName))
+      .sort((a, b) => {
+        if (!a.shippingLimit && !b.shippingLimit) return 0
+        if (!a.shippingLimit) return 1
+        if (!b.shippingLimit) return -1
+        return new Date(a.shippingLimit).getTime() - new Date(b.shippingLimit).getTime()
+      })
+  }, [filteredAllocations, selectedInvoices, allocationsSearchQuery])
 
   const allocationsByCustomer = useMemo(() => {
     const groups: Record<string, { customerName: string; minLimit: string | null; items: Allocation[] }> = {}
 
     for (const inv of selectedInvoices) {
       const name = inv.cliente_nombre
+      if (!invoiceMatchesSearch(inv.numero_factura, name)) continue
       const limit = getInvoiceShippingLimit(inv)
       if (!groups[name]) {
         groups[name] = { customerName: name, minLimit: limit, items: [] }
@@ -564,7 +630,7 @@ export default function ImportRepartitionPage() {
       }
     }
 
-    for (const alloc of allocations) {
+    for (const alloc of filteredAllocations) {
       if (!groups[alloc.customerName]) {
         groups[alloc.customerName] = { customerName: alloc.customerName, minLimit: alloc.shippingLimit || null, items: [] }
       } else if (alloc.shippingLimit) {
@@ -573,17 +639,19 @@ export default function ImportRepartitionPage() {
       }
       groups[alloc.customerName].items.push(alloc)
     }
-    return Object.values(groups).sort((a, b) => {
-      if (!a.minLimit && !b.minLimit) return 0
-      if (!a.minLimit) return 1
-      if (!b.minLimit) return -1
-      return new Date(a.minLimit).getTime() - new Date(b.minLimit).getTime()
-    })
-  }, [allocations, selectedInvoices])
+    return Object.values(groups)
+      .filter(g => g.items.length > 0 || g.customerName.toLowerCase().includes(allocationsSearchQuery))
+      .sort((a, b) => {
+        if (!a.minLimit && !b.minLimit) return 0
+        if (!a.minLimit) return 1
+        if (!b.minLimit) return -1
+        return new Date(a.minLimit).getTime() - new Date(b.minLimit).getTime()
+      })
+  }, [filteredAllocations, selectedInvoices, allocationsSearchQuery])
 
   const allocationsByProduct = useMemo(() => {
     const groups: Record<string, { product: string; items: Allocation[] }> = {}
-    for (const alloc of allocations) {
+    for (const alloc of filteredAllocations) {
       if (!groups[alloc.product]) groups[alloc.product] = { product: alloc.product, items: [] }
       groups[alloc.product].items.push(alloc)
     }
@@ -596,7 +664,7 @@ export default function ImportRepartitionPage() {
       })
     }
     return Object.values(groups).sort((a, b) => a.product.localeCompare(b.product))
-  }, [allocations])
+  }, [filteredAllocations])
 
   // ── Displayed invoices ──────────────────────────────────
   const displayedInvoicesMap = new Map()
@@ -994,6 +1062,19 @@ export default function ImportRepartitionPage() {
                         />
                       </div>
 
+                      <div className="px-5 py-3 border-b border-gray-100">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={allocationsSearch}
+                            onChange={e => setAllocationsSearch(e.target.value)}
+                            placeholder="Buscar por factura, cliente o producto..."
+                            className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+
                       {/* Results tabs */}
                       <div className="flex bg-gray-50/50 border-b border-gray-100 p-1.5 gap-1.5">
                         {[
@@ -1067,7 +1148,7 @@ export default function ImportRepartitionPage() {
                                     </tr>
                                   )}
                                   {group.items.map(alloc => (
-                                    <tr key={alloc.id} className="hover:bg-white">
+                                    <tr key={alloc.id} className="hover:brightness-[0.98] transition-all" style={productRowStyle(alloc.product, productLineColors)}>
                                       <td className="px-3 py-2 text-gray-900 text-xs font-medium">
                                         {alloc.isManual ? (
                                           <div className="flex items-center gap-1">
@@ -1097,24 +1178,10 @@ export default function ImportRepartitionPage() {
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-center text-gray-400 font-mono text-xs">{alloc.shippingLimit ? new Date(alloc.shippingLimit).toLocaleDateString() : '—'}</td>
-                                      <td className="px-3 py-2 text-center text-gray-400 font-mono text-xs">
-                                        {alloc.isManual ? (
-                                          <input type="number" min={0} value={alloc.facturadaQty}
-                                            onChange={e => handleManualFieldChange(alloc.id, 'facturadaQty', parseInt(e.target.value || '0', 10))}
-                                            className="w-14 text-center border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
-                                          />
-                                        ) : (alloc.facturadaQty ?? '—')}
-                                      </td>
-                                      <td className="px-3 py-2 text-center text-gray-500 font-mono text-xs">
-                                        {alloc.isManual ? (
-                                          <input type="number" min={0} value={alloc.requestedQty}
-                                            onChange={e => handleManualFieldChange(alloc.id, 'requestedQty', parseInt(e.target.value || '0', 10))}
-                                            className="w-14 text-center border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
-                                          />
-                                        ) : alloc.requestedQty}
-                                      </td>
+                                      <td className="px-3 py-2 text-center text-gray-400 font-mono text-xs">{alloc.isManual ? '—' : (alloc.facturadaQty ?? '—')}</td>
+                                      <td className="px-3 py-2 text-center text-gray-500 font-mono text-xs">{alloc.isManual ? '—' : alloc.requestedQty}</td>
                                       <td className="px-3 py-2 text-center">
-                                        <input type="number" min={0} max={alloc.isManual ? undefined : alloc.requestedQty} value={alloc.allocatedQty}
+                                        <input type="number" min={0} max={alloc.isManual ? getMaxAllocatable(alloc.product, allocations, alloc.id) : alloc.requestedQty} value={alloc.allocatedQty}
                                           onChange={e => alloc.isManual
                                             ? handleManualFieldChange(alloc.id, 'allocatedQty', parseInt(e.target.value || '0', 10))
                                             : handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
@@ -1138,38 +1205,51 @@ export default function ImportRepartitionPage() {
                                         <div className="flex flex-wrap items-end gap-2">
                                           <div className="flex-1 min-w-[160px]">
                                             <label className="text-[10px] text-gray-500 block mb-0.5">Producto (inventario)</label>
-                                            <select value={newProduct.product} onChange={e => setNewProduct(p => ({ ...p, product: e.target.value }))}
-                                              className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500">
+                                            <select
+                                              value={newProduct.product}
+                                              onChange={e => {
+                                                const product = e.target.value
+                                                const max = product ? getMaxAllocatable(product, allocations) : 0
+                                                setNewProduct(p => ({
+                                                  ...p,
+                                                  product,
+                                                  allocatedQty: Math.min(p.allocatedQty, max),
+                                                }))
+                                              }}
+                                              className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                                            >
                                               <option value="">Seleccionar producto...</option>
                                               {availableStockProducts.map(p => (
                                                 <option key={p} value={p}>
-                                                  {p} ({remainingInventory[p] ?? 0}/{initialInventory[p] ?? 0})
+                                                  {p} ({getMaxAllocatable(p, allocations)} disp.)
                                                 </option>
                                               ))}
                                             </select>
                                           </div>
                                           <div>
-                                            <label className="text-[10px] text-gray-500 block mb-0.5">Facturado</label>
-                                            <input type="number" min={0} value={newProduct.facturadaQty} onChange={e => setNewProduct(p => ({ ...p, facturadaQty: parseInt(e.target.value || '0', 10) }))}
-                                              className="w-16 text-center border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500" />
-                                          </div>
-                                          <div>
-                                            <label className="text-[10px] text-gray-500 block mb-0.5">Pendiente</label>
-                                            <input type="number" min={0} value={newProduct.requestedQty} onChange={e => setNewProduct(p => ({ ...p, requestedQty: parseInt(e.target.value || '0', 10) }))}
-                                              className="w-16 text-center border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500" />
-                                          </div>
-                                          <div>
-                                            <label className="text-[10px] text-gray-500 block mb-0.5">Asignado</label>
-                                            <input type="number" min={0} value={newProduct.allocatedQty} onChange={e => setNewProduct(p => ({ ...p, allocatedQty: parseInt(e.target.value || '0', 10) }))}
-                                              className="w-16 text-center border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500" />
+                                            <label className="text-[10px] text-gray-500 block mb-0.5">
+                                              Asignado{newProduct.product ? ` (máx. ${getMaxAllocatable(newProduct.product, allocations)})` : ''}
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              max={newProduct.product ? getMaxAllocatable(newProduct.product, allocations) : undefined}
+                                              value={newProduct.allocatedQty}
+                                              onChange={e => {
+                                                const raw = parseInt(e.target.value || '0', 10)
+                                                const max = newProduct.product ? getMaxAllocatable(newProduct.product, allocations) : raw
+                                                setNewProduct(p => ({ ...p, allocatedQty: Math.min(Math.max(0, raw), max) }))
+                                              }}
+                                              className="w-16 text-center border border-gray-200 rounded py-1 px-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                                            />
                                           </div>
                                           <div className="flex-1 min-w-[140px]">
                                             <label className="text-[10px] text-gray-500 block mb-0.5">Comentario</label>
                                             <input type="text" value={newProduct.comment} onChange={e => setNewProduct(p => ({ ...p, comment: e.target.value }))}
                                               className="w-full border border-gray-200 rounded py-1 px-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500" />
                                           </div>
-                                          <button onClick={() => handleAddManualProduct(group)} disabled={!newProduct.product || availableStockProducts.length === 0} className="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">Agregar</button>
-                                          <button onClick={() => { setAddingProductFolio(null); setNewProduct({ product: '', facturadaQty: 0, requestedQty: 0, allocatedQty: 0, comment: '' }) }} className="px-2.5 py-1 border border-gray-200 text-gray-600 rounded text-xs hover:bg-gray-100">Cancelar</button>
+                                          <button onClick={() => handleAddManualProduct(group)} disabled={!newProduct.product || !newProduct.allocatedQty || availableStockProducts.length === 0} className="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">Agregar</button>
+                                          <button onClick={() => { setAddingProductFolio(null); setNewProduct({ product: '', allocatedQty: 0, comment: '' }) }} className="px-2.5 py-1 border border-gray-200 text-gray-600 rounded text-xs hover:bg-gray-100">Cancelar</button>
                                         </div>
                                       ) : (
                                         <button
@@ -1226,7 +1306,7 @@ export default function ImportRepartitionPage() {
                                   {group.items.map(alloc => {
                                     const si = shippingInfo(alloc.paymentDate || null)
                                     return (
-                                      <tr key={alloc.id} className="hover:bg-white">
+                                      <tr key={alloc.id} className="hover:brightness-[0.98] transition-all" style={productRowStyle(alloc.product, productLineColors)}>
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">{alloc.folio}</td>
                                         <td className="px-3 py-2">
                                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${si.cls}`}>{si.label}</span>
@@ -1238,10 +1318,10 @@ export default function ImportRepartitionPage() {
                                             <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
                                           )}
                                         </td>
-                                        <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.facturadaQty ?? '—'}</td>
-                                        <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.requestedQty}</td>
+                                        <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.isManual ? '—' : (alloc.facturadaQty ?? '—')}</td>
+                                        <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.isManual ? '—' : alloc.requestedQty}</td>
                                         <td className="px-3 py-2 text-center">
-                                          <input type="number" min={0} max={alloc.isManual ? undefined : alloc.requestedQty} value={alloc.allocatedQty}
+                                          <input type="number" min={0} max={alloc.isManual ? getMaxAllocatable(alloc.product, allocations, alloc.id) : alloc.requestedQty} value={alloc.allocatedQty}
                                             onChange={e => alloc.isManual
                                               ? handleManualFieldChange(alloc.id, 'allocatedQty', parseInt(e.target.value || '0', 10))
                                               : handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
@@ -1273,7 +1353,7 @@ export default function ImportRepartitionPage() {
                           const rem = remainingInventory[group.product] || 0
                           const missing = group.items.reduce((s, i) => s + (i.requestedQty - i.allocatedQty), 0)
                           return (
-                            <div key={group.product} className="p-5">
+                            <div key={group.product} className="p-5" style={productRowStyle(group.product, productLineColors)}>
                               <div className="flex items-center justify-between gap-3 mb-3">
                                 <div>
                                   <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
@@ -1303,7 +1383,7 @@ export default function ImportRepartitionPage() {
                                   {group.items.map(alloc => {
                                     const si = shippingInfo(alloc.paymentDate || null)
                                     return (
-                                      <tr key={alloc.id} className="hover:bg-white">
+                                      <tr key={alloc.id} className="hover:brightness-[0.98] transition-all" style={productRowStyle(alloc.product, productLineColors)}>
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">
                                           {alloc.folio}
                                           {alloc.isManual && <span className="ml-1 text-[10px] text-indigo-600">(extra)</span>}
@@ -1315,10 +1395,10 @@ export default function ImportRepartitionPage() {
                                         <td className="px-3 py-2">
                                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${si.cls}`}>{si.label}</span>
                                         </td>
-                                        <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.facturadaQty ?? '—'}</td>
-                                        <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.requestedQty}</td>
+                                        <td className="px-3 py-2 text-center text-gray-400 font-mono">{alloc.isManual ? '—' : (alloc.facturadaQty ?? '—')}</td>
+                                        <td className="px-3 py-2 text-center text-gray-500 font-mono">{alloc.isManual ? '—' : alloc.requestedQty}</td>
                                         <td className="px-3 py-2 text-center">
-                                          <input type="number" min={0} max={alloc.isManual ? undefined : alloc.requestedQty} value={alloc.allocatedQty}
+                                          <input type="number" min={0} max={alloc.isManual ? getMaxAllocatable(alloc.product, allocations, alloc.id) : alloc.requestedQty} value={alloc.allocatedQty}
                                             onChange={e => alloc.isManual
                                               ? handleManualFieldChange(alloc.id, 'allocatedQty', parseInt(e.target.value || '0', 10))
                                               : handleQtyChange(alloc.id, parseInt(e.target.value || '0', 10))}
