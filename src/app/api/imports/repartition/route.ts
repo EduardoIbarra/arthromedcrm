@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { querySegundaDB } from '@/lib/segundaDB';
-import { google } from '@ai-sdk/google';
-import { generateObject } from 'ai';
-import { z } from 'zod';
 
 const SHIPPING_WEEKS = 4; // fecha_pago + 4 weeks = shipping limit
 
@@ -11,6 +8,89 @@ function getShippingLimit(fechaPago: Date): Date {
   const d = new Date(fechaPago);
   d.setDate(d.getDate() + SHIPPING_WEEKS * 7);
   return d;
+}
+
+type OrderLine = {
+  id: string;
+  folio: string;
+  customerName: string;
+  product: string;
+  requestedQty: number;
+  paymentDate: string | null;
+  issueDate: string | null;
+};
+
+function getPaymentSortTime(order: OrderLine): number {
+  const raw = order.paymentDate || order.issueDate;
+  if (!raw) return Number.MAX_SAFE_INTEGER;
+  return new Date(raw).getTime();
+}
+
+/** Strict FIFO: oldest payment date first, per product. */
+function allocateFifo(orders: OrderLine[], inventoryMap: Record<string, number>) {
+  const byProduct = new Map<string, OrderLine[]>();
+  for (const order of orders) {
+    const list = byProduct.get(order.product) || [];
+    list.push(order);
+    byProduct.set(order.product, list);
+  }
+
+  const allocationMap = new Map<string, number>();
+  const remaining = { ...inventoryMap };
+
+  for (const [product, productOrders] of byProduct) {
+    productOrders.sort((a, b) => {
+      const dateDiff = getPaymentSortTime(a) - getPaymentSortTime(b);
+      if (dateDiff !== 0) return dateDiff;
+      return a.folio.localeCompare(b.folio);
+    });
+
+    let stock = remaining[product] || 0;
+    for (const order of productOrders) {
+      const allocated = Math.min(order.requestedQty, Math.max(0, stock));
+      allocationMap.set(order.id, allocated);
+      stock -= allocated;
+    }
+    remaining[product] = stock;
+  }
+
+  return { allocationMap, remaining };
+}
+
+function buildFifoReasoning(
+  orders: OrderLine[],
+  allocationMap: Map<string, number>,
+  locale: string | undefined
+): string {
+  const lines = orders
+    .filter(o => (allocationMap.get(o.id) || 0) > 0)
+    .sort((a, b) => getPaymentSortTime(a) - getPaymentSortTime(b))
+    .slice(0, 8)
+    .map(o => {
+      const date = o.paymentDate || o.issueDate;
+      const dateLabel = date ? new Date(date).toLocaleDateString() : 'sin fecha';
+      return `${o.folio} (${dateLabel}): ${allocationMap.get(o.id)} uds. de ${o.product}`;
+    });
+
+  if (locale === 'en') {
+    return [
+      'Strict FIFO allocation by payment date (oldest first).',
+      'Each product is fully assigned to earlier-paid invoices before later ones.',
+      lines.length ? `Priority served: ${lines.join('; ')}.` : 'No units could be assigned.',
+    ].join(' ');
+  }
+  if (locale === 'zh') {
+    return [
+      '严格按付款日期先进先出 (FIFO) 分配。',
+      '每种产品优先满足付款日期更早的发票。',
+      lines.length ? `已优先分配：${lines.join('；')}。` : '未能分配任何数量。',
+    ].join(' ');
+  }
+  return [
+    'Asignación estricta FIFO por fecha de pago (más antigua primero).',
+    'Cada producto se asigna por completo a facturas con pago más antiguo antes que las recientes.',
+    lines.length ? `Prioridad atendida: ${lines.join('; ')}.` : 'No se asignaron unidades.',
+  ].join(' ');
 }
 
 export async function POST(req: Request) {
@@ -176,62 +256,28 @@ export async function POST(req: Request) {
       });
     }
 
-    // Call Google AI
-    const languageString = locale === 'en' ? 'English' : locale === 'zh' ? 'Chinese' : 'Spanish';
-    const prompt = `
-You are an expert supply chain allocation AI.
-You need to allocate an inventory of medical products to pending orders.
-Here is the available inventory:
-${JSON.stringify(inventoryMap, null, 2)}
+    const fifoOrders: OrderLine[] = relevantOrders.map((o: any) => ({
+      id: o.id,
+      folio: o.folio,
+      customerName: o.customerName,
+      product: o.product,
+      requestedQty: o.requestedQty,
+      paymentDate: o.paymentDate,
+      issueDate: o.issueDate,
+    }));
 
-Here are the pending orders (eligible for allocation):
-${JSON.stringify(relevantOrders, null, 2)}
+    const { allocationMap, remaining: remainingInventory } = allocateFifo(fifoOrders, inventoryMap);
+    const aiReasoning = buildFifoReasoning(fifoOrders, allocationMap, locale);
 
-Allocation Rules:
-1. You cannot allocate more than the available inventory for each product.
-2. Prioritize orders based on "shippingLimit" (earliest first — most overdue first). Do NOT use customer spending or ranking.
-3. REDUCE IMPACT: If inventory is insufficient to fully fulfill a high-priority order, try to reduce impact by distributing at least some quantity to smaller orders too. Use your best judgment.
-4. For each product, allocate the quantities across the requested orders.
-5. Provide a brief reasoning for the allocation strategy you chose, in ${languageString}.
-
-Output a JSON object with:
-- "allocations": array of objects containing "id" (the order item id) and "allocatedQty" (the amount given).
-- "aiReasoning": your brief reasoning in ${languageString}.
-`;
-
-    const { object } = await generateObject({
-      model: google('gemini-2.5-pro'),
-      schema: z.object({
-        allocations: z.array(z.object({
-          id: z.string(),
-          allocatedQty: z.number()
-        })),
-        aiReasoning: z.string()
-      }),
-      prompt
-    });
-
-    // Combine AI results with all pending order lines (unmatched lines get 0)
-    const finalAllocations = ordersForAi.map((order: any) => {
-      const aiAlloc = object.allocations.find((a: any) => a.id === order.id);
-      return {
-        ...order,
-        allocatedQty: aiAlloc ? aiAlloc.allocatedQty : 0
-      };
-    });
-
-    // Calculate unallocated inventory
-    const remainingInventory = { ...inventoryMap };
-    for (const alloc of finalAllocations) {
-      if (remainingInventory[alloc.product]) {
-        remainingInventory[alloc.product] -= alloc.allocatedQty;
-      }
-    }
+    const finalAllocations = ordersForAi.map((order: any) => ({
+      ...order,
+      allocatedQty: allocationMap.get(order.id) || 0,
+    }));
 
     return NextResponse.json({
       allocations: finalAllocations,
       remainingInventory,
-      aiReasoning: object.aiReasoning,
+      aiReasoning,
       invoiceIdFromChina
     });
 
