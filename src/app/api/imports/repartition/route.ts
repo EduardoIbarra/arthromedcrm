@@ -169,7 +169,7 @@ export async function POST(req: Request) {
 
     if (relevantOrders.length === 0) {
       return NextResponse.json({
-        allocations: [],
+        allocations: ordersForAi.map((order: any) => ({ ...order, allocatedQty: 0 })),
         remainingInventory: inventoryMap,
         aiReasoning: 'Ninguno de los productos en el inventario concuerda con los productos pendientes en las facturas seleccionadas.',
         invoiceIdFromChina,
@@ -211,8 +211,8 @@ Output a JSON object with:
       prompt
     });
 
-    // Combine AI results with full order data
-    const finalAllocations = relevantOrders.map((order: any) => {
+    // Combine AI results with all pending order lines (unmatched lines get 0)
+    const finalAllocations = ordersForAi.map((order: any) => {
       const aiAlloc = object.allocations.find((a: any) => a.id === order.id);
       return {
         ...order,

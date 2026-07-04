@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 
         const productAllocations = allocations.filter((a: any) => a.product === productName);
         for (const alloc of productAllocations) {
-          if (alloc.allocatedQty > 0) {
+          if (alloc.allocatedQty > 0 && !alloc.isManual) {
             await tx.importacion_asignaciones.create({
               data: {
                 item_id: importItem.id,
