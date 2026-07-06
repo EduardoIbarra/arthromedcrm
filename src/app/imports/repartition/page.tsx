@@ -9,7 +9,7 @@ import {
   Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
   AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
   RefreshCw, Download, FileText, User, Tag, History, ArrowRight,
-  Clock, Calendar, Warehouse, Plus, X, MessageSquare
+  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -189,6 +189,12 @@ export default function ImportRepartitionPage() {
   const [invoiceComments, setInvoiceComments] = useState<Record<string, string>>({})
   const [allocationsSearch, setAllocationsSearch] = useState('')
   const [productLineColors, setProductLineColors] = useState<Record<string, string>>({})
+  const [isPacking, setIsPacking] = useState(false)
+  const [mixFacturas, setMixFacturas] = useState(true)
+  const [packedBoxes, setPackedBoxes] = useState<any[]>([])
+  const [unpackedItems, setUnpackedItems] = useState<any[]>([])
+  const [hasPacked, setHasPacked] = useState(false)
+  const [packingError, setPackingError] = useState('')
 
   // ── History ───────────────────────────────────────────
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -325,6 +331,10 @@ export default function ImportRepartitionPage() {
     setHasProcessed(false); setAddingProductFolio(null)
     setRepartitionComment(''); setInvoiceComments({})
     setAllocationsSearch('')
+    setPackedBoxes([])
+    setUnpackedItems([])
+    setHasPacked(false)
+    setPackingError('')
 
     try {
       const selectedStockFisico = useStockFisico
@@ -560,6 +570,315 @@ export default function ImportRepartitionPage() {
     () => allocations.filter(allocationMatchesSearch),
     [allocations, allocationsSearchQuery]
   )
+
+  const handlePackBoxes = async () => {
+    setIsPacking(true)
+    setPackingError('')
+    try {
+      const res = await fetch('/api/imports/pack-boxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          allocations,
+          mixFacturas
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setPackedBoxes(data.packedBoxes || [])
+      setUnpackedItems(data.unpackedItems || [])
+      setHasPacked(true)
+    } catch (err: any) {
+      setPackingError(err.message)
+    } finally {
+      setIsPacking(false)
+    }
+  }
+
+  const downloadCSVReport = () => {
+    if (hasPacked && packedBoxes.length > 0) {
+      // Export packing details
+      const headers = [
+        'Caja Num',
+        'Tipo Caja',
+        'Dimensiones Caja (cm)',
+        'Peso Max Caja (kg)',
+        'Peso Actual Caja (kg)',
+        'Utilizacion Vol (%)',
+        'Factura Folio',
+        'Cliente',
+        'Producto',
+        'Cantidad',
+        'Peso Producto (kg)',
+        'Dimensiones Estimatizadas'
+      ]
+      
+      const rows: any[] = []
+      packedBoxes.forEach((box, idx) => {
+        box.items.forEach((item: any) => {
+          rows.push([
+            `Caja ${idx + 1}`,
+            box.boxType,
+            `${box.dimensions.largo}x${box.dimensions.ancho}x${box.dimensions.alto}`,
+            box.maxWeight,
+            box.currentWeight.toFixed(2),
+            box.volumeUtilization,
+            item.folio,
+            item.customerName,
+            item.productName,
+            item.qty,
+            item.weight.toFixed(2),
+            item.missingDimensions ? 'SI' : 'NO'
+          ])
+        })
+      })
+
+      if (unpackedItems.length > 0) {
+        unpackedItems.forEach((item: any) => {
+          rows.push([
+            'NO CABE',
+            '—',
+            '—',
+            '—',
+            '—',
+            '—',
+            item.folio,
+            item.customerName,
+            item.productName,
+            1,
+            item.weight.toFixed(2),
+            item.missingDimensions ? 'SI' : 'NO'
+          ])
+        })
+      }
+
+      const csv = [headers.join(','), ...rows.map(r => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n')
+      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `reporte_empaque_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } else {
+      // Export normal allocations CSV
+      handleExportCSV()
+    }
+  }
+
+  const downloadPDFReport = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    let html = `
+      <html>
+        <head>
+          <title>Reporte de Repartición y Empaque - ${new Date().toLocaleDateString()}</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; margin: 20px; }
+            h1 { font-size: 24px; margin-bottom: 5px; color: #0f172a; }
+            h2 { font-size: 18px; margin-top: 25px; margin-bottom: 10px; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+            h3 { font-size: 14px; margin-top: 15px; margin-bottom: 5px; color: #334155; }
+            .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            .meta-table td { padding: 6px 10px; border: 1px solid #e2e8f0; font-size: 12px; }
+            .meta-table td.label { font-weight: bold; background-color: #f8fafc; width: 150px; }
+            .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
+            .data-table th { background-color: #f1f5f9; font-weight: bold; text-align: left; padding: 8px 10px; border: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; }
+            .data-table td { padding: 8px 10px; border: 1px solid #e2e8f0; font-size: 11px; }
+            .box-card { border: 1px solid #cbd5e1; border-radius: 6px; padding: 15px; margin-bottom: 20px; page-break-inside: avoid; }
+            .box-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px; }
+            .box-title { font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+            .box-badge { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+            .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+            .badge-green { background-color: #dcfce7; color: #15803d; }
+            .badge-amber { background-color: #fef3c7; color: #b45309; }
+            .badge-red { background-color: #fee2e2; color: #b91c1c; }
+            .badge-gray { background-color: #f1f5f9; color: #475569; }
+            .warning-banner { background-color: #fffbeb; border: 1px solid #fde68a; color: #b45309; padding: 10px; border-radius: 6px; font-size: 11px; margin-bottom: 20px; }
+            .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+            @media print {
+              body { margin: 10px; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div>
+              <h1>Arthromed - Reporte de Repartición</h1>
+              <p style="margin: 0; font-size: 12px; color: #64748b;">Generado el ${new Date().toLocaleString()}</p>
+            </div>
+            <button class="no-print" onclick="window.print()" style="padding: 8px 16px; background-color: #0f172a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
+              Imprimir / Guardar PDF
+            </button>
+          </div>
+
+          <h2>Resumen de Repartición</h2>
+          <table class="meta-table">
+            <tr>
+              <td class="label">Comentarios generales:</td>
+              <td>${repartitionComment || 'Ninguno'}</td>
+            </tr>
+            <tr>
+              <td class="label">Total Asignaciones:</td>
+              <td>${allocations.filter(a => a.allocatedQty > 0).reduce((s, a) => s + a.allocatedQty, 0)} unidades</td>
+            </tr>
+            <tr>
+              <td class="label">Estado de Empaque:</td>
+              <td>${hasPacked ? `Empacado en ${packedBoxes.length} caja(s)` : 'No empacado'}</td>
+            </tr>
+          </table>
+    `
+
+    if (hasPacked) {
+      const missingDimsCount = unpackedItems.length + packedBoxes.reduce((acc, box) => acc + box.items.filter((i: any) => i.missingDimensions).length, 0)
+      if (missingDimsCount > 0) {
+        html += `
+          <div class="warning-banner">
+            ⚠️ <strong>Advertencia:</strong> Hay productos sin dimensiones de empaque configuradas en la base de datos. Se utilizaron tamaños estimados de 5x5x5 cm para empaque.
+          </div>
+        `
+      }
+
+      html += `<h2>Detalle de Empaque en Cajas</h2>`
+
+      packedBoxes.forEach((box, idx) => {
+        html += `
+          <div class="box-card">
+            <div class="box-header">
+              <div class="box-title">
+                <span class="box-badge" style="background-color: ${box.boxColor};"></span>
+                Box #${idx + 1}: ${box.boxType} (${box.dimensions.largo}x${box.dimensions.ancho}x${box.dimensions.alto} cm)
+              </div>
+              <div style="font-size: 12px; color: #475569;">
+                Peso: <strong>${box.currentWeight.toFixed(2)} kg</strong> / ${box.maxWeight} kg max | 
+                Vol: <strong>${box.volumeUtilization}%</strong> util.
+              </div>
+            </div>
+            <table class="data-table" style="margin-bottom: 0;">
+              <thead>
+                <tr>
+                  <th>Factura / Folio</th>
+                  <th>Cliente</th>
+                  <th>Producto</th>
+                  <th style="text-align: center; width: 60px;">Cant.</th>
+                  <th style="text-align: right; width: 80px;">Peso Total</th>
+                </tr>
+              </thead>
+              <tbody>
+        `
+
+        box.items.forEach((item: any) => {
+          html += `
+            <tr>
+              <td>${item.folio}</td>
+              <td>${item.customerName}</td>
+              <td>${item.productName} ${item.missingDimensions ? '<span style="color: #b45309; font-size: 9px;">(Estimado)</span>' : ''}</td>
+              <td style="text-align: center;">${item.qty}</td>
+              <td style="text-align: right;">${item.weight.toFixed(2)} kg</td>
+            </tr>
+          `
+        })
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `
+      })
+
+      if (unpackedItems.length > 0) {
+        html += `
+          <h2>Productos que no caben en ninguna caja</h2>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Factura / Folio</th>
+                <th>Cliente</th>
+                <th>Producto</th>
+                <th>Dimensiones</th>
+                <th>Peso</th>
+              </tr>
+            </thead>
+            <tbody>
+        `
+        unpackedItems.forEach((item: any) => {
+          html += `
+            <tr>
+              <td>${item.folio}</td>
+              <td>${item.customerName}</td>
+              <td>${item.productName}</td>
+              <td>${item.dimensions.largo}x${item.dimensions.ancho}x${item.dimensions.alto} cm</td>
+              <td>${item.weight.toFixed(2)} kg</td>
+            </tr>
+          `
+        })
+        html += `
+            </tbody>
+          </table>
+        `
+      }
+    } else {
+      html += `
+        <h2>Detalle de Asignaciones</h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Factura / Folio</th>
+              <th>Cliente</th>
+              <th>Producto</th>
+              <th style="text-align: center; width: 60px;">Facturada</th>
+              <th style="text-align: center; width: 60px;">Pendiente</th>
+              <th style="text-align: center; width: 60px;">Asignada</th>
+            </tr>
+          </thead>
+          <tbody>
+      `
+      const sorted = [...allocations].sort((a, b) => {
+        if (!a.shippingLimit && !b.shippingLimit) return 0
+        if (!a.shippingLimit) return 1
+        if (!b.shippingLimit) return -1
+        return new Date(a.shippingLimit).getTime() - new Date(b.shippingLimit).getTime()
+      })
+      
+      sorted.forEach((a) => {
+        if (a.allocatedQty <= 0) return
+        html += `
+          <tr>
+            <td>${a.folio}</td>
+            <td>${a.customerName}</td>
+            <td>${a.product}</td>
+            <td style="text-align: center;">${a.facturadaQty}</td>
+            <td style="text-align: center;">${a.requestedQty}</td>
+            <td style="text-align: center; font-weight: bold; color: #4f46e5;">${a.allocatedQty}</td>
+          </tr>
+        `
+      })
+      html += `
+          </tbody>
+        </table>
+      `
+    }
+
+    html += `
+          <div class="footer">
+            Arthromed ERP - Repartición & Empaque
+          </div>
+          <script>
+            window.addEventListener('DOMContentLoaded', () => {
+              setTimeout(() => {
+                window.print();
+              }, 500);
+            });
+          </script>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(html)
+    printWindow.document.close()
+  }
 
   // ── CSV Export ──────────────────────────────────────────
   const handleExportCSV = () => {
@@ -1042,7 +1361,10 @@ export default function ImportRepartitionPage() {
                           <p className="text-xs text-gray-500 mt-0.5">Ordenadas por límite de envío (más urgentes primero)</p>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={handleExportCSV} className="py-2 px-3 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1.5">
+                          <button onClick={downloadPDFReport} className="py-2 px-3 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1.5">
+                            <Printer className="w-3.5 h-3.5" /> PDF
+                          </button>
+                          <button onClick={downloadCSVReport} className="py-2 px-3 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1.5">
                             <Download className="w-3.5 h-3.5" /> CSV
                           </button>
                           <button onClick={handleSave} disabled={loading || !!successMsg} className="py-2 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 flex items-center gap-2 disabled:opacity-50">
@@ -1064,6 +1386,150 @@ export default function ImportRepartitionPage() {
                           className="w-full border border-gray-200 rounded-lg py-2 px-3 text-xs outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
                         />
                       </div>
+
+                      {/* Box Packing controls */}
+                      <div className="px-5 py-4 border-b border-gray-100 bg-indigo-50/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex flex-col gap-1">
+                          <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                            <Package className="w-4 h-4 text-indigo-600" /> Empaque en Cajas
+                          </h3>
+                          <label className="inline-flex items-center gap-2 text-xs text-gray-600 cursor-pointer mt-1">
+                            <input
+                              type="checkbox"
+                              checked={mixFacturas}
+                              onChange={(e) => {
+                                setMixFacturas(e.target.checked);
+                                if (hasPacked) {
+                                  // Re-pack automatically on change
+                                  setTimeout(() => handlePackBoxes(), 50);
+                                }
+                              }}
+                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            Permitir mezclar facturas del mismo cliente en la misma caja
+                          </label>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handlePackBoxes}
+                            disabled={isPacking}
+                            className="py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                          >
+                            {isPacking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Package className="w-3.5 h-3.5" />}
+                            {hasPacked ? 'Recalcular Empaque' : 'Calcular Empaque'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {packingError && (
+                        <div className="px-5 py-3 border-b border-gray-100 bg-red-50 text-red-700 text-xs">
+                          ⚠️ Error al empacar: {packingError}
+                        </div>
+                      )}
+
+                      {/* Box packing results */}
+                      {hasPacked && (
+                        <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+                          <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-sm font-bold text-gray-800">Resultado de Empaque ({packedBoxes.length} cajas)</h4>
+                            {unpackedItems.length > 0 && (
+                              <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs font-medium border border-red-200">
+                                Warning: {unpackedItems.length} items no caben en ninguna caja
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {packedBoxes.map((box, idx) => {
+                              const missingDimsCount = box.items.filter((i: any) => i.missingDimensions).length
+                              return (
+                                <div key={box.boxId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                                  <div className="h-2" style={{ backgroundColor: box.boxColor }} />
+                                  <div className="p-4 flex-1">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div>
+                                        <h5 className="font-bold text-gray-900 text-xs sm:text-sm">
+                                          Caja #{idx + 1}: {box.boxType}
+                                        </h5>
+                                        <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                          {box.dimensions.largo} x {box.dimensions.ancho} x {box.dimensions.alto} cm
+                                        </p>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="inline-block text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
+                                          {box.currentWeight.toFixed(2)} kg / {box.maxWeight} kg max
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Volume utilization progress bar */}
+                                    <div className="mb-3">
+                                      <div className="flex justify-between items-center text-[10px] text-gray-500 mb-1">
+                                        <span>Utilización de Volumen</span>
+                                        <span className="font-bold">{box.volumeUtilization}%</span>
+                                      </div>
+                                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                        <div
+                                          className="bg-indigo-600 h-1.5 rounded-full"
+                                          style={{ width: `${Math.min(100, box.volumeUtilization)}%` }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Warning for missing dimensions */}
+                                    {missingDimsCount > 0 && (
+                                      <div className="mb-2 p-1.5 bg-amber-50 text-amber-850 rounded border border-amber-100 text-[10px] flex items-center gap-1">
+                                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                        <span>{missingDimsCount} item(s) con dimensiones estimadas</span>
+                                      </div>
+                                    )}
+
+                                    {/* Items inside */}
+                                    <div className="divide-y divide-gray-50 max-h-40 overflow-y-auto border border-gray-50 rounded-lg">
+                                      {box.items.map((item: any, iIdx: number) => (
+                                        <div key={iIdx} className="py-1.5 px-2 flex justify-between items-center text-xs">
+                                          <div className="min-w-0 flex-1 mr-2">
+                                            <p className="font-medium text-gray-800 truncate">{item.productName}</p>
+                                            <p className="text-[9px] text-gray-400">
+                                              Factura: {item.folio} · Cliente: {item.customerName}
+                                            </p>
+                                          </div>
+                                          <span className="bg-gray-100 text-gray-700 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono shrink-0">
+                                            x{item.qty}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+
+                            {unpackedItems.length > 0 && (
+                              <div className="bg-red-50 rounded-xl border border-red-200 shadow-sm p-4 col-span-1 md:col-span-2">
+                                <h5 className="font-bold text-red-900 text-xs sm:text-sm flex items-center gap-2 mb-2">
+                                  <AlertCircle className="w-4 h-4 text-red-600" /> Productos que no caben en ninguna caja
+                                </h5>
+                                <div className="divide-y divide-red-100 border border-red-100 rounded-lg bg-white overflow-hidden">
+                                  {unpackedItems.map((item: any, iIdx: number) => (
+                                    <div key={iIdx} className="py-2 px-3 flex justify-between items-center text-xs">
+                                      <div>
+                                        <p className="font-semibold text-gray-900">{item.productName}</p>
+                                        <p className="text-[10px] text-gray-500">
+                                          Dimensiones: {item.dimensions.largo}x{item.dimensions.ancho}x{item.dimensions.alto} cm · Peso: {item.weight} kg
+                                        </p>
+                                      </div>
+                                      <span className="text-red-700 font-medium bg-red-50 px-2 py-0.5 rounded text-[10px]">
+                                        Factura: {item.folio}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="px-5 py-3 border-b border-gray-100">
                         <div className="relative">
