@@ -159,7 +159,7 @@ export default function EditCongresoPage() {
       fetchStations()
       fetchPendientes()
     }
-  }, [id, fetchHotelRooms, fetchStations, fetchPendientes])
+  }, [id])
 
   useEffect(() => {
     const fetchSpecialties = async () => {
