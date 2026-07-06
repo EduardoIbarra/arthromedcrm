@@ -206,6 +206,23 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
 
   // Cart & Pre-order States
   const [cart, setCart] = useState<{ [productId: string]: number }>({})
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`arthromed_cart_${id}`)
+    if (saved) {
+      try {
+        setCart(JSON.parse(saved))
+      } catch (e) {}
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (Object.keys(cart).length > 0) {
+      localStorage.setItem(`arthromed_cart_${id}`, JSON.stringify(cart))
+    } else {
+      localStorage.removeItem(`arthromed_cart_${id}`)
+    }
+  }, [cart, id])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [checkoutForm, setCheckoutForm] = useState({
@@ -748,11 +765,19 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
               <div className="space-y-10">
                 {sortedLines.map((lineName) => (
                   <div key={lineName} className="space-y-4">
-                    <h3 className="text-lg font-bold text-[#37383a] flex items-center gap-2 border-l-4 border-blue-500 pl-3 uppercase tracking-wider">
-                      {lineName}
-                    </h3>
+                    <div className="flex items-center justify-between border-l-4 border-blue-500 pl-3">
+                      <h3 className="text-lg font-bold text-[#37383a] uppercase tracking-wider">
+                        {lineName}
+                      </h3>
+                      <Link
+                        href={`/congresos/${id}/landing/products#line-${encodeURIComponent(lineName)}`}
+                        className="text-xs font-extrabold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 uppercase tracking-wider transition-colors"
+                      >
+                        Ver todos <ArrowRight size={12} />
+                      </Link>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      {groupedProducts[lineName].map((p) => (
+                      {groupedProducts[lineName].slice(0, 4).map((p) => (
                         <motion.div
                           key={p.id}
                           initial={{ opacity: 0, y: 20 }}
