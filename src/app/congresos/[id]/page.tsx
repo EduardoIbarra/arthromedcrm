@@ -28,6 +28,7 @@ export default function EditCongresoPage() {
   const [activeTab, setActiveTab] = useState<'general' | 'talleres' | 'contactos' | 'catalogos' | 'gastos' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones' | 'pendientes'>('general')
 
   const [availableSpecialties, setAvailableSpecialties] = useState<{ id: string; name: string }[]>([])
+  const [availableLines, setAvailableLines] = useState<{ id: string; name: string }[]>([])
   const [customSpecialty, setCustomSpecialty] = useState('')
   const [showCustomSpecialty, setShowCustomSpecialty] = useState(false)
   const [files, setFiles] = useState<any[]>([])
@@ -44,6 +45,7 @@ export default function EditCongresoPage() {
     enable_workshops: true,
     flyer: '',
     specialty_ids: [] as string[],
+    line_ids: [] as string[],
     video_urls: [] as string[]
   })
 
@@ -182,8 +184,20 @@ export default function EditCongresoPage() {
         console.error(err)
       }
     }
+    const fetchLines = async () => {
+      try {
+        const res = await fetch('/api/catalogos/lineas')
+        if (res.ok) {
+          const { data } = await res.json()
+          setAvailableLines(data || [])
+        }
+      } catch (err) {
+        console.error('Error fetching lines:', err)
+      }
+    }
     fetchSpecialties()
     fetchSpendingCategories()
+    fetchLines()
 
     // Fetch system users for staff selection
     fetch('/api/cirugias/usuarios')
@@ -230,6 +244,7 @@ export default function EditCongresoPage() {
           enable_workshops: data.enable_workshops !== false,
           flyer: data.flyer || '',
           specialty_ids: data.specialty_ids || [],
+          line_ids: data.line_ids || [],
           video_urls: data.video_urls || []
         })
         setWorkshops((data.workshops || []).map((w: any) => ({
@@ -372,6 +387,15 @@ export default function EditCongresoPage() {
         ? prev.specialty_ids.filter(i => i !== id)
         : [...prev.specialty_ids, id]
       return { ...prev, specialty_ids: ids }
+    })
+  }
+
+  const handleLineToggle = (id: string) => {
+    setFormData(prev => {
+      const ids = prev.line_ids.includes(id)
+        ? prev.line_ids.filter(i => i !== id)
+        : [...prev.line_ids, id]
+      return { ...prev, line_ids: ids }
     })
   }
 
@@ -1560,6 +1584,22 @@ export default function EditCongresoPage() {
                           className="rounded border-gray-300 text-blue-600"
                         />
                         <span className="truncate">{spec.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Líneas de Distribución</label>
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200 max-h-40 overflow-y-auto">
+                    {availableLines.map(line => (
+                      <label key={line.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-white p-1 rounded transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={formData.line_ids.includes(line.id)}
+                          onChange={() => handleLineToggle(line.id)}
+                          className="rounded border-gray-300 text-blue-600"
+                        />
+                        <span className="truncate">{line.name}</span>
                       </label>
                     ))}
                   </div>

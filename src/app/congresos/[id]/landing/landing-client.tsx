@@ -39,6 +39,7 @@ interface CongresoData {
   description: string
   flyer: string | null
   specialty_ids: string[]
+  line_ids?: string[]
   workshops: any[]
   contacts: any[]
   congress_catalogos?: CatalogItem[]
@@ -311,9 +312,16 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
 
   useEffect(() => {
     if (initialCongress) {
-      if (initialCongress.specialty_ids?.length > 0) {
+      const hasSpecialties = initialCongress.specialty_ids?.length > 0
+      const hasLines = initialCongress.line_ids?.length > 0
+      if (hasSpecialties || hasLines) {
         const params = new URLSearchParams()
-        initialCongress.specialty_ids.forEach((sid: string) => params.append('specialty_ids', sid))
+        if (hasSpecialties) {
+          initialCongress.specialty_ids.forEach((sid: string) => params.append('specialty_ids', sid))
+        }
+        if (hasLines) {
+          initialCongress.line_ids.forEach((lid: string) => params.append('line_ids', lid))
+        }
         fetch(`/api/products/filter?${params.toString()}`)
           .then(r => r.json())
           .then(d => { if (d.data) setProducts(d.data) })
@@ -329,9 +337,16 @@ export default function CongressLandingClient({ initialCongress }: { initialCong
         const { data } = await res.json()
         setCongress(data)
 
-        if (data.specialty_ids?.length > 0) {
+        const hasSpecialties = data.specialty_ids?.length > 0
+        const hasLines = data.line_ids?.length > 0
+        if (hasSpecialties || hasLines) {
           const params = new URLSearchParams()
-          data.specialty_ids.forEach((sid: string) => params.append('specialty_ids', sid))
+          if (hasSpecialties) {
+            data.specialty_ids.forEach((sid: string) => params.append('specialty_ids', sid))
+          }
+          if (hasLines) {
+            data.line_ids.forEach((lid: string) => params.append('line_ids', lid))
+          }
           fetch(`/api/products/filter?${params.toString()}`)
             .then(r => r.json())
             .then(d => { if (d.data) setProducts(d.data) })
