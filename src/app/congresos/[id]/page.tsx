@@ -8,7 +8,7 @@ import {
   ArrowLeft, Save, QrCode, Upload, Loader2, FileText, X, 
   Calendar, MapPin, AlignLeft, Image as ImageIcon, Trash2, 
   Globe, File, Download, Paperclip, Plus, Users, User, DollarSign, Phone, Mail, HandCoins, AlertCircle,
-  Wrench, Boxes, BedDouble, Hotel, Clock, Edit, Car, ChevronDown, ChevronUp, Sparkles, BookOpen
+  Wrench, Boxes, BedDouble, Hotel, Clock, Edit, Car, ChevronDown, ChevronUp, Sparkles, BookOpen, ClipboardList
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -25,7 +25,7 @@ export default function EditCongresoPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  const [activeTab, setActiveTab] = useState<'general' | 'talleres' | 'contactos' | 'catalogos' | 'gastos' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'talleres' | 'contactos' | 'catalogos' | 'gastos' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones' | 'pendientes'>('general')
 
   const [availableSpecialties, setAvailableSpecialties] = useState<{ id: string; name: string }[]>([])
   const [customSpecialty, setCustomSpecialty] = useState('')
@@ -82,6 +82,13 @@ export default function EditCongresoPage() {
   const [editingStationNameId, setEditingStationNameId] = useState<string | null>(null)
   const [tempStationName, setTempStationName] = useState('')
 
+  // New Congresos Pendientes States
+  const [pendientes, setPendientes] = useState<any[]>([])
+  const [pendientesLoading, setPendientesLoading] = useState(false)
+  const [pendientesSaving, setPendientesSaving] = useState<Record<string, boolean>>({})
+  const [newPendienteForm, setNewPendienteForm] = useState({ name: '', description: '', amount: '', responsable_id: '' })
+  const [showAddPendiente, setShowAddPendiente] = useState(false)
+
   const [staffList, setStaffList] = useState<any[]>([])
   const [memberIds, setMemberIds] = useState<string[]>([])
   const [tempMembers, setTempMembers] = useState<any[]>([])
@@ -132,12 +139,27 @@ export default function EditCongresoPage() {
     }
   }, [id])
 
+  const fetchPendientes = useCallback(async () => {
+    if (!id) return
+    setPendientesLoading(true)
+    try {
+      const res = await fetch(`/api/congresos/${id}/pendientes`)
+      const { data } = await res.json()
+      setPendientes(data || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setPendientesLoading(false)
+    }
+  }, [id])
+
   useEffect(() => {
     if (id) {
       fetchHotelRooms()
       fetchStations()
+      fetchPendientes()
     }
-  }, [id, fetchHotelRooms, fetchStations])
+  }, [id, fetchHotelRooms, fetchStations, fetchPendientes])
 
   useEffect(() => {
     const fetchSpecialties = async () => {
@@ -945,6 +967,88 @@ export default function EditCongresoPage() {
     }
   }
 
+  // Pendientes Handlers
+  const handleCreatePendiente = async () => {
+    if (!newPendienteForm.name.trim()) return
+    setPendientesSaving(p => ({ ...p, new: true }))
+    try {
+      const res = await fetch(`/api/congresos/${id}/pendientes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPendienteForm)
+      })
+      if (res.ok) {
+        setNewPendienteForm({ name: '', description: '', amount: '', responsable_id: '' })
+        setShowAddPendiente(false)
+        await fetchPendientes()
+      } else {
+        const e = await res.json()
+        alert('Error: ' + e.error)
+      }
+    } finally {
+      setPendientesSaving(p => ({ ...p, new: false }))
+    }
+  }
+
+  const handleTogglePendiente = async (pendienteId: string, completed: boolean) => {
+    setPendientesSaving(p => ({ ...p, [pendienteId]: true }))
+    try {
+      const res = await fetch(`/api/congresos/${id}/pendientes/${pendienteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed })
+      })
+      if (res.ok) {
+        await fetchPendientes()
+      }
+    } finally {
+      setPendientesSaving(p => ({ ...p, [pendienteId]: false }))
+    }
+  }
+
+  const handleUpdateComments = async (pendienteId: string, comments: string) => {
+    setPendientesSaving(p => ({ ...p, [pendienteId]: true }))
+    try {
+      const res = await fetch(`/api/congresos/${id}/pendientes/${pendienteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comments })
+      })
+      if (res.ok) {
+        await fetchPendientes()
+      }
+    } finally {
+      setPendientesSaving(p => ({ ...p, [pendienteId]: false }))
+    }
+  }
+
+  const handleUpdateResponsable = async (pendienteId: string, responsable_id: string) => {
+    setPendientesSaving(p => ({ ...p, [pendienteId]: true }))
+    try {
+      const res = await fetch(`/api/congresos/${id}/pendientes/${pendienteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responsable_id })
+      })
+      if (res.ok) {
+        await fetchPendientes()
+      }
+    } finally {
+      setPendientesSaving(p => ({ ...p, [pendienteId]: false }))
+    }
+  }
+
+  const handleDeletePendiente = async (pendienteId: string) => {
+    if (!confirm('¿Eliminar este pendiente?')) return
+    setPendientesSaving(p => ({ ...p, [pendienteId]: true }))
+    try {
+      await fetch(`/api/congresos/${id}/pendientes/${pendienteId}`, { method: 'DELETE' })
+      await fetchPendientes()
+    } finally {
+      setPendientesSaving(p => ({ ...p, [pendienteId]: false }))
+    }
+  }
+
   const formatFriendlyDate = (dateStr: string) => {
     if (!dateStr) return ''
     try {
@@ -1124,6 +1228,13 @@ export default function EditCongresoPage() {
           </button>
           <button
             type="button"
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'pendientes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab('pendientes')}
+          >
+            <ClipboardList size={16} /> Pendientes ({pendientes.length})
+          </button>
+          <button
+            type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'talleres' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
             onClick={() => setActiveTab('talleres')}
           >
@@ -1219,6 +1330,193 @@ export default function EditCongresoPage() {
 
         <form onSubmit={handleSave} className="space-y-6">
           
+          {activeTab === 'pendientes' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <ClipboardList size={18} className="text-blue-500" />
+                    Pendientes del Congreso
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Administra las tareas y pendientes del congreso. Asigna responsables, montos y añade comentarios.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddPendiente(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Plus size={15} /> Nuevo Pendiente
+                </button>
+              </div>
+
+              {showAddPendiente && (
+                <div className="p-5 bg-blue-50 border border-blue-200 rounded-2xl space-y-4">
+                  <h4 className="font-bold text-sm text-blue-900">Nuevo Pendiente</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Nombre *</label>
+                      <input
+                        type="text"
+                        placeholder="Nombre de la tarea / pendiente"
+                        className="erp-input w-full bg-white"
+                        value={newPendienteForm.name}
+                        onChange={e => setNewPendienteForm(p => ({ ...p, name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Monto (Opcional)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="erp-input w-full bg-white"
+                        value={newPendienteForm.amount}
+                        onChange={e => setNewPendienteForm(p => ({ ...p, amount: e.target.value }))}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Descripción</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Breve descripción del pendiente"
+                        className="erp-input w-full bg-white"
+                        value={newPendienteForm.description}
+                        onChange={e => setNewPendienteForm(p => ({ ...p, description: e.target.value }))}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Responsable</label>
+                      <select
+                        className="erp-input w-full bg-white"
+                        value={newPendienteForm.responsable_id}
+                        onChange={e => setNewPendienteForm(p => ({ ...p, responsable_id: e.target.value }))}
+                      >
+                        <option value="">-- Sin asignar --</option>
+                        {staffList.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.first_name || s.last_name ? `${s.first_name || ''} ${s.last_name || ''}`.trim() : s.email} {s.position ? `(${s.position})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCreatePendiente}
+                      disabled={!newPendienteForm.name.trim() || pendientesSaving['new']}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {pendientesSaving['new'] ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Crear
+                    </button>
+                    <button type="button" onClick={() => { setShowAddPendiente(false); setNewPendienteForm({ name: '', description: '', amount: '', responsable_id: '' }) }} className="btn-secondary text-sm">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {pendientesLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="animate-spin text-blue-500" size={28} /></div>
+              ) : pendientes.length === 0 ? (
+                <div className="text-center py-14 border-2 border-dashed border-gray-200 rounded-2xl space-y-2">
+                  <ClipboardList size={36} className="text-gray-300 mx-auto" />
+                  <p className="text-sm font-semibold text-gray-500">No hay pendientes registrados</p>
+                  <p className="text-xs text-gray-400">Crea un pendiente para comenzar a dar seguimiento.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendientes.map(item => {
+                    const itemId = item.id
+                    const isSaving = !!pendientesSaving[itemId]
+                    return (
+                      <div key={itemId} className={`bg-white border rounded-2xl shadow-sm overflow-hidden transition-all duration-200 ${item.completed ? 'border-gray-200 bg-gray-50/50' : 'border-gray-150'}`}>
+                        <div className="p-4 flex flex-col md:flex-row md:items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={item.completed}
+                              disabled={isSaving}
+                              onChange={e => handleTogglePendiente(itemId, e.target.checked)}
+                              className="mt-1.5 w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <h4 className={`font-bold text-sm text-gray-900 ${item.completed ? 'line-through text-gray-400' : ''}`}>{item.name}</h4>
+                              {item.description && (
+                                <p className={`text-xs text-gray-500 mt-1 whitespace-pre-line ${item.completed ? 'text-gray-450' : ''}`}>{item.description}</p>
+                              )}
+                              
+                              <div className="flex flex-wrap items-center gap-3 mt-3">
+                                {item.amount !== null && (
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
+                                    <DollarSign size={12} />
+                                    {Number(item.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                  </span>
+                                )}
+
+                                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                  <span className="font-medium">Responsable:</span>
+                                  <select
+                                    value={item.responsable_id || ''}
+                                    disabled={isSaving}
+                                    onChange={e => handleUpdateResponsable(itemId, e.target.value)}
+                                    className="bg-transparent border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-650 hover:bg-gray-50 focus:bg-white"
+                                  >
+                                    <option value="">-- Sin asignar --</option>
+                                    {staffList.map(s => (
+                                      <option key={s.id} value={s.id}>
+                                        {s.first_name || s.last_name ? `${s.first_name || ''} ${s.last_name || ''}`.trim() : s.email}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-2 shrink-0 self-end md:self-start">
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePendiente(itemId)}
+                              disabled={isSaving}
+                              className="p-1.5 text-gray-450 hover:text-red-650 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Comments Block */}
+                        <div className="bg-gray-50 border-t border-gray-100 p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <span className="text-xs font-semibold text-gray-450 shrink-0 select-none">Comentarios:</span>
+                          <input
+                            type="text"
+                            placeholder="Añade un comentario sobre este pendiente..."
+                            defaultValue={item.comments || ''}
+                            disabled={isSaving}
+                            onBlur={e => {
+                              if (e.target.value !== (item.comments || '')) {
+                                handleUpdateComments(itemId, e.target.value)
+                              }
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                e.currentTarget.blur()
+                              }
+                            }}
+                            className="flex-1 bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-blue-300"
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'general' && (
             <div className="card p-6 md:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

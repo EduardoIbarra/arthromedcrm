@@ -929,6 +929,7 @@ model congresos {
   congreso_temp_staff       congreso_temp_staff[]
   congreso_hotel_rooms      congreso_hotel_rooms[]
   congreso_stations         congreso_stations[]
+  congreso_pendientes       congreso_pendientes[]
 
   @@index([start_date])
   @@schema("public")
@@ -1969,6 +1970,7 @@ model user_profiles {
   congreso_members                                                            congreso_members[]
   congreso_itinerary_members                                                  congreso_itinerary_members[]
   congreso_hotel_occupants                                                    congreso_hotel_occupants[]
+  congreso_pendientes                                                         congreso_pendientes[]
 
   @@schema("public")
 }
@@ -2339,6 +2341,24 @@ model congreso_station_products {
   productos         productos         @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([station_id])
+  @@schema("public")
+}
+
+model congreso_pendientes {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congreso_id    String         @db.Uuid
+  name           String
+  description    String?
+  amount         Decimal?       @db.Decimal(10, 2)
+  completed      Boolean        @default(false)
+  comments       String?
+  responsable_id String?        @db.Uuid
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
+  congresos      congresos      @relation(fields: [congreso_id], references: [id], onDelete: Cascade)
+  responsable    user_profiles? @relation(fields: [responsable_id], references: [id], onDelete: SetNull)
+
+  @@index([congreso_id])
   @@schema("public")
 }
 

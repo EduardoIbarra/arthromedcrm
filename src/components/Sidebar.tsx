@@ -5,7 +5,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
-  ChevronLeft, ChevronRight, Menu, X, Package, Building, Calendar, Receipt,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Menu, X, Package, Building, Calendar, Receipt,
   ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest, Bot, Sparkles, Ticket, Stethoscope, BookOpen,
   Globe, Send, Palette, Car, Bell, LayoutGrid, Box
 } from 'lucide-react'
@@ -32,6 +32,8 @@ export default function Sidebar() {
   const { hasPermission, loading } = useUser()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  const [searchQuery, setSearchQuery] = useState('')
 
   const navGroups: NavGroup[] = [
     {
@@ -103,13 +105,26 @@ export default function Sidebar() {
     },
   ]
 
-  // Filter groups and items based on permissions
-  const filteredNavGroups = navGroups.map(group => ({
-    ...group,
-    items: group.items.filter(item =>
-      hasPermission(item.section, item.action || 'view')
-    )
-  })).filter(group => group.items.length > 0)
+  const toggleGroup = (title: string) => {
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [title]: !prev[title]
+    }))
+  }
+
+  // Filter groups and items based on permissions and search query
+  const filteredNavGroups = navGroups.map(group => {
+    const matchedItems = group.items.filter(item => {
+      const hasPerm = hasPermission(item.section, item.action || 'view')
+      if (!hasPerm) return false
+      if (!searchQuery.trim()) return true
+      return item.label.toLowerCase().includes(searchQuery.toLowerCase())
+    })
+    return {
+      ...group,
+      items: matchedItems
+    }
+  }).filter(group => group.items.length > 0)
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href)
@@ -149,6 +164,24 @@ export default function Sidebar() {
         )}
       </div>
 
+      {/* Search Input */}
+      {!collapsed && (
+        <div className="px-3 pt-3">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={t('search' as any) || 'Buscar...'}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-1.5 pl-8 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-blue-300 bg-gray-50 focus:bg-white transition-colors"
+            />
+            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
         {loading ? (
@@ -165,8 +198,18 @@ export default function Sidebar() {
           filteredNavGroups.map((group, groupIndex) => (
             <div key={groupIndex} className="space-y-1">
               {group.title && !collapsed && (
-                <div className="px-3 py-1.5 text-xs font-semibold tracking-wider uppercase text-gray-500">
-                  {group.title}
+                <div
+                  onClick={() => group.title && toggleGroup(group.title)}
+                  className="px-3 py-1.5 text-xs font-semibold tracking-wider uppercase text-gray-500 cursor-pointer hover:text-gray-800 flex items-center justify-between group/title select-none"
+                >
+                  <span>{group.title}</span>
+                  <div className="text-gray-400 group-hover/title:text-gray-650 transition-colors">
+                    {collapsedGroups[group.title] && !searchQuery.trim() ? (
+                      <ChevronDown size={14} />
+                    ) : (
+                      <ChevronUp size={14} />
+                    )}
+                  </div>
                 </div>
               )}
               {group.title && collapsed && (
@@ -174,7 +217,7 @@ export default function Sidebar() {
                   —
                 </div>
               )}
-              {group.items.map((item) => {
+              {(!group.title || collapsed || !collapsedGroups[group.title!] || searchQuery.trim() !== '') && group.items.map((item) => {
                 const Icon = item.icon
                 const active = isActive(item.href)
                 return (
@@ -270,7 +313,7 @@ export default function Sidebar() {
         >
           <X size={18} />
         </button>
-        <SidebarContent />
+        {SidebarContent()}
       </aside>
 
       <aside
@@ -280,7 +323,7 @@ export default function Sidebar() {
           ${collapsed ? 'w-16' : 'w-60'}
         `}
       >
-        <SidebarContent />
+        {SidebarContent()}
       </aside>
     </>
   )

@@ -38,7 +38,7 @@ const prismaClientSingleton = () => {
   })
 }
 
-const TRIGGER_VERSION = 10
+const TRIGGER_VERSION = 11
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
