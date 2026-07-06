@@ -38,21 +38,25 @@ export async function GET(request: NextRequest) {
         }
       }),
       prisma.productos.findMany({
-        select: { nombre: true, line: true }
+        select: { nombre: true, line: true, nombre_lista: true }
       })
     ])
 
     // Build a fuzzy matcher from all canonical product names
     const canonicalNames = Array.from(new Set(
-      allProductos.map((p: any) => p.nombre ? cleanProductName(p.nombre) : '').filter(Boolean)
+      allProductos.map((p: any) => {
+        const name = p.nombre_lista || p.nombre
+        return name ? cleanProductName(name) : ''
+      }).filter(Boolean)
     )) as string[]
     const matchProductName = buildProductMatcher(canonicalNames)
 
     // Build name → line lookup for fuzzy-matched rows (no producto_id)
     const nameToLine = new Map<string, string>()
     for (const p of allProductos) {
-      if (p.nombre && p.line) {
-        nameToLine.set(cleanProductName(p.nombre), p.line)
+      const name = p.nombre_lista || p.nombre
+      if (name && p.line) {
+        nameToLine.set(cleanProductName(name), p.line)
       }
     }
 
@@ -276,9 +280,9 @@ export async function GET(request: NextRequest) {
     // Priority: (1) linked/raw product name cleaned  (2) fuzzy match  (3) raw name
     const resolveProductName = (fp: any, inv?: any): string => {
       if (inv?.observaciones && String(inv.observaciones).startsWith('Importación histórica')) {
-        return fp.producto_nombre || 'Desconocido'
+        return fp.productos?.nombre_lista || fp.producto_nombre || 'Desconocido'
       }
-      const initialName = fp.productos?.nombre || fp.producto_nombre || 'Desconocido'
+      const initialName = fp.productos?.nombre_lista || fp.productos?.nombre || fp.producto_nombre || 'Desconocido'
       const cleaned = cleanProductName(initialName)
       return matchProductName(cleaned).canonicalName
     }
