@@ -47,10 +47,8 @@ export async function GET(request: NextRequest) {
       observaciones: string | null
       created_at: string | null
     }>(`
-      SELECT DISTINCT oc.*
+      SELECT oc.*
       FROM ordenes_compra oc
-      INNER JOIN orden_productos op ON op.orden_id = oc.id
-      WHERE (op.cantidad_recibida IS NULL OR op.cantidad_recibida < op.cantidad_ordenada)
       ORDER BY oc.created_at DESC
     `)
 
