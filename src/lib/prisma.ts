@@ -75,7 +75,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ── Query Routing Helper ────────────────────────────────────
-const SECONDARY_MODELS = ['facturas_cliente', 'factura_productos']
+const SECONDARY_MODELS = ['factura_productos']
 
 async function processQueryArgsAndResolve(model: string, operation: string, args: any, query: any): Promise<any> {
   if (!args) {
@@ -294,7 +294,25 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
         }
       }
     } else if (inst.targetModel === 'factura_productos') {
-      if (inst.parentModel === 'productos') {
+      if (inst.parentModel === 'facturas_cliente') {
+        const ids = parentObjects.map((p: any) => p.id).filter(Boolean)
+        if (ids.length > 0) {
+          const related = await targetQueryFn({
+            where: { factura_id: { in: ids } },
+            ...(typeof inst.config === 'object' ? inst.config : {})
+          })
+          const grouped: Record<string, any[]> = {}
+          for (const item of related) {
+            if (item.factura_id) {
+              if (!grouped[item.factura_id]) grouped[item.factura_id] = []
+              grouped[item.factura_id].push(item)
+            }
+          }
+          for (const p of parentObjects) {
+            p.factura_productos = grouped[p.id] || []
+          }
+        }
+      } else if (inst.parentModel === 'productos') {
         const ids = parentObjects.map((p: any) => p.id).filter(Boolean)
         if (ids.length > 0) {
           const related = await targetQueryFn({
