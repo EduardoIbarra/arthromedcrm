@@ -210,7 +210,7 @@ export default function ImportRepartitionPage() {
       const data = await res.json()
       if (data.data) {
         setOrdenes(data.data)
-        setSelectedOrderIds(new Set(data.data.map((o: OrdenCompra) => o.id)))
+        setSelectedOrderIds(new Set())
       }
     } catch (err) { console.error(err) }
     finally { setLoadingOrdenes(false) }
