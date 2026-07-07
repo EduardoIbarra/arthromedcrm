@@ -277,7 +277,7 @@ const basePrisma = hasUpdates ? globalThis.prisma! : prismaClientSingleton()
 const extendedPrisma = basePrisma.$extends({
   query: {
     $allModels: {
-      async $allOperations({ model, operation, args, query }) {
+      async $allOperations({ model, operation, args, query }: any) {
         if (model === 'factura_productos') {
           const isRead = ['findMany', 'findUnique', 'findFirst', 'findFirstOrThrow', 'findUniqueOrThrow'].includes(operation)
           if (isRead) {
