@@ -169,7 +169,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
       }
       const key = inst.path[pathIdx]
       if (Array.isArray(obj)) {
-        return obj.flatMap(item => collectObjects(item[key], pathIdx + 1))
+        return obj.flatMap((item: any) => collectObjects(item[key], pathIdx + 1))
       }
       return collectObjects(obj[key], pathIdx + 1)
     }
@@ -179,7 +179,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
 
     if (inst.type === 'to_factura_productos') {
       if (inst.model === 'facturas_cliente') {
-        const ids = parentObjects.map(p => p.id).filter(Boolean)
+        const ids = parentObjects.map((p: any) => p.id).filter(Boolean)
         if (ids.length > 0) {
           const related = await processQueryArgsAndResolve('factura_productos', 'findMany', {
             where: { factura_id: { in: ids } },
@@ -195,7 +195,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
           }
         }
       } else if (inst.model === 'productos') {
-        const ids = parentObjects.map(p => p.id).filter(Boolean)
+        const ids = parentObjects.map((p: any) => p.id).filter(Boolean)
         if (ids.length > 0) {
           const related = await processQueryArgsAndResolve('factura_productos', 'findMany', {
             where: { producto_id: { in: ids } },
@@ -213,13 +213,13 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
           }
         }
       } else if (inst.model === 'importacion_asignaciones') {
-        const ids = parentObjects.map(p => p.factura_producto_id).filter(Boolean)
+        const ids = parentObjects.map((p: any) => p.factura_producto_id).filter(Boolean)
         if (ids.length > 0) {
           const related = await processQueryArgsAndResolve('factura_productos', 'findMany', {
             where: { id: { in: ids } },
             ...(typeof inst.config === 'object' ? inst.config : {})
           }, null)
-          const map = new Map(related.map(r => [r.id, r]))
+          const map = new Map(related.map((r: any) => [r.id, r]))
           for (const p of parentObjects) {
             p.factura_productos = map.get(p.factura_producto_id) || null
           }
@@ -227,25 +227,25 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
       }
     } else if (inst.type === 'from_factura_productos') {
       if (inst.relation === 'facturas_cliente') {
-        const ids = parentObjects.map(p => p.factura_id).filter(Boolean)
+        const ids = parentObjects.map((p: any) => p.factura_id).filter(Boolean)
         if (ids.length > 0) {
           const related = await query({
             where: { id: { in: ids } },
             ...(typeof inst.config === 'object' ? inst.config : {})
           })
-          const map = new Map(related.map(r => [r.id, r]))
+          const map = new Map(related.map((r: any) => [r.id, r]))
           for (const p of parentObjects) {
             p.facturas_cliente = map.get(p.factura_id) || null
           }
         }
       } else if (inst.relation === 'productos') {
-        const ids = parentObjects.map(p => p.producto_id).filter(Boolean)
+        const ids = parentObjects.map((p: any) => p.producto_id).filter(Boolean)
         if (ids.length > 0) {
           const related = await query({
             where: { id: { in: ids } },
             ...(typeof inst.config === 'object' ? inst.config : {})
           })
-          const map = new Map(related.map(r => [r.id, r]))
+          const map = new Map(related.map((r: any) => [r.id, r]))
           for (const p of parentObjects) {
             p.productos = map.get(p.producto_id) || null
           }
