@@ -23,6 +23,9 @@ import {
   Recycle,
   ShoppingCart,
   RotateCcw,
+  AlertCircle,
+  BedDouble,
+  Hotel,
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
@@ -33,7 +36,13 @@ interface Props {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type UserProfile = { id: string; email: string }
+type UserProfile = {
+  id: string
+  email: string
+  first_name?: string | null
+  last_name?: string | null
+  position?: string | null
+}
 
 type ProductoStock = {
   id: string
@@ -48,6 +57,7 @@ type ProductoStock = {
 type EquipoItem = {
   user_id: string
   rol: string
+  car_id?: string | null
   _email?: string
 }
 
@@ -82,7 +92,7 @@ const ESTADOS = [
   { value: 'cancelada', label: 'Cancelada' },
 ]
 
-const SECTION_IDS = ['info', 'equipo', 'productos', 'itinerario', 'precios'] as const
+const SECTION_IDS = ['info', 'equipo', 'productos', 'itinerario', 'habitaciones', 'precios'] as const
 type SectionId = typeof SECTION_IDS[number]
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -109,9 +119,12 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   // ── Reference data ──
   const [usuarios, setUsuarios] = useState<UserProfile[]>([])
   const [stockItems, setStockItems] = useState<ProductoStock[]>([])
+  const [plantillas, setPlantillas] = useState<any[]>([])
+  const [vehicles, setVehicles] = useState<any[]>([])
 
   // ── UI state ──
   const [activeSection, setActiveSection] = useState<SectionId>('info')
+  const [groupStaffByVehicle, setGroupStaffByVehicle] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(!isNew)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -123,9 +136,13 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     Promise.all([
       fetch('/api/cirugias/usuarios').then(r => r.json()),
       fetch('/api/inventario').then(r => r.json()),
-    ]).then(([u, inv]) => {
+      fetch('/api/cirugias/plantillas').then(r => r.json()),
+      fetch('/api/car-fleet').then(r => r.json()),
+    ]).then(([u, inv, pl, cars]) => {
       setUsuarios(u.data || [])
       setStockItems(inv.data || [])
+      setPlantillas(pl.data || [])
+      setVehicles(cars.data || [])
     })
   }, [])
 
@@ -146,10 +163,12 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
         setHora(d.toTimeString().slice(0, 5))
         setEstado(data.estado)
         setNotas(data.notas || '')
+        setHotelRooms(data.cirugia_hotel_rooms || [])
         setEquipo(
           data.cirugia_equipo.map((e: any) => ({
             user_id: e.user_id,
             rol: e.rol || '',
+            car_id: e.car_id || null,
             _email: e.user_id,
           }))
         )
@@ -242,6 +261,112 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     )
   }
 
+  const applyTemplate = (plantillaId: string) => {
+    const plantilla = plantillas.find(p => p.id === plantillaId)
+    if (!plantilla) return
+
+    if (productos.length > 0) {
+      if (!window.confirm('¿Estás seguro de cargar la plantilla? Esto reemplazará los productos actuales.')) {
+        return
+      }
+    }
+
+    const newProds = (plantilla.cirugia_plantilla_productos || []).map((p: any) => {
+      const stockItem = stockItems.find(s => s.id === p.producto_id)
+      return {
+        producto_id: p.producto_id,
+        cantidad: p.cantidad,
+        es_consumible: p.es_consumible,
+        tipo_uso: p.tipo_uso || 'venta',
+        precio_unitario: p.precio_unitario != null ? String(p.precio_unitario) : (stockItem?.precio_unitario != null ? String(stockItem.precio_unitario) : ''),
+        _nombre: p.productos?.nombre || stockItem?.nombre || 'Producto',
+        _precio_base: stockItem ? Number(stockItem.precio_unitario) : 0,
+      }
+    })
+
+    setProductos(newProds)
+  }
+
+  // ── Hotel Rooms State ──
+  const [hotelRooms, setHotelRooms] = useState<any[]>([])
+  const [showAddRoom, setShowAddRoom] = useState(false)
+  const [roomFormNumber, setRoomFormNumber] = useState('')
+  const [roomFormType, setRoomFormType] = useState('Sencilla')
+  const [roomFormCapacity, setRoomFormCapacity] = useState(2)
+  const [roomFormNotes, setRoomFormNotes] = useState('')
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null)
+
+  const handleSaveRoom = () => {
+    if (!roomFormNumber.trim()) {
+      alert('Número / Nombre de la habitación es requerido')
+      return
+    }
+    if (editingRoomId) {
+      setHotelRooms(prev => prev.map(r => r.id === editingRoomId ? {
+        ...r,
+        room_number: roomFormNumber,
+        room_type: roomFormType,
+        capacity: roomFormCapacity,
+        notes: roomFormNotes,
+      } : r))
+    } else {
+      setHotelRooms(prev => [
+        ...prev,
+        {
+          id: `temp-${Math.random()}`,
+          room_number: roomFormNumber,
+          room_type: roomFormType,
+          capacity: roomFormCapacity,
+          notes: roomFormNotes,
+          cirugia_hotel_occupants: [],
+        }
+      ])
+    }
+    setShowAddRoom(false)
+    setRoomFormNumber('')
+    setRoomFormNotes('')
+    setEditingRoomId(null)
+  }
+
+  const handleDeleteRoom = (roomId: string) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta habitación?')) return
+    setHotelRooms(prev => prev.filter(r => r.id !== roomId))
+  }
+
+  const handleAddOccupant = (roomId: string, userId: string | null, guestName?: string) => {
+    setHotelRooms(prev => prev.map(r => {
+      if (r.id !== roomId) return r
+      const currentOccupants = r.cirugia_hotel_occupants || []
+      if (userId && currentOccupants.some((o: any) => o.user_id === userId)) {
+        alert('Este miembro ya está asignado a la habitación')
+        return r
+      }
+      return {
+        ...r,
+        cirugia_hotel_occupants: [
+          ...currentOccupants,
+          {
+            id: `temp-occ-${Math.random()}`,
+            user_id: userId,
+            guest_name: guestName || null,
+            guest_phone: null,
+            user_profiles: userId ? usuarios.find(u => u.id === userId) : null
+          }
+        ]
+      }
+    }))
+  }
+
+  const handleRemoveOccupant = (roomId: string, occupantId: string) => {
+    setHotelRooms(prev => prev.map(r => {
+      if (r.id !== roomId) return r
+      return {
+        ...r,
+        cirugia_hotel_occupants: (r.cirugia_hotel_occupants || []).filter((o: any) => o.id !== occupantId)
+      }
+    }))
+  }
+
   const addConcepto = () => {
     setConceptos(prev => [
       ...prev,
@@ -299,7 +424,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
       fecha: fechaISO,
       estado,
       notas: notas.trim() || null,
-      equipo: equipo.map(e => ({ user_id: e.user_id, rol: e.rol || null })),
+      equipo: equipo.map(e => ({ user_id: e.user_id, rol: e.rol || null, car_id: e.car_id || null })),
       productos: productos.map(p => ({
         producto_id: p.producto_id,
         cantidad: Number(p.cantidad),
@@ -318,6 +443,17 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
         date: i.date,
         time: i.time.trim() || null,
         notes: i.notes.trim() || null,
+      })),
+      hotelRooms: hotelRooms.map(r => ({
+        room_number: r.room_number,
+        room_type: r.room_type,
+        capacity: r.capacity,
+        notes: r.notes,
+        cirugia_hotel_occupants: (r.cirugia_hotel_occupants || []).map((o: any) => ({
+          user_id: o.user_id,
+          guest_name: o.guest_name,
+          guest_phone: o.guest_phone,
+        }))
       })),
     }
 
@@ -350,6 +486,12 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     !productos.find(p => p.producto_id === s.id) &&
     s.nombre.toLowerCase().includes(prodSearch.toLowerCase())
   )
+
+  const hasShortage = productos.some(p => {
+    const stockItem = stockItems.find(s => s.id === p.producto_id)
+    const stockAvailable = stockItem?.stock_actual || 0
+    return p.cantidad > stockAvailable
+  })
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -408,10 +550,11 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
         <div className="flex border-b border-gray-200 gap-1 overflow-x-auto">
           {([
             { id: 'info' as SectionId, label: 'Info General', icon: Info, badge: undefined as number | undefined },
-            { id: 'equipo' as SectionId, label: 'Equipo', icon: Users, badge: equipo.length },
+            { id: 'equipo' as SectionId, label: 'Miembros del Staff', icon: Users, badge: equipo.length },
             { id: 'productos' as SectionId, label: 'Productos', icon: Package, badge: productos.length },
             { id: 'itinerario' as SectionId, label: 'Itinerario', icon: CheckCircle2, badge: itinerarios.length },
-            { id: 'precios' as SectionId, label: 'Precios', icon: DollarSign, badge: conceptos.length },
+            { id: 'habitaciones' as SectionId, label: 'Habitaciones', icon: Hotel, badge: hotelRooms.length },
+            { id: 'precios' as SectionId, label: 'Resumen', icon: DollarSign, badge: conceptos.length },
           ]).map(({ id, label, icon: Icon, badge }) => (
             <button
               key={id}
@@ -605,34 +748,181 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 </div>
               )}
 
+              {equipo.length > 0 && (
+                <div className="flex items-center justify-between mt-4 mb-2">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Miembros Agregados</p>
+                  <button
+                    type="button"
+                    onClick={() => setGroupStaffByVehicle(prev => !prev)}
+                    className={`text-xs font-semibold px-3 py-1 rounded-lg border transition-all ${
+                      groupStaffByVehicle
+                        ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {groupStaffByVehicle ? 'Ver Lista Simple' : 'Agrupar por Vehículo'}
+                  </button>
+                </div>
+              )}
+
               {/* Equipo list */}
               {equipo.length > 0 ? (
-                <div className="space-y-2">
-                  {equipo.map((member, idx) => {
-                    const userInfo = usuarios.find(u => u.id === member.user_id)
-                    const displayEmail = userInfo?.email || member._email || member.user_id
-                    return (
-                      <div key={member.user_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                        <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
+                groupStaffByVehicle ? (
+                  <div className="space-y-4">
+                    {/* Vehicles groups */}
+                    {vehicles.map(v => {
+                      const membersInCar = equipo.filter(m => m.car_id === v.id)
+                      if (membersInCar.length === 0) return null
+                      return (
+                        <div key={v.id} className="border border-blue-100 bg-blue-50/20 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-xs text-blue-900 flex items-center gap-1.5">
+                              🚙 {v.alias ? `${v.alias} (${v.make} ${v.model})` : `${v.make} ${v.model} - ${v.plate_number}`}
+                            </h4>
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
+                              {membersInCar.length} ocupante(s)
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {membersInCar.map(member => {
+                              const idx = equipo.findIndex(m => m.user_id === member.user_id)
+                              const userInfo = usuarios.find(u => u.id === member.user_id)
+                              const displayEmail = userInfo?.email || member._email || member.user_id
+                              return (
+                                <div key={member.user_id} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
+                                  <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
+                                    <p className="text-xs font-semibold text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    placeholder="Rol (ej. Instrumentista)"
+                                    value={member.rol}
+                                    onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, rol: e.target.value } : m))}
+                                    className="erp-input text-xs flex-1 min-w-0"
+                                  />
+                                  <select
+                                    value={member.car_id || ''}
+                                    onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, car_id: e.target.value || null } : m))}
+                                    className="erp-input text-xs flex-1 min-w-0 bg-white"
+                                  >
+                                    <option value="">-- Sin Vehículo --</option>
+                                    {vehicles.map(vehicle => (
+                                      <option key={vehicle.id} value={vehicle.id}>
+                                        {vehicle.alias ? `${vehicle.alias} (${vehicle.make} ${vehicle.model})` : `${vehicle.make} ${vehicle.model} - ${vehicle.plate_number}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => removeEquipoMember(member.user_id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
-                        <input
-                          type="text"
-                          placeholder="Rol (ej. Instrumentista)"
-                          value={member.rol}
-                          onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, rol: e.target.value } : m))}
-                          className="erp-input text-sm flex-1 min-w-0"
-                        />
-                        <button
-                          onClick={() => removeEquipoMember(member.user_id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+
+                    {/* Unassigned group */}
+                    {(() => {
+                      const unassigned = equipo.filter(m => !m.car_id)
+                      if (unassigned.length === 0) return null
+                      return (
+                        <div className="border border-gray-150 bg-gray-50/50 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                              🚶 Sin Vehículo
+                            </h4>
+                            <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-bold">
+                              {unassigned.length} miembro(s)
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {unassigned.map(member => {
+                              const idx = equipo.findIndex(m => m.user_id === member.user_id)
+                              const userInfo = usuarios.find(u => u.id === member.user_id)
+                              const displayEmail = userInfo?.email || member._email || member.user_id
+                              return (
+                                <div key={member.user_id} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-150">
+                                  <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
+                                    <p className="text-xs font-semibold text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    placeholder="Rol (ej. Instrumentista)"
+                                    value={member.rol}
+                                    onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, rol: e.target.value } : m))}
+                                    className="erp-input text-xs flex-1 min-w-0"
+                                  />
+                                  <select
+                                    value={member.car_id || ''}
+                                    onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, car_id: e.target.value || null } : m))}
+                                    className="erp-input text-xs flex-1 min-w-0 bg-white"
+                                  >
+                                    <option value="">-- Sin Vehículo --</option>
+                                    {vehicles.map(vehicle => (
+                                      <option key={vehicle.id} value={vehicle.id}>
+                                        {vehicle.alias ? `${vehicle.alias} (${vehicle.make} ${vehicle.model})` : `${vehicle.make} ${vehicle.model} - ${vehicle.plate_number}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => removeEquipoMember(member.user_id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {equipo.map((member, idx) => {
+                      const userInfo = usuarios.find(u => u.id === member.user_id)
+                      const displayEmail = userInfo?.email || member._email || member.user_id
+                      return (
+                        <div key={member.user_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                          <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Rol (ej. Instrumentista)"
+                            value={member.rol}
+                            onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, rol: e.target.value } : m))}
+                            className="erp-input text-sm flex-1 min-w-0"
+                          />
+                          <select
+                            value={member.car_id || ''}
+                            onChange={e => setEquipo(prev => prev.map((m, i) => i === idx ? { ...m, car_id: e.target.value || null } : m))}
+                            className="erp-input text-sm flex-1 min-w-0 bg-white"
+                          >
+                            <option value="">-- Sin Vehículo --</option>
+                            {vehicles.map(v => (
+                              <option key={v.id} value={v.id}>
+                                {v.alias ? `${v.alias} (${v.make} ${v.model})` : `${v.make} ${v.model} - ${v.plate_number}`}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => removeEquipoMember(member.user_id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
               ) : (
                 <div className="py-8 text-center text-sm text-gray-400">
                   No has agregado miembros al equipo aún. Busca usuarios arriba.
@@ -657,13 +947,42 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
         {activeSection === 'productos' && (
           <div className="space-y-4">
             <div className="card p-6 space-y-4">
-              <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
-                <Package size={16} style={{ color: '#0763a9' }} />
-                Productos Necesarios
-              </h2>
-              <p className="text-sm text-gray-500">
-                Selecciona los productos del inventario que se utilizarán. Marca si son consumibles y el tipo de uso.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                    <Package size={16} style={{ color: '#0763a9' }} />
+                    Productos Necesarios
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Selecciona los productos del inventario que se utilizarán.
+                  </p>
+                </div>
+                {plantillas.length > 0 && (
+                  <select
+                    id="cargar-plantilla-select"
+                    onChange={e => {
+                      if (e.target.value) {
+                        applyTemplate(e.target.value)
+                        e.target.value = ''
+                      }
+                    }}
+                    className="erp-input text-xs w-full sm:w-64"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>-- Cargar Plantilla de Cirugía --</option>
+                    {plantillas.map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {hasShortage && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span><strong>Advertencia de inventario:</strong> Algunos productos agregados no cuentan con suficiente stock disponible.</span>
+                </div>
+              )}
 
               {/* Product search */}
               <div className="relative">
@@ -715,15 +1034,20 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                   {productos.map(p => {
                     const stockItem = stockItems.find(s => s.id === p.producto_id)
                     return (
-                      <div key={p.producto_id} className="bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-3 sm:space-y-0 sm:grid sm:grid-cols-[1fr_80px_auto_auto_120px_36px] sm:gap-3 sm:items-center">
+                      <div key={p.producto_id} className={`bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-3 sm:space-y-0 sm:grid sm:grid-cols-[1fr_80px_auto_auto_120px_36px] sm:gap-3 sm:items-center ${p.cantidad > (stockItem?.stock_actual || 0) ? 'bg-amber-50/30 border-amber-200' : ''}`}>
                         {/* Nombre */}
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-800 truncate">
                             {p._nombre || stockItem?.nombre || p.producto_id}
                           </p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Base: ${((p._precio_base || Number(stockItem?.precio_unitario)) ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs text-gray-400">
+                            <span>Base: ${((p._precio_base || Number(stockItem?.precio_unitario)) ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                            <span>·</span>
+                            <span>Stock: {stockItem?.stock_actual ?? 0}</span>
+                            {p.cantidad > (stockItem?.stock_actual || 0) && (
+                              <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-700 text-[9px] font-bold uppercase tracking-wider shrink-0">Insuficiente</span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Cantidad */}
@@ -908,8 +1232,255 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
               <button onClick={() => setActiveSection('productos')} className="btn-secondary text-sm">
                 ← Productos
               </button>
+              <button onClick={() => setActiveSection('habitaciones')} className="btn-primary text-sm flex items-center gap-2">
+                Siguiente: Habitaciones <ChevronDown size={15} className="-rotate-90" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: HABITACIONES
+        ═══════════════════════════════════════════════════════════════════ */}
+        {activeSection === 'habitaciones' && (
+          <div className="space-y-4">
+            <div className="card p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                        <Hotel size={16} style={{ color: '#0763a9' }} />
+                        Distribución de Habitaciones
+                      </h2>
+                      <p className="text-xs text-gray-400 mt-0.5">Organiza el hospedaje del staff y asistentes.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddRoom(true)
+                        setEditingRoomId(null)
+                        setRoomFormNumber('')
+                        setRoomFormNotes('')
+                        setRoomFormType('Sencilla')
+                        setRoomFormCapacity(2)
+                      }}
+                      className="btn-primary text-xs flex items-center gap-1.5"
+                    >
+                      <Plus size={14} /> Nueva Habitación
+                    </button>
+                  </div>
+
+                  {showAddRoom && (
+                    <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl space-y-4">
+                      <h3 className="font-semibold text-xs text-blue-900 uppercase tracking-wide">
+                        {editingRoomId ? 'Editar Habitación' : 'Nueva Habitación'}
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Número / Nombre *</label>
+                          <input
+                            type="text"
+                            placeholder="Ej. 101, Suite Master"
+                            className="erp-input w-full text-xs"
+                            value={roomFormNumber}
+                            onChange={e => setRoomFormNumber(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Tipo</label>
+                          <select
+                            className="erp-input w-full text-xs"
+                            value={roomFormType}
+                            onChange={e => setRoomFormType(e.target.value)}
+                          >
+                            <option value="Sencilla">Sencilla</option>
+                            <option value="Doble">Doble</option>
+                            <option value="Triple">Triple</option>
+                            <option value="Suite">Suite</option>
+                            <option value="Junior Suite">Junior Suite</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Capacidad</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            className="erp-input w-full text-xs"
+                            value={roomFormCapacity}
+                            onChange={e => setRoomFormCapacity(parseInt(e.target.value) || 2)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Notas</label>
+                          <input
+                            type="text"
+                            placeholder="Ej. Cama King, Vista calle"
+                            className="erp-input w-full text-xs"
+                            value={roomFormNotes}
+                            onChange={e => setRoomFormNotes(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddRoom(false)}
+                          className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveRoom}
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700"
+                        >
+                          Guardar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {hotelRooms.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {hotelRooms.map((room: any) => {
+                        const occupants = room.cirugia_hotel_occupants || []
+                        return (
+                          <div key={room.id} className="border border-gray-150 rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow">
+                            <div>
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h4 className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                                    <BedDouble size={14} className="text-blue-600" />
+                                    Hab. {room.room_number}
+                                  </h4>
+                                  <p className="text-[10px] text-gray-400 mt-0.5">
+                                    {room.room_type} · Capacidad: {room.capacity} persona(s) ({occupants.length} asignado(s))
+                                  </p>
+                                  {occupants.length > room.capacity && (
+                                    <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 rounded px-1.5 py-0.5 w-max animate-pulse">
+                                      <AlertCircle size={11} className="shrink-0" />
+                                      Sobreocupado (+{occupants.length - room.capacity})
+                                    </div>
+                                  )}
+                                  {room.notes && (
+                                    <p className="text-xs text-gray-500 mt-1 italic">"{room.notes}"</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingRoomId(room.id)
+                                      setRoomFormNumber(room.room_number)
+                                      setRoomFormType(room.room_type || 'Sencilla')
+                                      setRoomFormCapacity(room.capacity || 2)
+                                      setRoomFormNotes(room.notes || '')
+                                      setShowAddRoom(true)
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                    title="Editar Habitación"
+                                  >
+                                    <Plus size={13} className="rotate-45" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteRoom(room.id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                    title="Eliminar Habitación"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <hr className="border-gray-100 my-2.5" />
+
+                              {/* Occupants list */}
+                              <div className="space-y-1.5">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Huéspedes:</p>
+                                {occupants.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {occupants.map((occ: any) => {
+                                      const name = occ.user_profiles
+                                        ? `${occ.user_profiles.first_name || ''} ${occ.user_profiles.last_name || ''}`.trim() || occ.user_profiles.email
+                                        : occ.guest_name
+                                      return (
+                                        <div key={occ.id} className="flex items-center justify-between bg-gray-50 px-2 py-1 rounded border border-gray-100 text-xs">
+                                          <span className="font-medium text-gray-700 truncate">{name}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveOccupant(room.id, occ.id)}
+                                            className="text-gray-400 hover:text-red-600"
+                                          >
+                                            <X size={12} />
+                                          </button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-400 italic">Sin huéspedes asignados</p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Add occupant form */}
+                            <div className="pt-2 border-t border-gray-50 space-y-2">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Asignar Huésped:</p>
+                              <div className="flex gap-2">
+                                <select
+                                  onChange={e => {
+                                    if (e.target.value) {
+                                      handleAddOccupant(room.id, e.target.value)
+                                      e.target.value = ''
+                                    }
+                                  }}
+                                  className="erp-input text-[11px] py-1 flex-1 bg-white"
+                                  defaultValue=""
+                                >
+                                  <option value="" disabled>-- Del Staff --</option>
+                                  {equipo.map(m => {
+                                    const prof = usuarios.find(u => u.id === m.user_id)
+                                    const name = prof ? `${prof.first_name || ''} ${prof.last_name || ''}`.trim() || prof.email : m._email || 'Miembro'
+                                    return (
+                                      <option key={m.user_id} value={m.user_id}>{name}</option>
+                                    )
+                                  })}
+                                </select>
+                                
+                                <input
+                                  type="text"
+                                  placeholder="O escribir nombre..."
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      const val = (e.target as HTMLInputElement).value.trim()
+                                      if (val) {
+                                        handleAddOccupant(room.id, null, val)
+                                        ;(e.target as HTMLInputElement).value = ''
+                                      }
+                                    }
+                                  }}
+                                  className="erp-input text-[11px] py-1 flex-1 bg-white"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+                      No hay habitaciones configuradas para esta cirugía. Crea una arriba.
+                    </div>
+                  )}
+                </div>
+
+            <div className="flex justify-between">
+              <button onClick={() => setActiveSection('itinerario')} className="btn-secondary text-sm">
+                ← Itinerario
+              </button>
               <button onClick={() => setActiveSection('precios')} className="btn-primary text-sm flex items-center gap-2">
-                Siguiente: Precios <ChevronDown size={15} className="-rotate-90" />
+                Siguiente: Resumen <ChevronDown size={15} className="-rotate-90" />
               </button>
             </div>
           </div>
@@ -1070,8 +1641,8 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
 
             {/* Save footer */}
             <div className="flex justify-between">
-              <button onClick={() => setActiveSection('itinerario')} className="btn-secondary text-sm">
-                ← Itinerario
+              <button onClick={() => setActiveSection('habitaciones')} className="btn-secondary text-sm">
+                ← Habitaciones
               </button>
               <button
                 id="btn-save-cirugia-final"

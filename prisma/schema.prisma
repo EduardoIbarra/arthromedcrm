@@ -620,8 +620,10 @@ model cirugia_equipo {
   cirugia_id String    @db.Uuid
   user_id    String    @db.Uuid
   rol        String?
+  car_id     String?   @db.Uuid
   created_at DateTime? @default(now()) @db.Timestamptz(6)
   cirugias   cirugias  @relation(fields: [cirugia_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  car_fleet  car_fleet? @relation(fields: [car_id], references: [id], onDelete: SetNull)
 
   @@unique([cirugia_id, user_id])
   @@index([cirugia_id])
@@ -674,6 +676,7 @@ model cirugias {
   cirugia_equipo      cirugia_equipo[]
   cirugia_itinerarios cirugia_itinerarios[]
   cirugia_productos   cirugia_productos[]
+  cirugia_hotel_rooms cirugia_hotel_rooms[]
   doctors             doctors?              @relation(fields: [doctor_id], references: [id])
 
   @@index([fecha])
@@ -1710,6 +1713,7 @@ model productos {
   remision_productos        remision_productos[]
   workshop_station_products workshop_station_products[]
   congreso_station_products congreso_station_products[]
+  cirugia_plantilla_productos cirugia_plantilla_productos[]
 
 
   @@schema("public")
@@ -1972,6 +1976,7 @@ model user_profiles {
   congreso_itinerary_members                                                  congreso_itinerary_members[]
   congreso_hotel_occupants                                                    congreso_hotel_occupants[]
   congreso_pendientes                                                         congreso_pendientes[]
+  cirugia_hotel_occupants                                                     cirugia_hotel_occupants[]
 
   @@schema("public")
 }
@@ -2139,6 +2144,7 @@ model car_fleet {
   workshop_temp_staff       workshop_temp_staff[]
   congreso_members          congreso_members[]
   congreso_temp_staff       congreso_temp_staff[]
+  cirugia_equipo            cirugia_equipo[]
 
   @@schema("public")
 }
@@ -2446,5 +2452,58 @@ model purchase_order_items {
   @@schema("public")
 }
 
+model cirugia_plantillas {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre                      String
+  descripcion                 String?
+  created_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamptz(6)
+  cirugia_plantilla_productos cirugia_plantilla_productos[]
 
+  @@schema("public")
+}
+
+model cirugia_plantilla_productos {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  plantilla_id       String             @db.Uuid
+  producto_id        String             @db.Uuid
+  cantidad           Int                @default(1)
+  es_consumible      Boolean            @default(false)
+  tipo_uso           String             @default("venta")
+  precio_unitario    Decimal?           @db.Decimal
+  cirugia_plantillas cirugia_plantillas @relation(fields: [plantilla_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productos          productos          @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([plantilla_id])
+  @@schema("public")
+}
+
+model cirugia_hotel_rooms {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cirugia_id               String                     @db.Uuid
+  room_number              String
+  room_type                String?
+  capacity                 Int                        @default(2)
+  notes                    String?
+  created_at               DateTime?                  @default(now()) @db.Timestamptz(6)
+  cirugias                 cirugias                   @relation(fields: [cirugia_id], references: [id], onDelete: Cascade)
+  cirugia_hotel_occupants cirugia_hotel_occupants[]
+
+  @@index([cirugia_id])
+  @@schema("public")
+}
+
+model cirugia_hotel_occupants {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id              String               @db.Uuid
+  user_id              String?              @db.Uuid
+  guest_name           String?
+  guest_phone          String?
+  created_at           DateTime?            @db.Timestamptz(6) @default(now())
+  cirugia_hotel_rooms  cirugia_hotel_rooms  @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  user_profiles        user_profiles?       @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([room_id])
+  @@schema("public")
+}
 

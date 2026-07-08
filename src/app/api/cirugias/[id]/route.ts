@@ -11,7 +11,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const data = await prisma.cirugias.findUnique({
       where: { id },
       include: {
-        cirugia_equipo: true,
+        cirugia_equipo: {
+          include: {
+            car_fleet: true,
+          },
+        },
         cirugia_productos: {
           include: {
             productos: {
@@ -28,6 +32,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         cirugia_conceptos: true,
         cirugia_itinerarios: {
           orderBy: { date: 'asc' }
+        },
+        cirugia_hotel_rooms: {
+          include: {
+            cirugia_hotel_occupants: {
+              include: {
+                user_profiles: {
+                  select: { id: true, first_name: true, last_name: true, email: true, position: true }
+                }
+              },
+              orderBy: { created_at: 'asc' }
+            }
+          },
+          orderBy: { created_at: 'asc' }
         },
       },
     })
@@ -56,6 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       conceptos,
       itinerarios,
       doctor_id,
+      hotelRooms,
     } = body
 
     // Fetch existing team to notify only new members
@@ -67,6 +85,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await prisma.cirugia_productos.deleteMany({ where: { cirugia_id: id } })
     await prisma.cirugia_conceptos.deleteMany({ where: { cirugia_id: id } })
     await prisma.cirugia_itinerarios.deleteMany({ where: { cirugia_id: id } })
+    await prisma.cirugia_hotel_rooms.deleteMany({ where: { cirugia_id: id } })
 
     const data = await prisma.cirugias.update({
       where: { id },
@@ -83,6 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           create: (equipo || []).map((e: any) => ({
             user_id: e.user_id,
             rol: e.rol || null,
+            car_id: e.car_id || null,
           })),
         },
         cirugia_productos: {
@@ -110,9 +130,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             notes: i.notes || null,
           })),
         },
+        cirugia_hotel_rooms: {
+          create: (hotelRooms || []).map((r: any) => ({
+            room_number: r.room_number,
+            room_type: r.room_type || null,
+            capacity: Number(r.capacity) || 2,
+            notes: r.notes || null,
+            cirugia_hotel_occupants: {
+              create: (r.cirugia_hotel_occupants || []).map((occ: any) => ({
+                user_id: occ.user_id || null,
+                guest_name: occ.guest_name || null,
+                guest_phone: occ.guest_phone || null,
+              }))
+            }
+          }))
+        }
       },
       include: {
-        cirugia_equipo: true,
+        cirugia_equipo: {
+          include: {
+            car_fleet: true,
+          },
+        },
         cirugia_productos: {
           include: {
             productos: { select: { id: true, nombre: true, precio_unitario: true, categoria: true, tipo: true } },
@@ -121,6 +160,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         cirugia_conceptos: true,
         cirugia_itinerarios: {
           orderBy: { date: 'asc' }
+        },
+        cirugia_hotel_rooms: {
+          include: {
+            cirugia_hotel_occupants: {
+              include: {
+                user_profiles: {
+                  select: { id: true, first_name: true, last_name: true, email: true, position: true }
+                }
+              },
+              orderBy: { created_at: 'asc' }
+            }
+          },
+          orderBy: { created_at: 'asc' }
         },
       },
     })

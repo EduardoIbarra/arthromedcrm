@@ -9,7 +9,11 @@ export async function GET() {
   try {
     const data = await prisma.cirugias.findMany({
       include: {
-        cirugia_equipo: true,
+        cirugia_equipo: {
+          include: {
+            car_fleet: true,
+          },
+        },
         cirugia_productos: {
           include: { productos: { select: { nombre: true, precio_unitario: true } } },
         },
@@ -43,6 +47,7 @@ export async function POST(req: NextRequest) {
       conceptos,    // [{ concepto, cantidad, precio_unitario, subtotal }]
       itinerarios,  // [{ activity, date, time, notes }]
       doctor_id,
+      hotelRooms,   // [{ room_number, room_type, capacity, notes, occupants }]
     } = body
 
     if (!nombre || !medico || !fecha) {
@@ -62,6 +67,7 @@ export async function POST(req: NextRequest) {
           create: (equipo || []).map((e: any) => ({
             user_id: e.user_id,
             rol: e.rol || null,
+            car_id: e.car_id || null,
           })),
         },
         cirugia_productos: {
@@ -89,13 +95,33 @@ export async function POST(req: NextRequest) {
             notes: i.notes || null,
           })),
         },
+        cirugia_hotel_rooms: {
+          create: (hotelRooms || []).map((r: any) => ({
+            room_number: r.room_number,
+            room_type: r.room_type || null,
+            capacity: Number(r.capacity) || 2,
+            notes: r.notes || null,
+            cirugia_hotel_occupants: {
+              create: (r.cirugia_hotel_occupants || []).map((occ: any) => ({
+                user_id: occ.user_id || null,
+                guest_name: occ.guest_name || null,
+                guest_phone: occ.guest_phone || null,
+              }))
+            }
+          }))
+        }
       },
       include: {
         cirugia_equipo: true,
         cirugia_productos: true,
         cirugia_conceptos: true,
         cirugia_itinerarios: true,
-      },
+        cirugia_hotel_rooms: {
+          include: {
+            cirugia_hotel_occupants: true
+          }
+        }
+      }
     })
 
     if (equipo && equipo.length > 0) {
