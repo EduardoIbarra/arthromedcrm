@@ -155,10 +155,7 @@ export async function POST(_request: NextRequest) {
           let action: 'created' | 'updated'
 
           if (cotizacionUuid) {
-            await prisma.cotizaciones.update({
-              where: { id: cotizacionUuid },
-              data: quoteData
-            })
+            // Do not override existing records to preserve local modifications (CFDI use, payment, comments, etc.)
             action = 'updated'
           } else {
             const newQuote = await prisma.cotizaciones.create({
@@ -170,28 +167,27 @@ export async function POST(_request: NextRequest) {
             })
             cotizacionUuid = newQuote.id
             action = 'created'
-          }
 
-          // Recreate line items (delete old + batch insert new)
-          if (est.items?.length > 0) {
-            await prisma.cotizacion_productos.deleteMany({ where: { cotizacion_id: cotizacionUuid } })
-            await prisma.cotizacion_productos.createMany({
-              data: est.items.map((item: any) => {
-                const iName  = item.name || item.description || 'Producto'
-                const rKey   = item.reference?.trim().toLowerCase()
-                const nKey   = iName.trim().toLowerCase()
-                const pid    = (rKey && productByRef.get(rKey)) ?? (nKey && productByName.get(nKey)) ?? null
-                return {
-                  cotizacion_id:      cotizacionUuid,
-                  producto_id:        pid || null,
-                  producto_nombre:    iName,
-                  producto_codigo:    item.reference || null,
-                  cantidad:           Math.round(item.quantity) || 1,
-                  precio_unitario:    item.price || 0,
-                  importe:            (item.price || 0) * (item.quantity || 0)
-                }
+            // Create line items only for newly created records
+            if (est.items?.length > 0) {
+              await prisma.cotizacion_productos.createMany({
+                data: est.items.map((item: any) => {
+                  const iName  = item.name || item.description || 'Producto'
+                  const rKey   = item.reference?.trim().toLowerCase()
+                  const nKey   = iName.trim().toLowerCase()
+                  const pid    = (rKey && productByRef.get(rKey)) ?? (nKey && productByName.get(nKey)) ?? null
+                  return {
+                    cotizacion_id:      cotizacionUuid,
+                    producto_id:        pid || null,
+                    producto_nombre:    iName,
+                    producto_codigo:    item.reference || null,
+                    cantidad:           Math.round(item.quantity) || 1,
+                    precio_unitario:    item.price || 0,
+                    importe:            (item.price || 0) * (item.quantity || 0)
+                  }
+                })
               })
-            })
+            }
           }
 
           return action
