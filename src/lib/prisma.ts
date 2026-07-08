@@ -236,7 +236,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
             ...(typeof inst.config === 'object' ? inst.config : {})
           })
           const grouped: Record<string, any[]> = {}
-          for (const item of related) {
+          for (const item of related || []) {
             if (item.factura_id) {
               if (!grouped[item.factura_id]) grouped[item.factura_id] = []
               grouped[item.factura_id].push(item)
@@ -245,6 +245,24 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
           for (const p of parentObjects) {
             p.planes_pago = grouped[p.id] || []
           }
+        }
+      } else if (inst.relationKey === 'factura_productos') {
+        const ids = parentObjects.map((p: any) => p.id).filter(Boolean)
+        const grouped: Record<string, any[]> = {}
+        if (ids.length > 0) {
+          const related = await targetQueryFn({
+            where: { factura_id: { in: ids } },
+            ...(typeof inst.config === 'object' ? inst.config : {})
+          })
+          for (const item of related || []) {
+            if (item.factura_id) {
+              if (!grouped[item.factura_id]) grouped[item.factura_id] = []
+              grouped[item.factura_id].push(item)
+            }
+          }
+        }
+        for (const p of parentObjects) {
+          p.factura_productos = grouped[p.id] || []
         }
       }
     } else if (inst.parentModel === 'factura_productos') {
@@ -349,7 +367,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 11
+const TRIGGER_VERSION = 12
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>

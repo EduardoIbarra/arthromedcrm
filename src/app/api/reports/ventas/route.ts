@@ -268,6 +268,7 @@ export async function GET(request: NextRequest) {
     // For client first-purchase analysis
     const clientPurchaseDates = new Map<string, Date>()
     matchedInvoices.forEach((inv: any) => {
+      if (!inv.cliente_nombre) return
       const clientKey = inv.cliente_nombre.toLowerCase().trim()
       const prevDate = clientPurchaseDates.get(clientKey)
       const invDate = new Date(inv.fecha_expedicion)
@@ -345,7 +346,7 @@ export async function GET(request: NextRequest) {
 
     // Full prev year — for the "Sales/Units YYYY" column
     fullPrevYearInvoices.forEach((inv: any) => {
-      inv.factura_productos.forEach((fp: any) => {
+      (inv.factura_productos || []).forEach((fp: any) => {
         const linea = getLineChartLine(fp)
         if (linea) {
           ensureLine(lineUnits, linea)
@@ -357,7 +358,7 @@ export async function GET(request: NextRequest) {
     })
 
     periodInvoices.forEach((inv: any) => {
-      inv.factura_productos.forEach((fp: any) => {
+      (inv.factura_productos || []).forEach((fp: any) => {
         const prodName = resolveProductName(fp, inv)
         const revenue = Number(fp.importe) || 0
         const quantity = Number(fp.cantidad_facturada) || 0
@@ -382,7 +383,7 @@ export async function GET(request: NextRequest) {
     })
 
     prevPeriodInvoices.forEach((inv: any) => {
-      inv.factura_productos.forEach((fp: any) => {
+      (inv.factura_productos || []).forEach((fp: any) => {
         const prodName = resolveProductName(fp, inv)
         const quantity = Number(fp.cantidad_facturada) || 0
         const revenue = Number(fp.importe) || 0
@@ -431,8 +432,8 @@ export async function GET(request: NextRequest) {
       if (!unitsByYearAndLineMap.has(year)) {
         unitsByYearAndLineMap.set(year, {})
       }
-      const lineMap = unitsByYearAndLineMap.get(year)!
-      inv.factura_productos.forEach((fp: any) => {
+      const lineMap = unitsByYearAndLineMap.get(year)!;
+      (inv.factura_productos || []).forEach((fp: any) => {
         const linea = getLineChartLine(fp)
         if (linea) {
           lineMap[linea] = (lineMap[linea] || 0) + (Number(fp.cantidad_facturada) || 0)
@@ -490,6 +491,7 @@ export async function GET(request: NextRequest) {
     let returningCustomerRev = 0
 
     periodInvoices.forEach((inv: any) => {
+      if (!inv.cliente_nombre) return
       const clientKey = inv.cliente_nombre.toLowerCase().trim()
       const firstPurchase = clientPurchaseDates.get(clientKey)
       if (firstPurchase && firstPurchase >= rangeStart && firstPurchase <= rangeEnd) {
