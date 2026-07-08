@@ -86,6 +86,7 @@ export default function Sidebar() {
       items: [
         { href: '/ventas', icon: TrendingUp, label: t('ventas'), section: 'ventas' },
         { href: '/facturas', icon: FileText, label: t('customerInvoices' as any) || 'Facturas Clientes', section: 'facturas' },
+        { href: '/cotizaciones', icon: ClipboardList, label: 'Cotizaciones', section: 'cotizaciones' },
         { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
         { href: '/previos', icon: ClipboardList, label: t('previos' as any) || 'Previos', section: 'previos' },
       ],

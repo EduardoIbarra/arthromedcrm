@@ -593,10 +593,11 @@ model cajas {
 }
 
 model cfdi {
-  id          String        @id
-  descripcion String
-  planes_pago planes_pago[]
-  previos     previos[]
+  id           String         @id
+  descripcion  String
+  planes_pago  planes_pago[]
+  previos      previos[]
+  cotizaciones cotizaciones[]
 
   @@schema("public")
 }
@@ -725,6 +726,7 @@ model clientes {
   previos            previos[]
   remisiones         remisiones[]
   salidas_inventario salidas_inventario[]
+  cotizaciones       cotizaciones[]
 
   @@schema("public")
 }
@@ -1219,9 +1221,10 @@ model facturas_entrada {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model forma_pago {
-  id          String    @id
-  descripcion String
-  previos     previos[]
+  id           String         @id
+  descripcion  String
+  previos      previos[]
+  cotizaciones cotizaciones[]
 
   @@schema("public")
 }
@@ -1473,10 +1476,11 @@ model leads {
 }
 
 model metodo_pago {
-  id          String        @id
-  descripcion String
-  planes_pago planes_pago[]
-  previos     previos[]
+  id           String         @id
+  descripcion  String
+  planes_pago  planes_pago[]
+  previos      previos[]
+  cotizaciones cotizaciones[]
 
   @@schema("public")
 }
@@ -1714,6 +1718,7 @@ model productos {
   workshop_station_products workshop_station_products[]
   congreso_station_products congreso_station_products[]
   cirugia_plantilla_productos cirugia_plantilla_productos[]
+  cotizacion_productos      cotizacion_productos[]
 
 
   @@schema("public")
@@ -2504,6 +2509,74 @@ model cirugia_hotel_occupants {
   user_profiles        user_profiles?       @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@index([room_id])
+  @@schema("public")
+}
+
+model cotizaciones {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  alegra_id             String?                 @unique
+  numero_cotizacion     String                  @unique
+  cliente_id            String?                 @db.Uuid
+  cliente_nombre        String
+  cliente_rfc           String?
+  fecha_expedicion      DateTime                @db.Date
+  fecha_vencimiento     DateTime?               @db.Date
+  estado                String                  @default("pendiente")
+  subtotal              Decimal?                @default(0) @db.Decimal(12, 2)
+  iva                   Decimal?                @default(0) @db.Decimal(12, 2)
+  total                 Decimal?                @default(0) @db.Decimal(12, 2)
+  observaciones         String?
+  created_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  cfdi_id               String?
+  metodo_pago_id        String?
+  forma_pago_id         String?
+  clientes              clientes?               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cfdi                  cfdi?                   @relation(fields: [cfdi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  metodo_pago           metodo_pago?            @relation(fields: [metodo_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  forma_pago            forma_pago?             @relation(fields: [forma_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  comentarios           cotizacion_comentarios[]
+  documentos            cotizacion_documentos[]
+  productos             cotizacion_productos[]
+
+  @@index([alegra_id], map: "idx_cotizaciones_alegra_id")
+  @@schema("public")
+}
+
+model cotizacion_comentarios {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cotizacion_id String       @db.Uuid
+  comentario    String
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  cotizacion    cotizaciones @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model cotizacion_documentos {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cotizacion_id String       @db.Uuid
+  nombre        String
+  url           String
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  cotizacion    cotizaciones @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model cotizacion_productos {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cotizacion_id   String       @db.Uuid
+  producto_id     String?      @db.Uuid
+  producto_nombre String
+  producto_codigo String?
+  cantidad        Int          @default(1)
+  precio_unitario Decimal?     @default(0) @db.Decimal(12, 2)
+  importe         Decimal?     @default(0) @db.Decimal(12, 2)
+  created_at      DateTime?    @default(now()) @db.Timestamptz(6)
+  cotizaciones    cotizaciones @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productos       productos?   @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@schema("public")
 }
 
