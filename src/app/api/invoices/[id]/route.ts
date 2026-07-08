@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma, { prismaSegunda } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +47,17 @@ export async function GET(
       return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })
     }
 
-    return NextResponse.json(factura)
+    if (!Array.isArray(factura.factura_productos)) {
+      factura.factura_productos = await prismaSegunda.factura_productos.findMany({
+        where: { factura_id: id },
+        orderBy: { producto_nombre: 'asc' },
+      })
+    }
+
+    return NextResponse.json({
+      ...factura,
+      factura_productos: factura.factura_productos || [],
+    })
   } catch (error: any) {
     console.error('Error fetching factura:', error)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })

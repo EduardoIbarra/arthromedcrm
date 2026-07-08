@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 
 interface FacturaProducto {
@@ -70,6 +70,7 @@ interface Factura {
   total: number
   observaciones: string | null
   alegra_id: string | null
+  xml_original: string | null
   factura_productos: FacturaProducto[]
   remisiones?: Remision[]
   planes_pago?: PlanPago[]
@@ -143,6 +144,34 @@ export default function FacturaDetailPage() {
   const [remisionObservaciones, setRemisionObservaciones] = useState('')
   const [remisionItems, setRemisionItems] = useState<Record<string, number>>({})
   const [isSavingRemision, setIsSavingRemision] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const [downloadingXml, setDownloadingXml] = useState(false)
+
+  const downloadFile = async (type: 'pdf' | 'xml') => {
+    const setLoading = type === 'pdf' ? setDownloadingPdf : setDownloadingXml
+    try {
+      setLoading(true)
+      const res = await fetch(`/api/invoices/${id}/${type}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Error al descargar ${type.toUpperCase()}`)
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] || `Factura_${invoice?.numero_factura || id}.${type}`
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (error: any) {
+      console.error(error)
+      alert(error.message || `Error al descargar ${type.toUpperCase()}`)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleConfirmInvoicePayment = async () => {
     try {
@@ -199,7 +228,7 @@ export default function FacturaDetailPage() {
     try {
       setIsSavingFulfillment(true)
       
-      const itemsPayload = invoice.factura_productos.map(p => ({
+      const itemsPayload = (invoice.factura_productos || []).map(p => ({
         id: p.id,
         cantidad_entregada: fulfillmentStatus === 'completa' ? p.cantidad_facturada : 
                             fulfillmentStatus === 'no_surtida' ? 0 : 
@@ -222,7 +251,7 @@ export default function FacturaDetailPage() {
       setInvoice({
         ...invoice,
         estado_surtido: fulfillmentStatus,
-        factura_productos: invoice.factura_productos.map(p => ({
+        factura_productos: (invoice.factura_productos || []).map(p => ({
           ...p,
           cantidad_entregada: itemsPayload.find(i => i.id === p.id)?.cantidad_entregada || 0
         }))
@@ -242,7 +271,7 @@ export default function FacturaDetailPage() {
     if (!invoice) return
     try {
       setIsSavingEntregada(true)
-      const itemsPayload = invoice.factura_productos.map(p => ({
+      const itemsPayload = (invoice.factura_productos || []).map(p => ({
         id: p.id,
         cantidad_entregada: updatedItems[p.id] ?? p.cantidad_entregada ?? 0
       }))
@@ -266,7 +295,7 @@ export default function FacturaDetailPage() {
     setRemisionNumero('')
     setRemisionObservaciones('')
     const initItems: Record<string, number> = {}
-    invoice?.factura_productos.forEach(fp => { initItems[fp.id] = 0 })
+    ;(invoice?.factura_productos || []).forEach(fp => { initItems[fp.id] = 0 })
     setRemisionItems(initItems)
     setShowRemisionModal(true)
   }
@@ -277,7 +306,7 @@ export default function FacturaDetailPage() {
     setRemisionObservaciones(remision.observaciones || '')
     // Map existing delivered per factura_producto via producto_nombre matching
     const initItems: Record<string, number> = {}
-    invoice?.factura_productos.forEach(fp => {
+    ;(invoice?.factura_productos || []).forEach(fp => {
       const existing = remision.remision_productos.find(rp => rp.producto_nombre === fp.producto_nombre)
       initItems[fp.id] = existing?.cantidad || 0
     })
@@ -289,7 +318,7 @@ export default function FacturaDetailPage() {
     if (!invoice) return
     try {
       setIsSavingRemision(true)
-      const itemsPayload = invoice.factura_productos.map(fp => ({
+      const itemsPayload = (invoice.factura_productos || []).map(fp => ({
         factura_producto_id: fp.id,
         producto_nombre: fp.producto_nombre,
         cantidad: remisionItems[fp.id] || 0
@@ -606,7 +635,7 @@ export default function FacturaDetailPage() {
       <div className="max-w-5xl mx-auto p-6 md:p-8 space-y-6 animate-fade-in">
         
         {/* Header and Back Button */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/facturas')}
@@ -623,6 +652,36 @@ export default function FacturaDetailPage() {
                 Detalle de factura y plan de pagos
               </p>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {invoice.alegra_id && (
+              <button
+                onClick={() => downloadFile('pdf')}
+                disabled={downloadingPdf}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#0763a9] text-[#0763a9] hover:bg-[#0763a9]/5 text-sm font-bold transition-colors shadow-sm disabled:opacity-60"
+              >
+                {downloadingPdf ? (
+                  <span className="inline-block w-4 h-4 border-2 border-[#0763a9]/30 border-t-[#0763a9] rounded-full animate-spin" />
+                ) : (
+                  <FileDown size={15} />
+                )}
+                {downloadingPdf ? 'Descargando...' : 'Descargar PDF'}
+              </button>
+            )}
+            {(invoice.alegra_id || invoice.xml_original) && (
+              <button
+                onClick={() => downloadFile('xml')}
+                disabled={downloadingXml}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-bold transition-colors shadow-sm disabled:opacity-60"
+              >
+                {downloadingXml ? (
+                  <span className="inline-block w-4 h-4 border-2 border-gray-400/30 border-t-gray-600 rounded-full animate-spin" />
+                ) : (
+                  <FileCode size={15} />
+                )}
+                {downloadingXml ? 'Descargando...' : 'Descargar XML'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1559,7 +1618,7 @@ export default function FacturaDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {invoice.factura_productos.map((fp) => (
+                    {(invoice.factura_productos || []).map((fp) => (
                       <tr key={fp.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900 text-sm">{fp.producto_nombre}</td>
                         <td className="px-4 py-3 text-center text-gray-500">{fp.cantidad_facturada}</td>
