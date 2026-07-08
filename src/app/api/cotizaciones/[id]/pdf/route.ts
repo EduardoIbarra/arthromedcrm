@@ -51,9 +51,16 @@ export async function GET(
       return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 })
     }
 
-    // 1. Load background image template
+    // 1. Load background image template and logo
     const machotePath = path.join(process.cwd(), 'resources', 'img', 'machote1.jpeg')
+    const logoCandidates = [
+      path.join(process.cwd(), 'resources', 'img', 'ARTHROMED OFICIAL.png'),
+      path.join(process.cwd(), 'public', 'logo.png'),
+      path.join(process.cwd(), 'scripts', 'arthromed_logo.png'),
+    ]
     let bg1: any = null
+    let logoImage: any = null
+    
     const pdf = await PDFDocument.create()
     const regular = await pdf.embedFont(StandardFonts.Helvetica)
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
@@ -63,11 +70,32 @@ export async function GET(
       bg1 = await pdf.embedJpg(machoteBytes)
     }
 
+    const logoPath = logoCandidates.find(p => fs.existsSync(p))
+    if (logoPath) {
+      const logoBytes = fs.readFileSync(logoPath)
+      logoImage = await pdf.embedPng(logoBytes)
+    }
+
     const page = pdf.addPage([PAGE_W, PAGE_H])
 
     // Draw background
     if (bg1) {
       page.drawImage(bg1, { x: 0, y: 0, width: PAGE_W, height: PAGE_H })
+    }
+
+    // Draw Logo (upper left corner)
+    if (logoImage) {
+      const maxWidth = 140
+      const maxHeight = 50
+      const logoScale = Math.min(maxWidth / logoImage.width, maxHeight / logoImage.height)
+      const lw = logoImage.width * logoScale
+      const lh = logoImage.height * logoScale
+      page.drawImage(logoImage, {
+        x: LEFT - 15,
+        y: PAGE_H - 20 - lh,
+        width: lw,
+        height: lh
+      })
     }
 
     // 2. Draw Cotización header/folio (top right)

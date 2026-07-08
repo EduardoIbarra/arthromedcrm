@@ -32,7 +32,11 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; bord
   pendiente: { label: 'Pendiente',  bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-100'  },
   aceptada:  { label: 'Aceptada',   bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
   rechazada: { label: 'Rechazada',  bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-100'   },
-  cancelada: { label: 'Cancelada',  bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-100'  }
+  cancelada: { label: 'Cancelada',  bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-100'  },
+  billed:    { label: 'Facturado',    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+  unbilled:  { label: 'No Facturado', bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-100'  },
+  facturado: { label: 'Facturado',    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+  'no facturado': { label: 'No Facturado', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
 }
 
 export default function CotizacionesPage() {
@@ -239,7 +243,7 @@ export default function CotizacionesPage() {
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-medium">
-                    <th className="py-4 px-6">Folio / Número</th>
+                    <th className="py-4 px-6 min-w-[200px] w-[220px]">Folio / Número</th>
                     <th className="py-4 px-6">Cliente</th>
                     <th className="py-4 px-6">Expedición</th>
                     <th className="py-4 px-6">Vencimiento</th>
@@ -264,7 +268,7 @@ export default function CotizacionesPage() {
                         className="hover:bg-gray-50/50 transition cursor-pointer"
                         onClick={() => router.push(`/cotizaciones/${quote.id}`)}
                       >
-                        <td className="py-4 px-6 font-medium text-gray-900">
+                        <td className="py-4 px-6 min-w-[200px] w-[220px] font-medium text-gray-900">
                           {quote.numero_cotizacion}
                           {quote.alegra_id && (
                             <span className="block text-[10px] text-gray-400 font-normal">

@@ -75,7 +75,11 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; bord
   pendiente: { label: 'Pendiente',  bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-100'  },
   aceptada:  { label: 'Aceptada',   bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
   rechazada: { label: 'Rechazada',  bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-100'   },
-  cancelada: { label: 'Cancelada',  bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-100'  }
+  cancelada: { label: 'Cancelada',  bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-100'  },
+  billed:    { label: 'Facturado',    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+  unbilled:  { label: 'No Facturado', bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-100'  },
+  facturado: { label: 'Facturado',    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+  'no facturado': { label: 'No Facturado', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
 }
 
 export default function CotizacionDetailPage() {

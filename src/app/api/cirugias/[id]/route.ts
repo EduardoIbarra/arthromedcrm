@@ -11,6 +11,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const data = await prisma.cirugias.findUnique({
       where: { id },
       include: {
+        hospitals: { select: { id: true, name: true } },
         cirugia_equipo: {
           include: {
             car_fleet: true,
@@ -63,6 +64,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json()
     const {
       nombre,
+      paciente,
+      hospital,
+      ciudad,
+      hospital_id,
       medico,
       descripcion,
       fecha,
@@ -75,6 +80,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       doctor_id,
       hotelRooms,
     } = body
+
+    let medicoName = medico
+    if (medicoName === undefined && doctor_id) {
+      const doctor = await prisma.doctors.findUnique({ where: { id: doctor_id }, select: { name: true } })
+      medicoName = doctor?.name
+    }
 
     // Fetch existing team to notify only new members
     const existingEquipo = await prisma.cirugia_equipo.findMany({ where: { cirugia_id: id } })
@@ -91,7 +102,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       where: { id },
       data: {
         ...(nombre !== undefined && { nombre }),
-        ...(medico !== undefined && { medico }),
+        ...(paciente !== undefined && { paciente }),
+        ...(hospital !== undefined && { hospital }),
+        ...(ciudad !== undefined && { ciudad }),
+        ...(hospital_id !== undefined && { hospital_id }),
+        ...(medicoName !== undefined && { medico: medicoName }),
         ...(doctor_id !== undefined && { doctor_id }),
         ...(descripcion !== undefined && { descripcion }),
         ...(fecha !== undefined && { fecha: new Date(fecha) }),
@@ -99,11 +114,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(notas !== undefined && { notas }),
         updated_at: new Date(),
         cirugia_equipo: {
-          create: (equipo || []).map((e: any) => ({
-            user_id: e.user_id,
-            rol: e.rol || null,
-            car_id: e.car_id || null,
-          })),
+          create: (equipo || [])
+            .filter((e: any) => e.user_id || e.guest_name)
+            .map((e: any) => ({
+              user_id: e.user_id || null,
+              guest_name: e.guest_name || null,
+              rol: e.rol || null,
+              car_id: e.car_id || null,
+            })),
         },
         cirugia_productos: {
           create: (productos || []).map((p: any) => ({

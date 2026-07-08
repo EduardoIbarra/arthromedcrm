@@ -37,12 +37,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const {
       nombre,
+      paciente,
+      hospital,
+      ciudad,
+      hospital_id,
       medico,
       descripcion,
       fecha,
       estado,
       notas,
-      equipo,       // [{ user_id, rol }]
+      equipo,       // [{ user_id, guest_name, rol }]
       productos,    // [{ producto_id, cantidad, es_consumible, tipo_uso, precio_unitario }]
       conceptos,    // [{ concepto, cantidad, precio_unitario, subtotal }]
       itinerarios,  // [{ activity, date, time, notes }]
@@ -50,25 +54,42 @@ export async function POST(req: NextRequest) {
       hotelRooms,   // [{ room_number, room_type, capacity, notes, occupants }]
     } = body
 
-    if (!nombre || !medico || !fecha) {
-      return NextResponse.json({ error: 'Nombre, médico y fecha son requeridos.' }, { status: 400 })
+    if (!nombre || !fecha) {
+      return NextResponse.json({ error: 'Nombre y fecha son requeridos.' }, { status: 400 })
+    }
+
+    if (!medico && !doctor_id) {
+      return NextResponse.json({ error: 'El médico es requerido.' }, { status: 400 })
+    }
+
+    let medicoName = medico
+    if (!medicoName && doctor_id) {
+      const doctor = await prisma.doctors.findUnique({ where: { id: doctor_id }, select: { name: true } })
+      medicoName = doctor?.name || 'N/A'
     }
 
     const cirugia = await prisma.cirugias.create({
       data: {
         nombre,
-        medico,
+        paciente: paciente || null,
+        hospital: hospital || null,
+        ciudad: ciudad || null,
+        hospital_id: hospital_id || null,
+        medico: medicoName,
         doctor_id: doctor_id || null,
         descripcion: descripcion || null,
         fecha: new Date(fecha),
         estado: estado || 'programada',
         notas: notas || null,
         cirugia_equipo: {
-          create: (equipo || []).map((e: any) => ({
-            user_id: e.user_id,
-            rol: e.rol || null,
-            car_id: e.car_id || null,
-          })),
+          create: (equipo || [])
+            .filter((e: any) => e.user_id || e.guest_name)
+            .map((e: any) => ({
+              user_id: e.user_id || null,
+              guest_name: e.guest_name || null,
+              rol: e.rol || null,
+              car_id: e.car_id || null,
+            })),
         },
         cirugia_productos: {
           create: (productos || []).map((p: any) => ({

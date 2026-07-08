@@ -55,7 +55,9 @@ type ProductoStock = {
 }
 
 type EquipoItem = {
-  user_id: string
+  _key: string
+  user_id?: string | null
+  guest_name?: string | null
   rol: string
   car_id?: string | null
   _email?: string
@@ -103,6 +105,9 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
 
   // ── Form state ──
   const [nombre, setNombre] = useState('')
+  const [paciente, setPaciente] = useState('')
+  const [hospital, setHospital] = useState('')
+  const [ciudad, setCiudad] = useState('')
   const [medico, setMedico] = useState('')
   const [doctorId, setDoctorId] = useState<string | null>(null)
   const [descripcion, setDescripcion] = useState('')
@@ -118,6 +123,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
 
   // ── Reference data ──
   const [usuarios, setUsuarios] = useState<UserProfile[]>([])
+  const [hospitals, setHospitals] = useState<{ id: string; name: string }[]>([])
   const [stockItems, setStockItems] = useState<ProductoStock[]>([])
   const [plantillas, setPlantillas] = useState<any[]>([])
   const [vehicles, setVehicles] = useState<any[]>([])
@@ -130,16 +136,19 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [prodSearch, setProdSearch] = useState('')
   const [userSearch, setUserSearch] = useState('')
+  const [externalStaffName, setExternalStaffName] = useState('')
 
   // ── Load reference data ──
   useEffect(() => {
     Promise.all([
       fetch('/api/cirugias/usuarios').then(r => r.json()),
+      fetch('/api/hospitals').then(r => r.json()),
       fetch('/api/inventario').then(r => r.json()),
       fetch('/api/cirugias/plantillas').then(r => r.json()),
       fetch('/api/car-fleet').then(r => r.json()),
-    ]).then(([u, inv, pl, cars]) => {
+    ]).then(([u, hosp, inv, pl, cars]) => {
       setUsuarios(u.data || [])
+      setHospitals(hosp.data || [])
       setStockItems(inv.data || [])
       setPlantillas(pl.data || [])
       setVehicles(cars.data || [])
@@ -155,6 +164,9 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
       .then(({ data }) => {
         if (!data) return
         setNombre(data.nombre)
+        setPaciente(data.paciente || '')
+        setHospital(data.hospital || data.hospitals?.name || '')
+        setCiudad(data.ciudad || '')
         setMedico(data.medico)
         setDoctorId(data.doctor_id)
         setDescripcion(data.descripcion || '')
@@ -166,7 +178,9 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
         setHotelRooms(data.cirugia_hotel_rooms || [])
         setEquipo(
           data.cirugia_equipo.map((e: any) => ({
-            user_id: e.user_id,
+            _key: e.user_id || e.id,
+            user_id: e.user_id || null,
+            guest_name: e.guest_name || null,
             rol: e.rol || '',
             car_id: e.car_id || null,
             _email: e.user_id,
@@ -218,12 +232,43 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   // ── Handlers ──
   const addEquipoMember = (user: UserProfile) => {
     if (equipo.find(e => e.user_id === user.id)) return
-    setEquipo(prev => [...prev, { user_id: user.id, rol: '', _email: user.email }])
+    setEquipo(prev => [...prev, { _key: user.id, user_id: user.id, rol: '', _email: user.email }])
     setUserSearch('')
   }
 
-  const removeEquipoMember = (userId: string) => {
-    setEquipo(prev => prev.filter(e => e.user_id !== userId))
+  const addExternalStaffMember = () => {
+    const name = externalStaffName.trim()
+    if (!name) return
+    if (equipo.find(e => e.guest_name?.toLowerCase() === name.toLowerCase())) return
+    setEquipo(prev => [...prev, { _key: `ext-${crypto.randomUUID()}`, guest_name: name, rol: '' }])
+    setExternalStaffName('')
+  }
+
+  const removeEquipoMember = (key: string) => {
+    setEquipo(prev => prev.filter(e => e._key !== key))
+  }
+
+  const getMemberLabel = (member: EquipoItem) => {
+    if (member.guest_name) return member.guest_name
+    const userInfo = usuarios.find(u => u.id === member.user_id)
+    const displayEmail = userInfo?.email || member._email || member.user_id || 'Usuario'
+    return displayEmail.split('@')[0]
+  }
+
+  const handleDoctorChange = (ids: string[]) => {
+    const id = ids[0] || null
+    setDoctorId(id)
+    if (!id) {
+      setMedico('')
+      return
+    }
+    fetch('/api/doctors')
+      .then(r => r.json())
+      .then(({ data }) => {
+        const doc = (data || []).find((d: { id: string; name: string }) => d.id === id)
+        if (doc) setMedico(doc.name)
+      })
+      .catch(() => {})
   }
 
   const addProducto = (prod: ProductoStock) => {
@@ -411,20 +456,31 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   const handleSave = useCallback(async () => {
     setSaveError(null)
     if (!nombre.trim()) { setSaveError('El nombre de la cirugía es requerido.'); return }
-    if (!medico.trim()) { setSaveError('El médico es requerido.'); return }
+    if (!doctorId && !medico.trim()) { setSaveError('El médico es requerido.'); return }
     if (!fecha) { setSaveError('La fecha es requerida.'); return }
 
     const fechaISO = new Date(`${fecha}T${hora}:00`).toISOString()
 
+    const matchedHospital = hospitals.find(h => h.name.toLowerCase() === hospital.trim().toLowerCase())
+
     const payload = {
       nombre: nombre.trim(),
+      paciente: paciente.trim() || null,
+      hospital: hospital.trim() || null,
+      ciudad: ciudad.trim() || null,
+      hospital_id: matchedHospital?.id || null,
       medico: medico.trim() || 'N/A',
       doctor_id: doctorId,
       descripcion: descripcion.trim() || null,
       fecha: fechaISO,
       estado,
       notas: notas.trim() || null,
-      equipo: equipo.map(e => ({ user_id: e.user_id, rol: e.rol || null, car_id: e.car_id || null })),
+      equipo: equipo.map(e => ({
+        user_id: e.user_id || null,
+        guest_name: e.guest_name || null,
+        rol: e.rol || null,
+        car_id: e.car_id || null,
+      })),
       productos: productos.map(p => ({
         producto_id: p.producto_id,
         cantidad: Number(p.cantidad),
@@ -474,13 +530,15 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     } finally {
       setIsSaving(false)
     }
-  }, [nombre, medico, doctorId, descripcion, fecha, hora, estado, notas, equipo, productos, conceptos, itinerarios, isNew, cirugiaId, router])
+  }, [nombre, paciente, hospital, ciudad, hospitals, medico, doctorId, descripcion, fecha, hora, estado, notas, equipo, productos, conceptos, itinerarios, isNew, cirugiaId, router])
 
   // ── Filtered lists for pickers ──
   const filteredUsers = usuarios.filter(u =>
     !equipo.find(e => e.user_id === u.id) &&
     u.email.toLowerCase().includes(userSearch.toLowerCase())
   )
+
+  const findEquipoIndex = (key: string) => equipo.findIndex(m => m._key === key)
 
   const filteredStock = stockItems.filter(s =>
     !productos.find(p => p.producto_id === s.id) &&
@@ -603,6 +661,57 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 />
               </div>
 
+              {/* Paciente */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Paciente
+                </label>
+                <input
+                  id="cirugia-paciente"
+                  type="text"
+                  value={paciente}
+                  onChange={e => setPaciente(e.target.value)}
+                  placeholder="Nombre del paciente"
+                  className="erp-input w-full"
+                />
+              </div>
+
+              {/* Hospital */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Hospital
+                </label>
+                <input
+                  id="cirugia-hospital"
+                  type="text"
+                  list="cirugia-hospitals-list"
+                  value={hospital}
+                  onChange={e => setHospital(e.target.value)}
+                  placeholder="Hospital o clínica"
+                  className="erp-input w-full"
+                />
+                <datalist id="cirugia-hospitals-list">
+                  {hospitals.map(h => (
+                    <option key={h.id} value={h.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Ciudad */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Ciudad
+                </label>
+                <input
+                  id="cirugia-ciudad"
+                  type="text"
+                  value={ciudad}
+                  onChange={e => setCiudad(e.target.value)}
+                  placeholder="Ciudad"
+                  className="erp-input w-full"
+                />
+              </div>
+
               {/* Médico */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -610,10 +719,12 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 </label>
                 <DoctorSelector 
                   selectedIds={doctorId ? [doctorId] : []} 
-                  onChange={ids => setDoctorId(ids[0] || null)} 
+                  onChange={handleDoctorChange} 
                   multiple={false} 
                 />
-                {!doctorId && <p className="text-xs text-orange-500 mt-1">Por favor selecciona o crea un doctor.</p>}
+                {!doctorId && !medico.trim() && (
+                  <p className="text-xs text-orange-500 mt-1">Por favor selecciona o crea un doctor.</p>
+                )}
               </div>
 
               {/* Estado */}
@@ -732,6 +843,28 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 />
               </div>
 
+              {/* External staff */}
+              <div className="flex gap-2">
+                <input
+                  id="equipo-external-name"
+                  type="text"
+                  placeholder="Agregar persona externa (no registrada)…"
+                  value={externalStaffName}
+                  onChange={e => setExternalStaffName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExternalStaffMember() } }}
+                  className="erp-input flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={addExternalStaffMember}
+                  disabled={!externalStaffName.trim()}
+                  className="btn-secondary text-sm whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Plus size={14} />
+                  Agregar
+                </button>
+              </div>
+
               {/* User dropdown */}
               {userSearch && filteredUsers.length > 0 && (
                 <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm max-h-48 overflow-y-auto">
@@ -785,13 +918,14 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                           </div>
                           <div className="space-y-2">
                             {membersInCar.map(member => {
-                              const idx = equipo.findIndex(m => m.user_id === member.user_id)
-                              const userInfo = usuarios.find(u => u.id === member.user_id)
-                              const displayEmail = userInfo?.email || member._email || member.user_id
+                              const idx = findEquipoIndex(member._key)
                               return (
-                                <div key={member.user_id} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
+                                <div key={member._key} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
                                   <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
-                                    <p className="text-xs font-semibold text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
+                                    <p className="text-xs font-semibold text-gray-800 truncate">
+                                      {getMemberLabel(member)}
+                                      {member.guest_name && <span className="block text-[10px] text-gray-400 font-normal">Externo</span>}
+                                    </p>
                                   </div>
                                   <input
                                     type="text"
@@ -813,7 +947,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                                     ))}
                                   </select>
                                   <button
-                                    onClick={() => removeEquipoMember(member.user_id)}
+                                    onClick={() => removeEquipoMember(member._key)}
                                     className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
                                   >
                                     <X size={13} />
@@ -842,13 +976,14 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                           </div>
                           <div className="space-y-2">
                             {unassigned.map(member => {
-                              const idx = equipo.findIndex(m => m.user_id === member.user_id)
-                              const userInfo = usuarios.find(u => u.id === member.user_id)
-                              const displayEmail = userInfo?.email || member._email || member.user_id
+                              const idx = findEquipoIndex(member._key)
                               return (
-                                <div key={member.user_id} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-150">
+                                <div key={member._key} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-150">
                                   <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
-                                    <p className="text-xs font-semibold text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
+                                    <p className="text-xs font-semibold text-gray-800 truncate">
+                                      {getMemberLabel(member)}
+                                      {member.guest_name && <span className="block text-[10px] text-gray-400 font-normal">Externo</span>}
+                                    </p>
                                   </div>
                                   <input
                                     type="text"
@@ -870,7 +1005,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                                     ))}
                                   </select>
                                   <button
-                                    onClick={() => removeEquipoMember(member.user_id)}
+                                    onClick={() => removeEquipoMember(member._key)}
                                     className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
                                   >
                                     <X size={13} />
@@ -886,12 +1021,13 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 ) : (
                   <div className="space-y-2">
                     {equipo.map((member, idx) => {
-                      const userInfo = usuarios.find(u => u.id === member.user_id)
-                      const displayEmail = userInfo?.email || member._email || member.user_id
                       return (
-                        <div key={member.user_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <div key={member._key} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
                           <div className="w-1/3 min-w-[100px] sm:w-48 shrink-0">
-                            <p className="text-sm font-medium text-gray-800 truncate">{displayEmail.split('@')[0]}</p>
+                            <p className="text-sm font-medium text-gray-800 truncate">
+                              {getMemberLabel(member)}
+                              {member.guest_name && <span className="block text-[10px] text-gray-400 font-normal">Externo</span>}
+                            </p>
                           </div>
                           <input
                             type="text"
@@ -913,7 +1049,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                             ))}
                           </select>
                           <button
-                            onClick={() => removeEquipoMember(member.user_id)}
+                            onClick={() => removeEquipoMember(member._key)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
                           >
                             <X size={14} />
@@ -925,7 +1061,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 )
               ) : (
                 <div className="py-8 text-center text-sm text-gray-400">
-                  No has agregado miembros al equipo aún. Busca usuarios arriba.
+                  No has agregado miembros al equipo aún. Busca usuarios o agrega personas externas.
                 </div>
               )}
             </div>
@@ -1439,11 +1575,11 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                                   defaultValue=""
                                 >
                                   <option value="" disabled>-- Del Staff --</option>
-                                  {equipo.map(m => {
+                                  {equipo.filter(m => m.user_id).map(m => {
                                     const prof = usuarios.find(u => u.id === m.user_id)
                                     const name = prof ? `${prof.first_name || ''} ${prof.last_name || ''}`.trim() || prof.email : m._email || 'Miembro'
                                     return (
-                                      <option key={m.user_id} value={m.user_id}>{name}</option>
+                                      <option key={m._key} value={m.user_id!}>{name}</option>
                                     )
                                   })}
                                 </select>
