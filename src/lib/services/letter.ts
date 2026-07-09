@@ -429,10 +429,10 @@ export async function generateClientLetter({
   const regular = await pdf.embedFont(robotoRegularBytes)
   const bold = await pdf.embedFont(robotoBoldBytes)
   
-  const bg1 = await pdf.embedJpg(machoteBytes)
-  const imgEric = await pdf.embedJpg(firmaEricBytes)
-  const imgRicardo = await pdf.embedPng(firmaRicardoBytes)
-  const logoImage = await pdf.embedPng(logoBytes)
+  const bg1 = await pdf.embedJpg(new Uint8Array(machoteBytes))
+  const imgEric = await pdf.embedJpg(new Uint8Array(firmaEricBytes))
+  const imgRicardo = await pdf.embedPng(new Uint8Array(firmaRicardoBytes))
+  const logoImage = await pdf.embedPng(new Uint8Array(logoBytes))
 
   // Pre-generate the carta ID so we can embed it in the QR before the record is created
   const cartaId = crypto.randomUUID()

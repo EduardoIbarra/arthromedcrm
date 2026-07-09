@@ -96,8 +96,8 @@ export async function GET() {
     const regular = await pdf.embedFont(StandardFonts.Helvetica)
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
     const italic = await pdf.embedFont(StandardFonts.HelveticaOblique)
-    const bg1 = await pdf.embedJpg(machote1)
-    const bg2 = await pdf.embedJpg(machote2)
+    const bg1 = await pdf.embedJpg(new Uint8Array(machote1))
+    const bg2 = await pdf.embedJpg(new Uint8Array(machote2))
 
     const logoPath = path.join(process.cwd(), 'resources', 'img', 'ARTHROMED OFICIAL.png')
     const logoBytes = fs.readFileSync(logoPath)
