@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import StatusBadge from '@/components/StatusBadge'
 import Modal from '@/components/Modal'
@@ -159,7 +159,17 @@ export default function ClientDetailPage() {
   const [sales, setSales] = useState<any[]>([])
   const [loadingSales, setLoadingSales] = useState(true)
 
-  const [activeTab, setActiveTab] = useState<'info' | 'cartas' | 'facturas' | 'analytics'>('info')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<'info' | 'cartas' | 'facturas' | 'analytics'>(
+    (searchParams.get('tab') as 'info' | 'cartas' | 'facturas' | 'analytics') || 'info'
+  )
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'info' || tab === 'cartas' || tab === 'facturas' || tab === 'analytics') {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
   const [cartasDistribucion, setCartasDistribucion] = useState<any[]>([])
 
   // Analytics/Reports Tab States

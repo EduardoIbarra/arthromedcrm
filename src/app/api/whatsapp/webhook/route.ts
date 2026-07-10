@@ -304,19 +304,21 @@ ${allLines.map((l: any) => `- Nombre: "${l.name}" (ID: "${l.id}") ${l.descriptio
 
 Por favor, analiza el mensaje en lenguaje natural y extrae la información estructurada necesaria:
 1. "isLetterRequest": Debe ser true si el mensaje solicita generar/crear/mandar una carta de distribución. De lo contrario, false.
-2. "distributorQuery": El nombre, ID de distribuidor, código o RFC del distribuidor/cliente para el cual se solicita la carta (ej. "Juan Pérez", "Artromed del Norte", "DIST002"). Este dato es OBLIGATORIO para buscar al cliente en la base de datos. Si no se menciona o no está claro a qué distribuidor se refiere, pon null.
-3. "institutionName": El nombre de la institución, hospital, clínica o doctor destinatario al cual va dirigida la carta (ej. "Hospital Ángeles", "IMSS", "ISSSTE"). Si no se especifica o está ausente, pon null.
-4. "distributorName": Si se especifica una razón social o nombre exacto para imprimir en la carta que sea diferente al nombre comercial del distribuidor, extráelo aquí. De lo contrario, pon null.
-5. "rfc": Si se menciona un RFC específico para usar en la carta, extráelo. De lo contrario, pon null.
-6. "selectedLinesIds": Compara las líneas solicitadas en el mensaje con la lista de líneas disponibles en el sistema. Selecciona los IDs de aquellas líneas que coincidan con lo solicitado (por ejemplo, si pide "plasma" coincide con "Bonss Plasma", si pide "shaver" coincide con "Bonss Shaver", etc.). Si no solicita ninguna línea específica o no coincide con ninguna, deja la lista vacía.
-7. "expirationDate": Fecha de vencimiento específica en formato YYYY-MM-DD si se menciona en el mensaje. De lo contrario, pon null.
-8. "missingInformation": Si "isLetterRequest" es true pero falta el distribuidor ("distributorQuery"), la institución ("institutionName") o las líneas de producto, escribe un mensaje explicativo y amigable en español solicitando los datos faltantes.
-9. "coverage": La cobertura geográfica (región, estado, estados, país o países) especificada en la solicitud (ej. "Nuevo León", "los estados de Jalisco, Colima y Nayarit", "república mexicana", etc.). Si no se especifica explícitamente en el mensaje, pon null.`
+2. "isStatusRequest": Debe ser true si el mensaje solicita un estatus, cómo vamos, o información sobre las facturas/pedidos de un distribuidor o cliente (ej. "¿Cómo vamos con MAVA?", "Status de MAVA").
+3. "distributorQuery": El nombre, ID de distribuidor, código o RFC del distribuidor/cliente para el cual se solicita la carta o el estatus (ej. "Juan Pérez", "Artromed del Norte", "MAVA"). Este dato es OBLIGATORIO para buscar al cliente en la base de datos si es Letter Request o Status Request. Si no se menciona o no está claro a qué distribuidor se refiere, pon null.
+4. "institutionName": El nombre de la institución, hospital, clínica o doctor destinatario al cual va dirigida la carta (ej. "Hospital Ángeles", "IMSS", "ISSSTE"). Si no se especifica o está ausente, pon null.
+5. "distributorName": Si se especifica una razón social o nombre exacto para imprimir en la carta que sea diferente al nombre comercial del distribuidor, extráelo aquí. De lo contrario, pon null.
+6. "rfc": Si se menciona un RFC específico para usar en la carta, extráelo. De lo contrario, pon null.
+7. "selectedLinesIds": Compara las líneas solicitadas en el mensaje con la lista de líneas disponibles en el sistema. Selecciona los IDs de aquellas líneas que coincidan con lo solicitado (por ejemplo, si pide "plasma" coincide con "Bonss Plasma", si pide "shaver" coincide con "Bonss Shaver", etc.). Si no solicita ninguna línea específica o no coincide con ninguna, deja la lista vacía.
+8. "expirationDate": Fecha de vencimiento específica en formato YYYY-MM-DD si se menciona en el mensaje. De lo contrario, pon null.
+9. "missingInformation": Si "isLetterRequest" es true pero falta el distribuidor ("distributorQuery"), la institución ("institutionName") o las líneas de producto, escribe un mensaje explicativo y amigable en español solicitando los datos faltantes.
+10. "coverage": La cobertura geográfica (región, estado, estados, país o países) especificada en la solicitud (ej. "Nuevo León", "los estados de Jalisco, Colima y Nayarit", "república mexicana", etc.). Si no se especifica explícitamente en el mensaje, pon null.`
 
         const parsed = await generateObject({
           model: google('gemini-2.5-flash'),
           schema: z.object({
             isLetterRequest: z.boolean(),
+            isStatusRequest: z.boolean().default(false),
             distributorQuery: z.string().nullable(),
             institutionName: z.string().nullable(),
             distributorName: z.string().nullable(),
@@ -331,11 +333,11 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
 
         const extraction = parsed.object
 
-        if (!extraction.isLetterRequest) {
-          console.log('Message is not a letter request. Sending virtual hub menu.')
+        if (!extraction.isLetterRequest && !extraction.isStatusRequest) {
+          console.log('Message is not a letter or status request. Sending virtual hub menu.')
           await sendRespondMessage(phone, {
             type: 'text',
-            text: `🤖 *ArthroNexus - Asistente Virtual* 🤖\n\nNo pude entender la solicitud de carta o comando. Aquí tienes las opciones y comandos disponibles:\n\n📝 *1. Generar Carta de Distribución*\nPídeme generar una carta directamente en lenguaje natural. Ej: _"Generar carta para Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver."_\n\n📅 *2. Consultar Recordatorios*\nEscribe */recordatorios* para ver los recordatorios activos de hoy.\n\n🏥 *3. Consultar Agenda*\nEscribe */agenda* para ver las cirugías, congresos y talleres de hoy.\n\n🧪 *4. Enviar Recordatorio de Prueba*\nEscribe */probar [ID_RECORDATORIO]* para enviarte un mensaje de prueba.\n\n💡 Escribe */ayuda* en cualquier momento para ver este menú.`
+            text: `🤖 *ArthroNexus - Asistente Virtual* 🤖\n\nNo pude entender la solicitud de carta, estatus o comando. Aquí tienes las opciones y comandos disponibles:\n\n📝 *1. Generar Carta de Distribución*\nPídeme generar una carta directamente en lenguaje natural. Ej: _"Generar carta para Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver."_\n\n📊 *2. Estatus de Cliente*\nPregúntame por el estatus de un cliente. Ej: _"¿Cómo vamos con MAVA?"_\n\n📅 *3. Consultar Recordatorios*\nEscribe */recordatorios* para ver los recordatorios activos de hoy.\n\n🏥 *4. Consultar Agenda*\nEscribe */agenda* para ver las cirugías, congresos y talleres de hoy.\n\n🧪 *5. Enviar Recordatorio de Prueba*\nEscribe */probar [ID_RECORDATORIO]* para enviarte un mensaje de prueba.\n\n💡 Escribe */ayuda* en cualquier momento para ver este menú.`
           })
           return
         }
@@ -366,6 +368,50 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
           await sendRespondMessage(phone, {
             type: 'text',
             text: `No pudimos encontrar ningún distribuidor en nuestro sistema que coincida con "${extraction.distributorQuery}". Por favor, verifica el nombre o código e intenta nuevamente.`
+          })
+          return
+        }
+
+        if (extraction.isStatusRequest) {
+          console.log(`Processing status request for client ${client.name}`)
+          const facturas = await prisma.facturas_cliente.findMany({
+            where: { cliente_id: client.id },
+            orderBy: { fecha_expedicion: 'desc' }
+          })
+          
+          let replyText = ''
+          if (facturas.length === 0) {
+            replyText = `El cliente *${client.name}* no tiene facturas registradas en el sistema.`
+          } else {
+            const pending = facturas.filter((f: any) => f.estado_surtido !== 'completa' && f.estado_surtido !== 'surtida')
+            if (pending.length === 0) {
+              const lastOrder = facturas[0]
+              const orderDate = new Date(lastOrder.fecha_expedicion).toLocaleDateString('es-MX', { timeZone: 'UTC' })
+              replyText = `Todas las facturas de *${client.name}* están surtidas/completas. Su última orden fue el ${orderDate}.`
+            } else {
+              const notPaid = pending.filter((f: any) => f.estado !== 'pagada' && f.estado !== 'pagado')
+              const paid = pending.filter((f: any) => f.estado === 'pagada' || f.estado === 'pagado')
+              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
+              if (notPaid.length > 0) replyText += `- ${notPaid.length} no pagada(s).\n`
+              if (paid.length > 0) {
+                replyText += `- ${paid.length} pagada(s) (en proceso de entrega).\n`
+              }
+            }
+          }
+
+          replyText += `\n🔗 Toda la información a detalle está aquí:\nhttps://${host}/clients/${client.id}?tab=facturas`
+
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: replyText
+          })
+
+          await prisma.client_activities.create({
+            data: {
+              client_id: client.id,
+              type: 'whatsapp',
+              content: `Consulta de estatus general vía WhatsApp por personal.`
+            }
           })
           return
         }
