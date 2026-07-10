@@ -125,6 +125,7 @@ export default function ClientReportPage() {
   const { formatCurrency } = useCurrency()
   const [data, setData] = useState<ClientReportData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [deliveryDays] = useState<number>(25)
 
   // Date range filter state
   const [preset, setPreset] = useState('thisYear')
@@ -219,8 +220,74 @@ export default function ClientReportPage() {
   }
 
   const getLocalSurtidoLabel = (surtido: string) => {
-    const key = surtido === 'completa' ? 'completed' : surtido === 'parcial' ? 'partial' : 'unfulfilled'
+    const key = (surtido === 'completa' || surtido === 'surtida') ? 'completed' : surtido === 'parcial' ? 'partial' : 'unfulfilled'
     return t(key as any) || ESTADO_SURTIDO_MAP[surtido || 'no_surtida']?.label || 'No Surtida'
+  }
+
+  const addBusinessDays = (startDateStr: string | Date, days: number): Date => {
+    const date = new Date(startDateStr)
+    let count = 0
+    while (count < days) {
+      date.setUTCDate(date.getUTCDate() + 1)
+      const dayOfWeek = date.getUTCDay()
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count++
+      }
+    }
+    return date
+  }
+
+  const getBusinessDaysDiff = (startDate: Date, endDate: Date): number => {
+    const start = new Date(startDate)
+    const startUTC = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
+    const end = new Date(endDate)
+    const endUTC = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())
+    if (startUTC === endUTC) return 0
+    const isNegative = startUTC > endUTC
+    let count = 0
+    const current = new Date(isNegative ? endUTC : startUTC)
+    const target = new Date(isNegative ? startUTC : endUTC)
+    while (current.getTime() < target.getTime()) {
+      current.setUTCDate(current.getUTCDate() + 1)
+      const dayOfWeek = current.getUTCDay()
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) count++
+    }
+    return isNegative ? -count : count
+  }
+
+  const renderDeliveryDays = (invoice: any) => {
+    const isPaid = ['pagada', 'pagado'].includes(invoice.estado)
+    if (!isPaid || !invoice.fecha_pago) {
+      return <span className="text-gray-400 font-medium text-xs">-</span>
+    }
+    if (invoice.estado_surtido === 'completa' || invoice.estado_surtido === 'surtida') {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+          Entregada
+        </span>
+      )
+    }
+    const deadline = addBusinessDays(invoice.fecha_pago, deliveryDays)
+    const leftDays = getBusinessDaysDiff(new Date(), deadline)
+    if (leftDays < 0) {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-100 animate-pulse">
+          Atrasada ({leftDays} d)
+        </span>
+      )
+    } else if (leftDays <= 5) {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+          Urgente ({leftDays} d)
+        </span>
+      )
+    } else {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+          {leftDays} días
+        </span>
+      )
+    }
   }
 
   const CARD_STYLE = { background: '#ffffff', border: '1px solid #d4e0ec' }
@@ -466,6 +533,8 @@ export default function ClientReportPage() {
                   <th className="p-4 text-right">IVA</th>
                   <th className="p-4 text-right font-bold">Total</th>
                   <th className="p-4 text-center">Surtido</th>
+                  <th className="p-4 text-center">Límite Entrega</th>
+                  <th className="p-4 text-center">Días Restantes</th>
                   <th className="p-4 text-center">Estado Pago</th>
                 </tr>
               </thead>
@@ -502,6 +571,15 @@ export default function ClientReportPage() {
                           {getLocalSurtidoLabel(invoice.estado_surtido)}
                         </span>
                       </td>
+                      <td className="p-4 text-center text-gray-650 font-medium text-xs">
+                        {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
+                          ? formatDate(addBusinessDays(invoice.fecha_pago, deliveryDays).toISOString())
+                          : '-'
+                        }
+                      </td>
+                      <td className="p-4 text-center">
+                        {renderDeliveryDays(invoice)}
+                      </td>
                       <td className="p-4 text-center">
                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.bg} ${status.text} ${status.border}`}>
                           {getLocalStatusLabel(invoice.estado)}
@@ -512,7 +590,7 @@ export default function ClientReportPage() {
                 })}
                 {data.recentOrders.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="p-16 text-center text-gray-400 font-medium">
+                    <td colSpan={10} className="p-16 text-center text-gray-400 font-medium">
                       No hay registros de facturación para este periodo.
                     </td>
                   </tr>
