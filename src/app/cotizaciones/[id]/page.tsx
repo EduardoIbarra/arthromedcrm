@@ -112,6 +112,15 @@ export default function CotizacionDetailPage() {
   const [isTimbrando, setIsTimbrando] = useState(false)
   const [timbrarMetodo, setTimbrarMetodo] = useState('PUE')
   const [timbrarUso, setTimbrarUso] = useState('G03')
+  const [timbrarForma, setTimbrarForma] = useState('01')
+
+  useEffect(() => {
+    if (quote) {
+      if (quote.metodo_pago_id) setTimbrarMetodo(quote.metodo_pago_id)
+      if (quote.cfdi_id) setTimbrarUso(quote.cfdi_id)
+      if (quote.forma_pago_id) setTimbrarForma(quote.forma_pago_id)
+    }
+  }, [quote])
 
   const fetchOptions = async () => {
     try {
@@ -252,7 +261,7 @@ export default function CotizacionDetailPage() {
       const res = await fetch(`/api/cotizaciones/${quote.id}/timbrar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metodo_pago: timbrarMetodo, uso_cfdi: timbrarUso })
+        body: JSON.stringify({ metodo_pago: timbrarMetodo, uso_cfdi: timbrarUso, forma_pago: timbrarForma })
       })
       const data = await res.json()
       if (data.success) {
@@ -704,27 +713,48 @@ export default function CotizacionDetailPage() {
           </p>
           <div className="space-y-3 mt-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Método de Pago</label>
-              <select
-                value={timbrarMetodo}
-                onChange={e => setTimbrarMetodo(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                <option value="PUE">PUE - Pago en una sola exhibición</option>
-                <option value="PPD">PPD - Pago en parcialidades o diferido</option>
-              </select>
-            </div>
-            <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Uso de CFDI</label>
               <select
                 value={timbrarUso}
                 onChange={e => setTimbrarUso(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="G01">G01 - Adquisición de mercancías</option>
-                <option value="G03">G03 - Gastos en general</option>
-                <option value="S01">S01 - Sin efectos fiscales</option>
-                <option value="D04">D04 - Donativos</option>
+                <option value="">Seleccionar Uso CFDI</option>
+                {cfdiOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.id} - {opt.descripcion}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Método de Pago</label>
+              <select
+                value={timbrarMetodo}
+                onChange={e => setTimbrarMetodo(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">Seleccionar Método</option>
+                {metodoPagoOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.id} - {opt.descripcion}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Forma de Pago</label>
+              <select
+                value={timbrarForma}
+                onChange={e => setTimbrarForma(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">Seleccionar Forma</option>
+                {formaPagoOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.id} - {opt.descripcion}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

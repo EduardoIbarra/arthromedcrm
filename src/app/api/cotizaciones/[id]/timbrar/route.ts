@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { id } = await params
     const body = await request.json()
-    const { metodo_pago = 'PUE', uso_cfdi = 'G03' } = body
+    const { metodo_pago = 'PUE', uso_cfdi = 'G03', forma_pago = '01' } = body
 
     const quote = await prisma.cotizaciones.findUnique({
       where: { id }
@@ -34,6 +34,8 @@ export async function POST(
       dueDate: new Date().toISOString().split('T')[0],
       estimate: quote.alegra_id,
       paymentMethod: metodo_pago,
+      paymentForm: forma_pago,
+      cfdiUse: uso_cfdi,
       stamp: {
         generateStamp: true,
         version: '4.0'
