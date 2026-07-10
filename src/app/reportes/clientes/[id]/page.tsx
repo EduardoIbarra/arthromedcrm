@@ -220,7 +220,7 @@ export default function ClientReportPage() {
 
   const getLocalSurtidoLabel = (surtido: string) => {
     const key = surtido === 'completa' ? 'completed' : surtido === 'parcial' ? 'partial' : 'unfulfilled'
-    return t(key as any) || ESTADO_SURTIDO_MAP[surtido]?.label || surtido
+    return t(key as any) || ESTADO_SURTIDO_MAP[surtido || 'no_surtida']?.label || 'No Surtida'
   }
 
   const CARD_STYLE = { background: '#ffffff', border: '1px solid #d4e0ec' }

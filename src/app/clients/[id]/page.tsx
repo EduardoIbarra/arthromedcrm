@@ -504,7 +504,7 @@ export default function ClientDetailPage() {
 
   const getLocalSurtidoLabel = (surtido: string) => {
     const key = surtido === 'completa' ? 'completed' : surtido === 'parcial' ? 'partial' : 'unfulfilled'
-    return t(key as any) || ESTADO_SURTIDO_MAP[surtido]?.label || surtido
+    return t(key as any) || ESTADO_SURTIDO_MAP[surtido || 'no_surtida']?.label || 'No Surtida'
   }
 
   const save = async () => {
