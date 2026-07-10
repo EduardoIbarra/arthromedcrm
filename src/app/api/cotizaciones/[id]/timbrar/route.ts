@@ -28,36 +28,39 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Credenciales de Alegra no configuradas' }, { status: 500 })
     }
 
+    // Fetch estimate from Alegra to get the clientId
+    let clientId: string | undefined
+    try {
+      const estimateRes = await fetch(`https://api.alegra.com/api/v1/estimates/${quote.alegra_id}`, {
+        headers: { 'Authorization': authHeader, 'Accept': 'application/json' }
+      })
+      if (estimateRes.ok) {
+        const estimateData = await estimateRes.json()
+        clientId = estimateData.client?.id
+      }
+    } catch (err) {
+      console.error('Error fetching estimate to get client:', err)
+    }
+
     // Step 1: Optionally update client's taxRegime in Alegra if provided
-    if (regimen_fiscal) {
+    if (clientId && regimen_fiscal) {
       try {
-        const estimateRes = await fetch(`https://api.alegra.com/api/v1/estimates/${quote.alegra_id}`, {
-          headers: { 'Authorization': authHeader, 'Accept': 'application/json' }
+        await fetch(`https://api.alegra.com/api/v1/clients/${clientId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ taxRegime: regimen_fiscal })
         })
-        
-        if (estimateRes.ok) {
-          const estimateData = await estimateRes.json()
-          const clientId = estimateData.client?.id
-          
-          if (clientId) {
-            await fetch(`https://api.alegra.com/api/v1/clients/${clientId}`, {
-              method: 'PUT',
-              headers: {
-                'Authorization': authHeader,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify({ taxRegime: regimen_fiscal })
-            })
-          }
-        }
       } catch (err) {
         console.error('Error updating Alegra client taxRegime:', err)
       }
     }
 
     // Step 2: Create Invoice from Estimate in Alegra
-    const alegraPayload = {
+    const alegraPayload: any = {
       date: new Date().toISOString().split('T')[0],
       dueDate: new Date().toISOString().split('T')[0],
       estimate: quote.alegra_id,
@@ -67,6 +70,13 @@ export async function POST(
       stamp: {
         generateStamp: true,
         version: '4.0'
+      }
+    }
+
+    if (clientId) {
+      alegraPayload.client = {
+        id: clientId,
+        ...(regimen_fiscal ? { taxRegime: regimen_fiscal } : {})
       }
     }
 

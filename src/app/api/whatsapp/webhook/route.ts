@@ -322,7 +322,7 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
 
         const schema = z.object({
           isLetterRequest: z.boolean(),
-          isStatusRequest: z.boolean().default(false),
+          isStatusRequest: z.boolean(),
           distributorQuery: z.string().nullable(),
           institutionName: z.string().nullable(),
           distributorName: z.string().nullable(),
