@@ -13,15 +13,28 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-/** Normalize phone for staff matching (digits only, strip leading MX 52 if present). */
+/**
+ * Normalize phone for staff matching.
+ * Handles: 8110182368, +528110182368, +52 1 811 018 2368, unicode junk.
+ * Returns the local 10-digit MX mobile when possible.
+ */
 function normalizePhone(raw: string | null | undefined): string {
   if (!raw) return ''
-  let digits = String(raw).replace(/\D/g, '')
-  if (digits.startsWith('52') && digits.length >= 12) {
+  // Strip invisible/unicode formatting chars then non-digits
+  let digits = String(raw)
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\u202A-\u202E\u2060\uFEFF]/g, '')
+    .replace(/\D/g, '')
+
+  // Mexico mobile often arrives as 521XXXXXXXXXX (country 52 + trunk 1)
+  if (digits.startsWith('521') && digits.length >= 13) {
+    digits = digits.slice(3)
+  } else if (digits.startsWith('52') && digits.length >= 12) {
     digits = digits.slice(2)
   }
+  // After stripping 52, leftover leading 1 on 11-digit numbers
   if (digits.startsWith('1') && digits.length === 11) {
-    // US country code optional strip not needed for MX staff
+    digits = digits.slice(1)
   }
   return digits
 }
@@ -31,14 +44,16 @@ function phonesMatch(a: string, b: string): boolean {
   const nb = normalizePhone(b)
   if (!na || !nb) return false
   if (na === nb) return true
-  // Compare last 10 digits (MX mobile)
-  return na.slice(-10) === nb.slice(-10)
+  // Always compare last 10 digits (MX mobile length)
+  const la = na.slice(-10)
+  const lb = nb.slice(-10)
+  return la.length === 10 && lb.length === 10 && la === lb
 }
 
 async function findStaffByWhatsApp(phone: string) {
   const profiles = await prisma.user_profiles.findMany({
     where: {
-      whatsapp: { not: null },
+      AND: [{ whatsapp: { not: null } }, { NOT: { whatsapp: '' } }],
     },
     select: {
       id: true,
@@ -48,9 +63,61 @@ async function findStaffByWhatsApp(phone: string) {
       whatsapp: true,
     },
   })
-  return (
-    profiles.find((p: { whatsapp: string | null }) => phonesMatch(p.whatsapp || '', phone)) ||
-    null
+  const match = profiles.find((p: { whatsapp: string | null }) =>
+    phonesMatch(p.whatsapp || '', phone)
+  )
+  if (!match) {
+    console.log(
+      `[WhatsApp staff auth] No match for phone raw="${phone}" normalized="${normalizePhone(phone)}" against ${profiles.length} profiles`
+    )
+  }
+  return match || null
+}
+
+/**
+ * Deterministic status intent: "cómo vamos con MAVA", "status de MAVA", etc.
+ * Avoids AI dropping distributorQuery on simple phrases.
+ */
+function parseStatusIntent(message: string): { isStatus: boolean; query: string | null } {
+  const text = message.trim()
+  if (!text) return { isStatus: false, query: null }
+
+  const patterns: RegExp[] = [
+    /c[oó]mo\s+vamos\s+con\s+(.+?)[\s?!.]*$/i,
+    /c[oó]mo\s+va(?:n)?\s+con\s+(.+?)[\s?!.]*$/i,
+    /(?:estatus|status|estado)\s+(?:de|del|de\s+la)?\s*(.+?)[\s?!.]*$/i,
+    /(?:facturas?|pedidos?)\s+(?:de|del|de\s+la)?\s*(.+?)[\s?!.]*$/i,
+    /(?:avance|seguimiento)\s+(?:de|del|con)?\s*(.+?)[\s?!.]*$/i,
+    /qu[eé]\s+hay\s+(?:de|con)\s+(.+?)[\s?!.]*$/i,
+  ]
+
+  for (const re of patterns) {
+    const m = text.match(re)
+    if (m?.[1]) {
+      const query = m[1]
+        .replace(/[?!.]+$/g, '')
+        .replace(/^(el|la|los|las|cliente|distribuidor)\s+/i, '')
+        .trim()
+      if (query.length >= 2) {
+        return { isStatus: true, query }
+      }
+    }
+  }
+
+  // Soft status keywords without a clear name
+  if (
+    /\b(c[oó]mo\s+vamos|estatus|status|facturas?\s+pendientes?)\b/i.test(text) &&
+    !/\bcarta\b/i.test(text)
+  ) {
+    return { isStatus: true, query: null }
+  }
+
+  return { isStatus: false, query: null }
+}
+
+function parseReminderIntent(message: string): boolean {
+  return /\b(recu[eé]rdame|recuerdame|av[ií]same|avisame|recordatorio|pon(me)?\s+un\s+recordatorio|agenda(me)?\s+un\s+recordatorio)\b/i.test(
+    message
   )
 }
 
@@ -369,7 +436,115 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        // 2. AI parser for letter / status / personal reminder
+        // 2. Deterministic intents first (status / reminder) — AI often drops "MAVA" on simple phrases
+        const statusIntent = parseStatusIntent(messageText)
+        const looksLikeReminder = parseReminderIntent(messageText)
+
+        // Fast path: status with a parsed client name — no AI needed
+        if (statusIntent.isStatus && statusIntent.query && !looksLikeReminder) {
+          console.log(`[WhatsApp] Deterministic status intent for query="${statusIntent.query}"`)
+          const client = await prisma.clients.findFirst({
+            where: {
+              OR: [
+                { name: { contains: statusIntent.query, mode: 'insensitive' } },
+                { distributor_id: { contains: statusIntent.query, mode: 'insensitive' } },
+                { rfc: { contains: statusIntent.query, mode: 'insensitive' } },
+              ],
+            },
+          })
+
+          if (!client) {
+            await sendRespondMessage(phone, {
+              type: 'text',
+              text: `No pudimos encontrar ningún distribuidor que coincida con "*${statusIntent.query}*". Verifica el nombre o código e intenta de nuevo.`,
+            })
+            return
+          }
+
+          // facturas_cliente.cliente_id points to `clientes`, not CRM `clients` — match by name/RFC
+          const whereConditions: any[] = []
+          if (client.rfc) {
+            whereConditions.push({ cliente_rfc: { equals: client.rfc, mode: 'insensitive' } })
+          }
+          if (client.name) {
+            whereConditions.push({ cliente_nombre: { equals: client.name, mode: 'insensitive' } })
+            whereConditions.push({ cliente_nombre: { contains: statusIntent.query, mode: 'insensitive' } })
+          }
+          // Also match query fragment directly on invoice client name (e.g. MAVA)
+          whereConditions.push({ cliente_nombre: { contains: statusIntent.query, mode: 'insensitive' } })
+
+          const facturas = await prisma.facturas_cliente.findMany({
+            where: {
+              OR: whereConditions,
+              estado: { notIn: ['anulado', 'cancelada'] },
+            },
+            include: {
+              planes_pago: {
+                include: {
+                  parcialidades: { orderBy: { numero: 'asc' } },
+                },
+                orderBy: { created_at: 'desc' },
+                take: 1,
+              },
+            },
+            orderBy: { fecha_expedicion: 'desc' },
+          })
+
+          let replyText = ''
+          if (facturas.length === 0) {
+            replyText = `El cliente *${client.name}* no tiene facturas registradas en el sistema.`
+          } else {
+            const pending = facturas.filter(
+              (f: any) => f.estado_surtido !== 'completa' && f.estado_surtido !== 'surtida'
+            )
+            if (pending.length === 0) {
+              const lastOrder = facturas[0]
+              const orderDate = new Date(lastOrder.fecha_expedicion).toLocaleDateString('es-MX', {
+                timeZone: 'UTC',
+              })
+              replyText = `Todas las facturas de *${client.name}* están surtidas/completas. Su última orden fue el ${orderDate}.`
+            } else {
+              const notPaid = pending.filter(
+                (f: any) => f.estado !== 'pagada' && f.estado !== 'pagado'
+              )
+              const paid = pending.filter(
+                (f: any) => f.estado === 'pagada' || f.estado === 'pagado'
+              )
+              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
+              if (notPaid.length > 0) {
+                const details = notPaid
+                  .map((f: any) => f.numero_factura)
+                  .join(', ')
+                replyText += `• ${notPaid.length} no pagada(s) (Facturas: ${details}).\n`
+              }
+              if (paid.length > 0) {
+                const details = paid
+                  .map((f: any) => {
+                    const delivery = computeDeliveryLimit(f)
+                    const limit = formatDeliveryLimitMessage(delivery)
+                    return `${f.numero_factura} [límite: ${limit}]`
+                  })
+                  .join(', ')
+                replyText += `• ${paid.length} pagada(s) en proceso de entrega (Facturas: ${details}).\n`
+              }
+              replyText += `\n_Nota:_ límite de entrega = 5 semanas desde el primer pago si ese pago fue ≥ 60% del total; si fue menor, la fecha es solo referencia.`
+            }
+          }
+
+          replyText += `\n\n🔗 Toda la información a detalle está aquí:\nhttps://${host}/clients/${client.id}?tab=facturas`
+
+          await sendRespondMessage(phone, { type: 'text', text: replyText })
+          await prisma.client_activities.create({
+            data: {
+              client_id: client.id,
+              type: 'whatsapp',
+              content: `Consulta de estatus general vía WhatsApp por personal (${staffName}).`,
+            },
+          })
+          return
+        }
+
+        // 3. AI parser for letter / status (fallback) / personal reminder
         const allLines = await prisma.catalog_lines.findMany()
         const mxNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
         const mxNowIso = mxNow.toISOString()
@@ -380,26 +555,35 @@ Fecha/hora actual en Ciudad de México: ${mxNowIso} (${mxNow.toLocaleString('es-
 Mensaje del usuario (staff):
 "${messageText}"
 
+Heurística previa del sistema (puede ser incompleta):
+- statusIntent.isStatus=${statusIntent.isStatus}, statusIntent.query=${statusIntent.query || 'null'}
+- looksLikeReminder=${looksLikeReminder}
+
 Líneas de producto disponibles (nombre e ID):
 ${allLines.map((l: any) => `- Nombre: "${l.name}" (ID: "${l.id}") ${l.description ? ` - Descripcion: "${l.description}"` : ''}`).join('\n')}
 
+IMPORTANTE:
+- Si el mensaje es del tipo "cómo vamos con MAVA" o "status de X", entonces isStatusRequest=true y distributorQuery DEBE ser el nombre (ej. "MAVA"), NUNCA null.
+- isLetterRequest, isStatusRequest e isReminderRequest son mutuamente prioritarios: estatus > recordatorio > carta cuando haya ambigüedad de "recordar" vs "cómo vamos".
+- distributorQuery es OBLIGATORIO si isStatusRequest o isLetterRequest es true.
+
 Extrae:
 1. "isLetterRequest": true si pide generar/crear/mandar una carta de distribución.
-2. "isStatusRequest": true si pide estatus, cómo vamos, facturas/pedidos de un cliente/distribuidor.
-3. "isReminderRequest": true si pide crear un recordatorio personal (ej. "recuérdame...", "avísame el lunes...", "pon un recordatorio...").
-4. "distributorQuery": nombre/código/RFC del distribuidor si aplica a carta o estatus; null si no.
+2. "isStatusRequest": true si pide estatus, cómo vamos, facturas/pedidos de un distribuidor o cliente.
+3. "isReminderRequest": true si pide crear un recordatorio personal (ej. "recuérdame...", "avísame el lunes...").
+4. "distributorQuery": nombre/código/RFC del distribuidor (ej. "MAVA", "Juan Pérez"). NUNCA null si isStatusRequest o isLetterRequest.
 5. "institutionName": institución/hospital destinatario de la carta; null si no.
 6. "distributorName": razón social alternativa para la carta; null si no.
 7. "rfc": RFC si se menciona; null si no.
-8. "selectedLinesIds": IDs de líneas que coincidan con lo pedido; [] si no.
+8. "selectedLinesIds": IDs de líneas que coincidan; [] si no.
 9. "expirationDate": YYYY-MM-DD si se menciona vigencia de carta; null si no.
-10. "missingInformation": mensaje amable en español si falta info obligatoria para carta.
-11. "coverage": cobertura geográfica si se menciona; null si no.
-12. "reminderTitle": título corto del recordatorio si isReminderRequest; null si no.
-13. "reminderMessage": texto del recordatorio a enviar al staff (contenido); null si no.
-14. "reminderDate": fecha del recordatorio en YYYY-MM-DD (resuelve "el próximo lunes", "mañana", etc. con zona America/Mexico_City); null si no se puede.
-15. "reminderTime": hora HH:MM 24h (default "09:00" si solo dan fecha); null si no es recordatorio.
-16. "reminderMissingInfo": si isReminderRequest y falta fecha/hora entendible, pide aclaración en español; null si no aplica.`
+10. "missingInformation": mensaje amable si falta info de carta; null si no.
+11. "coverage": cobertura geográfica; null si no.
+12. "reminderTitle": título corto del recordatorio; null si no.
+13. "reminderMessage": texto del recordatorio; null si no.
+14. "reminderDate": YYYY-MM-DD (resuelve "el próximo lunes", "mañana", etc. en America/Mexico_City); null si no.
+15. "reminderTime": HH:MM 24h (default "09:00"); null si no es recordatorio.
+16. "reminderMissingInfo": si falta fecha del recordatorio, pide aclaración; null si no.`
 
         const openai = createOpenAI({
           apiKey: process.env.OPENAI_API_KEY,
@@ -444,6 +628,29 @@ Extrae:
           })
           extraction = parsed.object
         }
+
+        // Merge deterministic heuristics over AI (AI often drops distributorQuery)
+        if (statusIntent.isStatus) {
+          extraction.isStatusRequest = true
+          if (!extraction.distributorQuery && statusIntent.query) {
+            extraction.distributorQuery = statusIntent.query
+          }
+          // Don't treat status as letter/reminder
+          extraction.isLetterRequest = false
+          if (!looksLikeReminder) extraction.isReminderRequest = false
+        }
+        if (looksLikeReminder && !extraction.isStatusRequest && !extraction.isLetterRequest) {
+          extraction.isReminderRequest = true
+        }
+
+        console.log('[WhatsApp] extraction', JSON.stringify({
+          statusIntent,
+          looksLikeReminder,
+          isLetterRequest: extraction.isLetterRequest,
+          isStatusRequest: extraction.isStatusRequest,
+          isReminderRequest: extraction.isReminderRequest,
+          distributorQuery: extraction.distributorQuery,
+        }))
 
         // Personal reminder → whatsapp_reminders (same table as /recordatorios)
         if (extraction.isReminderRequest && !extraction.isLetterRequest && !extraction.isStatusRequest) {
@@ -543,18 +750,28 @@ Extrae:
 
         if (extraction.isStatusRequest) {
           console.log(`Processing status request for client ${client.name}`)
-          const whereConditions: any[] = [{ cliente_id: client.id }]
+          // NOTE: facturas_cliente.cliente_id → `clientes` table, NOT CRM `clients` UUID
+          const whereConditions: any[] = []
           if (client.rfc) {
             whereConditions.push({ cliente_rfc: { equals: client.rfc, mode: 'insensitive' } })
           }
           if (client.name) {
             whereConditions.push({ cliente_nombre: { equals: client.name, mode: 'insensitive' } })
+            whereConditions.push({ cliente_nombre: { contains: client.name, mode: 'insensitive' } })
           }
-          
+          if (extraction.distributorQuery) {
+            whereConditions.push({
+              cliente_nombre: { contains: extraction.distributorQuery, mode: 'insensitive' },
+            })
+          }
+          if (whereConditions.length === 0) {
+            whereConditions.push({ cliente_nombre: { contains: client.name || '', mode: 'insensitive' } })
+          }
+
           const facturas = await prisma.facturas_cliente.findMany({
-            where: { 
+            where: {
               OR: whereConditions,
-              estado: { notIn: ['anulado', 'cancelada'] }
+              estado: { notIn: ['anulado', 'cancelada'] },
             },
             include: {
               planes_pago: {
@@ -565,48 +782,60 @@ Extrae:
                 take: 1,
               },
             },
-            orderBy: { fecha_expedicion: 'desc' }
+            orderBy: { fecha_expedicion: 'desc' },
           })
-          
+
           let replyText = ''
           if (facturas.length === 0) {
             replyText = `El cliente *${client.name}* no tiene facturas registradas en el sistema.`
           } else {
-            const pending = facturas.filter((f: any) => f.estado_surtido !== 'completa' && f.estado_surtido !== 'surtida')
+            const pending = facturas.filter(
+              (f: any) => f.estado_surtido !== 'completa' && f.estado_surtido !== 'surtida'
+            )
             if (pending.length === 0) {
               const lastOrder = facturas[0]
-              const orderDate = new Date(lastOrder.fecha_expedicion).toLocaleDateString('es-MX', { timeZone: 'UTC' })
+              const orderDate = new Date(lastOrder.fecha_expedicion).toLocaleDateString('es-MX', {
+                timeZone: 'UTC',
+              })
               replyText = `Todas las facturas de *${client.name}* están surtidas/completas. Su última orden fue el ${orderDate}.`
             } else {
-              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n\n`
-              replyText += `_Política:_ el límite de entrega es *5 semanas* desde el *primer pago* si ese pago fue ≥ *60%* del total; si fue menor, la fecha se muestra solo como *referencia*.\n\n`
-              for (const f of pending.slice(0, 12)) {
-                const delivery = computeDeliveryLimit(f)
-                const limitLabel = formatDeliveryLimitMessage(delivery)
-                const payState = ['pagada', 'pagado'].includes(String(f.estado).toLowerCase())
-                  ? 'pagada'
-                  : String(f.estado)
-                replyText += `• *${f.numero_factura}* (${payState}) — límite entrega: ${limitLabel}\n`
+              const notPaid = pending.filter(
+                (f: any) => f.estado !== 'pagada' && f.estado !== 'pagado'
+              )
+              const paid = pending.filter(
+                (f: any) => f.estado === 'pagada' || f.estado === 'pagado'
+              )
+              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
+              if (notPaid.length > 0) {
+                const details = notPaid.map((f: any) => f.numero_factura).join(', ')
+                replyText += `• ${notPaid.length} no pagada(s) (Facturas: ${details}).\n`
               }
-              if (pending.length > 12) {
-                replyText += `\n_…y ${pending.length - 12} más._\n`
+              if (paid.length > 0) {
+                const details = paid
+                  .map((f: any) => {
+                    const delivery = computeDeliveryLimit(f)
+                    return `${f.numero_factura} [límite: ${formatDeliveryLimitMessage(delivery)}]`
+                  })
+                  .join(', ')
+                replyText += `• ${paid.length} pagada(s) en proceso de entrega (Facturas: ${details}).\n`
               }
+              replyText += `\n_Nota:_ límite de entrega = 5 semanas desde el primer pago si ese pago fue ≥ 60% del total; si fue menor, la fecha es solo referencia.`
             }
           }
 
-          replyText += `\n🔗 Detalle:\nhttps://${host}/clients/${client.id}?tab=facturas`
+          replyText += `\n\n🔗 Toda la información a detalle está aquí:\nhttps://${host}/clients/${client.id}?tab=facturas`
 
           await sendRespondMessage(phone, {
             type: 'text',
-            text: replyText
+            text: replyText,
           })
 
           await prisma.client_activities.create({
             data: {
               client_id: client.id,
               type: 'whatsapp',
-              content: `Consulta de estatus general vía WhatsApp por personal (${staffName}).`
-            }
+              content: `Consulta de estatus general vía WhatsApp por personal (${staffName}).`,
+            },
           })
           return
         }
