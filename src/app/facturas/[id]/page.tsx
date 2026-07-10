@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode, ExternalLink, RefreshCw, Receipt } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 
 interface FacturaProducto {
@@ -56,6 +56,30 @@ interface PlanPago {
   parcialidades: Parcialidad[]
 }
 
+interface ComplementoPago {
+  id: string
+  number: string | number | null
+  date: string | null
+  amount: number
+  paymentMethod: string
+  paymentMethodRaw: string | null
+  status: string | null
+  observations: string | null
+  anotation: string | null
+  stampUuid: string | null
+  stampDate: string | null
+  stampVersion: string | null
+  satVerificationUrl: string | null
+  bankAccount: string | null
+}
+
+interface AlegraSummary {
+  total: number | null
+  totalPaid: number | null
+  balance: number | null
+  status: string | null
+}
+
 interface Factura {
   id: string
   numero_factura: string
@@ -76,6 +100,9 @@ interface Factura {
   planes_pago?: PlanPago[]
   fecha_pago: string | null
   metodo_pago: string | null
+  complementos_pago?: ComplementoPago[]
+  alegra_summary?: AlegraSummary | null
+  products_backfilled?: boolean
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -146,6 +173,7 @@ export default function FacturaDetailPage() {
   const [isSavingRemision, setIsSavingRemision] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [downloadingXml, setDownloadingXml] = useState(false)
+  const [syncingProducts, setSyncingProducts] = useState(false)
 
   const downloadFile = async (type: 'pdf' | 'xml') => {
     const setLoading = type === 'pdf' ? setDownloadingPdf : setDownloadingXml
@@ -195,10 +223,11 @@ export default function FacturaDetailPage() {
     }
   }
 
-  const fetchInvoice = async () => {
+  const fetchInvoice = async (opts?: { syncProducts?: boolean }) => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/invoices/${id}`)
+      const qs = opts?.syncProducts ? '?sync_products=1' : ''
+      const res = await fetch(`/api/invoices/${id}${qs}`)
       if (!res.ok) throw new Error('Failed to fetch')
       const data = await res.json()
       setInvoice(data)
@@ -216,6 +245,15 @@ export default function FacturaDetailPage() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSyncProductsFromAlegra = async () => {
+    try {
+      setSyncingProducts(true)
+      await fetchInvoice({ syncProducts: true })
+    } finally {
+      setSyncingProducts(false)
     }
   }
 
@@ -847,10 +885,23 @@ export default function FacturaDetailPage() {
 
           {/* Items List */}
           <div className="p-6">
-            <h4 className="text-sm font-extrabold uppercase text-gray-800 tracking-wider mb-4 flex items-center gap-2">
-              <span className="bg-[#0763a9] w-2 h-2 rounded-full"></span>
-              Detalle de Conceptos
-            </h4>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <h4 className="text-sm font-extrabold uppercase text-gray-800 tracking-wider flex items-center gap-2">
+                <span className="bg-[#0763a9] w-2 h-2 rounded-full"></span>
+                Detalle de Conceptos
+              </h4>
+              {invoice.alegra_id && (
+                <button
+                  type="button"
+                  onClick={handleSyncProductsFromAlegra}
+                  disabled={syncingProducts}
+                  className="text-xs text-[#0763a9] hover:text-[#0a86e3] font-bold flex items-center gap-1.5 border border-blue-200 rounded-lg px-2.5 py-1 bg-white hover:bg-blue-50 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={syncingProducts ? 'animate-spin' : ''} />
+                  {syncingProducts ? 'Sincronizando...' : 'Sincronizar productos de Alegra'}
+                </button>
+              )}
+            </div>
             
             <div className="border border-[#e8f1f9] rounded-xl overflow-hidden shadow-sm">
               <table className="w-full text-left text-sm border-collapse">
@@ -908,7 +959,17 @@ export default function FacturaDetailPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="p-6 text-center text-gray-400 italic">No hay productos en esta factura</td>
+                      <td colSpan={6} className="p-8 text-center">
+                        <p className="text-gray-400 italic mb-2">No hay productos en esta factura</p>
+                        {invoice.alegra_id ? (
+                          <p className="text-xs text-gray-500">
+                            Pueden faltar por un sync incompleto. Usa &quot;Sincronizar productos de Alegra&quot; arriba
+                            para importarlos desde la factura original.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-500">Esta factura no tiene ID de Alegra asociado.</p>
+                        )}
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -1459,6 +1520,123 @@ export default function FacturaDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Complementos de Pago (Alegra) */}
+        {invoice.alegra_id && (
+          <div className="bg-white rounded-2xl border border-[#e8f1f9] shadow-sm overflow-hidden mt-6">
+            <div className="p-6 bg-gray-50/50 border-b border-[#e8f1f9] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h4 className="text-sm font-extrabold uppercase text-gray-800 tracking-wider flex items-center gap-2">
+                <Receipt size={16} className="text-[#0763a9]" />
+                Complementos de Pago (Alegra)
+              </h4>
+              {invoice.alegra_summary && (
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span className="bg-white border border-gray-200 rounded-lg px-2.5 py-1 font-semibold text-gray-700">
+                    Pagado:{' '}
+                    <span className="font-mono text-emerald-700">
+                      {formatCurrency(invoice.alegra_summary.totalPaid ?? 0)}
+                    </span>
+                  </span>
+                  <span className="bg-white border border-gray-200 rounded-lg px-2.5 py-1 font-semibold text-gray-700">
+                    Saldo:{' '}
+                    <span className="font-mono text-amber-700">
+                      {formatCurrency(invoice.alegra_summary.balance ?? 0)}
+                    </span>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6">
+              {invoice.complementos_pago && invoice.complementos_pago.length > 0 ? (
+                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 font-bold text-gray-600">
+                        <th className="p-4">Fecha</th>
+                        <th className="p-4">No. Pago</th>
+                        <th className="p-4">Método</th>
+                        <th className="p-4 text-right">Monto aplicado</th>
+                        <th className="p-4">Timbre / UUID</th>
+                        <th className="p-4 text-center">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-gray-800">
+                      {invoice.complementos_pago.map((pago) => (
+                        <tr key={pago.id} className="hover:bg-gray-50/50">
+                          <td className="p-4 font-semibold text-gray-700 whitespace-nowrap">
+                            {pago.date ? formatDate(pago.date) : '—'}
+                            {pago.stampDate && (
+                              <p className="text-[10px] text-gray-400 font-normal mt-0.5">
+                                Timbrado: {pago.stampDate}
+                              </p>
+                            )}
+                          </td>
+                          <td className="p-4 font-mono text-xs text-gray-600">
+                            {pago.number != null ? String(pago.number) : `Alegra #${pago.id}`}
+                          </td>
+                          <td className="p-4">
+                            <p className="font-semibold text-gray-800">{pago.paymentMethod}</p>
+                            {pago.bankAccount && (
+                              <p className="text-[11px] text-gray-400">{pago.bankAccount}</p>
+                            )}
+                          </td>
+                          <td className="p-4 text-right font-extrabold font-mono text-gray-900">
+                            {formatCurrency(pago.amount)}
+                          </td>
+                          <td className="p-4">
+                            {pago.stampUuid ? (
+                              <div className="space-y-1 max-w-xs">
+                                <p className="font-mono text-[11px] text-gray-700 break-all leading-snug">
+                                  {pago.stampUuid}
+                                </p>
+                                {pago.satVerificationUrl && (
+                                  <a
+                                    href={pago.satVerificationUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0763a9] hover:underline"
+                                  >
+                                    Verificar en SAT <ExternalLink size={11} />
+                                  </a>
+                                )}
+                                {pago.stampVersion && (
+                                  <p className="text-[10px] text-gray-400">CFDI {pago.stampVersion}</p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-100 px-2 py-0.5 rounded">
+                                Sin timbrar / sin UUID
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                              pago.stampUuid
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-150'
+                                : 'bg-slate-50 text-slate-600 border-slate-150'
+                            }`}>
+                              {pago.stampUuid ? 'Complemento' : (pago.status || 'Registrado')}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                  <Receipt size={36} className="mb-2 opacity-40" />
+                  <p className="text-sm font-medium">Sin pagos registrados en Alegra</p>
+                  <p className="text-xs mt-1 text-center max-w-md">
+                    Cuando se registren pagos (parciales o totales) en Alegra para esta factura,
+                    aparecerán aquí con su UUID de complemento de pago si ya fueron timbrados.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Remisiones Asociadas */}
         {invoice.remisiones !== undefined && (

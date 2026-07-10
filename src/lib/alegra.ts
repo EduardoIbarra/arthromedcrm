@@ -58,6 +58,28 @@ export function toAlegraTaxRegime(regimen: string | null | undefined): string | 
   return null
 }
 
+const ALEGRA_BASE = 'https://api.alegra.com/api/v1'
+
+export function mapAlegraPaymentMethod(method: string | null | undefined): string {
+  switch ((method || '').toLowerCase()) {
+    case 'cash':
+      return 'Efectivo'
+    case 'transfer':
+      return 'Transferencia'
+    case 'check':
+      return 'Cheque'
+    case 'card':
+    case 'credit-card':
+      return 'Tarjeta de crédito'
+    case 'debit-card':
+      return 'Tarjeta de débito'
+    case 'deposit':
+      return 'Depósito'
+    default:
+      return method || 'No especificado'
+  }
+}
+
 export async function fetchAlegraInvoice(alegraId: string, fields?: string): Promise<any> {
   const authHeader = getAlegraAuthHeader()
   if (!authHeader) {
@@ -65,8 +87,8 @@ export async function fetchAlegraInvoice(alegraId: string, fields?: string): Pro
   }
 
   const url = fields
-    ? `https://api.alegra.com/api/v1/invoices/${alegraId}?fields=${fields}`
-    : `https://api.alegra.com/api/v1/invoices/${alegraId}`
+    ? `${ALEGRA_BASE}/invoices/${alegraId}?fields=${fields}`
+    : `${ALEGRA_BASE}/invoices/${alegraId}`
 
   const res = await fetch(url, {
     headers: { Authorization: authHeader, Accept: 'application/json' },
@@ -78,6 +100,123 @@ export async function fetchAlegraInvoice(alegraId: string, fields?: string): Pro
   }
 
   return res.json()
+}
+
+export async function fetchAlegraPayment(paymentId: string): Promise<any> {
+  const authHeader = getAlegraAuthHeader()
+  if (!authHeader) {
+    throw new Error('Alegra API credentials are not configured')
+  }
+
+  const res = await fetch(`${ALEGRA_BASE}/payments/${paymentId}`, {
+    headers: { Authorization: authHeader, Accept: 'application/json' },
+  })
+
+  if (!res.ok) {
+    const txt = await res.text()
+    throw new Error(`Alegra API error ${res.status}: ${txt}`)
+  }
+
+  return res.json()
+}
+
+/**
+ * Payments applied to a specific Alegra invoice (complementos de pago / REPs).
+ * Prefers invoice.payments, falls back to client payment list when needed.
+ */
+export async function fetchAlegraPaymentsForInvoice(
+  alegraInvoiceId: string,
+  preloadedInvoice?: any
+): Promise<{
+  invoice: any
+  payments: AlegraInvoicePayment[]
+}> {
+  const invoice = preloadedInvoice || (await fetchAlegraInvoice(alegraInvoiceId))
+  const invoiceIdStr = String(alegraInvoiceId)
+
+  let paymentSummaries: any[] = Array.isArray(invoice.payments) ? [...invoice.payments] : []
+
+  // Fallback: payments linked via client that reference this invoice
+  if (paymentSummaries.length === 0 && invoice.client?.id) {
+    const authHeader = getAlegraAuthHeader()
+    if (authHeader) {
+      try {
+        const res = await fetch(
+          `${ALEGRA_BASE}/payments?limit=30&type=in&client_id=${invoice.client.id}&order_direction=DESC`,
+          { headers: { Authorization: authHeader, Accept: 'application/json' } }
+        )
+        if (res.ok) {
+          const all = await res.json()
+          if (Array.isArray(all)) {
+            paymentSummaries = all.filter((p: any) =>
+              (p.invoices || []).some((inv: any) => String(inv.id) === invoiceIdStr)
+            )
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching client payments from Alegra:', err)
+      }
+    }
+  }
+
+  const payments = await Promise.all(
+    paymentSummaries.map(async (summary: any): Promise<AlegraInvoicePayment> => {
+      let detail: any = summary
+      try {
+        if (summary?.id) {
+          detail = await fetchAlegraPayment(String(summary.id))
+        }
+      } catch (err) {
+        console.warn(`Could not load payment ${summary?.id} detail:`, err)
+      }
+
+      const appliedToInvoice = (detail.invoices || summary.invoices || []).find(
+        (inv: any) => String(inv.id) === invoiceIdStr
+      )
+      const amount =
+        Number(appliedToInvoice?.amount ?? summary.amount ?? detail.amount ?? 0) || 0
+      const stamp = detail.stamp || null
+
+      return {
+        id: String(detail.id || summary.id),
+        number: detail.number ?? summary.number ?? null,
+        date: detail.date || summary.date || null,
+        amount,
+        paymentMethod: mapAlegraPaymentMethod(detail.paymentMethod || summary.paymentMethod),
+        paymentMethodRaw: detail.paymentMethod || summary.paymentMethod || null,
+        status: detail.status || summary.status || null,
+        observations: detail.observations || summary.observations || null,
+        anotation: detail.anotation || summary.anotation || null,
+        stampUuid: stamp?.uuid || null,
+        stampDate: stamp?.stampDate || stamp?.date || null,
+        stampVersion: stamp?.version || detail.stampVersion || summary.stampVersion || null,
+        satVerificationUrl: stamp?.barCodeContent || null,
+        bankAccount: detail.bankAccount?.name || detail.account?.name || null,
+      }
+    })
+  )
+
+  // Newest first
+  payments.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+
+  return { invoice, payments }
+}
+
+export type AlegraInvoicePayment = {
+  id: string
+  number: string | number | null
+  date: string | null
+  amount: number
+  paymentMethod: string
+  paymentMethodRaw: string | null
+  status: string | null
+  observations: string | null
+  anotation: string | null
+  stampUuid: string | null
+  stampDate: string | null
+  stampVersion: string | null
+  satVerificationUrl: string | null
+  bankAccount: string | null
 }
 
 export function extractAlegraFileUrl(data: any, field: 'pdf' | 'xml'): string | null {
