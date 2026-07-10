@@ -36,6 +36,24 @@ function extractIdentification(contact: any, fallback?: string | null): string |
   return id.toString().trim() || null
 }
 
+/** Alegra may return regime as string, array, or regimeObject[] */
+function extractExistingRegime(contact: any): string | null {
+  if (!contact) return null
+  if (typeof contact.regime === 'string' && contact.regime) {
+    return toAlegraTaxRegime(contact.regime)
+  }
+  if (Array.isArray(contact.regime) && contact.regime[0]) {
+    return toAlegraTaxRegime(contact.regime[0])
+  }
+  if (Array.isArray(contact.regimeObject) && contact.regimeObject[0]) {
+    return toAlegraTaxRegime(contact.regimeObject[0])
+  }
+  if (typeof contact.taxRegime === 'string' && contact.taxRegime) {
+    return toAlegraTaxRegime(contact.taxRegime)
+  }
+  return null
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -90,7 +108,7 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Fetch full contact — estimate only returns a partial client snapshot
+    // Fetch full contact — estimate only returns a partial client snapshot (no regime)
     let contact: any = null
     try {
       const contactRes = await fetch(`${ALEGRA_BASE}/contacts/${estimateClientId}`, {
@@ -121,9 +139,16 @@ export async function POST(
       quote.cliente_rfc || localCliente?.rfc
     )
     const zipCode = extractZipCode(contact, localCliente?.codigo_postal)
+    const country =
+      (contact.address?.country || 'MEX').toString().trim() || 'MEX'
+    const thirdType =
+      (contact.thirdType || 'NATIONAL').toString().trim() || 'NATIONAL'
+
+    // Alegra México electronic invoicing uses `regime` + `regimeObject[]`, NOT `taxRegime`.
+    // Sending only taxRegime still fails with: "El régimen es obligatorio cuando se tiene activo facturación electrónica"
     const alegraTaxRegime =
       toAlegraTaxRegime(regimen_fiscal) ||
-      toAlegraTaxRegime(contact.taxRegime) ||
+      extractExistingRegime(contact) ||
       toAlegraTaxRegime(localCliente?.regimen_fiscal)
 
     // Pre-validate CFDI 4.0 receptor requirements before calling stamp
@@ -140,16 +165,17 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Update contact with required fields. Alegra PUT requires `name` even for partial updates
-    // (sending only { taxRegime } returns "El nombre del contacto es obligatorio").
     const existingAddress =
       contact.address && typeof contact.address === 'object' ? contact.address : {}
+
+    // Verified against Alegra API (MX e-invoicing): both regime and regimeObject[] are required.
     const contactUpdate: Record<string, unknown> = {
       name,
       identification,
-      taxRegime: alegraTaxRegime,
+      thirdType,
+      regime: alegraTaxRegime,
+      regimeObject: [alegraTaxRegime],
       address: {
-        // Only re-send known fiscal address fields Alegra accepts
         ...(existingAddress.street ? { street: existingAddress.street } : {}),
         ...(existingAddress.exteriorNumber ? { exteriorNumber: existingAddress.exteriorNumber } : {}),
         ...(existingAddress.interiorNumber ? { interiorNumber: existingAddress.interiorNumber } : {}),
@@ -157,7 +183,7 @@ export async function POST(
         ...(existingAddress.locality ? { locality: existingAddress.locality } : {}),
         ...(existingAddress.municipality ? { municipality: existingAddress.municipality } : {}),
         ...(existingAddress.state ? { state: existingAddress.state } : {}),
-        ...(existingAddress.country ? { country: existingAddress.country } : {}),
+        country,
         zipCode,
       },
     }
@@ -175,6 +201,19 @@ export async function POST(
         return NextResponse.json({
           success: false,
           error: errBody.message || `No se pudo actualizar el contacto en Alegra (${updateRes.status})`,
+        }, { status: 400 })
+      }
+
+      // Confirm regime actually persisted
+      const updated = await updateRes.json().catch(() => null)
+      const persisted =
+        extractExistingRegime(updated) ||
+        (updated?.regime ? toAlegraTaxRegime(updated.regime) : null)
+      if (!persisted) {
+        console.error('Alegra contact update returned without regime:', updated)
+        return NextResponse.json({
+          success: false,
+          error: 'Alegra no guardó el régimen fiscal del contacto. Verifica el régimen en Alegra e intenta de nuevo.',
         }, { status: 400 })
       }
     } catch (err) {

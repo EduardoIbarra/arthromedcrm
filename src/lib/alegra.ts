@@ -6,7 +6,9 @@ export function getAlegraAuthHeader(): string | null {
 }
 
 /**
- * Alegra México expects taxRegime as catalog enum IDs, not SAT numeric codes.
+ * Alegra México expects regime catalog enum IDs, not SAT numeric codes.
+ * Contacts API fields (MX electronic invoicing): `regime` + `regimeObject: [regime]`.
+ * Note: `taxRegime` is NOT accepted and is silently ignored / rejected.
  * @see https://developer.alegra.com/reference/méxico
  */
 const SAT_TO_ALEGRA_TAX_REGIME: Record<string, string> = {
@@ -33,7 +35,7 @@ const ALEGRA_TAX_REGIME_IDS = new Set([
 
 /**
  * Map a SAT code (e.g. "612") or Alegra enum (e.g. "BUSINESS_ACTIVITIES_REGIME")
- * to the Alegra taxRegime value required by the contacts API.
+ * to the Alegra `regime` value required by the contacts API (México).
  */
 export function toAlegraTaxRegime(regimen: string | null | undefined): string | null {
   if (!regimen) return null
