@@ -4,6 +4,7 @@ import { generateClientLetter } from '@/lib/services/letter'
 import { sendRespondMessage } from '@/lib/respond'
 import { generateObject } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { z } from 'zod'
 
 
@@ -315,25 +316,40 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
         const openai = createOpenAI({
           apiKey: process.env.OPENAI_API_KEY,
         })
-
-        const parsed = await generateObject({
-          model: openai('gpt-4o-mini') as any,
-          schema: z.object({
-            isLetterRequest: z.boolean(),
-            isStatusRequest: z.boolean().default(false),
-            distributorQuery: z.string().nullable(),
-            institutionName: z.string().nullable(),
-            distributorName: z.string().nullable(),
-            rfc: z.string().nullable(),
-            selectedLinesIds: z.array(z.string()),
-            expirationDate: z.string().nullable(),
-            missingInformation: z.string().nullable(),
-            coverage: z.string().nullable()
-          }),
-          prompt
+        const google = createGoogleGenerativeAI({
+          apiKey: process.env.GEMINI_API_KEY,
         })
 
-        const extraction = parsed.object
+        const schema = z.object({
+          isLetterRequest: z.boolean(),
+          isStatusRequest: z.boolean().default(false),
+          distributorQuery: z.string().nullable(),
+          institutionName: z.string().nullable(),
+          distributorName: z.string().nullable(),
+          rfc: z.string().nullable(),
+          selectedLinesIds: z.array(z.string()),
+          expirationDate: z.string().nullable(),
+          missingInformation: z.string().nullable(),
+          coverage: z.string().nullable()
+        })
+
+        let extraction;
+        try {
+          const parsed = await generateObject({
+            model: google('gemini-1.5-flash') as any,
+            schema,
+            prompt
+          })
+          extraction = parsed.object
+        } catch (geminiError) {
+          console.error('Gemini generation failed, falling back to OpenAI:', geminiError)
+          const parsed = await generateObject({
+            model: openai('gpt-4o-mini') as any,
+            schema,
+            prompt
+          })
+          extraction = parsed.object
+        }
 
         if (!extraction.isLetterRequest && !extraction.isStatusRequest) {
           console.log('Message is not a letter or status request. Sending virtual hub menu.')
