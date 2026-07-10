@@ -59,6 +59,23 @@ export async function POST(
       }
     }
 
+    // Step 1.5: Refresh the estimate's client snapshot so it picks up any updated taxRegime
+    if (alegraClient?.id) {
+      try {
+        await fetch(`https://api.alegra.com/api/v1/estimates/${quote.alegra_id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ client: alegraClient.id })
+        })
+      } catch (err) {
+        console.error('Error refreshing estimate client snapshot:', err)
+      }
+    }
+
     // Step 2: Create Invoice from Estimate in Alegra
     const alegraPayload: any = {
       date: new Date().toISOString().split('T')[0],
@@ -73,12 +90,7 @@ export async function POST(
       }
     }
 
-    if (alegraClient) {
-      alegraPayload.client = {
-        ...alegraClient,
-        ...(regimen_fiscal ? { taxRegime: regimen_fiscal } : {})
-      }
-    }
+    // Remove the manual client object injection as we updated the estimate snapshot directly
 
     const res = await fetch('https://api.alegra.com/api/v1/invoices', {
       method: 'POST',
