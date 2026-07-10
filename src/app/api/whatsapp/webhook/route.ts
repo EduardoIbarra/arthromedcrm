@@ -317,7 +317,7 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
         })
 
         const parsed = await generateObject({
-          model: openai('gpt-4o-mini'),
+          model: openai('gpt-4o-mini') as any,
           schema: z.object({
             isLetterRequest: z.boolean(),
             isStatusRequest: z.boolean().default(false),
