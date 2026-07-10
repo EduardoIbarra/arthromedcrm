@@ -4,6 +4,16 @@ import { getAlegraAuthHeader, toAlegraTaxRegime } from '@/lib/alegra'
 
 const ALEGRA_BASE = 'https://api.alegra.com/api/v1'
 
+/** SAT forma de pago (01, 03, …) → Alegra paymentMethod */
+const SAT_FORMA_TO_ALEGRA_METHOD: Record<string, string> = {
+  '01': 'cash',
+  '02': 'check',
+  '03': 'transfer',
+  '04': 'credit-card',
+  '28': 'debit-card',
+  '99': 'other',
+}
+
 function extractZipCode(contact: any, localZip?: string | null): string | null {
   const fromContact =
     contact?.address?.zipCode ||
@@ -54,6 +64,55 @@ function extractExistingRegime(contact: any): string | null {
   return null
 }
 
+/**
+ * Map UI payment fields to Alegra Mexico invoice fields.
+ * - paymentType = SAT método (PUE | PPD)
+ * - paymentMethod = forma (cash, transfer, other, …)
+ * PPD only allows paymentMethod "other" (Por definir).
+ */
+function mapPaymentFields(metodo_pago: string, forma_pago: string) {
+  const paymentType = (metodo_pago || 'PUE').toUpperCase() === 'PPD' ? 'PPD' : 'PUE'
+  let paymentMethod =
+    SAT_FORMA_TO_ALEGRA_METHOD[String(forma_pago || '').trim()] ||
+    // already an Alegra method name
+    (['cash', 'transfer', 'check', 'credit-card', 'debit-card', 'other', 'deposit'].includes(
+      String(forma_pago || '').toLowerCase()
+    )
+      ? String(forma_pago).toLowerCase()
+      : 'transfer')
+
+  if (paymentType === 'PPD') {
+    paymentMethod = 'other'
+  }
+
+  return { paymentType, paymentMethod }
+}
+
+function mapEstimateItemsToInvoice(items: any[]): any[] {
+  return (items || []).map((item: any) => {
+    const mapped: Record<string, unknown> = {
+      id: item.id,
+      price: Number(item.price) || 0,
+      quantity: Number(item.quantity) || 1,
+    }
+    if (item.description || item.name) {
+      mapped.description = item.description || item.name
+    }
+    if (item.reference) {
+      mapped.reference = item.reference
+    }
+    if (item.discount != null && Number(item.discount) > 0) {
+      mapped.discount = Number(item.discount)
+    }
+    if (Array.isArray(item.tax) && item.tax.length > 0) {
+      mapped.tax = item.tax
+        .map((t: any) => (t?.id != null ? { id: t.id } : null))
+        .filter(Boolean)
+    }
+    return mapped
+  })
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -87,20 +146,30 @@ export async function POST(
       Accept: 'application/json',
     }
 
-    // Fetch estimate to get the associated client id
-    let estimateClientId: string | number | undefined
+    // Fetch full estimate (client + items). Alegra requires items when converting estimate → invoice.
+    let estimateData: any = null
     try {
       const estimateRes = await fetch(`${ALEGRA_BASE}/estimates/${quote.alegra_id}`, {
         headers: { Authorization: authHeader, Accept: 'application/json' },
       })
       if (estimateRes.ok) {
-        const estimateData = await estimateRes.json()
-        estimateClientId = estimateData.client?.id
+        estimateData = await estimateRes.json()
+      } else {
+        const errBody = await estimateRes.json().catch(() => ({}))
+        return NextResponse.json({
+          success: false,
+          error: errBody.message || 'No se pudo obtener la cotización en Alegra',
+        }, { status: 400 })
       }
     } catch (err) {
-      console.error('Error fetching estimate to get client:', err)
+      console.error('Error fetching estimate:', err)
+      return NextResponse.json({
+        success: false,
+        error: 'Error de red al obtener la cotización en Alegra',
+      }, { status: 500 })
     }
 
+    const estimateClientId = estimateData?.client?.id
     if (!estimateClientId) {
       return NextResponse.json({
         success: false,
@@ -108,7 +177,15 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Fetch full contact — estimate only returns a partial client snapshot (no regime)
+    const estimateItems = Array.isArray(estimateData.items) ? estimateData.items : []
+    if (estimateItems.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'La cotización en Alegra no tiene partidas (items). No se puede timbrar.',
+      }, { status: 400 })
+    }
+
+    // Full contact — estimate client snapshot does not include regime
     let contact: any = null
     try {
       const contactRes = await fetch(`${ALEGRA_BASE}/contacts/${estimateClientId}`, {
@@ -131,7 +208,6 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Local ERP fallbacks (cotización / catálogo clientes)
     const localCliente = quote.clientes
     const name = extractName(contact, quote.cliente_nombre || localCliente?.nombre)
     const identification = extractIdentification(
@@ -144,14 +220,12 @@ export async function POST(
     const thirdType =
       (contact.thirdType || 'NATIONAL').toString().trim() || 'NATIONAL'
 
-    // Alegra México electronic invoicing uses `regime` + `regimeObject[]`, NOT `taxRegime`.
-    // Sending only taxRegime still fails with: "El régimen es obligatorio cuando se tiene activo facturación electrónica"
+    // Alegra México: contact uses regime + regimeObject[]; invoice stamp requires regimeClient
     const alegraTaxRegime =
       toAlegraTaxRegime(regimen_fiscal) ||
       extractExistingRegime(contact) ||
       toAlegraTaxRegime(localCliente?.regimen_fiscal)
 
-    // Pre-validate CFDI 4.0 receptor requirements before calling stamp
     const missing: string[] = []
     if (!name) missing.push('nombre del cliente')
     if (!identification) missing.push('RFC del cliente')
@@ -168,7 +242,6 @@ export async function POST(
     const existingAddress =
       contact.address && typeof contact.address === 'object' ? contact.address : {}
 
-    // Verified against Alegra API (MX e-invoicing): both regime and regimeObject[] are required.
     const contactUpdate: Record<string, unknown> = {
       name,
       identification,
@@ -203,19 +276,6 @@ export async function POST(
           error: errBody.message || `No se pudo actualizar el contacto en Alegra (${updateRes.status})`,
         }, { status: 400 })
       }
-
-      // Confirm regime actually persisted
-      const updated = await updateRes.json().catch(() => null)
-      const persisted =
-        extractExistingRegime(updated) ||
-        (updated?.regime ? toAlegraTaxRegime(updated.regime) : null)
-      if (!persisted) {
-        console.error('Alegra contact update returned without regime:', updated)
-        return NextResponse.json({
-          success: false,
-          error: 'Alegra no guardó el régimen fiscal del contacto. Verifica el régimen en Alegra e intenta de nuevo.',
-        }, { status: 400 })
-      }
     } catch (err) {
       console.error('Error updating Alegra contact:', err)
       return NextResponse.json({
@@ -224,7 +284,7 @@ export async function POST(
       }, { status: 500 })
     }
 
-    // Refresh the estimate's client snapshot so stamp uses updated fiscal data
+    // Refresh estimate client snapshot (best-effort)
     try {
       await fetch(`${ALEGRA_BASE}/estimates/${quote.alegra_id}`, {
         method: 'PUT',
@@ -235,15 +295,22 @@ export async function POST(
       console.error('Error refreshing estimate client snapshot:', err)
     }
 
-    // Create invoice from estimate and stamp
+    const { paymentType, paymentMethod } = mapPaymentFields(metodo_pago, forma_pago)
+    const invoiceItems = mapEstimateItemsToInvoice(estimateItems)
+
+    // Verified: stamp fails with "El régimen fiscal del cliente es requerido"
+    // unless regimeClient is set on the invoice payload (contact update alone is not enough).
+    // Alegra also requires explicit items when converting from an estimate.
     const alegraPayload: Record<string, unknown> = {
       date: new Date().toISOString().split('T')[0],
       dueDate: new Date().toISOString().split('T')[0],
       estimate: quote.alegra_id,
       client: estimateClientId,
-      paymentMethod: metodo_pago,
-      paymentForm: forma_pago,
+      items: invoiceItems,
+      paymentType,
+      paymentMethod,
       cfdiUse: uso_cfdi,
+      regimeClient: alegraTaxRegime,
       stamp: {
         generateStamp: true,
         version: '4.0',
@@ -259,7 +326,12 @@ export async function POST(
     const data = await res.json()
 
     if (!res.ok) {
-      console.error('Alegra API Error:', data)
+      console.error('Alegra API Error:', data, 'payload keys', Object.keys(alegraPayload), {
+        paymentType,
+        paymentMethod,
+        regimeClient: alegraTaxRegime,
+        itemsCount: invoiceItems.length,
+      })
       return NextResponse.json({
         success: false,
         error: data.message || 'Error al crear/timbrar factura en Alegra',
