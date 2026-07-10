@@ -421,10 +421,13 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
               const notPaid = pending.filter((f: any) => f.estado !== 'pagada' && f.estado !== 'pagado')
               const paid = pending.filter((f: any) => f.estado === 'pagada' || f.estado === 'pagado')
               replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
-              if (notPaid.length > 0) replyText += `- ${notPaid.length} no pagada(s).\n`
+              if (notPaid.length > 0) {
+                const notPaidDetails = notPaid.map((f: any) => f.numero_factura).join(', ')
+                replyText += `- ${notPaid.length} no pagada(s) (Facturas: ${notPaidDetails}).\n`
+              }
               if (paid.length > 0) {
-                const dates = paid.map((f: any) => new Date(f.fecha_vencimiento).toLocaleDateString('es-MX', { timeZone: 'UTC' }))
-                replyText += `- ${paid.length} pagada(s) (en proceso de entrega con límite(s) de entrega: ${dates.join(', ')}).\n`
+                const paidDetails = paid.map((f: any) => `${f.numero_factura} [límite: ${new Date(f.fecha_vencimiento).toLocaleDateString('es-MX', { timeZone: 'UTC' })}]`).join(', ')
+                replyText += `- ${paid.length} pagada(s) en proceso de entrega (Facturas: ${paidDetails}).\n`
               }
             }
           }
