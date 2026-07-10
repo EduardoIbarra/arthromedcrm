@@ -392,8 +392,19 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
 
         if (extraction.isStatusRequest) {
           console.log(`Processing status request for client ${client.name}`)
+          const whereConditions: any[] = [{ cliente_id: client.id }]
+          if (client.rfc) {
+            whereConditions.push({ cliente_rfc: { equals: client.rfc, mode: 'insensitive' } })
+          }
+          if (client.name) {
+            whereConditions.push({ cliente_nombre: { equals: client.name, mode: 'insensitive' } })
+          }
+          
           const facturas = await prisma.facturas_cliente.findMany({
-            where: { cliente_id: client.id },
+            where: { 
+              OR: whereConditions,
+              estado: { notIn: ['anulado', 'cancelada'] }
+            },
             orderBy: { fecha_expedicion: 'desc' }
           })
           

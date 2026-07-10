@@ -28,24 +28,24 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Credenciales de Alegra no configuradas' }, { status: 500 })
     }
 
-    // Fetch estimate from Alegra to get the clientId
-    let clientId: string | undefined
+    // Fetch estimate from Alegra to get the client details
+    let alegraClient: any = undefined
     try {
       const estimateRes = await fetch(`https://api.alegra.com/api/v1/estimates/${quote.alegra_id}`, {
         headers: { 'Authorization': authHeader, 'Accept': 'application/json' }
       })
       if (estimateRes.ok) {
         const estimateData = await estimateRes.json()
-        clientId = estimateData.client?.id
+        alegraClient = estimateData.client
       }
     } catch (err) {
       console.error('Error fetching estimate to get client:', err)
     }
 
     // Step 1: Optionally update client's taxRegime in Alegra if provided
-    if (clientId && regimen_fiscal) {
+    if (alegraClient?.id && regimen_fiscal) {
       try {
-        await fetch(`https://api.alegra.com/api/v1/clients/${clientId}`, {
+        await fetch(`https://api.alegra.com/api/v1/clients/${alegraClient.id}`, {
           method: 'PUT',
           headers: {
             'Authorization': authHeader,
@@ -73,9 +73,9 @@ export async function POST(
       }
     }
 
-    if (clientId) {
+    if (alegraClient) {
       alegraPayload.client = {
-        id: clientId,
+        ...alegraClient,
         ...(regimen_fiscal ? { taxRegime: regimen_fiscal } : {})
       }
     }
