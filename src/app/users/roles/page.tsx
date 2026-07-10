@@ -12,7 +12,7 @@ import { SECTIONS, PermissionAction } from '@/lib/permissions'
 import Modal from '@/components/Modal'
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
-const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']
+const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete', 'timbrar', 'cancelar', 'manage_payments']
 
 export default function RolesPage() {
   const { t } = useI18n()

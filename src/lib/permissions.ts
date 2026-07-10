@@ -1,4 +1,4 @@
-export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | '*'
+export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'timbrar' | 'cancelar' | 'manage_payments' | '*'
 
 export const SECTIONS = [
   'dashboard',
@@ -34,7 +34,7 @@ export const SECTIONS = [
   'cotizaciones'
 ] as const
 
-export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']
+export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete', 'timbrar', 'cancelar', 'manage_payments']
 
 export type Section = typeof SECTIONS[number] | '*'
 

@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import { 
   FileText, Search, Filter, RefreshCw, ChevronRight,
-  CheckCircle, AlertCircle, DollarSign, Calendar, MessageSquare, Paperclip
+  CheckCircle, AlertCircle, DollarSign, Calendar, MessageSquare, Paperclip, Zap, X
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
+import Modal from '@/components/Modal'
 import { useRouter } from 'next/navigation'
 
 interface Cotizacion {
@@ -51,6 +52,13 @@ export default function CotizacionesPage() {
   // Filters
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+
+  // Timbrar Modal State
+  const [showTimbrarModal, setShowTimbrarModal] = useState(false)
+  const [selectedQuote, setSelectedQuote] = useState<Cotizacion | null>(null)
+  const [isTimbrando, setIsTimbrando] = useState(false)
+  const [timbrarMetodo, setTimbrarMetodo] = useState('PUE')
+  const [timbrarUso, setTimbrarUso] = useState('G03')
 
   const fetchQuotes = async () => {
     setLoading(true)
@@ -102,6 +110,30 @@ export default function CotizacionesPage() {
     } finally {
       setSyncing(false)
       setTimeout(() => setSyncResult(null), 6000)
+    }
+  }
+
+  const handleTimbrar = async () => {
+    if (!selectedQuote) return
+    setIsTimbrando(true)
+    try {
+      const res = await fetch(`/api/cotizaciones/${selectedQuote.id}/timbrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metodo_pago: timbrarMetodo, uso_cfdi: timbrarUso })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSyncResult({ success: true, message: 'Cotización facturada y timbrada exitosamente.' })
+        setShowTimbrarModal(false)
+        fetchQuotes()
+      } else {
+        alert(data.error || 'Error al timbrar.')
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error de conexión.')
+    } finally {
+      setIsTimbrando(false)
     }
   }
 
@@ -251,6 +283,7 @@ export default function CotizacionesPage() {
                     <th className="py-4 px-6 text-right">Total</th>
                     <th className="py-4 px-6 text-center">Estado</th>
                     <th className="py-4 px-6 text-center">Interacciones</th>
+                    <th className="py-4 px-6 text-center">Acciones</th>
                     <th className="py-4 px-6"></th>
                   </tr>
                 </thead>
@@ -332,6 +365,22 @@ export default function CotizacionesPage() {
                             )}
                           </div>
                         </td>
+                        <td className="py-4 px-6 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {quote.estado?.toLowerCase() !== 'facturado' && quote.estado?.toLowerCase() !== 'billed' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedQuote(quote)
+                                  setShowTimbrarModal(true)
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-medium transition"
+                              >
+                                <Zap size={14} /> Timbrar
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-4 px-6 text-right">
                           <ChevronRight className="text-gray-400 group-hover:text-blue-500 transition" size={18} />
                         </td>
@@ -344,6 +393,63 @@ export default function CotizacionesPage() {
           )}
         </div>
       </div>
+
+      {/* TIMBRAR MODAL */}
+      <Modal
+        open={showTimbrarModal}
+        onClose={() => !isTimbrando && setShowTimbrarModal(false)}
+        title="Timbrar Cotización"
+        maxWidth="500px"
+      >
+        <div className="space-y-4 text-sm text-gray-700">
+          <p>
+            Estás a punto de convertir la cotización <strong>{selectedQuote?.numero_cotizacion}</strong> en una Factura y timbrarla ante el SAT.
+          </p>
+          <div className="space-y-3 mt-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Método de Pago</label>
+              <select
+                value={timbrarMetodo}
+                onChange={e => setTimbrarMetodo(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="PUE">PUE - Pago en una sola exhibición</option>
+                <option value="PPD">PPD - Pago en parcialidades o diferido</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Uso de CFDI</label>
+              <select
+                value={timbrarUso}
+                onChange={e => setTimbrarUso(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="G01">G01 - Adquisición de mercancías</option>
+                <option value="G03">G03 - Gastos en general</option>
+                <option value="S01">S01 - Sin efectos fiscales</option>
+                <option value="D04">D04 - Donativos</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setShowTimbrarModal(false)}
+              disabled={isTimbrando}
+              className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleTimbrar}
+              disabled={isTimbrando}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+            >
+              {isTimbrando ? <RefreshCw className="animate-spin w-4 h-4" /> : <Zap size={16} />}
+              Confirmar y Timbrar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   )
 }
