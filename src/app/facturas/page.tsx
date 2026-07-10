@@ -508,8 +508,8 @@ export default function FacturasPage() {
     const date = new Date(startDateStr)
     let count = 0
     while (count < days) {
-      date.setUTCDate(date.getUTCDate() + 1)
-      const dayOfWeek = date.getUTCDay()
+      date.setDate(date.getDate() + 1)
+      const dayOfWeek = date.getDay()
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
         count++
       }
@@ -519,24 +519,24 @@ export default function FacturasPage() {
 
   const getBusinessDaysDiff = (startDate: Date, endDate: Date): number => {
     const start = new Date(startDate)
-    const startUTC = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
+    start.setHours(0, 0, 0, 0)
     
     const end = new Date(endDate)
-    const endUTC = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())
+    end.setHours(0, 0, 0, 0)
     
-    if (startUTC === endUTC) {
+    if (start.getTime() === end.getTime()) {
       return 0
     }
     
-    const isNegative = startUTC > endUTC
+    const isNegative = start.getTime() > end.getTime()
     let count = 0
     
-    const current = new Date(isNegative ? endUTC : startUTC)
-    const target = new Date(isNegative ? startUTC : endUTC)
+    const current = new Date(isNegative ? end : start)
+    const target = new Date(isNegative ? start : end)
     
     while (current.getTime() < target.getTime()) {
-      current.setUTCDate(current.getUTCDate() + 1)
-      const dayOfWeek = current.getUTCDay()
+      current.setDate(current.getDate() + 1)
+      const dayOfWeek = current.getDay()
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
         count++
       }
