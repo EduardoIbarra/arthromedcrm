@@ -545,24 +545,15 @@ export default function ClientDetailPage() {
     return date
   }
 
-  const getBusinessDaysDiff = (startDate: Date, endDate: Date): number => {
+  const getDaysDiff = (startDate: Date, endDate: Date): number => {
     const start = new Date(startDate)
     start.setHours(0, 0, 0, 0)
     
     const end = new Date(endDate)
     end.setHours(0, 0, 0, 0)
     
-    if (start.getTime() === end.getTime()) return 0
-    const isNegative = start.getTime() > end.getTime()
-    let count = 0
-    const current = new Date(isNegative ? end : start)
-    const target = new Date(isNegative ? start : end)
-    while (current.getTime() < target.getTime()) {
-      current.setDate(current.getDate() + 1)
-      const dayOfWeek = current.getDay()
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) count++
-    }
-    return isNegative ? -count : count
+    const diffTime = end.getTime() - start.getTime()
+    return Math.round(diffTime / (1000 * 60 * 60 * 24))
   }
 
   const renderDeliveryDays = (invoice: any) => {
@@ -578,7 +569,7 @@ export default function ClientDetailPage() {
       )
     }
     const deadline = addBusinessDays(invoice.fecha_pago, deliveryDays)
-    const leftDays = getBusinessDaysDiff(new Date(), deadline)
+    const leftDays = getDaysDiff(new Date(), deadline)
     if (leftDays < 0) {
       return (
         <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-100 animate-pulse">
