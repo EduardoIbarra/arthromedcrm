@@ -72,7 +72,6 @@ function formatPendingFacturasReply(clientName: string, pending: any[]): string 
   if (pending.length > 15) {
     replyText += `\n_…y ${pending.length - 15} más._\n`
   }
-  replyText += `\n_Nota:_ límite de entrega = 5 semanas desde el *primer pago* (incl. complemento de pago). Si el primer pago fue < 60% del total, la fecha es solo *referencia*, no un plazo formal.`
   return replyText
 }
 
