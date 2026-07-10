@@ -44,6 +44,7 @@ interface Client {
   telefono: string | null
   rfc: string | null
   direccion: string | null
+  regimen_fiscal?: string | null
 }
 
 interface Cotizacion {
@@ -84,6 +85,28 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; bord
   'no facturado': { label: 'No Facturado', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
 }
 
+const REGIMENES_FISCALES = [
+  { id: '601', descripcion: 'General de Ley Personas Morales' },
+  { id: '603', descripcion: 'Personas Morales con Fines no Lucrativos' },
+  { id: '605', descripcion: 'Sueldos y Salarios e Ingresos Asimilados a Salarios' },
+  { id: '606', descripcion: 'Arrendamiento' },
+  { id: '607', descripcion: 'Régimen de Enajenación o Adquisición de Bienes' },
+  { id: '608', descripcion: 'Demás ingresos' },
+  { id: '610', descripcion: 'Residentes en el Extranjero sin Establecimiento Permanente en México' },
+  { id: '611', descripcion: 'Ingresos por Dividendos (socios y accionistas)' },
+  { id: '612', descripcion: 'Personas Físicas con Actividades Empresariales y Profesionales' },
+  { id: '614', descripcion: 'Ingresos por intereses' },
+  { id: '615', descripcion: 'Régimen de los ingresos por obtención de premios' },
+  { id: '616', descripcion: 'Sin obligaciones fiscales' },
+  { id: '620', descripcion: 'Sociedades Cooperativas de Producción que optan por diferir sus ingresos' },
+  { id: '621', descripcion: 'Incorporación Fiscal' },
+  { id: '622', descripcion: 'Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras' },
+  { id: '623', descripcion: 'Opcional para Grupos de Sociedades' },
+  { id: '624', descripcion: 'Coordinados' },
+  { id: '625', descripcion: 'Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas' },
+  { id: '626', descripcion: 'Régimen Simplificado de Confianza' },
+]
+
 export default function CotizacionDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -113,12 +136,22 @@ export default function CotizacionDetailPage() {
   const [timbrarMetodo, setTimbrarMetodo] = useState('PUE')
   const [timbrarUso, setTimbrarUso] = useState('G03')
   const [timbrarForma, setTimbrarForma] = useState('01')
+  const [timbrarRegimen, setTimbrarRegimen] = useState('')
 
   useEffect(() => {
     if (quote) {
       if (quote.metodo_pago_id) setTimbrarMetodo(quote.metodo_pago_id)
       if (quote.cfdi_id) setTimbrarUso(quote.cfdi_id)
       if (quote.forma_pago_id) setTimbrarForma(quote.forma_pago_id)
+      
+      if (quote.clientes && 'regimen_fiscal' in quote.clientes && quote.clientes.regimen_fiscal) {
+        // Try to match the regimen
+        const regimenStr = quote.clientes.regimen_fiscal.toLowerCase()
+        const matched = REGIMENES_FISCALES.find(r => 
+          regimenStr.includes(r.id) || regimenStr.includes(r.descripcion.toLowerCase())
+        )
+        if (matched) setTimbrarRegimen(matched.id)
+      }
     }
   }, [quote])
 
@@ -261,7 +294,12 @@ export default function CotizacionDetailPage() {
       const res = await fetch(`/api/cotizaciones/${quote.id}/timbrar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metodo_pago: timbrarMetodo, uso_cfdi: timbrarUso, forma_pago: timbrarForma })
+        body: JSON.stringify({ 
+          metodo_pago: timbrarMetodo, 
+          uso_cfdi: timbrarUso, 
+          forma_pago: timbrarForma,
+          regimen_fiscal: timbrarRegimen || undefined
+        })
       })
       const data = await res.json()
       if (data.success) {
@@ -751,6 +789,23 @@ export default function CotizacionDetailPage() {
               >
                 <option value="">Seleccionar Forma</option>
                 {formaPagoOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.id} - {opt.descripcion}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Régimen Fiscal (Opcional - Llena si te da error el SAT)
+              </label>
+              <select
+                value={timbrarRegimen}
+                onChange={e => setTimbrarRegimen(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="">No modificar / Ya está en Alegra</option>
+                {REGIMENES_FISCALES.map(opt => (
                   <option key={opt.id} value={opt.id}>
                     {opt.id} - {opt.descripcion}
                   </option>

@@ -24,7 +24,7 @@
     "@types/exceljs": "^0.5.3",
     "@types/papaparse": "^5.5.2",
     "@types/uuid": "^10.0.0",
-    "ai": "^6.0.175",
+    "ai": "^7.0.20",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
