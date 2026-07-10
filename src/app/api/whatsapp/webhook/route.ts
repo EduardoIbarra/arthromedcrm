@@ -6,10 +6,73 @@ import { generateObject } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { z } from 'zod'
-
-
+import {
+  computeDeliveryLimit,
+  formatDeliveryLimitMessage,
+} from '@/lib/delivery-limit'
 
 export const dynamic = 'force-dynamic'
+
+/** Normalize phone for staff matching (digits only, strip leading MX 52 if present). */
+function normalizePhone(raw: string | null | undefined): string {
+  if (!raw) return ''
+  let digits = String(raw).replace(/\D/g, '')
+  if (digits.startsWith('52') && digits.length >= 12) {
+    digits = digits.slice(2)
+  }
+  if (digits.startsWith('1') && digits.length === 11) {
+    // US country code optional strip not needed for MX staff
+  }
+  return digits
+}
+
+function phonesMatch(a: string, b: string): boolean {
+  const na = normalizePhone(a)
+  const nb = normalizePhone(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  // Compare last 10 digits (MX mobile)
+  return na.slice(-10) === nb.slice(-10)
+}
+
+async function findStaffByWhatsApp(phone: string) {
+  const profiles = await prisma.user_profiles.findMany({
+    where: {
+      whatsapp: { not: null },
+    },
+    select: {
+      id: true,
+      email: true,
+      first_name: true,
+      last_name: true,
+      whatsapp: true,
+    },
+  })
+  return (
+    profiles.find((p: { whatsapp: string | null }) => phonesMatch(p.whatsapp || '', phone)) ||
+    null
+  )
+}
+
+const HUB_MENU = `🤖 *ArthroNexus - Asistente Virtual* 🤖
+
+Solo personal de ArthroMed registrado puede usar este agente.
+
+*Comandos y opciones:*
+📝 *1. Carta de Distribución*
+Ej: _"Generar carta para Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver."_
+
+📊 *2. Estatus de Cliente*
+Ej: _"¿Cómo vamos con MAVA?"_
+
+⏰ *3. Crear Recordatorio*
+Ej: _"Recuérdame el lunes a las 10am llamar a MAVA"_ o _"Recordatorio mañana 15:00 revisar factura 417"_
+
+📅 *4.* */recordatorios* — recordatorios activos de hoy
+🏥 *5.* */agenda* — cirugías, congresos y talleres de hoy
+🧪 *6.* */probar [ID]* — prueba de un recordatorio
+
+💡 Escribe */ayuda* para ver este menú.`
 
 export async function POST(request: NextRequest) {
   let rawBody = ''
@@ -67,6 +130,22 @@ export async function POST(request: NextRequest) {
     // Schedule heavy operations to run in the background after returning the response
     after(async () => {
       try {
+        // 0. STAFF-ONLY: phone must match a registered user WhatsApp number (/users)
+        const staffUser = await findStaffByWhatsApp(phone)
+        if (!staffUser) {
+          console.log(`WhatsApp access denied for non-staff phone: ${phone}`)
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: `⛔ *Acceso restringido*\n\nEste agente de WhatsApp es *exclusivo para personal de ArthroMed* cuyo número esté registrado en el ERP (sección Usuarios).\n\nTu número no está autorizado. Por favor contacta a *IT* para que lo registren o actualicen tu WhatsApp en el sistema.\n\nSolo miembros del staff pueden usar este asistente.`,
+          })
+          return
+        }
+
+        const staffName =
+          `${staffUser.first_name || ''} ${staffUser.last_name || ''}`.trim() ||
+          staffUser.email ||
+          'Colaborador'
+
         const cleanMsg = messageText.trim().toLowerCase();
 
         // 1. COMMAND ROUTING (HUB)
@@ -83,7 +162,7 @@ export async function POST(request: NextRequest) {
         ) {
           await sendRespondMessage(phone, {
             type: 'text',
-            text: `🤖 *ArthroNexus - Control Virtual* 🤖\n\nHola, soy tu asistente virtual de ArthroMed ERP. Aquí tienes las opciones y comandos disponibles:\n\n📝 *1. Generar Carta de Distribución*\nPídeme generar una carta directamente en lenguaje natural. Ej: _"Generar carta para Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver."_\n\n📅 *2. Consultar Recordatorios*\nEscribe */recordatorios* para ver los recordatorios activos de hoy.\n\n🏥 *3. Consultar Agenda*\nEscribe */agenda* para ver las cirugías, congresos y talleres de hoy.\n\n🧪 *4. Enviar Recordatorio de Prueba*\nEscribe */probar [ID_RECORDATORIO]* para enviarte un mensaje de prueba.\n\n💡 Escribe */ayuda* en cualquier momento para ver este menú.`
+            text: `Hola *${staffName}*.\n\n${HUB_MENU}`
           });
           return;
         }
@@ -290,28 +369,37 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        // 2. FALL BACK TO EXISTING GEMINI PARSER FOR LETTER REQUESTS
+        // 2. AI parser for letter / status / personal reminder
         const allLines = await prisma.catalog_lines.findMany()
+        const mxNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }))
+        const mxNowIso = mxNow.toISOString()
 
-        const prompt = `Un miembro del personal de Arthromed está enviando un mensaje de WhatsApp en lenguaje natural para solicitar la generación de una Carta de Distribución para un distribuidor.
+        const prompt = `Eres el parser del asistente ArthroNexus de ArthroMed (ERP México).
+Fecha/hora actual en Ciudad de México: ${mxNowIso} (${mxNow.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}).
 
-Mensaje del usuario:
+Mensaje del usuario (staff):
 "${messageText}"
 
-Líneas de producto disponibles en el sistema (nombre e ID):
+Líneas de producto disponibles (nombre e ID):
 ${allLines.map((l: any) => `- Nombre: "${l.name}" (ID: "${l.id}") ${l.description ? ` - Descripcion: "${l.description}"` : ''}`).join('\n')}
 
-Por favor, analiza el mensaje en lenguaje natural y extrae la información estructurada necesaria:
-1. "isLetterRequest": Debe ser true si el mensaje solicita generar/crear/mandar una carta de distribución. De lo contrario, false.
-2. "isStatusRequest": Debe ser true si el mensaje solicita un estatus, cómo vamos, o información sobre las facturas/pedidos de un distribuidor o cliente (ej. "¿Cómo vamos con MAVA?", "Status de MAVA").
-3. "distributorQuery": El nombre, ID de distribuidor, código o RFC del distribuidor/cliente para el cual se solicita la carta o el estatus (ej. "Juan Pérez", "Artromed del Norte", "MAVA"). Este dato es OBLIGATORIO para buscar al cliente en la base de datos si es Letter Request o Status Request. Si no se menciona o no está claro a qué distribuidor se refiere, pon null.
-4. "institutionName": El nombre de la institución, hospital, clínica o doctor destinatario al cual va dirigida la carta (ej. "Hospital Ángeles", "IMSS", "ISSSTE"). Si no se especifica o está ausente, pon null.
-5. "distributorName": Si se especifica una razón social o nombre exacto para imprimir en la carta que sea diferente al nombre comercial del distribuidor, extráelo aquí. De lo contrario, pon null.
-6. "rfc": Si se menciona un RFC específico para usar en la carta, extráelo. De lo contrario, pon null.
-7. "selectedLinesIds": Compara las líneas solicitadas en el mensaje con la lista de líneas disponibles en el sistema. Selecciona los IDs de aquellas líneas que coincidan con lo solicitado (por ejemplo, si pide "plasma" coincide con "Bonss Plasma", si pide "shaver" coincide con "Bonss Shaver", etc.). Si no solicita ninguna línea específica o no coincide con ninguna, deja la lista vacía.
-8. "expirationDate": Fecha de vencimiento específica en formato YYYY-MM-DD si se menciona en el mensaje. De lo contrario, pon null.
-9. "missingInformation": Si "isLetterRequest" es true pero falta el distribuidor ("distributorQuery"), la institución ("institutionName") o las líneas de producto, escribe un mensaje explicativo y amigable en español solicitando los datos faltantes.
-10. "coverage": La cobertura geográfica (región, estado, estados, país o países) especificada en la solicitud (ej. "Nuevo León", "los estados de Jalisco, Colima y Nayarit", "república mexicana", etc.). Si no se especifica explícitamente en el mensaje, pon null.`
+Extrae:
+1. "isLetterRequest": true si pide generar/crear/mandar una carta de distribución.
+2. "isStatusRequest": true si pide estatus, cómo vamos, facturas/pedidos de un cliente/distribuidor.
+3. "isReminderRequest": true si pide crear un recordatorio personal (ej. "recuérdame...", "avísame el lunes...", "pon un recordatorio...").
+4. "distributorQuery": nombre/código/RFC del distribuidor si aplica a carta o estatus; null si no.
+5. "institutionName": institución/hospital destinatario de la carta; null si no.
+6. "distributorName": razón social alternativa para la carta; null si no.
+7. "rfc": RFC si se menciona; null si no.
+8. "selectedLinesIds": IDs de líneas que coincidan con lo pedido; [] si no.
+9. "expirationDate": YYYY-MM-DD si se menciona vigencia de carta; null si no.
+10. "missingInformation": mensaje amable en español si falta info obligatoria para carta.
+11. "coverage": cobertura geográfica si se menciona; null si no.
+12. "reminderTitle": título corto del recordatorio si isReminderRequest; null si no.
+13. "reminderMessage": texto del recordatorio a enviar al staff (contenido); null si no.
+14. "reminderDate": fecha del recordatorio en YYYY-MM-DD (resuelve "el próximo lunes", "mañana", etc. con zona America/Mexico_City); null si no se puede.
+15. "reminderTime": hora HH:MM 24h (default "09:00" si solo dan fecha); null si no es recordatorio.
+16. "reminderMissingInfo": si isReminderRequest y falta fecha/hora entendible, pide aclaración en español; null si no aplica.`
 
         const openai = createOpenAI({
           apiKey: process.env.OPENAI_API_KEY,
@@ -323,6 +411,7 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
         const schema = z.object({
           isLetterRequest: z.boolean(),
           isStatusRequest: z.boolean(),
+          isReminderRequest: z.boolean(),
           distributorQuery: z.string().nullable(),
           institutionName: z.string().nullable(),
           distributorName: z.string().nullable(),
@@ -330,7 +419,12 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
           selectedLinesIds: z.array(z.string()),
           expirationDate: z.string().nullable(),
           missingInformation: z.string().nullable(),
-          coverage: z.string().nullable()
+          coverage: z.string().nullable(),
+          reminderTitle: z.string().nullable(),
+          reminderMessage: z.string().nullable(),
+          reminderDate: z.string().nullable(),
+          reminderTime: z.string().nullable(),
+          reminderMissingInfo: z.string().nullable(),
         })
 
         let extraction;
@@ -351,18 +445,75 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
           extraction = parsed.object
         }
 
-        if (!extraction.isLetterRequest && !extraction.isStatusRequest) {
-          console.log('Message is not a letter or status request. Sending virtual hub menu.')
+        // Personal reminder → whatsapp_reminders (same table as /recordatorios)
+        if (extraction.isReminderRequest && !extraction.isLetterRequest && !extraction.isStatusRequest) {
+          if (!extraction.reminderDate || extraction.reminderMissingInfo) {
+            await sendRespondMessage(phone, {
+              type: 'text',
+              text:
+                extraction.reminderMissingInfo ||
+                '¿Para qué fecha y hora quieres el recordatorio? Ej: _"el próximo lunes a las 10:00"_ o _"2026-07-15 15:30"_.',
+            })
+            return
+          }
+
+          const dateMatch = String(extraction.reminderDate).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+          if (!dateMatch) {
+            await sendRespondMessage(phone, {
+              type: 'text',
+              text: 'No pude interpretar la fecha del recordatorio. Indica una fecha clara (ej. _próximo lunes_ o _2026-07-20_).',
+            })
+            return
+          }
+
+          let time = (extraction.reminderTime || '09:00').trim()
+          const timeMatch = time.match(/^(\d{1,2}):(\d{2})$/)
+          if (!timeMatch) {
+            time = '09:00'
+          } else {
+            time = `${String(parseInt(timeMatch[1], 10)).padStart(2, '0')}:${timeMatch[2]}`
+          }
+
+          const title =
+            (extraction.reminderTitle || '').trim() ||
+            `Recordatorio personal — ${staffName}`
+          const message =
+            (extraction.reminderMessage || '').trim() ||
+            messageText.trim()
+
+          const reminder = await prisma.whatsapp_reminders.create({
+            data: {
+              title,
+              message,
+              target_type: 'general',
+              target_id: null,
+              time,
+              notify_all_participants: false,
+              extra_contacts: [staffUser.id],
+              dates: [extraction.reminderDate],
+              active: true,
+            },
+          })
+
           await sendRespondMessage(phone, {
             type: 'text',
-            text: `🤖 *ArthroNexus - Asistente Virtual* 🤖\n\nNo pude entender la solicitud de carta, estatus o comando. Aquí tienes las opciones y comandos disponibles:\n\n📝 *1. Generar Carta de Distribución*\nPídeme generar una carta directamente en lenguaje natural. Ej: _"Generar carta para Juan Pérez dirigida al Hospital Ángeles con las líneas Plasma y Shaver."_\n\n📊 *2. Estatus de Cliente*\nPregúntame por el estatus de un cliente. Ej: _"¿Cómo vamos con MAVA?"_\n\n📅 *3. Consultar Recordatorios*\nEscribe */recordatorios* para ver los recordatorios activos de hoy.\n\n🏥 *4. Consultar Agenda*\nEscribe */agenda* para ver las cirugías, congresos y talleres de hoy.\n\n🧪 *5. Enviar Recordatorio de Prueba*\nEscribe */probar [ID_RECORDATORIO]* para enviarte un mensaje de prueba.\n\n💡 Escribe */ayuda* en cualquier momento para ver este menú.`
+            text: `✅ *Recordatorio creado*\n\n• *Título:* ${title}\n• *Fecha:* ${extraction.reminderDate}\n• *Hora:* ${time} (CDMX)\n• *Mensaje:* ${message}\n\nQuedó registrado en el ERP (Recordatorios WA) y se te enviará por WhatsApp a tu número de staff.\nID: \`${reminder.id}\`\n\nPuedes administrarlo en:\nhttps://${host}/recordatorios`,
+          })
+          return
+        }
+
+        if (!extraction.isLetterRequest && !extraction.isStatusRequest) {
+          console.log('Message is not a letter, status or reminder request. Sending hub menu.')
+          await sendRespondMessage(phone, {
+            type: 'text',
+            text: `No pude entender la solicitud.\n\n${HUB_MENU}`,
           })
           return
         }
 
         if (!extraction.distributorQuery) {
           console.log('Distributor name or query is missing.')
-          const replyText = extraction.missingInformation || 'Por favor, confírmame el nombre o código del distribuidor para el cual deseas generar la carta.'
+          const replyText = extraction.missingInformation || 'Por favor, confírmame el nombre o código del distribuidor para el cual deseas generar la carta o consultar el estatus.'
           await sendRespondMessage(phone, {
             type: 'text',
             text: replyText
@@ -405,6 +556,15 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
               OR: whereConditions,
               estado: { notIn: ['anulado', 'cancelada'] }
             },
+            include: {
+              planes_pago: {
+                include: {
+                  parcialidades: { orderBy: { numero: 'asc' } },
+                },
+                orderBy: { created_at: 'desc' },
+                take: 1,
+              },
+            },
             orderBy: { fecha_expedicion: 'desc' }
           })
           
@@ -418,21 +578,23 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
               const orderDate = new Date(lastOrder.fecha_expedicion).toLocaleDateString('es-MX', { timeZone: 'UTC' })
               replyText = `Todas las facturas de *${client.name}* están surtidas/completas. Su última orden fue el ${orderDate}.`
             } else {
-              const notPaid = pending.filter((f: any) => f.estado !== 'pagada' && f.estado !== 'pagado')
-              const paid = pending.filter((f: any) => f.estado === 'pagada' || f.estado === 'pagado')
-              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
-              if (notPaid.length > 0) {
-                const notPaidDetails = notPaid.map((f: any) => f.numero_factura).join(', ')
-                replyText += `- ${notPaid.length} no pagada(s) (Facturas: ${notPaidDetails}).\n`
+              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n\n`
+              replyText += `_Política:_ el límite de entrega es *5 semanas* desde el *primer pago* si ese pago fue ≥ *60%* del total; si fue menor, la fecha se muestra solo como *referencia*.\n\n`
+              for (const f of pending.slice(0, 12)) {
+                const delivery = computeDeliveryLimit(f)
+                const limitLabel = formatDeliveryLimitMessage(delivery)
+                const payState = ['pagada', 'pagado'].includes(String(f.estado).toLowerCase())
+                  ? 'pagada'
+                  : String(f.estado)
+                replyText += `• *${f.numero_factura}* (${payState}) — límite entrega: ${limitLabel}\n`
               }
-              if (paid.length > 0) {
-                const paidDetails = paid.map((f: any) => `${f.numero_factura} [límite: ${new Date(f.fecha_vencimiento).toLocaleDateString('es-MX', { timeZone: 'UTC' })}]`).join(', ')
-                replyText += `- ${paid.length} pagada(s) en proceso de entrega (Facturas: ${paidDetails}).\n`
+              if (pending.length > 12) {
+                replyText += `\n_…y ${pending.length - 12} más._\n`
               }
             }
           }
 
-          replyText += `\n🔗 Toda la información a detalle está aquí:\nhttps://${host}/clients/${client.id}?tab=facturas`
+          replyText += `\n🔗 Detalle:\nhttps://${host}/clients/${client.id}?tab=facturas`
 
           await sendRespondMessage(phone, {
             type: 'text',
@@ -443,7 +605,7 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
             data: {
               client_id: client.id,
               type: 'whatsapp',
-              content: `Consulta de estatus general vía WhatsApp por personal.`
+              content: `Consulta de estatus general vía WhatsApp por personal (${staffName}).`
             }
           })
           return

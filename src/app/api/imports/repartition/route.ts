@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { querySegundaDB } from '@/lib/segundaDB';
 
-const SHIPPING_WEEKS = 4; // fecha_pago + 4 weeks = shipping limit
+const SHIPPING_WEEKS = 5; // fecha_pago / primer pago + 5 weeks = shipping limit
 
 function getShippingLimit(fechaPago: Date): Date {
   const d = new Date(fechaPago);

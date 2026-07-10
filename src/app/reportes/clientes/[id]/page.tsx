@@ -3,8 +3,13 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, TrendingUp, TrendingDown, DollarSign, FileText, ShoppingBag, 
-  Calendar, HelpCircle, Activity, User, Phone, Mail, MapPin, Briefcase
+  Calendar, HelpCircle, Activity, User, Phone, Mail, MapPin, Briefcase, Info
 } from 'lucide-react'
+import {
+  calendarDaysDiff,
+  computeDeliveryLimit,
+  DELIVERY_REFERENCE_TOOLTIP,
+} from '@/lib/delivery-limit'
 import { useI18n } from '@/contexts/I18nContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import AppShell from '@/components/AppShell'
@@ -125,7 +130,6 @@ export default function ClientReportPage() {
   const { formatCurrency } = useCurrency()
   const [data, setData] = useState<ClientReportData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [deliveryDays] = useState<number>(25)
 
   // Date range filter state
   const [preset, setPreset] = useState('thisYear')
@@ -236,56 +240,26 @@ export default function ClientReportPage() {
     return t(key as any) || ESTADO_SURTIDO_MAP[surtido || 'no_surtida']?.label || 'No Surtida'
   }
 
-  const addBusinessDays = (startDateStr: string | Date, days: number): Date => {
-    // Parse correctly without shifting
-    let date: Date
-    if (typeof startDateStr === 'string') {
-      const parts = startDateStr.split('T')[0].split('-')
-      if (parts.length === 3) {
-        date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0)
-      } else {
-        date = new Date(startDateStr)
-      }
-    } else {
-      date = new Date(startDateStr)
+  const renderDeliveryLimitCell = (invoice: any) => {
+    const info = computeDeliveryLimit(invoice)
+    if (!info.limitDate) {
+      return <span className="text-gray-400 font-medium text-xs">-</span>
     }
-
-    let count = 0
-    while (count < days) {
-      date.setDate(date.getDate() + 1)
-      const dayOfWeek = date.getDay()
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        count++
-      }
+    const dateLabel = formatDate(info.limitDate.toISOString())
+    if (info.isReferenceOnly) {
+      return (
+        <span className="inline-flex items-center justify-center gap-1 text-gray-650 font-medium text-xs" title={DELIVERY_REFERENCE_TOOLTIP}>
+          {dateLabel}
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-sky-50 text-sky-700 border border-sky-200" title={DELIVERY_REFERENCE_TOOLTIP}>
+            <Info size={10} />
+          </span>
+        </span>
+      )
     }
-    return date
-  }
-
-  const getBusinessDaysDiff = (startDate: Date, endDate: Date): number => {
-    const start = new Date(startDate)
-    start.setHours(0, 0, 0, 0)
-    
-    const end = new Date(endDate)
-    end.setHours(0, 0, 0, 0)
-    
-    if (start.getTime() === end.getTime()) return 0
-    const isNegative = start.getTime() > end.getTime()
-    let count = 0
-    const current = new Date(isNegative ? end : start)
-    const target = new Date(isNegative ? start : end)
-    while (current.getTime() < target.getTime()) {
-      current.setDate(current.getDate() + 1)
-      const dayOfWeek = current.getDay()
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) count++
-    }
-    return isNegative ? -count : count
+    return <span className="text-gray-650 font-medium text-xs">{dateLabel}</span>
   }
 
   const renderDeliveryDays = (invoice: any) => {
-    const isPaid = ['pagada', 'pagado'].includes(invoice.estado)
-    if (!isPaid || !invoice.fecha_pago) {
-      return <span className="text-gray-400 font-medium text-xs">-</span>
-    }
     if (invoice.estado_surtido === 'completa' || invoice.estado_surtido === 'surtida') {
       return (
         <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
@@ -293,27 +267,53 @@ export default function ClientReportPage() {
         </span>
       )
     }
-    const deadline = addBusinessDays(invoice.fecha_pago, deliveryDays)
-    const leftDays = getBusinessDaysDiff(new Date(), deadline)
+    const info = computeDeliveryLimit(invoice)
+    if (!info.limitDate) {
+      return <span className="text-gray-400 font-medium text-xs">-</span>
+    }
+    const leftDays = calendarDaysDiff(new Date(), info.limitDate)
     if (leftDays < 0) {
       return (
-        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-100 animate-pulse">
-          Atrasada ({leftDays} d)
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
+            info.isReferenceOnly
+              ? 'bg-slate-50 text-slate-600 border-slate-200'
+              : 'bg-rose-50 text-rose-700 border-rose-100 animate-pulse'
+          }`}
+          title={info.isReferenceOnly ? DELIVERY_REFERENCE_TOOLTIP : undefined}
+        >
+          {info.isReferenceOnly ? `Ref. (${leftDays} d)` : `Atrasada (${leftDays} d)`}
+          {info.isReferenceOnly && <Info size={10} />}
         </span>
       )
     } else if (leftDays <= 5) {
       return (
-        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-100">
-          Urgente ({leftDays} d)
-        </span>
-      )
-    } else {
-      return (
-        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-          {leftDays} días
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
+            info.isReferenceOnly
+              ? 'bg-slate-50 text-slate-600 border-slate-200'
+              : 'bg-amber-50 text-amber-700 border-amber-100'
+          }`}
+          title={info.isReferenceOnly ? DELIVERY_REFERENCE_TOOLTIP : undefined}
+        >
+          {info.isReferenceOnly ? `${leftDays} d ref.` : `Urgente (${leftDays} d)`}
+          {info.isReferenceOnly && <Info size={10} />}
         </span>
       )
     }
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+          info.isReferenceOnly
+            ? 'bg-slate-50 text-slate-600 border-slate-200'
+            : 'bg-blue-50 text-blue-700 border-blue-100'
+        }`}
+        title={info.isReferenceOnly ? DELIVERY_REFERENCE_TOOLTIP : undefined}
+      >
+        {leftDays} días{info.isReferenceOnly ? ' ref.' : ''}
+        {info.isReferenceOnly && <Info size={10} />}
+      </span>
+    )
   }
 
   const CARD_STYLE = { background: '#ffffff', border: '1px solid #d4e0ec' }
@@ -597,11 +597,8 @@ export default function ClientReportPage() {
                           {getLocalSurtidoLabel(invoice.estado_surtido)}
                         </span>
                       </td>
-                      <td className="p-4 text-center text-gray-650 font-medium text-xs">
-                        {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
-                          ? formatDate(addBusinessDays(invoice.fecha_pago, deliveryDays).toISOString())
-                          : '-'
-                        }
+                      <td className="p-4 text-center">
+                        {renderDeliveryLimitCell(invoice)}
                       </td>
                       <td className="p-4 text-center">
                         {renderDeliveryDays(invoice)}

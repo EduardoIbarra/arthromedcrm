@@ -14,7 +14,7 @@ import {
 import Link from 'next/link'
 
 // ── Constants ─────────────────────────────────────────────
-const SHIPPING_WEEKS = 4
+const SHIPPING_WEEKS = 5
 
 function getShippingLimit(fechaPago: string | Date): Date {
   const d = new Date(fechaPago)

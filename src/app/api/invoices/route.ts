@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { attachDeliveryLimitFields } from '@/lib/delivery-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,7 +67,16 @@ export async function GET(request: NextRequest) {
     const queryOptions: any = {
       where,
       include: {
-        factura_productos: true
+        factura_productos: true,
+        planes_pago: {
+          include: {
+            parcialidades: {
+              orderBy: { numero: 'asc' },
+            },
+          },
+          orderBy: { created_at: 'desc' },
+          take: 1,
+        },
       },
       orderBy: {
         fecha_expedicion: 'desc'
@@ -79,9 +89,10 @@ export async function GET(request: NextRequest) {
     }
 
     const invoices = await prisma.facturas_cliente.findMany(queryOptions)
+    const data = invoices.map((inv: any) => attachDeliveryLimitFields(inv))
 
     return NextResponse.json({
-      data: invoices,
+      data,
       pagination: {
         total,
         page,

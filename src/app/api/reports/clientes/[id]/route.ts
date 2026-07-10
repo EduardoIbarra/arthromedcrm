@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { attachDeliveryLimitFields } from '@/lib/delivery-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,7 +64,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           include: {
             productos: true
           }
-        }
+        },
+        planes_pago: {
+          include: {
+            parcialidades: {
+              orderBy: { numero: 'asc' },
+            },
+          },
+          orderBy: { created_at: 'desc' },
+          take: 1,
+        },
       },
       orderBy: {
         fecha_expedicion: 'desc'
@@ -219,18 +229,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const paymentStatusSummary = Object.entries(statusMap).map(([name, value]) => ({ name, value }))
 
-    // Recent orders/invoices list formatted
-    const recentOrders = periodInvoices.map((inv: any) => ({
-      id: inv.id,
-      numero_factura: inv.numero_factura,
-      fecha_expedicion: inv.fecha_expedicion,
-      subtotal: Number(inv.subtotal) || 0,
-      iva: Number(inv.iva) || 0,
-      total: inv.totalNum,
-      estado: inv.estado,
-      estado_surtido: inv.estado_surtido,
-      fecha_pago: inv.fecha_pago
-    }))
+    // Recent orders/invoices list formatted (include delivery limit from first payment)
+    const recentOrders = periodInvoices.map((inv: any) => {
+      const withDelivery = attachDeliveryLimitFields({
+        ...inv,
+        total: inv.totalNum,
+      })
+      return {
+        id: inv.id,
+        numero_factura: inv.numero_factura,
+        fecha_expedicion: inv.fecha_expedicion,
+        subtotal: Number(inv.subtotal) || 0,
+        iva: Number(inv.iva) || 0,
+        total: inv.totalNum,
+        estado: inv.estado,
+        estado_surtido: inv.estado_surtido,
+        fecha_pago: inv.fecha_pago,
+        delivery_limit_date: withDelivery.delivery_limit_date,
+        delivery_is_reference: withDelivery.delivery_is_reference,
+        delivery_qualifies: withDelivery.delivery_qualifies,
+        first_payment_date: withDelivery.first_payment_date,
+        first_payment_percent: withDelivery.first_payment_percent,
+      }
+    })
 
     return NextResponse.json({
       client: {
