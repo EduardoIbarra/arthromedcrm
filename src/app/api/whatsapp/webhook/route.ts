@@ -423,7 +423,8 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
               replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
               if (notPaid.length > 0) replyText += `- ${notPaid.length} no pagada(s).\n`
               if (paid.length > 0) {
-                replyText += `- ${paid.length} pagada(s) (en proceso de entrega).\n`
+                const dates = paid.map((f: any) => new Date(f.fecha_vencimiento).toLocaleDateString('es-MX', { timeZone: 'UTC' }))
+                replyText += `- ${paid.length} pagada(s) (en proceso de entrega con límite(s) de entrega: ${dates.join(', ')}).\n`
               }
             }
           }
