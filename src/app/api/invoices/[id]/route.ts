@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { fetchAlegraInvoice, fetchAlegraPaymentsForInvoice } from '@/lib/alegra'
+import {
+  attachDeliveryLimitFields,
+  firstPaymentFieldsFromAlegraInvoice,
+} from '@/lib/delivery-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -211,7 +215,7 @@ export async function GET(
       productSyncError = 'Esta factura no tiene alegra_id; no se pueden importar productos automáticamente.'
     }
 
-    // Complementos de pago (pagos / REPs) from Alegra
+    // Complementos de pago (pagos / REPs) from Alegra + persist first payment for delivery limit
     if (factura.alegra_id) {
       try {
         const { invoice, payments } = await fetchAlegraPaymentsForInvoice(
@@ -226,13 +230,48 @@ export async function GET(
           balance: invoice?.balance != null ? Number(invoice.balance) : null,
           status: invoice?.status || null,
         }
+
+        // Persist primer pago / total pagado so list UIs & WhatsApp can compute 5-week limit
+        const fp = firstPaymentFieldsFromAlegraInvoice(invoice)
+        if (fp.primer_pago_fecha || fp.total_pagado != null) {
+          const updateData: any = {
+            primer_pago_fecha: fp.primer_pago_fecha,
+            primer_pago_monto: fp.primer_pago_monto,
+            total_pagado: fp.total_pagado,
+            updated_at: new Date(),
+          }
+          // Promote estado to parcial/pagada from Alegra paid amounts when local is still pendiente
+          const localEstado = String(factura.estado || '').toLowerCase()
+          if (fp.estadoHint === 'parcial' && !['pagada', 'pagado', 'cancelada', 'anulado'].includes(localEstado)) {
+            updateData.estado = 'parcial'
+            if (!factura.fecha_pago && fp.primer_pago_fecha) {
+              updateData.fecha_pago = fp.primer_pago_fecha
+            }
+          } else if (fp.estadoHint === 'pagada' && !['cancelada', 'anulado'].includes(localEstado)) {
+            updateData.estado = 'pagada'
+            if (!factura.fecha_pago && fp.primer_pago_fecha) {
+              updateData.fecha_pago = fp.primer_pago_fecha
+            }
+          }
+
+          const updated = await prisma.facturas_cliente.update({
+            where: { id: factura.id },
+            data: updateData,
+          })
+          factura = { ...factura, ...updated } as typeof factura
+        }
       } catch (err) {
         console.error('Error fetching Alegra payments for invoice:', err)
       }
     }
 
-    return NextResponse.json({
+    const withDelivery = attachDeliveryLimitFields({
       ...factura,
+      payments: complementos_pago.map((p) => ({ date: p.date, amount: p.amount })),
+    })
+
+    return NextResponse.json({
+      ...withDelivery,
       factura_productos: factura.factura_productos || [],
       complementos_pago,
       alegra_summary,

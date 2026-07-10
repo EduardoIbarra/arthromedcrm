@@ -9,7 +9,72 @@ import { z } from 'zod'
 import {
   computeDeliveryLimit,
   formatDeliveryLimitMessage,
+  firstPaymentFieldsFromAlegraInvoice,
 } from '@/lib/delivery-limit'
+import { fetchAlegraInvoice } from '@/lib/alegra'
+
+/** Enrich invoice with first-payment data from Alegra when local fields are missing. */
+async function enrichDeliverySource(f: any): Promise<any> {
+  if (f.primer_pago_fecha && f.primer_pago_monto != null) return f
+  if (!f.alegra_id) return f
+  try {
+    const inv = await fetchAlegraInvoice(String(f.alegra_id))
+    const fp = firstPaymentFieldsFromAlegraInvoice(inv)
+    const payments = Array.isArray(inv.payments)
+      ? inv.payments.map((p: any) => ({ date: p.date, amount: p.amount }))
+      : []
+    // Persist for list UIs (best-effort)
+    if (fp.primer_pago_fecha || fp.total_pagado != null) {
+      try {
+        await prisma.facturas_cliente.update({
+          where: { id: f.id },
+          data: {
+            primer_pago_fecha: fp.primer_pago_fecha,
+            primer_pago_monto: fp.primer_pago_monto,
+            total_pagado: fp.total_pagado,
+            ...(fp.estadoHint === 'parcial' && f.estado === 'pendiente'
+              ? { estado: 'parcial', fecha_pago: fp.primer_pago_fecha || f.fecha_pago }
+              : {}),
+            ...(fp.estadoHint === 'pagada' && !['pagada', 'pagado'].includes(String(f.estado))
+              ? { estado: 'pagada', fecha_pago: fp.primer_pago_fecha || f.fecha_pago }
+              : {}),
+          },
+        })
+      } catch (e) {
+        console.warn('Could not persist primer_pago for', f.numero_factura, e)
+      }
+    }
+    return {
+      ...f,
+      primer_pago_fecha: fp.primer_pago_fecha || f.primer_pago_fecha,
+      primer_pago_monto: fp.primer_pago_monto ?? f.primer_pago_monto,
+      total_pagado: fp.total_pagado ?? f.total_pagado,
+      payments,
+    }
+  } catch (e) {
+    console.warn('Alegra enrich failed for', f.numero_factura, e)
+    return f
+  }
+}
+
+function formatPendingFacturasReply(clientName: string, pending: any[]): string {
+  let replyText = `*${clientName}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
+  for (const f of pending.slice(0, 15)) {
+    const delivery = computeDeliveryLimit(f)
+    const limit = formatDeliveryLimitMessage(delivery)
+    const payLabel = ['pagada', 'pagado'].includes(String(f.estado).toLowerCase())
+      ? 'pagada'
+      : String(f.estado) === 'parcial'
+        ? 'parcial'
+        : 'no pagada / pendiente'
+    replyText += `• *${f.numero_factura}* (${payLabel}) — límite entrega: ${limit}\n`
+  }
+  if (pending.length > 15) {
+    replyText += `\n_…y ${pending.length - 15} más._\n`
+  }
+  replyText += `\n_Nota:_ límite de entrega = 5 semanas desde el *primer pago* (incl. complemento de pago). Si el primer pago fue < 60% del total, la fecha es solo *referencia*, no un plazo formal.`
+  return replyText
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -504,30 +569,8 @@ export async function POST(request: NextRequest) {
               })
               replyText = `Todas las facturas de *${client.name}* están surtidas/completas. Su última orden fue el ${orderDate}.`
             } else {
-              const notPaid = pending.filter(
-                (f: any) => f.estado !== 'pagada' && f.estado !== 'pagado'
-              )
-              const paid = pending.filter(
-                (f: any) => f.estado === 'pagada' || f.estado === 'pagado'
-              )
-              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
-              if (notPaid.length > 0) {
-                const details = notPaid
-                  .map((f: any) => f.numero_factura)
-                  .join(', ')
-                replyText += `• ${notPaid.length} no pagada(s) (Facturas: ${details}).\n`
-              }
-              if (paid.length > 0) {
-                const details = paid
-                  .map((f: any) => {
-                    const delivery = computeDeliveryLimit(f)
-                    const limit = formatDeliveryLimitMessage(delivery)
-                    return `${f.numero_factura} [límite: ${limit}]`
-                  })
-                  .join(', ')
-                replyText += `• ${paid.length} pagada(s) en proceso de entrega (Facturas: ${details}).\n`
-              }
-              replyText += `\n_Nota:_ límite de entrega = 5 semanas desde el primer pago si ese pago fue ≥ 60% del total; si fue menor, la fecha es solo referencia.`
+              const enriched = await Promise.all(pending.map((f: any) => enrichDeliverySource(f)))
+              replyText = formatPendingFacturasReply(client.name, enriched)
             }
           }
 
@@ -799,27 +842,8 @@ Extrae:
               })
               replyText = `Todas las facturas de *${client.name}* están surtidas/completas. Su última orden fue el ${orderDate}.`
             } else {
-              const notPaid = pending.filter(
-                (f: any) => f.estado !== 'pagada' && f.estado !== 'pagado'
-              )
-              const paid = pending.filter(
-                (f: any) => f.estado === 'pagada' || f.estado === 'pagado'
-              )
-              replyText = `*${client.name}* tiene ${pending.length} factura(s) pendiente(s) por surtir.\n`
-              if (notPaid.length > 0) {
-                const details = notPaid.map((f: any) => f.numero_factura).join(', ')
-                replyText += `• ${notPaid.length} no pagada(s) (Facturas: ${details}).\n`
-              }
-              if (paid.length > 0) {
-                const details = paid
-                  .map((f: any) => {
-                    const delivery = computeDeliveryLimit(f)
-                    return `${f.numero_factura} [límite: ${formatDeliveryLimitMessage(delivery)}]`
-                  })
-                  .join(', ')
-                replyText += `• ${paid.length} pagada(s) en proceso de entrega (Facturas: ${details}).\n`
-              }
-              replyText += `\n_Nota:_ límite de entrega = 5 semanas desde el primer pago si ese pago fue ≥ 60% del total; si fue menor, la fecha es solo referencia.`
+              const enriched = await Promise.all(pending.map((f: any) => enrichDeliverySource(f)))
+              replyText = formatPendingFacturasReply(client.name, enriched)
             }
           }
 

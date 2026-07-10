@@ -5,14 +5,29 @@ export const dynamic = 'force-dynamic'
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 
-function mapAlegraStatus(status: string): string {
-  switch (status?.toLowerCase()) {
-    case 'open':    return 'pendiente'
-    case 'paid':
-    case 'closed':  return 'pagada'
-    case 'draft':   return 'pendiente'
-    case 'void':    return 'cancelada'
-    default:        return 'pendiente'
+function mapAlegraStatus(status: string, totalPaid = 0, balance?: number): string {
+  const s = status?.toLowerCase()
+  if (s === 'void') return 'cancelada'
+  if (s === 'paid' || s === 'closed') return 'pagada'
+  if (s === 'draft') return 'pendiente'
+  // open (or unknown): use paid amounts for partial
+  if (totalPaid > 0) {
+    if (balance != null && balance <= 0.005) return 'pagada'
+    return 'parcial'
+  }
+  if (s === 'open') return 'pendiente'
+  return 'pendiente'
+}
+
+function extractFirstPayment(invoice: any): { date: Date | null; amount: number | null; totalPaid: number } {
+  const payments = Array.isArray(invoice.payments) ? [...invoice.payments] : []
+  payments.sort((a: any, b: any) => String(a.date || '').localeCompare(String(b.date || '')))
+  const first = payments.find((p: any) => p.date && Number(p.amount) > 0)
+  const totalPaid = Number(invoice.totalPaid) || 0
+  return {
+    date: first?.date ? new Date(first.date) : null,
+    amount: first ? Number(first.amount) || null : totalPaid > 0 ? totalPaid : null,
+    totalPaid: totalPaid > 0 ? totalPaid : 0,
   }
 }
 
@@ -163,12 +178,24 @@ export async function GET(_request: NextRequest) {
           const subtotal = invoice.subtotal || 0
           const total    = invoice.total    || 0
           const iva      = total - subtotal
-          const estado   = mapAlegraStatus(invoice.status)
+          const totalPaidNum = Number(invoice.totalPaid) || 0
+          const balanceNum =
+            invoice.balance != null ? Number(invoice.balance) : total - totalPaidNum
+          const estado = mapAlegraStatus(invoice.status, totalPaidNum, balanceNum)
+          const firstPay = extractFirstPayment(invoice)
 
           let fecha_pago: Date | null = null
           if (estado === 'pagada') {
-            const fp = invoice.payments?.[0]
-            fecha_pago = fp?.date ? new Date(fp.date) : new Date(invoice.date)
+            // Latest payment date when fully paid
+            const pays = Array.isArray(invoice.payments) ? [...invoice.payments] : []
+            pays.sort((a: any, b: any) => String(b.date || '').localeCompare(String(a.date || '')))
+            const latest = pays.find((p: any) => p.date)
+            fecha_pago = latest?.date
+              ? new Date(latest.date)
+              : firstPay.date || new Date(invoice.date)
+          } else if (estado === 'parcial' && firstPay.date) {
+            // Keep fecha_pago as first payment for partials so UIs that only look at fecha_pago still work
+            fecha_pago = firstPay.date
           }
 
           const metodo_pago   = invoice.paymentMethod ? mapAlegraPaymentMethod(invoice.paymentMethod) : null
@@ -191,6 +218,9 @@ export async function GET(_request: NextRequest) {
             observaciones:     invoice.observations || null,
             fecha_pago,
             metodo_pago,
+            primer_pago_fecha: firstPay.date,
+            primer_pago_monto: firstPay.amount,
+            total_pagado:      firstPay.totalPaid > 0 ? firstPay.totalPaid : null,
             updated_at:        now
           }
 

@@ -12,21 +12,26 @@ import {
   Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer
 } from 'lucide-react'
 import Link from 'next/link'
+import {
+  calendarDaysDiff,
+  computeDeliveryLimit,
+  DELIVERY_REFERENCE_TOOLTIP,
+  toIsoDate,
+} from '@/lib/delivery-limit'
 
-// ── Constants ─────────────────────────────────────────────
-const SHIPPING_WEEKS = 5
+// ── Delivery limit (5 weeks from first payment; <60% = reference only) ──
 
-function getShippingLimit(fechaPago: string | Date): Date {
-  const d = new Date(fechaPago)
-  d.setDate(d.getDate() + SHIPPING_WEEKS * 7)
-  return d
-}
-
-function shippingInfo(fechaPago: string | null) {
-  if (!fechaPago) return { label: 'Sin fecha pago', cls: 'bg-gray-100 text-gray-500 border-gray-200', pastDue: false, daysUntil: null }
-  const limit = getShippingLimit(fechaPago)
-  const now = new Date()
-  const diffDays = Math.floor((limit.getTime() - now.getTime()) / 86400000)
+function shippingInfoFromLimit(limitDate: Date | null, isReference: boolean) {
+  if (!limitDate) {
+    return { label: 'Sin primer pago', cls: 'bg-gray-100 text-gray-500 border-gray-200', pastDue: false, daysUntil: null }
+  }
+  const diffDays = calendarDaysDiff(new Date(), limitDate)
+  if (isReference) {
+    if (diffDays < 0) {
+      return { label: `Ref. vencida ${Math.abs(diffDays)}d`, cls: 'bg-slate-100 text-slate-600 border-slate-200', pastDue: false, daysUntil: diffDays }
+    }
+    return { label: `Ref. ${diffDays}d`, cls: 'bg-sky-50 text-sky-700 border-sky-200', pastDue: false, daysUntil: diffDays }
+  }
   if (diffDays < 0) {
     return { label: `Vencido ${Math.abs(diffDays)}d`, cls: 'bg-red-100 text-red-700 border-red-200', pastDue: true, daysUntil: diffDays }
   }
@@ -36,23 +41,43 @@ function shippingInfo(fechaPago: string | null) {
   return { label: `${diffDays}d restantes`, cls: 'bg-green-100 text-green-700 border-green-200', pastDue: false, daysUntil: diffDays }
 }
 
-function ShippingLimitBadge({ fechaPago }: { fechaPago: string | null }) {
-  const info = shippingInfo(fechaPago)
-  const limit = fechaPago ? getShippingLimit(fechaPago).toLocaleDateString() : null
+function ShippingLimitBadge({ invoice }: { invoice: any }) {
+  const delivery = computeDeliveryLimit(invoice)
+  const info = shippingInfoFromLimit(delivery.limitDate, delivery.isReferenceOnly)
+  const limit = delivery.limitDate ? delivery.limitDate.toLocaleDateString() : null
+  const title = delivery.isReferenceOnly
+    ? `${DELIVERY_REFERENCE_TOOLTIP}${limit ? ` · ${limit}` : ''}`
+    : limit
+      ? `Límite envío: ${limit}`
+      : ''
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${info.cls}`} title={limit ? `Límite envío: ${limit}` : ''}>
-      {limit ? `Límite: ${limit} · ` : ''}{info.label}
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${info.cls}`} title={title}>
+      {limit ? `Límite: ${limit}${delivery.isReferenceOnly ? ' (ref.)' : ''} · ` : ''}{info.label}
     </span>
   )
 }
 
-function getInvoiceShippingLimit(inv: { fecha_pago?: string | null; fecha_expedicion?: string | null }): string | null {
-  const baseDate = inv.fecha_pago || inv.fecha_expedicion
-  if (!baseDate) return null
-  return getShippingLimit(baseDate).toISOString()
+function getInvoiceShippingLimit(inv: any): string | null {
+  const delivery = computeDeliveryLimit(inv)
+  if (delivery.limitDate) return toIsoDate(delivery.limitDate)
+  if (inv.fecha_expedicion) return toIsoDate(new Date(inv.fecha_expedicion))
+  return null
+}
+
+/** Fallback for allocations that only store paymentDate string */
+function shippingInfoFromPaymentDate(paymentDate: string | null, isReference = false) {
+  if (!paymentDate) return shippingInfoFromLimit(null, false)
+  const delivery = computeDeliveryLimit({
+    primer_pago_fecha: paymentDate,
+    // Unknown amount → treat as reference if caller says so, else assume qualifies
+    primer_pago_monto: isReference ? 1 : 100,
+    total: 100,
+  })
+  return shippingInfoFromLimit(delivery.limitDate, isReference || delivery.isReferenceOnly)
 }
 
 function buildAllocationFromInvoiceProduct(inv: any, fp: any, allocatedQty = 0): Allocation {
+  const delivery = computeDeliveryLimit(inv)
   return {
     id: fp.id,
     folio: inv.numero_factura,
@@ -61,9 +86,14 @@ function buildAllocationFromInvoiceProduct(inv: any, fp: any, allocatedQty = 0):
     facturadaQty: fp.cantidad_facturada || 0,
     requestedQty: fp.cantidad_pendiente || 0,
     allocatedQty,
-    paymentDate: inv.fecha_pago ? new Date(inv.fecha_pago).toISOString() : null,
+    paymentDate: delivery.firstPaymentDate
+      ? toIsoDate(delivery.firstPaymentDate)
+      : inv.fecha_pago
+        ? new Date(inv.fecha_pago).toISOString()
+        : null,
     shippingLimit: getInvoiceShippingLimit(inv),
-  }
+    deliveryIsReference: delivery.isReferenceOnly,
+  } as Allocation
 }
 
 function productRowStyle(product: string, lineColors: Record<string, string>): React.CSSProperties {
@@ -130,6 +160,7 @@ interface Allocation {
   allocatedQty: number
   paymentDate?: string | null
   shippingLimit?: string | null
+  deliveryIsReference?: boolean
   manualAdjustment?: boolean
   isManual?: boolean
   comment?: string
@@ -240,33 +271,36 @@ export default function ImportRepartitionPage() {
   useEffect(() => {
     const fetchPending = async () => {
       try {
-        const [res1, res2] = await Promise.all([
+        const [res1, res2, res3, res4] = await Promise.all([
           fetch('/api/invoices?status=pagada&estado_surtido=no_surtida&pageSize=500'),
           fetch('/api/invoices?status=pagada&estado_surtido=parcial&pageSize=500'),
+          fetch('/api/invoices?status=parcial&estado_surtido=no_surtida&pageSize=500'),
+          fetch('/api/invoices?status=parcial&estado_surtido=parcial&pageSize=500'),
         ])
-        const [d1, d2] = await Promise.all([res1.json(), res2.json()])
+        const [d1, d2, d3, d4] = await Promise.all([res1.json(), res2.json(), res3.json(), res4.json()])
         const merged: any[] = []
         const seen = new Set<string>()
-        for (const inv of [...(d1.data || []), ...(d2.data || [])]) {
+        for (const inv of [...(d1.data || []), ...(d2.data || []), ...(d3.data || []), ...(d4.data || [])]) {
           if (!seen.has(inv.id)) {
             seen.add(inv.id)
             merged.push(inv)
           }
         }
-        // Sort by shipping limit: most overdue first
+        // Sort by shipping limit: most overdue first (first payment + 5 weeks)
         merged.sort((a, b) => {
-          const la = a.fecha_pago ? getShippingLimit(a.fecha_pago) : null
-          const lb = b.fecha_pago ? getShippingLimit(b.fecha_pago) : null
+          const la = computeDeliveryLimit(a).limitDate
+          const lb = computeDeliveryLimit(b).limitDate
           if (!la && !lb) return 0
           if (!la) return 1
           if (!lb) return -1
           return la.getTime() - lb.getTime()
         })
         setPendingInvoices(merged)
-        // Select only those that are past due
+        // Select only those that are past due on the hard deadline (not reference-only)
         const initialSelected = merged.filter(inv => {
-          const info = shippingInfo(inv.fecha_pago)
-          return info.pastDue
+          const d = computeDeliveryLimit(inv)
+          if (!d.limitDate || d.isReferenceOnly) return false
+          return calendarDaysDiff(new Date(), d.limitDate) < 0
         })
         setSelectedInvoices(initialSelected)
       } catch (err) { console.error(err) }
@@ -1278,7 +1312,6 @@ export default function ImportRepartitionPage() {
                   <div className="flex-1 border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 bg-gray-50/30" style={{ maxHeight: 260 }}>
                     {displayedInvoices.length > 0 ? displayedInvoices.map(inv => {
                       const isSelected = !!selectedInvoices.find(i => i.numero_factura === inv.numero_factura)
-                      const sInfo = shippingInfo(inv.fecha_pago || null)
                       return (
                         <div
                           key={inv.id}
@@ -1291,7 +1324,7 @@ export default function ImportRepartitionPage() {
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-gray-900 text-sm flex items-center gap-1.5 flex-wrap">
                               {inv.numero_factura}
-                              <ShippingLimitBadge fechaPago={inv.fecha_pago || null} />
+                              <ShippingLimitBadge invoice={inv} />
                               {surtidoBadge(inv.estado_surtido)}
                             </div>
                             <p className="text-xs text-gray-500 truncate mt-0.5">{inv.cliente_nombre}</p>
@@ -1567,7 +1600,10 @@ export default function ImportRepartitionPage() {
                           const totalAlloc = group.items.reduce((s, i) => s + i.allocatedQty, 0)
                           const missing = group.items.reduce((s, i) => s + (i.requestedQty - i.allocatedQty), 0)
                           const pct = totalReq > 0 ? Math.round((totalAlloc / totalReq) * 100) : 0
-                          const sInfo = shippingInfo(group.paymentDate ? new Date(group.paymentDate).toISOString() : null)
+                          const sInfo = shippingInfoFromPaymentDate(
+                            group.paymentDate ? new Date(group.paymentDate).toISOString() : null,
+                            !!(group as any).deliveryIsReference
+                          )
                           return (
                             <div key={group.folio} className="p-5">
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
@@ -1773,7 +1809,10 @@ export default function ImportRepartitionPage() {
                                     </tr>
                                   )}
                                   {group.items.map(alloc => {
-                                    const si = shippingInfo(alloc.paymentDate || null)
+                                    const si = shippingInfoFromPaymentDate(
+                                      alloc.paymentDate || null,
+                                      !!(alloc as any).deliveryIsReference
+                                    )
                                     return (
                                       <tr key={alloc.id} className="hover:brightness-[0.98] transition-all" style={productRowStyle(alloc.product, productLineColors)}>
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">{alloc.folio}</td>
@@ -1850,7 +1889,10 @@ export default function ImportRepartitionPage() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                   {group.items.map(alloc => {
-                                    const si = shippingInfo(alloc.paymentDate || null)
+                                    const si = shippingInfoFromPaymentDate(
+                                      alloc.paymentDate || null,
+                                      !!(alloc as any).deliveryIsReference
+                                    )
                                     return (
                                       <tr key={alloc.id} className="hover:brightness-[0.98] transition-all" style={productRowStyle(alloc.product, productLineColors)}>
                                         <td className="px-3 py-2 font-mono font-medium text-gray-900">

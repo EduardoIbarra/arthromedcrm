@@ -9,21 +9,43 @@ import {
   MessageSquare, Loader2, Tag, Calendar, Clock
 } from 'lucide-react'
 import Link from 'next/link'
+import {
+  calendarDaysDiff,
+  computeDeliveryLimit,
+  DELIVERY_REFERENCE_TOOLTIP,
+} from '@/lib/delivery-limit'
 
-const SHIPPING_WEEKS = 5
-
-function getShippingLimit(fechaPago: string | Date): Date {
-  const d = new Date(fechaPago)
-  d.setDate(d.getDate() + SHIPPING_WEEKS * 7)
-  return d
-}
-
-function ShippingBadge({ fechaPago }: { fechaPago: string | null }) {
-  if (!fechaPago) return <span className="px-2 py-0.5 rounded text-[11px] bg-gray-100 text-gray-500">Sin fecha de pago</span>
-  const limit = getShippingLimit(fechaPago)
-  const now = new Date()
-  const diffDays = Math.floor((limit.getTime() - now.getTime()) / 86400000)
-
+function ShippingBadge({
+  fechaPago,
+  isReference,
+}: {
+  fechaPago: string | null
+  isReference?: boolean
+}) {
+  if (!fechaPago) {
+    return <span className="px-2 py-0.5 rounded text-[11px] bg-gray-100 text-gray-500">Sin primer pago</span>
+  }
+  const delivery = computeDeliveryLimit({
+    primer_pago_fecha: fechaPago,
+    primer_pago_monto: isReference ? 1 : 100,
+    total: 100,
+  })
+  const limit = delivery.limitDate
+  if (!limit) {
+    return <span className="px-2 py-0.5 rounded text-[11px] bg-gray-100 text-gray-500">Sin límite</span>
+  }
+  const diffDays = calendarDaysDiff(new Date(), limit)
+  const ref = isReference || delivery.isReferenceOnly
+  if (ref) {
+    return (
+      <span
+        className="px-2 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-200"
+        title={DELIVERY_REFERENCE_TOOLTIP}
+      >
+        Límite ref.: {limit.toLocaleDateString()} ({diffDays}d)
+      </span>
+    )
+  }
   if (diffDays < 0) {
     return (
       <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-red-100 text-red-700 border border-red-200">

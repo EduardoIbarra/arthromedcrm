@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { querySegundaDB } from '@/lib/segundaDB';
-
-const SHIPPING_WEEKS = 5; // fecha_pago / primer pago + 5 weeks = shipping limit
-
-function getShippingLimit(fechaPago: Date): Date {
-  const d = new Date(fechaPago);
-  d.setDate(d.getDate() + SHIPPING_WEEKS * 7);
-  return d;
-}
+import { computeDeliveryLimit, toIsoDate } from '@/lib/delivery-limit';
 
 type OrderLine = {
   id: string;
@@ -207,17 +200,28 @@ export async function POST(req: Request) {
       });
     }
 
-    // Build AI orders
+    // Build AI orders — shipping limit from first payment (5 weeks / 60% rule)
     const ordersForAi = pendingFacturas.flatMap((f: any) => {
-      const baseDate = f.fecha_pago || f.fecha_expedicion || new Date()
-      const shippingLimit = getShippingLimit(new Date(baseDate))
+      const delivery = computeDeliveryLimit(f)
+      const shippingLimit = delivery.limitDate
+        ? toIsoDate(delivery.limitDate)
+        : f.fecha_expedicion
+          ? toIsoDate(new Date(f.fecha_expedicion))
+          : null
+      const paymentDate =
+        delivery.firstPaymentDate
+          ? toIsoDate(delivery.firstPaymentDate)
+          : f.fecha_pago
+            ? new Date(f.fecha_pago).toISOString().split('T')[0]
+            : null
 
       return f.factura_productos.map((fp: any) => ({
         id: fp.id,
         folio: f.numero_factura,
         customerName: f.cliente_nombre,
-        paymentDate: f.fecha_pago ? f.fecha_pago.toISOString() : null,
-        shippingLimit: shippingLimit.toISOString(),
+        paymentDate,
+        shippingLimit,
+        deliveryIsReference: delivery.isReferenceOnly,
         issueDate: f.fecha_expedicion ? f.fecha_expedicion.toISOString() : null,
         product: fp.productos?.nombre_lista || fp.producto_nombre,
         facturadaQty: fp.cantidad_facturada || 0,

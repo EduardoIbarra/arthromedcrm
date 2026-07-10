@@ -19,11 +19,23 @@ export type PlanPagoLike = {
   parcialidades?: ParcialidadLike[] | null
 }
 
+/** A single payment applied to the invoice (Alegra complemento or local record). */
+export type PaymentLike = {
+  date?: string | Date | null
+  amount?: number | string | null
+}
+
 export type InvoiceDeliveryInput = {
   total?: number | string | null
   fecha_pago?: string | Date | null
   estado?: string | null
   planes_pago?: PlanPagoLike[] | null
+  /** Stored on facturas_cliente after sync / first payment */
+  primer_pago_fecha?: string | Date | null
+  primer_pago_monto?: number | string | null
+  total_pagado?: number | string | null
+  /** Live payments (e.g. from Alegra) — earliest is treated as first payment */
+  payments?: PaymentLike[] | null
   /** Precomputed fields (API may attach these) */
   first_payment_date?: string | Date | null
   first_payment_amount?: number | string | null
@@ -81,10 +93,31 @@ export function calendarDaysDiff(from: Date, to: Date): number {
   return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+/** Earliest payment by date (first complemento / abono). */
+export function extractFirstPaymentFromList(
+  payments: PaymentLike[] | null | undefined
+): { date: Date; amount: number } | null {
+  if (!Array.isArray(payments) || payments.length === 0) return null
+  const parsed = payments
+    .map((p) => ({
+      date: parseDateOnly(p.date),
+      amount: toNumber(p.amount),
+    }))
+    .filter((p) => p.date && p.amount > 0) as { date: Date; amount: number }[]
+  if (parsed.length === 0) return null
+  parsed.sort((a, b) => a.date.getTime() - b.date.getTime())
+  return parsed[0]
+}
+
 /**
  * Resolve first payment date/amount and 5-week delivery limit.
- * - With plan: uses parcialidad #1 if paid
- * - Fully paid without plan: uses fecha_pago as 100% payment
+ *
+ * Priority:
+ * 1. Explicit first_payment_* / primer_pago_* fields
+ * 2. Paid plan installment #1
+ * 3. Earliest entry in payments[] (Alegra complementos)
+ * 4. Fully paid invoice with fecha_pago (100%)
+ * 5. Partial: fecha_pago + total_pagado as first payment estimate
  */
 export function computeDeliveryLimit(invoice: InvoiceDeliveryInput): DeliveryLimitInfo {
   const invoiceTotal = toNumber(invoice.total)
@@ -94,29 +127,66 @@ export function computeDeliveryLimit(invoice: InvoiceDeliveryInput): DeliveryLim
   let firstPaymentAmount: number | null = null
   let baseTotal = invoiceTotal
 
-  // Prefer explicit precomputed fields from API
-  if (invoice.first_payment_date != null || invoice.first_payment_amount != null) {
-    firstPaymentDate = parseDateOnly(invoice.first_payment_date)
-    firstPaymentAmount =
-      invoice.first_payment_amount != null ? toNumber(invoice.first_payment_amount) : null
-  } else {
+  // 1. Explicit precomputed / stored fields
+  const explicitDate =
+    parseDateOnly(invoice.first_payment_date) || parseDateOnly(invoice.primer_pago_fecha)
+  const explicitAmount =
+    invoice.first_payment_amount != null
+      ? toNumber(invoice.first_payment_amount)
+      : invoice.primer_pago_monto != null
+        ? toNumber(invoice.primer_pago_monto)
+        : null
+
+  if (explicitDate || explicitAmount != null) {
+    firstPaymentDate = explicitDate
+    firstPaymentAmount = explicitAmount
+  }
+
+  // 2. Payment plan installment #1
+  if (!firstPaymentDate || firstPaymentAmount == null) {
     const plan = Array.isArray(invoice.planes_pago) ? invoice.planes_pago[0] : null
     const first =
       plan?.parcialidades?.find((p) => Number(p.numero) === 1) ||
       plan?.parcialidades?.slice().sort((a, b) => Number(a.numero) - Number(b.numero))[0]
 
     if (first && first.pagado && first.fecha_pago) {
-      firstPaymentDate = parseDateOnly(first.fecha_pago)
-      firstPaymentAmount = toNumber(first.monto)
+      if (!firstPaymentDate) firstPaymentDate = parseDateOnly(first.fecha_pago)
+      if (firstPaymentAmount == null) firstPaymentAmount = toNumber(first.monto)
       const planTotal = toNumber(plan?.total_con_descuento || plan?.total_sin_descuento)
       if (planTotal > 0) baseTotal = planTotal
-    } else if (
-      invoice.fecha_pago &&
-      ['pagada', 'pagado'].includes(String(invoice.estado || '').toLowerCase())
-    ) {
-      // Full payment recorded on the invoice
+    }
+  }
+
+  // 3. Live payments list (Alegra complementos de pago)
+  if (!firstPaymentDate || firstPaymentAmount == null) {
+    const fromList = extractFirstPaymentFromList(invoice.payments)
+    if (fromList) {
+      if (!firstPaymentDate) firstPaymentDate = fromList.date
+      if (firstPaymentAmount == null) firstPaymentAmount = fromList.amount
+    }
+  }
+
+  // 4. Fully paid without granular payment rows
+  if (
+    (!firstPaymentDate || firstPaymentAmount == null) &&
+    invoice.fecha_pago &&
+    ['pagada', 'pagado'].includes(String(invoice.estado || '').toLowerCase())
+  ) {
+    if (!firstPaymentDate) firstPaymentDate = parseDateOnly(invoice.fecha_pago)
+    if (firstPaymentAmount == null && invoiceTotal > 0) firstPaymentAmount = invoiceTotal
+  }
+
+  // 5. Partial payment: use fecha_pago + total_pagado if we still lack data
+  if (
+    (!firstPaymentDate || firstPaymentAmount == null) &&
+    (toNumber(invoice.total_pagado) > 0 ||
+      ['parcial'].includes(String(invoice.estado || '').toLowerCase()))
+  ) {
+    if (!firstPaymentDate && invoice.fecha_pago) {
       firstPaymentDate = parseDateOnly(invoice.fecha_pago)
-      firstPaymentAmount = invoiceTotal > 0 ? invoiceTotal : null
+    }
+    if (firstPaymentAmount == null && toNumber(invoice.total_pagado) > 0) {
+      firstPaymentAmount = toNumber(invoice.total_pagado)
     }
   }
 
@@ -128,9 +198,10 @@ export function computeDeliveryLimit(invoice: InvoiceDeliveryInput): DeliveryLim
   if (firstPaymentAmount != null && baseTotal > 0) {
     percentFirst = firstPaymentAmount / baseTotal
   } else if (invoice.first_payment_percent != null) {
-    percentFirst = invoice.first_payment_percent > 1
-      ? invoice.first_payment_percent / 100
-      : invoice.first_payment_percent
+    percentFirst =
+      invoice.first_payment_percent > 1
+        ? invoice.first_payment_percent / 100
+        : invoice.first_payment_percent
   }
 
   const qualifiesForDeadline =
@@ -186,4 +257,37 @@ export function formatDeliveryLimitMessage(info: DeliveryLimitInfo, locale = 'es
     return `${dateStr} (referencia; primer pago ${pct} < 60%, no es fecha límite formal)`
   }
   return `${dateStr}`
+}
+
+/**
+ * Build DB update payload for primer_pago_* / total_pagado from Alegra invoice JSON.
+ */
+export function firstPaymentFieldsFromAlegraInvoice(alegraInvoice: any): {
+  primer_pago_fecha: Date | null
+  primer_pago_monto: number | null
+  total_pagado: number | null
+  estadoHint: 'parcial' | 'pagada' | null
+} {
+  const total = toNumber(alegraInvoice?.total)
+  const totalPaid = toNumber(alegraInvoice?.totalPaid)
+  const balance = alegraInvoice?.balance != null ? toNumber(alegraInvoice.balance) : total - totalPaid
+
+  const payments: PaymentLike[] = (Array.isArray(alegraInvoice?.payments) ? alegraInvoice.payments : []).map(
+    (p: any) => ({
+      date: p.date,
+      amount: p.amount,
+    })
+  )
+  const first = extractFirstPaymentFromList(payments)
+
+  let estadoHint: 'parcial' | 'pagada' | null = null
+  if (totalPaid > 0 && balance > 0.005) estadoHint = 'parcial'
+  else if (totalPaid > 0 && balance <= 0.005) estadoHint = 'pagada'
+
+  return {
+    primer_pago_fecha: first?.date || null,
+    primer_pago_monto: first?.amount ?? (totalPaid > 0 ? totalPaid : null),
+    total_pagado: totalPaid > 0 ? totalPaid : null,
+    estadoHint,
+  }
 }

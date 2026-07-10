@@ -183,12 +183,24 @@ export async function POST(
         }
       }
 
-      // 5. Update the invoice status
+      // First paid installment (by number) drives delivery limit (5 weeks / 60%)
+      const paidByNumber = allInstallments
+        .filter((p: any) => p.pagado && p.fecha_pago)
+        .sort((a: any, b: any) => Number(a.numero) - Number(b.numero))
+      const firstPaid = paidByNumber[0] || null
+      const totalPagado = allInstallments
+        .filter((p: any) => p.pagado)
+        .reduce((sum: number, p: any) => sum + Number(p.monto), 0)
+
+      // 5. Update the invoice status + first payment fields
       await tx.facturas_cliente.update({
         where: { id: facturaId },
         data: {
           estado: newInvoiceState,
-          fecha_pago: invoicePaymentDate
+          fecha_pago: invoicePaymentDate || (firstPaid ? firstPaid.fecha_pago : null),
+          primer_pago_fecha: firstPaid ? firstPaid.fecha_pago : null,
+          primer_pago_monto: firstPaid ? firstPaid.monto : null,
+          total_pagado: totalPagado > 0 ? totalPagado : null,
         }
       })
 
