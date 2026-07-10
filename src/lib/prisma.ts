@@ -75,7 +75,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ── Query Routing Helper ────────────────────────────────────
-const SECONDARY_MODELS = ['factura_productos']
+// NOTE: `factura_productos` MUST live on the MAIN database with `facturas_cliente`.
+// Routing it to SEGUNDA_DB caused FK violations (factura_productos_factura_id_fkey)
+// because the parent invoice only exists on main, and list UIs read empty products
+// from the secondary DB. Keep this empty (or only models that fully exist on SEGUNDA).
+const SECONDARY_MODELS: string[] = []
 
 async function processQueryArgsAndResolve(model: string, operation: string, args: any, query: any): Promise<any> {
   if (!args) {
@@ -367,7 +371,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 12
+const TRIGGER_VERSION = 13
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>

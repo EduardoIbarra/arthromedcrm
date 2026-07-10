@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma, { prismaSegunda } from '@/lib/prisma'
+import prisma from '@/lib/prisma'
 import { fetchAlegraInvoice, fetchAlegraPaymentsForInvoice } from '@/lib/alegra'
 
 export const dynamic = 'force-dynamic'
@@ -96,9 +96,24 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
     }
   })
 
+  // Ensure parent invoice exists on the same DB before insert (FK factura_productos_factura_id_fkey)
+  const parent = await prisma.facturas_cliente.findUnique({
+    where: { id: facturaId },
+    select: { id: true },
+  })
+  if (!parent) {
+    return {
+      products: [] as any[],
+      alegraInvoice,
+      error: `No se encontró la factura ${facturaId} en la base de datos principal.`,
+    }
+  }
+
   await prisma.$transaction(async (tx: any) => {
     await tx.factura_productos.deleteMany({ where: { factura_id: facturaId } })
-    await tx.factura_productos.createMany({ data: rows })
+    if (rows.length > 0) {
+      await tx.factura_productos.createMany({ data: rows })
+    }
   })
 
   const products = await prisma.factura_productos.findMany({
@@ -156,7 +171,7 @@ export async function GET(
     }
 
     if (!Array.isArray(factura.factura_productos)) {
-      factura.factura_productos = await prismaSegunda.factura_productos.findMany({
+      factura.factura_productos = await prisma.factura_productos.findMany({
         where: { factura_id: id },
         orderBy: { producto_nombre: 'asc' },
       })
