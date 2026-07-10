@@ -446,10 +446,22 @@ export default function ClientDetailPage() {
     }
   }
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | Date) => {
     if (!dateStr) return '-'
-    const date = new Date(dateStr)
-    return date.toLocaleDateString(locale === 'es' ? 'es-MX' : 'en-US', {
+    let date: Date
+    if (typeof dateStr === 'string') {
+      const parts = dateStr.split('T')[0].split('-')
+      if (parts.length === 3) {
+        date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0)
+      } else {
+        date = new Date(dateStr)
+      }
+    } else {
+      date = new Date(dateStr)
+    }
+
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleDateString(locale === 'es' ? 'es-MX' : locale === 'zh' ? 'zh-CN' : 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -511,8 +523,8 @@ export default function ClientDetailPage() {
   const addBusinessDays = (startDateStr: string | Date, days: number): Date => {
     // Parse correctly without shifting
     let date: Date
-    if (typeof startDateStr === 'string' && !startDateStr.includes('T')) {
-      const parts = startDateStr.split('-')
+    if (typeof startDateStr === 'string') {
+      const parts = startDateStr.split('T')[0].split('-')
       if (parts.length === 3) {
         date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0)
       } else {
