@@ -10,7 +10,15 @@ export async function POST(
   try {
     const { id: facturaId } = await params
     const body = await request.json()
-    const { installmentId, pagado, fecha_pago, notas, monto_recibido } = body
+    const {
+      installmentId,
+      pagado,
+      fecha_pago,
+      notas,
+      monto_recibido,
+      comprobante_url,
+      comprobante_nombre,
+    } = body
 
     if (!facturaId) {
       return NextResponse.json({ error: 'ID de factura es requerido' }, { status: 400 })
@@ -120,14 +128,29 @@ export async function POST(
         }
       }
 
-      // 2. Update the status, payment date, and notes
+      // 2. Update the status, payment date, notes, and optional payment proof
+      const updateData: any = {
+        pagado: pagado,
+        fecha_pago: pagado ? (fecha_pago ? new Date(fecha_pago) : new Date()) : null,
+        notas: notas !== undefined ? notas : null,
+      }
+
+      if (pagado) {
+        if (comprobante_url !== undefined) {
+          updateData.comprobante_url = comprobante_url || null
+        }
+        if (comprobante_nombre !== undefined) {
+          updateData.comprobante_nombre = comprobante_nombre || null
+        }
+      } else {
+        // Clearing payment also clears attached proof
+        updateData.comprobante_url = null
+        updateData.comprobante_nombre = null
+      }
+
       const updated = await tx.parcialidades.update({
         where: { id: installmentId },
-        data: {
-          pagado: pagado,
-          fecha_pago: pagado ? (fecha_pago ? new Date(fecha_pago) : new Date()) : null,
-          notas: notas !== undefined ? notas : null
-        }
+        data: updateData,
       })
 
       // 3. Recalculate and update the plan total_con_descuento

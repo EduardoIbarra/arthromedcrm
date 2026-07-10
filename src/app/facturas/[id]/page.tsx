@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode, ExternalLink, RefreshCw, Receipt } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode, ExternalLink, RefreshCw, Receipt, Paperclip, FileText } from 'lucide-react'
 import AppShell from '@/components/AppShell'
+import { createClient } from '@/lib/supabase/client'
 
 interface FacturaProducto {
   id: string
@@ -40,6 +41,8 @@ interface Parcialidad {
   pagado: boolean
   fecha_pago: string | null
   notas: string | null
+  comprobante_url?: string | null
+  comprobante_nombre?: string | null
 }
 
 interface PlanPago {
@@ -103,6 +106,7 @@ interface Factura {
   complementos_pago?: ComplementoPago[]
   alegra_summary?: AlegraSummary | null
   products_backfilled?: boolean
+  product_sync_error?: string | null
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -174,6 +178,8 @@ export default function FacturaDetailPage() {
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [downloadingXml, setDownloadingXml] = useState(false)
   const [syncingProducts, setSyncingProducts] = useState(false)
+  const [payDocument, setPayDocument] = useState<File | null>(null)
+  const [productSyncError, setProductSyncError] = useState<string | null>(null)
 
   const downloadFile = async (type: 'pdf' | 'xml') => {
     const setLoading = type === 'pdf' ? setDownloadingPdf : setDownloadingXml
@@ -231,6 +237,7 @@ export default function FacturaDetailPage() {
       if (!res.ok) throw new Error('Failed to fetch')
       const data = await res.json()
       setInvoice(data)
+      setProductSyncError(data.product_sync_error || null)
       setFulfillmentStatus(data.estado_surtido || 'no_surtida')
       
       const activePlan = data.planes_pago?.[0] || null
@@ -241,8 +248,10 @@ export default function FacturaDetailPage() {
         initialItems[p.id] = p.cantidad_entregada || 0
       })
       setFulfillmentItems(initialItems)
+      return data
     } catch (err) {
       console.error(err)
+      return null
     } finally {
       setLoading(false)
     }
@@ -258,7 +267,22 @@ export default function FacturaDetailPage() {
   }
 
   useEffect(() => {
-    if (id) fetchInvoice()
+    if (!id) return
+    let cancelled = false
+    ;(async () => {
+      const data = await fetchInvoice()
+      // Auto force-sync products once when empty + Alegra-linked
+      if (
+        !cancelled &&
+        data?.alegra_id &&
+        (!data.factura_productos || data.factura_productos.length === 0)
+      ) {
+        await handleSyncProductsFromAlegra()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   const handleSaveFulfillment = async () => {
@@ -552,6 +576,7 @@ export default function FacturaDetailPage() {
       setPayDate(new Date().toISOString().split('T')[0])
       setPayNotes('')
       setPayReceivedAmount(Number(inst.monto))
+      setPayDocument(null)
     }
   }
 
@@ -577,6 +602,25 @@ export default function FacturaDetailPage() {
 
     try {
       setIsSavingPayment(true)
+
+      let comprobante_url: string | null = null
+      let comprobante_nombre: string | null = null
+
+      if (payDocument) {
+        const supabase = createClient()
+        const safeName = payDocument.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const path = `facturas/${id}/parcialidades/${payingInstallment.id}/${Date.now()}_${safeName}`
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(path, payDocument)
+        if (uploadError) {
+          throw new Error(`Error al subir comprobante: ${uploadError.message}`)
+        }
+        const { data: publicUrlData } = supabase.storage.from('documents').getPublicUrl(uploadData.path)
+        comprobante_url = publicUrlData.publicUrl
+        comprobante_nombre = payDocument.name
+      }
+
       const res = await fetch(`/api/invoices/${id}/payment-plan/installment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -585,7 +629,9 @@ export default function FacturaDetailPage() {
           pagado: true,
           fecha_pago: payDate,
           notas: payNotes || null,
-          monto_recibido: recAmt
+          monto_recibido: recAmt,
+          comprobante_url,
+          comprobante_nombre,
         })
       })
       if (!res.ok) {
@@ -593,6 +639,7 @@ export default function FacturaDetailPage() {
         throw new Error(errData.error || 'Error al guardar pago')
       }
       setPayingInstallment(null)
+      setPayDocument(null)
       await fetchInvoice()
     } catch (error: any) {
       console.error(error)
@@ -961,11 +1008,27 @@ export default function FacturaDetailPage() {
                     <tr>
                       <td colSpan={6} className="p-8 text-center">
                         <p className="text-gray-400 italic mb-2">No hay productos en esta factura</p>
-                        {invoice.alegra_id ? (
-                          <p className="text-xs text-gray-500">
-                            Pueden faltar por un sync incompleto. Usa &quot;Sincronizar productos de Alegra&quot; arriba
-                            para importarlos desde la factura original.
+                        {productSyncError && (
+                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3 max-w-lg mx-auto">
+                            {productSyncError}
                           </p>
+                        )}
+                        {invoice.alegra_id ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-gray-500 max-w-md mx-auto">
+                              Pueden faltar por un sync incompleto (común en facturas con plan de pagos).
+                              Usa el botón para importarlos desde Alegra.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleSyncProductsFromAlegra}
+                              disabled={syncingProducts}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#0763a9] hover:bg-[#0a86e3] px-3 py-1.5 rounded-lg disabled:opacity-50"
+                            >
+                              <RefreshCw size={12} className={syncingProducts ? 'animate-spin' : ''} />
+                              {syncingProducts ? 'Sincronizando...' : 'Sincronizar productos de Alegra'}
+                            </button>
+                          </div>
                         ) : (
                           <p className="text-xs text-gray-500">Esta factura no tiene ID de Alegra asociado.</p>
                         )}
@@ -1363,7 +1426,7 @@ export default function FacturaDetailPage() {
                     <Coins size={16} className="text-amber-600" />
                     Registrar Pago de Parcialidad #{payingInstallment.numero}
                   </h5>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                       <label className="block text-xs font-bold uppercase text-gray-500 mb-1.5">Monto Recibido (MXN)</label>
                       <div className="relative rounded-md shadow-xs">
@@ -1400,6 +1463,32 @@ export default function FacturaDetailPage() {
                         className="erp-input w-full bg-white text-sm"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-gray-500 mb-1.5">
+                        Comprobante (opcional)
+                      </label>
+                      <label className="flex items-center gap-2 erp-input w-full bg-white text-sm cursor-pointer hover:bg-gray-50 transition min-h-[38px]">
+                        <Paperclip size={14} className="text-[#0763a9] shrink-0" />
+                        <span className="truncate text-gray-700">
+                          {payDocument ? payDocument.name : 'Adjuntar PDF o imagen…'}
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,application/pdf,image/*"
+                          className="hidden"
+                          onChange={(e) => setPayDocument(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      {payDocument && (
+                        <button
+                          type="button"
+                          onClick={() => setPayDocument(null)}
+                          className="text-[10px] text-rose-600 font-semibold mt-1 hover:underline"
+                        >
+                          Quitar archivo
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {payingInstallment && Math.abs(Number(payReceivedAmount || 0) - Number(payingInstallment.monto)) > 0.005 && (
@@ -1410,7 +1499,10 @@ export default function FacturaDetailPage() {
                   <div className="flex justify-end gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={() => setPayingInstallment(null)}
+                      onClick={() => {
+                        setPayingInstallment(null)
+                        setPayDocument(null)
+                      }}
                       className="btn-secondary !py-1.5 !px-4 text-xs font-semibold cursor-pointer"
                       disabled={isSavingPayment}
                     >
@@ -1468,6 +1560,18 @@ export default function FacturaDetailPage() {
                             <div className="space-y-0.5">
                               <p className="text-gray-500">Pagado el: <strong className="font-semibold text-gray-700">{formatDate(inst.fecha_pago)}</strong></p>
                               {inst.notas && <p className="text-gray-400 italic">"{inst.notas}"</p>}
+                              {inst.comprobante_url && (
+                                <a
+                                  href={inst.comprobante_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[#0763a9] font-bold hover:underline mt-0.5"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <FileText size={12} />
+                                  {inst.comprobante_nombre || 'Ver comprobante'}
+                                </a>
+                              )}
                             </div>
                           ) : (
                             <span className="text-gray-400 italic">Sin registros</span>

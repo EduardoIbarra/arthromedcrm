@@ -5,10 +5,27 @@ import { fetchAlegraInvoice, fetchAlegraPaymentsForInvoice } from '@/lib/alegra'
 export const dynamic = 'force-dynamic'
 
 async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
-  const alegraInvoice = await fetchAlegraInvoice(alegraId)
-  const items = Array.isArray(alegraInvoice?.items) ? alegraInvoice.items : []
+  // Full invoice fetch (list sync often omits items)
+  let alegraInvoice = await fetchAlegraInvoice(alegraId)
+  let items = Array.isArray(alegraInvoice?.items) ? alegraInvoice.items : []
+
+  // Retry with explicit fields if empty (some Alegra responses omit items)
   if (items.length === 0) {
-    return { products: [] as any[], alegraInvoice }
+    try {
+      alegraInvoice = await fetchAlegraInvoice(alegraId, 'items')
+      items = Array.isArray(alegraInvoice?.items) ? alegraInvoice.items : []
+    } catch (err) {
+      console.warn('Alegra fields=items retry failed:', err)
+    }
+  }
+
+  if (items.length === 0) {
+    return {
+      products: [] as any[],
+      alegraInvoice,
+      error:
+        'Alegra no devolvió partidas (items) para esta factura. Revisa en Alegra que la factura tenga conceptos y vuelve a sincronizar.',
+    }
   }
 
   const existing = await prisma.factura_productos.findMany({
@@ -45,34 +62,43 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
     }
   }
 
-  await prisma.factura_productos.deleteMany({ where: { factura_id: facturaId } })
-  await prisma.factura_productos.createMany({
-    data: items.map((item: any) => {
-      const iName = item.name || item.description || 'Producto'
-      const rKey = item.reference?.trim().toLowerCase()
-      const nKey = iName.trim().toLowerCase()
-      const pid = (rKey && productByRef.get(rKey)) ?? (nKey && productByName.get(nKey)) ?? null
-      const linea = (rKey && productLineByRef.get(rKey)) ?? (nKey && productLineByName.get(nKey)) ?? null
-      const qty = Math.round(Number(item.quantity) || 1) || 1
-      const alegraLineId = item.id ? String(item.id) : null
-      const prevDelivered =
-        (alegraLineId && deliveredByKey.get(`a:${alegraLineId}`)) ??
-        (rKey && deliveredByKey.get(`c:${rKey}`)) ??
-        deliveredByKey.get(`n:${nKey}`) ??
-        0
-      return {
-        factura_id: facturaId,
-        producto_id: pid || null,
-        producto_nombre: iName,
-        producto_codigo: item.reference || null,
-        cantidad_facturada: qty,
-        cantidad_entregada: Math.min(Number(prevDelivered) || 0, qty),
-        precio_unitario: item.price || 0,
-        importe: (Number(item.price) || 0) * (Number(item.quantity) || 0),
-        linea: linea || null,
-        alegra_id: alegraLineId,
-      }
-    }),
+  const rows = items.map((item: any) => {
+    const iName = (item.name || item.description || item.reference || 'Producto').toString().trim() || 'Producto'
+    const rKey = item.reference?.toString().trim().toLowerCase() || null
+    const nKey = iName.toLowerCase()
+    const pid = (rKey && productByRef.get(rKey)) ?? productByName.get(nKey) ?? null
+    const linea = (rKey && productLineByRef.get(rKey)) ?? productLineByName.get(nKey) ?? null
+    const rawQty = Number(item.quantity)
+    // cantidad_facturada is Int — keep at least 1 when Alegra sends fractional qty
+    const qty = Math.max(1, Math.round(Number.isFinite(rawQty) && rawQty > 0 ? rawQty : 1))
+    const price = Number(item.price) || 0
+    const lineTotal =
+      item.total != null && Number.isFinite(Number(item.total))
+        ? Number(item.total)
+        : price * (Number.isFinite(rawQty) && rawQty > 0 ? rawQty : qty)
+    const alegraLineId = item.id != null ? String(item.id) : null
+    const prevDelivered =
+      (alegraLineId && deliveredByKey.get(`a:${alegraLineId}`)) ??
+      (rKey && deliveredByKey.get(`c:${rKey}`)) ??
+      deliveredByKey.get(`n:${nKey}`) ??
+      0
+    return {
+      factura_id: facturaId,
+      producto_id: pid || null,
+      producto_nombre: iName,
+      producto_codigo: item.reference ? String(item.reference) : null,
+      cantidad_facturada: qty,
+      cantidad_entregada: Math.min(Number(prevDelivered) || 0, qty),
+      precio_unitario: price,
+      importe: lineTotal,
+      linea: linea || null,
+      alegra_id: alegraLineId,
+    }
+  })
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.factura_productos.deleteMany({ where: { factura_id: facturaId } })
+    await tx.factura_productos.createMany({ data: rows })
   })
 
   const products = await prisma.factura_productos.findMany({
@@ -80,7 +106,7 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
     orderBy: { producto_nombre: 'asc' },
   })
 
-  return { products, alegraInvoice }
+  return { products, alegraInvoice, error: null as string | null }
 }
 
 export async function GET(
@@ -137,6 +163,7 @@ export async function GET(
     }
 
     let productsBackfilled = false
+    let productSyncError: string | null = null
     let alegraInvoice: any = null
     let complementos_pago: any[] = []
     let alegra_summary: {
@@ -158,10 +185,15 @@ export async function GET(
         if (result.products.length > 0) {
           factura.factura_productos = result.products
           productsBackfilled = true
+        } else if (result.error) {
+          productSyncError = result.error
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error backfilling products from Alegra:', err)
+        productSyncError = err?.message || 'Error al sincronizar productos desde Alegra'
       }
+    } else if (!factura.alegra_id && (!factura.factura_productos || factura.factura_productos.length === 0)) {
+      productSyncError = 'Esta factura no tiene alegra_id; no se pueden importar productos automáticamente.'
     }
 
     // Complementos de pago (pagos / REPs) from Alegra
@@ -190,6 +222,7 @@ export async function GET(
       complementos_pago,
       alegra_summary,
       products_backfilled: productsBackfilled,
+      product_sync_error: productSyncError,
     })
   } catch (error: any) {
     console.error('Error fetching factura:', error)
