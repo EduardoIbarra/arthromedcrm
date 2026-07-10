@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { generateClientLetter } from '@/lib/services/letter'
 import { sendRespondMessage } from '@/lib/respond'
 import { generateObject } from 'ai'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 
 
@@ -312,12 +312,12 @@ Por favor, analiza el mensaje en lenguaje natural y extrae la información estru
 9. "missingInformation": Si "isLetterRequest" es true pero falta el distribuidor ("distributorQuery"), la institución ("institutionName") o las líneas de producto, escribe un mensaje explicativo y amigable en español solicitando los datos faltantes.
 10. "coverage": La cobertura geográfica (región, estado, estados, país o países) especificada en la solicitud (ej. "Nuevo León", "los estados de Jalisco, Colima y Nayarit", "república mexicana", etc.). Si no se especifica explícitamente en el mensaje, pon null.`
 
-        const google = createGoogleGenerativeAI({
-          apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+        const openai = createOpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
         })
 
         const parsed = await generateObject({
-          model: google('gemini-2.5-flash'),
+          model: openai('gpt-4o-mini'),
           schema: z.object({
             isLetterRequest: z.boolean(),
             isStatusRequest: z.boolean().default(false),
