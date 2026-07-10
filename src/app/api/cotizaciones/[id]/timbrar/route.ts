@@ -2,6 +2,40 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getAlegraAuthHeader, toAlegraTaxRegime } from '@/lib/alegra'
 
+const ALEGRA_BASE = 'https://api.alegra.com/api/v1'
+
+function extractZipCode(contact: any, localZip?: string | null): string | null {
+  const fromContact =
+    contact?.address?.zipCode ||
+    contact?.address?.zip ||
+    contact?.zipCode ||
+    null
+  const zip = (fromContact || localZip || '').toString().trim()
+  return zip || null
+}
+
+function extractName(contact: any, fallback?: string | null): string | null {
+  const name = (
+    contact?.name ||
+    contact?.nameObject?.name ||
+    [contact?.nameObject?.firstName, contact?.nameObject?.secondName, contact?.nameObject?.lastName]
+      .filter(Boolean)
+      .join(' ') ||
+    fallback ||
+    ''
+  ).toString().trim()
+  return name || null
+}
+
+function extractIdentification(contact: any, fallback?: string | null): string | null {
+  const id =
+    contact?.identification ||
+    contact?.identificationObject?.number ||
+    fallback ||
+    ''
+  return id.toString().trim() || null
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -12,7 +46,8 @@ export async function POST(
     const { metodo_pago = 'PUE', uso_cfdi = 'G03', forma_pago = '01', regimen_fiscal } = body
 
     const quote = await prisma.cotizaciones.findUnique({
-      where: { id }
+      where: { id },
+      include: { clientes: true },
     })
 
     if (!quote) {
@@ -28,119 +63,173 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Credenciales de Alegra no configuradas' }, { status: 500 })
     }
 
-    // Fetch estimate from Alegra to get the client details
-    let alegraClient: any = undefined
+    const jsonHeaders = {
+      Authorization: authHeader,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    }
+
+    // Fetch estimate to get the associated client id
+    let estimateClientId: string | number | undefined
     try {
-      const estimateRes = await fetch(`https://api.alegra.com/api/v1/estimates/${quote.alegra_id}`, {
-        headers: { 'Authorization': authHeader, 'Accept': 'application/json' }
+      const estimateRes = await fetch(`${ALEGRA_BASE}/estimates/${quote.alegra_id}`, {
+        headers: { Authorization: authHeader, Accept: 'application/json' },
       })
       if (estimateRes.ok) {
         const estimateData = await estimateRes.json()
-        alegraClient = estimateData.client
+        estimateClientId = estimateData.client?.id
       }
     } catch (err) {
       console.error('Error fetching estimate to get client:', err)
     }
 
-    // Alegra México requires taxRegime as catalog enums (e.g. BUSINESS_ACTIVITIES_REGIME),
-    // not SAT codes (e.g. "612"). Map before updating the contact.
-    const alegraTaxRegime = toAlegraTaxRegime(regimen_fiscal)
+    if (!estimateClientId) {
+      return NextResponse.json({
+        success: false,
+        error: 'No se encontró el cliente de la cotización en Alegra',
+      }, { status: 400 })
+    }
 
-    // Step 1: Update client's taxRegime in Alegra if provided
-    if (alegraClient?.id && regimen_fiscal) {
-      if (!alegraTaxRegime) {
+    // Fetch full contact — estimate only returns a partial client snapshot
+    let contact: any = null
+    try {
+      const contactRes = await fetch(`${ALEGRA_BASE}/contacts/${estimateClientId}`, {
+        headers: { Authorization: authHeader, Accept: 'application/json' },
+      })
+      if (contactRes.ok) {
+        contact = await contactRes.json()
+      } else {
+        const errBody = await contactRes.json().catch(() => ({}))
+        console.error('Error fetching Alegra contact:', errBody)
+      }
+    } catch (err) {
+      console.error('Error fetching Alegra contact:', err)
+    }
+
+    if (!contact) {
+      return NextResponse.json({
+        success: false,
+        error: 'No se pudo obtener el contacto en Alegra para validar datos fiscales',
+      }, { status: 400 })
+    }
+
+    // Local ERP fallbacks (cotización / catálogo clientes)
+    const localCliente = quote.clientes
+    const name = extractName(contact, quote.cliente_nombre || localCliente?.nombre)
+    const identification = extractIdentification(
+      contact,
+      quote.cliente_rfc || localCliente?.rfc
+    )
+    const zipCode = extractZipCode(contact, localCliente?.codigo_postal)
+    const alegraTaxRegime =
+      toAlegraTaxRegime(regimen_fiscal) ||
+      toAlegraTaxRegime(contact.taxRegime) ||
+      toAlegraTaxRegime(localCliente?.regimen_fiscal)
+
+    // Pre-validate CFDI 4.0 receptor requirements before calling stamp
+    const missing: string[] = []
+    if (!name) missing.push('nombre del cliente')
+    if (!identification) missing.push('RFC del cliente')
+    if (!alegraTaxRegime) missing.push('régimen fiscal del cliente')
+    if (!zipCode) missing.push('código postal fiscal del cliente')
+
+    if (missing.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Faltan datos fiscales para timbrar: ${missing.join(', ')}. Complétalos en el cliente de Alegra o en el ERP e intenta de nuevo.`,
+      }, { status: 400 })
+    }
+
+    // Update contact with required fields. Alegra PUT requires `name` even for partial updates
+    // (sending only { taxRegime } returns "El nombre del contacto es obligatorio").
+    const existingAddress =
+      contact.address && typeof contact.address === 'object' ? contact.address : {}
+    const contactUpdate: Record<string, unknown> = {
+      name,
+      identification,
+      taxRegime: alegraTaxRegime,
+      address: {
+        // Only re-send known fiscal address fields Alegra accepts
+        ...(existingAddress.street ? { street: existingAddress.street } : {}),
+        ...(existingAddress.exteriorNumber ? { exteriorNumber: existingAddress.exteriorNumber } : {}),
+        ...(existingAddress.interiorNumber ? { interiorNumber: existingAddress.interiorNumber } : {}),
+        ...(existingAddress.colony ? { colony: existingAddress.colony } : {}),
+        ...(existingAddress.locality ? { locality: existingAddress.locality } : {}),
+        ...(existingAddress.municipality ? { municipality: existingAddress.municipality } : {}),
+        ...(existingAddress.state ? { state: existingAddress.state } : {}),
+        ...(existingAddress.country ? { country: existingAddress.country } : {}),
+        zipCode,
+      },
+    }
+
+    try {
+      const updateRes = await fetch(`${ALEGRA_BASE}/contacts/${estimateClientId}`, {
+        method: 'PUT',
+        headers: jsonHeaders,
+        body: JSON.stringify(contactUpdate),
+      })
+
+      if (!updateRes.ok) {
+        const errBody = await updateRes.json().catch(() => ({}))
+        console.error('Error updating Alegra contact:', errBody)
         return NextResponse.json({
           success: false,
-          error: `Régimen fiscal no reconocido: "${regimen_fiscal}". Usa un código SAT (ej. 612) o el id de Alegra (ej. BUSINESS_ACTIVITIES_REGIME).`
+          error: errBody.message || `No se pudo actualizar el contacto en Alegra (${updateRes.status})`,
         }, { status: 400 })
       }
-
-      try {
-        // Prefer /contacts (official); /clients is a legacy alias in some accounts
-        const contactRes = await fetch(`https://api.alegra.com/api/v1/contacts/${alegraClient.id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ taxRegime: alegraTaxRegime })
-        })
-
-        if (!contactRes.ok) {
-          const errBody = await contactRes.json().catch(() => ({}))
-          console.error('Error updating Alegra contact taxRegime:', errBody)
-          return NextResponse.json({
-            success: false,
-            error: errBody.message || `No se pudo actualizar el régimen fiscal del cliente en Alegra (${contactRes.status})`
-          }, { status: 400 })
-        }
-      } catch (err) {
-        console.error('Error updating Alegra contact taxRegime:', err)
-        return NextResponse.json({
-          success: false,
-          error: 'Error de red al actualizar el régimen fiscal del cliente en Alegra'
-        }, { status: 500 })
-      }
+    } catch (err) {
+      console.error('Error updating Alegra contact:', err)
+      return NextResponse.json({
+        success: false,
+        error: 'Error de red al actualizar el contacto en Alegra',
+      }, { status: 500 })
     }
 
-    // Step 1.5: Refresh the estimate's client snapshot so it picks up any updated taxRegime
-    if (alegraClient?.id) {
-      try {
-        await fetch(`https://api.alegra.com/api/v1/estimates/${quote.alegra_id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ client: alegraClient.id })
-        })
-      } catch (err) {
-        console.error('Error refreshing estimate client snapshot:', err)
-      }
+    // Refresh the estimate's client snapshot so stamp uses updated fiscal data
+    try {
+      await fetch(`${ALEGRA_BASE}/estimates/${quote.alegra_id}`, {
+        method: 'PUT',
+        headers: jsonHeaders,
+        body: JSON.stringify({ client: estimateClientId }),
+      })
+    } catch (err) {
+      console.error('Error refreshing estimate client snapshot:', err)
     }
 
-    // Step 2: Create Invoice from Estimate in Alegra
-    const alegraPayload: any = {
+    // Create invoice from estimate and stamp
+    const alegraPayload: Record<string, unknown> = {
       date: new Date().toISOString().split('T')[0],
       dueDate: new Date().toISOString().split('T')[0],
       estimate: quote.alegra_id,
+      client: estimateClientId,
       paymentMethod: metodo_pago,
       paymentForm: forma_pago,
       cfdiUse: uso_cfdi,
       stamp: {
         generateStamp: true,
-        version: '4.0'
-      }
-    }
-
-    // When we know the client, pin it on the invoice so stamp uses the updated contact
-    if (alegraClient?.id) {
-      alegraPayload.client = alegraClient.id
-    }
-
-    const res = await fetch('https://api.alegra.com/api/v1/invoices', {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        version: '4.0',
       },
-      body: JSON.stringify(alegraPayload)
+    }
+
+    const res = await fetch(`${ALEGRA_BASE}/invoices`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(alegraPayload),
     })
 
     const data = await res.json()
 
     if (!res.ok) {
       console.error('Alegra API Error:', data)
-      return NextResponse.json({ success: false, error: data.message || 'Error al crear/timbrar factura en Alegra' }, { status: 400 })
+      return NextResponse.json({
+        success: false,
+        error: data.message || 'Error al crear/timbrar factura en Alegra',
+      }, { status: 400 })
     }
 
-    // Step 3: Update local quote status
     await prisma.cotizaciones.update({
       where: { id },
-      data: { estado: 'Facturado' }
+      data: { estado: 'Facturado' },
     })
 
     return NextResponse.json({ success: true, factura: data })
