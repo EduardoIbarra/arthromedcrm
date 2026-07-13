@@ -22,10 +22,10 @@ export async function GET(_req: NextRequest) {
       nombre: string
       cantidad: string
     }>(`
-      SELECT producto_id, nombre, cantidad
-      FROM stock_por_producto
+      SELECT producto_id, producto_nombre AS nombre, cantidad
+      FROM conteo_diario
       WHERE CAST(cantidad AS bigint) > 0
-      ORDER BY nombre ASC
+      ORDER BY producto_nombre ASC
     `)
 
     const data: StockFisicoItem[] = items.map(p => ({

@@ -1,29 +1,19 @@
 const { Client } = require('pg');
+const dns = require('dns');
 
-async function testPassword(password) {
+dns.lookup('db.xfvzqzaggagxwgpjlydr.supabase.co', 4, (err, address) => {
+  if (err) { console.error(err); return; }
   const client = new Client({
-    connectionString: `postgresql://postgres:${password}@db.ibcevxzxfzszrmejekqd.supabase.co:5432/postgres`,
-    connectionTimeoutMillis: 5000,
+    connectionString: `postgresql://postgres:Mapache221196.@${address}:5432/postgres`,
+    ssl: { rejectUnauthorized: false }
   });
-  try {
-    await client.connect();
-    console.log(`Success with: ${password}`);
-    const res = await client.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+  client.connect().then(() => {
+    return client.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'conteo_diario';");
+  }).then(res => {
     console.log(res.rows);
-    await client.end();
-    return true;
-  } catch (err) {
-    console.log(`Failed with: ${password} - ${err.message}`);
-    return false;
-  }
-}
-
-async function run() {
-  const passwords = ["rapido13", "rapido221196", "rápido221196", "Rapido13"];
-  for (const p of passwords) {
-    const success = await testPassword(p);
-    if (success) break;
-  }
-}
-
-run();
+    client.end();
+  }).catch(e => {
+    console.error(e);
+    client.end();
+  });
+});
