@@ -1628,6 +1628,7 @@ model planes_pago {
   pdf_url              String?
   created_at           DateTime?           @default(now()) @db.Timestamptz(6)
   factura_id           String?             @db.Uuid
+  cotizacion_id        String?             @db.Uuid
   interes_porcentaje   Decimal?            @default(0) @db.Decimal(5, 2)
   interes_moratorio    Decimal?            @default(0) @db.Decimal(5, 2)
   detalle_plan_pago    detalle_plan_pago[]
@@ -1636,6 +1637,7 @@ model planes_pago {
   clientes             clientes?           @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   metodo_pago          metodo_pago?        @relation(fields: [metodo_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   facturas_cliente     facturas_cliente?   @relation(fields: [factura_id], references: [id], onDelete: Cascade)
+  cotizaciones         cotizaciones?       @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade)
 
   @@index([usuario_id], map: "idx_planes_pago_usuario")
   @@schema("public")
@@ -2552,6 +2554,7 @@ model cotizaciones {
   comentarios           cotizacion_comentarios[]
   documentos            cotizacion_documentos[]
   productos             cotizacion_productos[]
+  planes_pago           planes_pago[]
 
   @@index([alegra_id], map: "idx_cotizaciones_alegra_id")
   @@schema("public")

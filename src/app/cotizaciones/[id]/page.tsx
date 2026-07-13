@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
+import CotizacionPaymentPlan from '../_components/CotizacionPaymentPlan'
 import { createClient } from '@/lib/supabase/client'
 
 interface Comment {
@@ -589,6 +590,9 @@ export default function CotizacionDetailPage() {
                 </table>
               </div>
             </div>
+
+            {/* Payment Plan */}
+            <CotizacionPaymentPlan quote={quote} onUpdate={fetchQuote} />
 
             {/* Comments Section */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-6">

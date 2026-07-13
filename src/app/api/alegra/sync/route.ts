@@ -249,6 +249,20 @@ export async function GET(_request: NextRequest) {
             }
           }
 
+          // Transfer payment plans from estimate (cotización)
+          const estimateObj = invoice.estimate;
+          const estimateId = estimateObj?.id || estimateObj;
+          if (estimateId) {
+            const estimateIdStr = estimateId.toString()
+            const cot = await prisma.cotizaciones.findUnique({ where: { alegra_id: estimateIdStr } })
+            if (cot) {
+              await prisma.planes_pago.updateMany({
+                where: { cotizacion_id: cot.id, factura_id: null },
+                data: { factura_id: facturaUuid }
+              })
+            }
+          }
+
           // Recreate line items (delete old + batch insert new)
           if (invoice.items?.length > 0) {
             await prisma.factura_productos.deleteMany({ where: { factura_id: facturaUuid } })

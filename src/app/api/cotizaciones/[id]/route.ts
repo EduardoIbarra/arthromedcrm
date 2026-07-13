@@ -25,6 +25,13 @@ export async function GET(
         },
         documentos: {
           orderBy: { created_at: 'desc' }
+        },
+        planes_pago: {
+          include: {
+            parcialidades: {
+              orderBy: { numero: 'asc' }
+            }
+          }
         }
       }
     })
