@@ -15,13 +15,15 @@ export interface StockFisicoItem {
  */
 export async function GET(_req: NextRequest) {
   try {
+    // stock_por_producto is the live stock view (producto_id, nombre, cantidad).
+    // conteo_diario is daily counts only and has no nombre/cantidad columns.
     const items = await querySegundaDB<{
       producto_id: string
       nombre: string
       cantidad: string
     }>(`
       SELECT producto_id, nombre, cantidad
-      FROM conteo_diario
+      FROM stock_por_producto
       WHERE CAST(cantidad AS bigint) > 0
       ORDER BY nombre ASC
     `)

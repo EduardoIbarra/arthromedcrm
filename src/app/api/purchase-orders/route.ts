@@ -118,7 +118,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { status, notes, items } = body
+    const { status, notes, items, numero_orden: requestedNumeroOrden } = body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'La orden debe contener al menos un producto' }, { status: 400 })
@@ -127,28 +127,47 @@ export async function POST(request: NextRequest) {
     // 1. Generate unique PO ID
     const purchaseOrderId = uuidv4()
 
-    // 2. Generate numero_orden
-    const currentYear = new Date().getFullYear().toString().slice(-2) // e.g. "26"
-    const prefix = `BS${currentYear}-`
-    
-    const existingOrders = await querySegundaDB(`
-      SELECT numero_orden 
-      FROM ordenes_compra 
-      WHERE numero_orden LIKE $1
-    `, [`${prefix}%`])
+    // 2. Resolve numero_orden:
+    // - Excel import sends the exact INVOICE NO. extracted from the file — keep it as-is
+    // - Manual creates (no numero_orden) auto-increment BS{YY}-{nnn}
+    let numero_orden = typeof requestedNumeroOrden === 'string'
+      ? requestedNumeroOrden.trim()
+      : ''
 
-    let maxNum = 0
-    for (const order of existingOrders) {
-      const parts = order.numero_orden.split('-')
-      if (parts.length > 1) {
-        const num = parseInt(parts[1], 10)
-        if (!isNaN(num) && num > maxNum) {
-          maxNum = num
+    if (numero_orden) {
+      const existing = await querySegundaDB(
+        `SELECT id FROM ordenes_compra WHERE numero_orden = $1 LIMIT 1`,
+        [numero_orden]
+      )
+      if (existing.length > 0) {
+        return NextResponse.json(
+          { error: `Ya existe una orden de compra con el número ${numero_orden}` },
+          { status: 409 }
+        )
+      }
+    } else {
+      const currentYear = new Date().getFullYear().toString().slice(-2) // e.g. "26"
+      const prefix = `BS${currentYear}-`
+
+      const existingOrders = await querySegundaDB(`
+        SELECT numero_orden
+        FROM ordenes_compra
+        WHERE numero_orden LIKE $1
+      `, [`${prefix}%`])
+
+      let maxNum = 0
+      for (const order of existingOrders) {
+        const parts = order.numero_orden.split('-')
+        if (parts.length > 1) {
+          const num = parseInt(parts[1], 10)
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num
+          }
         }
       }
+      const nextNum = maxNum + 1
+      numero_orden = `${prefix}${String(nextNum).padStart(3, '0')}`
     }
-    const nextNum = maxNum + 1
-    const numero_orden = `${prefix}${String(nextNum).padStart(3, '0')}`
 
     const estado = mapStatusToEstado(status)
     const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import Modal from '@/components/Modal'
 import { Loader2, UploadCloud, AlertCircle, CheckCircle2, FileSpreadsheet, Trash2 } from 'lucide-react'
 import { Product } from '@/types/database'
+import SearchableSelect from '@/components/SearchableSelect'
 
 interface ImportModalProps {
   open: boolean
@@ -149,8 +150,11 @@ export default function ImportModal({ open, onClose, onImportSuccess }: ImportMo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'PENDING',
-          notes: `Importado de Excel. Orden original: ${importData.purchaseNumber}`,
-          numero_orden: importData.purchaseNumber || undefined, // use if schema allows, else backend handles it
+          notes: importData.purchaseNumber
+            ? `Importado de Excel (INVOICE NO. ${importData.purchaseNumber})`
+            : 'Importado de Excel',
+          // Exact invoice number from Excel becomes the PO number
+          numero_orden: importData.purchaseNumber?.trim() || undefined,
           items: itemsToCreate
         })
       })
@@ -260,32 +264,35 @@ export default function ImportModal({ open, onClose, onImportSuccess }: ImportMo
                             // Auto matched (should be handled by useEffect but just in case)
                             <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
                               <CheckCircle2 size={16} />
-                              <span className="truncate">{item.matchedProducts[0].description} ({item.matchedProducts[0].model})</span>
+                              <span className="truncate">{item.matchedProducts[0].nombre_lista || item.matchedProducts[0].description} ({item.matchedProducts[0].model})</span>
                             </div>
                           ) : (
-                            <select
-                              value={resolvedItems[idx] || ''}
-                              onChange={(e) => handleResolveChange(idx, e.target.value)}
-                              className={`erp-input w-full text-sm py-1.5 ${hasAmbiguity ? 'border-amber-300 bg-amber-50' : ''} ${isMatched ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : ''}`}
-                            >
-                              <option value="">-- Selecciona un producto --</option>
-                              {item.status === 'ambiguous' && item.matchedProducts.length > 0 && (
-                                <optgroup label="Sugerencias encontradas">
-                                  {item.matchedProducts.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                      {p.description} {p.model ? `(${p.model})` : ''}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              )}
-                              <optgroup label="Todos los productos">
-                                {allProducts.map(p => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.description} {p.model ? `(${p.model})` : ''}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            </select>
+                            (() => {
+                              const matchedIds = item.status === 'ambiguous' ? new Set(item.matchedProducts.map((mp: any) => mp.id)) : new Set()
+                              const options = [
+                                ...(item.status === 'ambiguous'
+                                  ? item.matchedProducts.map((p: any) => ({
+                                      value: p.id,
+                                      label: `⭐ ${p.nombre_lista || p.description} ${p.model ? `(${p.model})` : ''}`
+                                    }))
+                                  : []),
+                                ...allProducts
+                                    .filter((p: any) => !matchedIds.has(p.id))
+                                    .map((p: any) => ({
+                                      value: p.id,
+                                      label: `${p.nombre_lista || p.description} ${p.model ? `(${p.model})` : ''}`
+                                    }))
+                              ]
+                              return (
+                                <SearchableSelect
+                                  options={options}
+                                  value={resolvedItems[idx] || ''}
+                                  onChange={(val) => handleResolveChange(idx, val)}
+                                  placeholder="-- Selecciona un producto --"
+                                  className={`${hasAmbiguity ? 'border-amber-300 bg-amber-50' : ''} ${isMatched ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : ''}`}
+                                />
+                              )
+                            })()
                           )}
                         </td>
                         <td className="p-3 text-center">

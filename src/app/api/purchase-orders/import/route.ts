@@ -87,6 +87,7 @@ export async function POST(req: Request) {
         id: true,
         model: true,
         nombre: true,
+        nombre_lista: true,
         order_code: true
       }
     })
@@ -96,15 +97,24 @@ export async function POST(req: Request) {
       const possibleModels = extractPossibleModels(description)
       
       const matchedProducts = products.filter((p: any) => {
-        if (!p.model) return false
-        // Precise substring matching against the description
-        if (description.toLowerCase().includes(p.model.toLowerCase())) return true
+        if (!p.model && !p.order_code) return false
         
-        // Also check if extracted models match
-        return possibleModels.some(modelStr => 
-          p.model?.toLowerCase() === modelStr.toLowerCase() ||
-          p.order_code?.toLowerCase() === modelStr.toLowerCase()
-        )
+        const descLower = description.toLowerCase()
+        // Precise substring matching against the description
+        if (p.model && descLower.includes(p.model.toLowerCase())) return true
+        if (p.order_code && descLower.includes(p.order_code.toLowerCase())) return true
+        
+        // Check if any significant token from db model or order_code is present in extracted models
+        const dbTokens = [
+          ...(p.model ? extractPossibleModels(p.model) : []),
+          ...(p.order_code ? extractPossibleModels(p.order_code) : [])
+        ].map(t => t.toLowerCase())
+
+        return possibleModels.some(modelStr => {
+          const lower = modelStr.toLowerCase()
+          // Only match tokens that are at least 4 characters to avoid false positives with generic words
+          return lower.length >= 4 && dbTokens.includes(lower)
+        })
       })
 
       return {
