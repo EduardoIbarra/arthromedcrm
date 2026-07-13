@@ -96,6 +96,7 @@ export interface Product {
   alegra_id: string | null
   orden: number | null
   line_color?: string | null
+  nombre_lista?: string | null
   created_at: string
   updated_at: string
 }
