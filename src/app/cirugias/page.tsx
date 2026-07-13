@@ -20,6 +20,7 @@ import {
   AlertCircle,
   PlayCircle,
   XCircle,
+  LayoutTemplate,
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
@@ -662,7 +663,9 @@ export default function CirugiasPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-gray-700">No hay plantillas de cirugía registradas</p>
-                  <p className="text-sm text-gray-400 mt-1">Crea una plantilla para precargar productos en nuevas cirugías</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Crea una plantilla y úsala con el botón Usar para precargar todos los productos en una cirugía
+                  </p>
                 </div>
                 <button
                   onClick={openNewTemplateModal}
@@ -681,7 +684,7 @@ export default function CirugiasPage() {
                         <th className="p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plantilla</th>
                         <th className="p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Descripción</th>
                         <th className="p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Productos</th>
-                        <th className="p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right w-24">Acciones</th>
+                        <th className="p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right w-40">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -700,6 +703,15 @@ export default function CirugiasPage() {
                           </td>
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-1">
+                              <Link
+                                id={`btn-usar-plantilla-${plantilla.id}`}
+                                href={`/cirugias/new?plantilla=${plantilla.id}`}
+                                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                                title="Crear cirugía con esta plantilla"
+                              >
+                                <LayoutTemplate size={13} />
+                                Usar
+                              </Link>
                               <button
                                 onClick={() => openEditTemplateModal(plantilla)}
                                 className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"

@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Scissors,
@@ -26,6 +26,7 @@ import {
   AlertCircle,
   BedDouble,
   Hotel,
+  LayoutTemplate,
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
@@ -101,7 +102,10 @@ type SectionId = typeof SECTION_IDS[number]
 
 export default function CirugiaDetailContent({ cirugiaId }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const isNew = cirugiaId === null
+  const plantillaFromUrl = searchParams.get('plantilla')
+  const autoAppliedPlantillaRef = useRef<string | null>(null)
 
   // ── Form state ──
   const [nombre, setNombre] = useState('')
@@ -137,6 +141,9 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   const [prodSearch, setProdSearch] = useState('')
   const [userSearch, setUserSearch] = useState('')
   const [externalStaffName, setExternalStaffName] = useState('')
+  const [plantillaSelectValue, setPlantillaSelectValue] = useState('')
+  const [appliedPlantillaName, setAppliedPlantillaName] = useState<string | null>(null)
+  const [refsReady, setRefsReady] = useState(false)
 
   // ── Load reference data ──
   useEffect(() => {
@@ -152,6 +159,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
       setStockItems(inv.data || [])
       setPlantillas(pl.data || [])
       setVehicles(cars.data || [])
+      setRefsReady(true)
     })
   }, [])
 
@@ -306,31 +314,78 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
     )
   }
 
-  const applyTemplate = (plantillaId: string) => {
-    const plantilla = plantillas.find(p => p.id === plantillaId)
+  const mapPlantillaToProductos = useCallback(
+    (plantilla: any, stock: ProductoStock[]): ProductoItem[] => {
+      return (plantilla.cirugia_plantilla_productos || []).map((p: any) => {
+        const stockItem = stock.find(s => s.id === p.producto_id)
+        const basePrice =
+          p.precio_unitario != null
+            ? Number(p.precio_unitario)
+            : stockItem?.precio_unitario != null
+              ? Number(stockItem.precio_unitario)
+              : p.productos?.precio_unitario != null
+                ? Number(p.productos.precio_unitario)
+                : 0
+        return {
+          producto_id: p.producto_id,
+          cantidad: Number(p.cantidad) || 1,
+          es_consumible: Boolean(p.es_consumible),
+          tipo_uso: (p.tipo_uso === 'renta' ? 'renta' : 'venta') as 'venta' | 'renta',
+          precio_unitario: basePrice ? String(basePrice) : '',
+          _nombre: p.productos?.nombre || stockItem?.nombre || 'Producto',
+          _precio_base: basePrice,
+        }
+      })
+    },
+    []
+  )
+
+  const applyTemplate = useCallback(
+    (plantillaId: string, options?: { skipConfirm?: boolean; switchToProductos?: boolean }) => {
+      const plantilla = plantillas.find(p => p.id === plantillaId)
+      if (!plantilla) return false
+
+      const items = plantilla.cirugia_plantilla_productos || []
+      if (items.length === 0) {
+        alert('Esta plantilla no tiene productos configurados.')
+        return false
+      }
+
+      if (!options?.skipConfirm && productos.length > 0) {
+        if (
+          !window.confirm(
+            '¿Cargar la plantilla? Esto reemplazará los productos actuales de la cirugía.'
+          )
+        ) {
+          setPlantillaSelectValue('')
+          return false
+        }
+      }
+
+      const newProds = mapPlantillaToProductos(plantilla, stockItems)
+      setProductos(newProds)
+      setAppliedPlantillaName(plantilla.nombre)
+      setPlantillaSelectValue('')
+      if (options?.switchToProductos !== false) {
+        setActiveSection('productos')
+      }
+      return true
+    },
+    [plantillas, productos.length, mapPlantillaToProductos, stockItems]
+  )
+
+  // Auto-apply plantilla from ?plantilla= query (e.g. "Usar plantilla" from list)
+  useEffect(() => {
+    if (!refsReady || !plantillaFromUrl) return
+    if (autoAppliedPlantillaRef.current === plantillaFromUrl) return
+    if (!isNew) return // only auto-apply on new surgery forms
+
+    const plantilla = plantillas.find(p => p.id === plantillaFromUrl)
     if (!plantilla) return
 
-    if (productos.length > 0) {
-      if (!window.confirm('¿Estás seguro de cargar la plantilla? Esto reemplazará los productos actuales.')) {
-        return
-      }
-    }
-
-    const newProds = (plantilla.cirugia_plantilla_productos || []).map((p: any) => {
-      const stockItem = stockItems.find(s => s.id === p.producto_id)
-      return {
-        producto_id: p.producto_id,
-        cantidad: p.cantidad,
-        es_consumible: p.es_consumible,
-        tipo_uso: p.tipo_uso || 'venta',
-        precio_unitario: p.precio_unitario != null ? String(p.precio_unitario) : (stockItem?.precio_unitario != null ? String(stockItem.precio_unitario) : ''),
-        _nombre: p.productos?.nombre || stockItem?.nombre || 'Producto',
-        _precio_base: stockItem ? Number(stockItem.precio_unitario) : 0,
-      }
-    })
-
-    setProductos(newProds)
-  }
+    autoAppliedPlantillaRef.current = plantillaFromUrl
+    applyTemplate(plantillaFromUrl, { skipConfirm: true, switchToProductos: true })
+  }, [refsReady, plantillaFromUrl, plantillas, isNew, applyTemplate])
 
   // ── Hotel Rooms State ──
   const [hotelRooms, setHotelRooms] = useState<any[]>([])
@@ -644,6 +699,46 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
               <Info size={16} style={{ color: '#0763a9' }} />
               Información General
             </h2>
+
+            {plantillas.length > 0 && (
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                  <LayoutTemplate size={16} style={{ color: '#0763a9' }} />
+                  Aplicar plantilla de cirugía
+                </div>
+                <p className="text-xs text-blue-800/80">
+                  Precarga todos los productos de una plantilla en esta cirugía. Podrás ajustar cantidades después.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <select
+                    id="info-cargar-plantilla-select"
+                    value={plantillaSelectValue}
+                    onChange={e => {
+                      const id = e.target.value
+                      if (id) applyTemplate(id)
+                      else setPlantillaSelectValue('')
+                    }}
+                    className="erp-input text-sm w-full sm:flex-1 bg-white"
+                  >
+                    <option value="">-- Seleccionar plantilla --</option>
+                    {plantillas.map((p: any) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                        {p.cirugia_plantilla_productos?.length
+                          ? ` (${p.cirugia_plantilla_productos.length} productos)`
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {appliedPlantillaName && productos.length > 0 && (
+                  <p className="text-xs text-emerald-700 flex items-center gap-1.5">
+                    <CheckCircle2 size={13} />
+                    Plantilla &quot;{appliedPlantillaName}&quot; aplicada — {productos.length} producto(s) precargados.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Nombre */}
@@ -1096,22 +1191,46 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
                 {plantillas.length > 0 && (
                   <select
                     id="cargar-plantilla-select"
+                    value={plantillaSelectValue}
                     onChange={e => {
-                      if (e.target.value) {
-                        applyTemplate(e.target.value)
-                        e.target.value = ''
-                      }
+                      const id = e.target.value
+                      if (id) applyTemplate(id, { switchToProductos: false })
+                      else setPlantillaSelectValue('')
                     }}
-                    className="erp-input text-xs w-full sm:w-64"
-                    defaultValue=""
+                    className="erp-input text-xs w-full sm:w-72"
                   >
-                    <option value="" disabled>-- Cargar Plantilla de Cirugía --</option>
+                    <option value="">-- Cargar Plantilla de Cirugía --</option>
                     {plantillas.map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                        {p.cirugia_plantilla_productos?.length
+                          ? ` (${p.cirugia_plantilla_productos.length})`
+                          : ''}
+                      </option>
                     ))}
                   </select>
                 )}
               </div>
+
+              {appliedPlantillaName && productos.length > 0 && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <LayoutTemplate size={15} className="shrink-0" />
+                    <span>
+                      Productos precargados desde plantilla <strong>{appliedPlantillaName}</strong>
+                      {' '}({productos.length} ítem{productos.length === 1 ? '' : 's'}).
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAppliedPlantillaName(null)}
+                    className="text-emerald-600 hover:text-emerald-800 p-0.5"
+                    aria-label="Cerrar aviso"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               {hasShortage && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
