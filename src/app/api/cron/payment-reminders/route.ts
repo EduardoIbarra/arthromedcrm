@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
       include: {
         planes_pago: {
           include: {
-            clientes: true
+            clientes: true,
+            facturas_cliente: true
           }
         }
       }
@@ -71,11 +72,15 @@ export async function GET(request: NextRequest) {
           currency: 'MXN'
         }).format(Number(p.monto || 0));
 
+        const factura = p.planes_pago?.facturas_cliente;
+        const invoiceNumber = factura?.numero_factura || '###';
+
         messagesToSend.push({
           phone: `phone:+${digits}`,
           template: templateName,
           clientName,
-          amount
+          amount,
+          invoiceNumber
         });
       }
     }
@@ -98,7 +103,8 @@ export async function GET(request: NextRequest) {
                 type: 'body',
                 parameters: [
                   { type: 'text', text: msg.clientName },
-                  { type: 'text', text: msg.amount }
+                  { type: 'text', text: msg.amount },
+                  { type: 'text', text: msg.invoiceNumber }
                 ]
               }
             ]
