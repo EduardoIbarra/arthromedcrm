@@ -64,9 +64,18 @@ export async function GET(request: NextRequest) {
         if (digits.length === 10) {
             digits = '52' + digits; // Assuming Mexico code if 10 digits
         }
+
+        const clientName = client.nombre || 'Cliente';
+        const amount = new Intl.NumberFormat('es-MX', {
+          style: 'currency',
+          currency: 'MXN'
+        }).format(Number(p.monto || 0));
+
         messagesToSend.push({
           phone: `phone:+${digits}`,
-          template: templateName
+          template: templateName,
+          clientName,
+          amount
         });
       }
     }
@@ -83,7 +92,16 @@ export async function GET(request: NextRequest) {
           type: 'whatsapp_template',
           template: {
             name: msg.template,
-            languageCode: 'es_MX' // Using es_MX as requested by other respond scripts
+            languageCode: 'es_MX', // Using es_MX as requested by other respond scripts
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: msg.clientName },
+                  { type: 'text', text: msg.amount }
+                ]
+              }
+            ]
           }
         }
       };
