@@ -296,6 +296,9 @@ export default function ImportRepartitionPage() {
     finally { setLoadingHistory(false) }
   }
 
+  // Folios starting with F are ignored in repartition (historical / non-delivery invoices)
+  const isExcludedFFactura = (inv: any) => /^F/i.test(String(inv?.numero_factura || '').trim())
+
   // Load pending invoices + ordenes on mount
   useEffect(() => {
     const fetchPending = async () => {
@@ -310,12 +313,13 @@ export default function ImportRepartitionPage() {
         const merged: any[] = []
         const seen = new Set<string>()
         for (const inv of [...(d1.data || []), ...(d2.data || []), ...(d3.data || []), ...(d4.data || [])]) {
+          if (isExcludedFFactura(inv)) continue
           if (!seen.has(inv.id)) {
             seen.add(inv.id)
             merged.push(inv)
           }
         }
-        // Sort by shipping limit: most overdue first (first payment + 5 weeks)
+        // Sort by delivery deadline (from payment date), most urgent first
         merged.sort((a, b) => {
           const la = computeDeliveryLimit(a).limitDate
           const lb = computeDeliveryLimit(b).limitDate
@@ -325,10 +329,10 @@ export default function ImportRepartitionPage() {
           return la.getTime() - lb.getTime()
         })
         setPendingInvoices(merged)
-        // Select only those that are past due on the hard deadline (not reference-only)
+        // Default select past-due by delivery deadline (payment date + 5 weeks)
         const initialSelected = merged.filter(inv => {
           const d = computeDeliveryLimit(inv)
-          if (!d.limitDate || d.isReferenceOnly) return false
+          if (!d.limitDate) return false
           return calendarDaysDiff(new Date(), d.limitDate) < 0
         })
         setSelectedInvoices(initialSelected)
@@ -343,7 +347,7 @@ export default function ImportRepartitionPage() {
     if (mainTab === 'historial' && history.length === 0) fetchHistory()
   }, [mainTab])
 
-  // Invoice search
+  // Invoice search (exclude F* folios)
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (invoiceSearch.length < 2) { setInvoiceResults([]); return }
@@ -351,7 +355,7 @@ export default function ImportRepartitionPage() {
       try {
         const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=50`)
         const data = await res.json()
-        setInvoiceResults(data.data || [])
+        setInvoiceResults((data.data || []).filter((inv: any) => !isExcludedFFactura(inv)))
       } catch (err) { console.error(err) }
       finally { setIsSearchingInvoices(false) }
     }, 300)
@@ -443,7 +447,7 @@ export default function ImportRepartitionPage() {
     const hasStock = useStockFisico && stockFisico.length > 0
     if (!hasOrders && !hasStock) { setError('Selecciona al menos una fuente de inventario.'); return }
     const facturas = selectedInvoices
-      .filter(i => !i.isCotizacion)
+      .filter(i => !i.isCotizacion && !isExcludedFFactura(i))
       .map(i => String(i.numero_factura))
     const cotizacionIds = selectedInvoices
       .filter(i => i.isCotizacion)
@@ -1116,11 +1120,17 @@ export default function ImportRepartitionPage() {
     return Object.values(groups).sort((a, b) => a.product.localeCompare(b.product))
   }, [filteredAllocations])
 
-  // ── Displayed invoices (+ selected cotizaciones) ────────
+  // ── Displayed invoices (+ selected cotizaciones); never show F* facturas ──
   const displayedInvoicesMap = new Map<string, any>()
-  pendingInvoices.forEach(inv => displayedInvoicesMap.set(inv.id, inv))
-  selectedInvoices.forEach(inv => displayedInvoicesMap.set(inv.id, inv))
-  invoiceResults.forEach(inv => displayedInvoicesMap.set(inv.id, inv))
+  pendingInvoices.forEach(inv => {
+    if (!isExcludedFFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+  })
+  selectedInvoices.forEach(inv => {
+    if (inv.isCotizacion || !isExcludedFFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+  })
+  invoiceResults.forEach(inv => {
+    if (!isExcludedFFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+  })
   let displayedInvoices = Array.from(displayedInvoicesMap.values())
   if (invoiceSearch.trim()) {
     const q = invoiceSearch.trim().toUpperCase()
@@ -1232,7 +1242,10 @@ export default function ImportRepartitionPage() {
           <>
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 flex items-start gap-3 shadow-sm">
               <Info className="w-5 h-5 shrink-0 mt-0.5" />
-              <p className="text-sm font-medium">Se priorizarán los productos según su <strong>límite de envío</strong>, pero puedes incluir cualquier factura seleccionada.</p>
+              <p className="text-sm font-medium">
+                Prioridad estricta por <strong>fecha de pago</strong> y <strong>límite de entrega</strong> (sin mínimo de repartición).
+                Se ignoran facturas con folio que empieza en <strong>F</strong>.
+              </p>
             </motion.div>
 
             {error && (
@@ -1511,7 +1524,7 @@ export default function ImportRepartitionPage() {
                       <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <h2 className="text-lg font-bold text-gray-900">Asignaciones</h2>
-                          <p className="text-xs text-gray-500 mt-0.5">Ordenadas por límite de envío (más urgentes primero)</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Ordenadas por límite de entrega / fecha de pago (más urgentes primero)</p>
                         </div>
                         <div className="flex gap-2">
                           <button onClick={downloadPDFReport} className="py-2 px-3 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1.5">
@@ -2062,7 +2075,7 @@ export default function ImportRepartitionPage() {
                       className="min-h-[400px] flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-white p-6">
                       <ShoppingCart className="w-12 h-12 mb-3 text-gray-300" />
                       <p className="font-semibold text-gray-500">Selecciona fuentes y facturas para comenzar</p>
-                      <p className="text-sm mt-1">La IA distribuirá según el límite de envío.</p>
+                      <p className="text-sm mt-1">La asignación usará solo fecha de pago y límite de entrega.</p>
                     </motion.div>
                   )}
                 </AnimatePresence>

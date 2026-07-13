@@ -10,17 +10,39 @@ type OrderLine = {
   product: string;
   requestedQty: number;
   paymentDate: string | null;
-  issueDate: string | null;
+  /** ISO date of delivery deadline (first payment + 5 weeks policy) */
+  shippingLimit: string | null;
 };
 
-function getPaymentSortTime(order: OrderLine): number {
-  const raw = order.paymentDate || order.issueDate;
-  if (!raw) return Number.MAX_SAFE_INTEGER;
-  return new Date(raw).getTime();
+/** Facturas whose numero starts with F are excluded from repartition. */
+function isExcludedFPrefixedFolio(folio: string | null | undefined): boolean {
+  return /^F/i.test(String(folio || '').trim());
 }
 
-/** Strict FIFO: oldest payment date first, per product. */
-function allocateFifo(orders: OrderLine[], inventoryMap: Record<string, number>) {
+function getPaymentSortTime(order: OrderLine): number {
+  if (!order.paymentDate) return Number.MAX_SAFE_INTEGER;
+  const t = new Date(order.paymentDate).getTime();
+  return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER;
+}
+
+function getDeadlineSortTime(order: OrderLine): number {
+  if (!order.shippingLimit) return Number.MAX_SAFE_INTEGER;
+  const t = new Date(order.shippingLimit).getTime();
+  return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Strict allocation per product:
+ * 1) earliest delivery deadline (how long until we must deliver)
+ * 2) oldest payment date
+ * 3) folio as stable tie-breaker
+ *
+ * No minimum allocation — assign all available stock greedily in that order.
+ */
+function allocateByPaymentAndDeadline(
+  orders: OrderLine[],
+  inventoryMap: Record<string, number>
+) {
   const byProduct = new Map<string, OrderLine[]>();
   for (const order of orders) {
     const list = byProduct.get(order.product) || [];
@@ -33,8 +55,10 @@ function allocateFifo(orders: OrderLine[], inventoryMap: Record<string, number>)
 
   for (const [product, productOrders] of byProduct) {
     productOrders.sort((a, b) => {
-      const dateDiff = getPaymentSortTime(a) - getPaymentSortTime(b);
-      if (dateDiff !== 0) return dateDiff;
+      const deadlineDiff = getDeadlineSortTime(a) - getDeadlineSortTime(b);
+      if (deadlineDiff !== 0) return deadlineDiff;
+      const payDiff = getPaymentSortTime(a) - getPaymentSortTime(b);
+      if (payDiff !== 0) return payDiff;
       return a.folio.localeCompare(b.folio);
     });
 
@@ -50,38 +74,46 @@ function allocateFifo(orders: OrderLine[], inventoryMap: Record<string, number>)
   return { allocationMap, remaining };
 }
 
-function buildFifoReasoning(
+function buildReasoning(
   orders: OrderLine[],
   allocationMap: Map<string, number>,
   locale: string | undefined
 ): string {
   const lines = orders
     .filter(o => (allocationMap.get(o.id) || 0) > 0)
-    .sort((a, b) => getPaymentSortTime(a) - getPaymentSortTime(b))
+    .sort((a, b) => {
+      const d = getDeadlineSortTime(a) - getDeadlineSortTime(b);
+      if (d !== 0) return d;
+      return getPaymentSortTime(a) - getPaymentSortTime(b);
+    })
     .slice(0, 8)
     .map(o => {
-      const date = o.paymentDate || o.issueDate;
-      const dateLabel = date ? new Date(date).toLocaleDateString() : 'sin fecha';
-      return `${o.folio} (${dateLabel}): ${allocationMap.get(o.id)} uds. de ${o.product}`;
+      const pay = o.paymentDate
+        ? new Date(o.paymentDate).toLocaleDateString()
+        : 'sin pago';
+      const limit = o.shippingLimit
+        ? new Date(o.shippingLimit).toLocaleDateString()
+        : 'sin límite';
+      return `${o.folio} (pago ${pay}, límite ${limit}): ${allocationMap.get(o.id)} uds. de ${o.product}`;
     });
 
   if (locale === 'en') {
     return [
-      'Strict FIFO allocation by payment date (oldest first).',
-      'Each product is fully assigned to earlier-paid invoices before later ones.',
+      'Strict priority by delivery deadline (from payment date), then oldest payment first.',
+      'No minimum allocation — stock is assigned fully in that order.',
       lines.length ? `Priority served: ${lines.join('; ')}.` : 'No units could be assigned.',
     ].join(' ');
   }
   if (locale === 'zh') {
     return [
-      '严格按付款日期先进先出 (FIFO) 分配。',
-      '每种产品优先满足付款日期更早的发票。',
+      '严格按交货期限（来自付款日期）优先，然后按最早付款优先。',
+      '无最低分配限制——按该顺序分配库存。',
       lines.length ? `已优先分配：${lines.join('；')}。` : '未能分配任何数量。',
     ].join(' ');
   }
   return [
-    'Asignación estricta FIFO por fecha de pago (más antigua primero).',
-    'Cada producto se asigna por completo a facturas con pago más antiguo antes que las recientes.',
+    'Prioridad estricta por fecha límite de entrega (derivada de la fecha de pago), luego pago más antiguo primero.',
+    'Sin mínimo de repartición: el inventario se asigna completo en ese orden.',
     lines.length ? `Prioridad atendida: ${lines.join('; ')}.` : 'No se asignaron unidades.',
   ].join(' ');
 }
@@ -98,11 +130,18 @@ export async function POST(req: Request) {
       csvContent,
     } = body;
 
-    const hasFacturas = Array.isArray(facturas) && facturas.length > 0
+    // Ignore F-prefixed facturas entirely for repartition
+    const facturasClean = Array.isArray(facturas)
+      ? facturas
+          .map((f: string) => String(f).trim())
+          .filter((f: string) => f && !isExcludedFPrefixedFolio(f))
+      : []
+
+    const hasFacturas = facturasClean.length > 0
     const hasCotizaciones = Array.isArray(cotizacionIds) && cotizacionIds.length > 0
     if (!hasFacturas && !hasCotizaciones) {
       return NextResponse.json(
-        { error: 'Faltan datos requeridos (facturas o cotizaciones)' },
+        { error: 'Faltan datos requeridos (facturas o cotizaciones). Las facturas con folio F* se ignoran.' },
         { status: 400 }
       );
     }
@@ -161,9 +200,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // Source 3: Stock físico from segunda DB
+    // Source 3: Stock físico (names/qty chosen on client from primary conteo_diario)
     if (selectedStockFisico && Array.isArray(selectedStockFisico) && selectedStockFisico.length > 0) {
-      // selectedStockFisico is an array of { nombre, cantidad } items chosen by user
       for (const item of selectedStockFisico as { nombre: string; cantidad: number }[]) {
         if (item.nombre && item.cantidad > 0) {
           inventoryMap[item.nombre] = (inventoryMap[item.nombre] || 0) + item.cantidad;
@@ -171,7 +209,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Filter out products with 0 quantity
     Object.keys(inventoryMap).forEach(key => {
       if (inventoryMap[key] <= 0) delete inventoryMap[key];
     });
@@ -185,29 +222,28 @@ export async function POST(req: Request) {
       });
     }
 
-    // Allow 'F-240' notation to match '240'
-    const expandedFacturas = hasFacturas
-      ? Array.from(new Set(
-          facturas.flatMap((f: string) => [f, f.replace(/^F-?/i, '')])
-        ))
-      : []
-
-    // Fetch pending orders for the provided facturas
-    const pendingFacturas = expandedFacturas.length > 0
-      ? await prisma.facturas_cliente.findMany({
-          where: { numero_factura: { in: expandedFacturas } },
-          include: {
-            factura_productos: {
-              where: { cantidad_pendiente: { gt: 0 } },
-              include: {
-                productos: { select: { nombre_lista: true } }
+    // Exact folio match only — do not map F-240 ↔ 240; F* folios are excluded above
+    const pendingFacturas = hasFacturas
+      ? (
+          await prisma.facturas_cliente.findMany({
+            where: { numero_factura: { in: facturasClean } },
+            include: {
+              factura_productos: {
+                where: { cantidad_pendiente: { gt: 0 } },
+                include: {
+                  productos: { select: { nombre_lista: true } }
+                }
+              },
+              planes_pago: {
+                include: {
+                  parcialidades: { orderBy: { numero: 'asc' } }
+                }
               }
             }
-          }
-        })
+          })
+        ).filter((f: any) => !isExcludedFPrefixedFolio(f.numero_factura))
       : []
 
-    // Cotizaciones selected for surtido (treated like demand lines)
     const pendingCotizaciones = hasCotizaciones
       ? await prisma.cotizaciones.findMany({
           where: { id: { in: cotizacionIds } },
@@ -230,25 +266,22 @@ export async function POST(req: Request) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'No hay facturas ni cotizaciones pendientes o válidas seleccionadas.',
+        aiReasoning: 'No hay facturas ni cotizaciones pendientes o válidas seleccionadas (folios F* se ignoran).',
         invoiceIdFromChina
       });
     }
 
-    // Build AI orders — shipping limit from first payment (5 weeks / 60% rule)
+    // Demand lines — priority inputs: payment date + delivery deadline only
     const ordersFromFacturas = pendingFacturas.flatMap((f: any) => {
       const delivery = computeDeliveryLimit(f)
       const shippingLimit = delivery.limitDate
         ? toIsoDate(delivery.limitDate)
-        : f.fecha_expedicion
-          ? toIsoDate(new Date(f.fecha_expedicion))
+        : null
+      const paymentDate = delivery.firstPaymentDate
+        ? toIsoDate(delivery.firstPaymentDate)
+        : f.fecha_pago
+          ? toIsoDate(new Date(f.fecha_pago))
           : null
-      const paymentDate =
-        delivery.firstPaymentDate
-          ? toIsoDate(delivery.firstPaymentDate)
-          : f.fecha_pago
-            ? new Date(f.fecha_pago).toISOString().split('T')[0]
-            : null
 
       return f.factura_productos.map((fp: any) => ({
         id: fp.id,
@@ -257,7 +290,6 @@ export async function POST(req: Request) {
         paymentDate,
         shippingLimit,
         deliveryIsReference: delivery.isReferenceOnly,
-        issueDate: f.fecha_expedicion ? f.fecha_expedicion.toISOString() : null,
         product: fp.productos?.nombre_lista || fp.producto_nombre,
         facturadaQty: fp.cantidad_facturada || 0,
         requestedQty: fp.cantidad_pendiente || 0,
@@ -266,21 +298,16 @@ export async function POST(req: Request) {
     })
 
     const ordersFromCotizaciones = pendingCotizaciones.flatMap((c: any) => {
-      // Prefer payment plan first installment as payment date signal
       const firstPartial = c.planes_pago?.[0]?.parcialidades?.[0]
-      const paymentDate = firstPartial?.fecha_vencimiento
-        ? toIsoDate(new Date(firstPartial.fecha_vencimiento))
-        : c.fecha_expedicion
-          ? toIsoDate(new Date(c.fecha_expedicion))
+      const paymentDate = firstPartial?.fecha_pago
+        ? toIsoDate(new Date(firstPartial.fecha_pago))
+        : firstPartial?.fecha_vencimiento
+          ? toIsoDate(new Date(firstPartial.fecha_vencimiento))
           : null
-      const issueDate = c.fecha_expedicion
-        ? new Date(c.fecha_expedicion).toISOString()
-        : null
+      // Same 5-week horizon from payment date when available
       const shippingLimit = paymentDate
         ? toIsoDate(new Date(new Date(paymentDate).getTime() + 35 * 24 * 60 * 60 * 1000))
-        : c.fecha_expedicion
-          ? toIsoDate(new Date(c.fecha_expedicion))
-          : null
+        : null
 
       return (c.productos || [])
         .filter((p: any) => (Number(p.cantidad) || 0) > 0)
@@ -291,7 +318,6 @@ export async function POST(req: Request) {
           paymentDate,
           shippingLimit,
           deliveryIsReference: true,
-          issueDate,
           product: p.productos?.nombre_lista || p.producto_nombre,
           facturadaQty: Number(p.cantidad) || 0,
           requestedQty: Number(p.cantidad) || 0,
@@ -310,7 +336,7 @@ export async function POST(req: Request) {
       })
     }
 
-    // Match to received inventory using fuzzy matching
+    // Match inventory by product name (fuzzy contains)
     const relevantOrders = ordersForAi.filter((o: any) => {
       const matchKey = Object.keys(inventoryMap).find(invKey =>
         o.product.toLowerCase().includes(invKey.toLowerCase()) ||
@@ -332,18 +358,19 @@ export async function POST(req: Request) {
       });
     }
 
-    const fifoOrders: OrderLine[] = relevantOrders.map((o: any) => ({
+    const priorityOrders: OrderLine[] = relevantOrders.map((o: any) => ({
       id: o.id,
       folio: o.folio,
       customerName: o.customerName,
       product: o.product,
       requestedQty: o.requestedQty,
       paymentDate: o.paymentDate,
-      issueDate: o.issueDate,
+      shippingLimit: o.shippingLimit,
     }));
 
-    const { allocationMap, remaining: remainingInventory } = allocateFifo(fifoOrders, inventoryMap);
-    const aiReasoning = buildFifoReasoning(fifoOrders, allocationMap, locale);
+    const { allocationMap, remaining: remainingInventory } =
+      allocateByPaymentAndDeadline(priorityOrders, inventoryMap);
+    const aiReasoning = buildReasoning(priorityOrders, allocationMap, locale);
 
     const finalAllocations = ordersForAi.map((order: any) => ({
       ...order,
