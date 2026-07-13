@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { querySegundaDB } from '@/lib/segundaDB'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,30 +10,79 @@ export interface StockFisicoItem {
   cantidad: number
 }
 
+type ConteoRow = { producto_id: string; cantidad: bigint | number | string }
+
+/** Latest count per product — never SUM historical daily rows. */
+const LATEST_CONTEO_SQL = `
+  SELECT producto_id, CAST(contado AS bigint) AS cantidad
+  FROM (
+    SELECT DISTINCT ON (producto_id)
+      producto_id,
+      contado
+    FROM conteo_diario
+    ORDER BY producto_id, fecha DESC, updated_at DESC NULLS LAST
+  ) latest
+  WHERE CAST(contado AS bigint) > 0
+`
+
+function isMissingRelationError(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '')
+  return (
+    msg.includes('42P01') ||
+    msg.includes('conteo_diario') ||
+    msg.toLowerCase().includes('does not exist')
+  )
+}
+
+/**
+ * conteo_diario lives on the inventory / segunda DB in most environments,
+ * and on the main prod DB in others. Try both; prefer the non-empty result,
+ * falling back if the relation is missing.
+ */
+async function fetchLatestConteo(): Promise<ConteoRow[]> {
+  let mainRows: ConteoRow[] | null = null
+  let segundaRows: ConteoRow[] | null = null
+  let mainErr: unknown = null
+  let segundaErr: unknown = null
+
+  try {
+    mainRows = (await prisma.$queryRawUnsafe(LATEST_CONTEO_SQL)) as ConteoRow[]
+  } catch (err) {
+    if (!isMissingRelationError(err)) throw err
+    mainErr = err
+  }
+
+  try {
+    segundaRows = await querySegundaDB<ConteoRow>(LATEST_CONTEO_SQL)
+  } catch (err) {
+    if (!isMissingRelationError(err)) throw err
+    segundaErr = err
+  }
+
+  // Prefer whichever source has data; if both do, prefer main (fresher prod counts)
+  if (mainRows && mainRows.length > 0) return mainRows
+  if (segundaRows && segundaRows.length > 0) return segundaRows
+  if (mainRows) return mainRows
+  if (segundaRows) return segundaRows
+
+  // Both missing the table
+  const detail = [mainErr, segundaErr]
+    .filter(Boolean)
+    .map(e => String((e as any)?.message ?? e))
+    .join(' | ')
+  throw new Error(
+    detail || 'conteo_diario no está disponible en la base principal ni en SEGUNDA_DB'
+  )
+}
+
 /**
  * GET /api/stock-fisico
- * Physical stock from conteo_diario on the main production DB.
- *
- * Each product has many historical daily count rows — only the most recent
- * (by fecha, then updated_at) is used. Do NOT SUM across history.
+ * Physical stock from conteo_diario (one row per product = most recent count).
  */
 export async function GET(_req: NextRequest) {
   try {
-    // 1. Latest physical count per product
-    // Note: prisma proxy may not type $queryRawUnsafe generics — cast result instead
-    const items = (await prisma.$queryRawUnsafe(`
-      SELECT producto_id, CAST(contado AS bigint) AS cantidad
-      FROM (
-        SELECT DISTINCT ON (producto_id)
-          producto_id,
-          contado
-        FROM conteo_diario
-        ORDER BY producto_id, fecha DESC, updated_at DESC NULLS LAST
-      ) latest
-      WHERE CAST(contado AS bigint) > 0
-    `)) as { producto_id: string; cantidad: bigint | number | string }[]
+    const items = await fetchLatestConteo()
 
-    // 2. Product names from primary DB
     const productIds = items.map(i => i.producto_id).filter(Boolean)
 
     const products =
@@ -48,7 +98,6 @@ export async function GET(_req: NextRequest) {
       nameMap.set(p.id, p.nombre_lista || p.nombre || 'Desconocido')
     }
 
-    // 3. Map names
     const data: StockFisicoItem[] = items
       .map(p => ({
         producto_id: p.producto_id,
