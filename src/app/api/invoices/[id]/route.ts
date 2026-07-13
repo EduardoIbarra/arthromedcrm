@@ -5,6 +5,7 @@ import {
   attachDeliveryLimitFields,
   firstPaymentFieldsFromAlegraInvoice,
 } from '@/lib/delivery-limit'
+import { computeEstadoSurtido } from '@/lib/fulfillment-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,8 +117,14 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
   await prisma.$transaction(async (tx: any) => {
     await tx.factura_productos.deleteMany({ where: { factura_id: facturaId } })
     if (rows.length > 0) {
+      // cantidad_pendiente is generated in DB — do not write it
       await tx.factura_productos.createMany({ data: rows })
     }
+    // Keep header status aligned with line deliveries after product rebuild
+    await tx.facturas_cliente.update({
+      where: { id: facturaId },
+      data: { estado_surtido: computeEstadoSurtido(rows) },
+    })
   })
 
   const products = await prisma.factura_productos.findMany({
@@ -179,6 +186,27 @@ export async function GET(
         where: { factura_id: id },
         orderBy: { producto_nombre: 'asc' },
       })
+    }
+
+    // Self-heal: estado_surtido must match product deliveries
+    const derivedSurtido = computeEstadoSurtido(factura.factura_productos)
+    const currentSurtido = String(factura.estado_surtido || 'no_surtida')
+    if (
+      currentSurtido !== derivedSurtido &&
+      !(currentSurtido === 'surtida' && derivedSurtido === 'completa')
+    ) {
+      await prisma.facturas_cliente.update({
+        where: { id },
+        data: { estado_surtido: derivedSurtido },
+      })
+      ;(factura as any).estado_surtido = derivedSurtido
+    } else if (currentSurtido === 'surtida' && derivedSurtido === 'completa') {
+      // Normalize legacy alias
+      await prisma.facturas_cliente.update({
+        where: { id },
+        data: { estado_surtido: 'completa' },
+      })
+      ;(factura as any).estado_surtido = 'completa'
     }
 
     let productsBackfilled = false

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { recalcAndPersistEstadoSurtido } from '@/lib/fulfillment-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,22 +9,6 @@ async function generateNumeroRemision(): Promise<string> {
   const count = await prisma.remisiones.count()
   const next = count + 1
   return `REM-${String(next).padStart(4, '0')}`
-}
-
-/**
- * Recalculate invoice estado_surtido based on the actual sum of
- * cantidad_entregada across all factura_productos after any changes.
- */
-async function recalcEstadoSurtido(tx: any, facturaId: string): Promise<string> {
-  const fps = await tx.factura_productos.findMany({ where: { factura_id: facturaId } })
-  if (!fps || fps.length === 0) return 'no_surtida'
-
-  const anyDelivered = fps.some((fp: any) => (fp.cantidad_entregada || 0) > 0)
-  const allDelivered = fps.every((fp: any) => (fp.cantidad_entregada || 0) >= fp.cantidad_facturada)
-
-  if (allDelivered) return 'completa'
-  if (anyDelivered) return 'parcial'
-  return 'no_surtida'
 }
 
 export async function POST(
@@ -97,18 +82,14 @@ export async function POST(
               const newDelivered = (fp.cantidad_entregada || 0) + cantidad
               await tx.factura_productos.update({
                 where: { id: fp.id },
-                data: { cantidad_entregada: newDelivered }
+                data: { cantidad_entregada: newDelivered },
               })
             }
           }
         }
 
-        // 3. Recalculate and update invoice estado_surtido
-        const nuevoEstado = await recalcEstadoSurtido(tx, factura.id)
-        await tx.facturas_cliente.update({
-          where: { id: factura.id },
-          data: { estado_surtido: nuevoEstado }
-        })
+        // 3. Recalculate and update invoice estado_surtido from product deliveries
+        await recalcAndPersistEstadoSurtido(tx, factura.id)
       })
 
       return NextResponse.json({ success: true, message: 'Remisión creada exitosamente' })
@@ -174,18 +155,14 @@ export async function POST(
               const newDelivered = Math.max(0, (fp.cantidad_entregada || 0) + diff)
               await tx.factura_productos.update({
                 where: { id: fp.id },
-                data: { cantidad_entregada: newDelivered }
+                data: { cantidad_entregada: newDelivered },
               })
             }
           }
         }
 
-        // 4. Recalculate invoice estado_surtido (can move to no_surtida, parcial, completa)
-        const nuevoEstado = await recalcEstadoSurtido(tx, factura.id)
-        await tx.facturas_cliente.update({
-          where: { id: factura.id },
-          data: { estado_surtido: nuevoEstado }
-        })
+        // 4. Recalculate invoice estado_surtido from product deliveries
+        await recalcAndPersistEstadoSurtido(tx, factura.id)
       })
 
       return NextResponse.json({ success: true, message: 'Remisión actualizada exitosamente' })
