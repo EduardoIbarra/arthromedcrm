@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { querySegundaDB } from '@/lib/segundaDB'
 import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -12,41 +11,52 @@ export interface StockFisicoItem {
 
 /**
  * GET /api/stock-fisico
- * Returns items from segunda DB's conteo_diario joined with primary DB's productos.
+ * Physical stock from conteo_diario on the main production DB.
+ *
+ * Each product has many historical daily count rows — only the most recent
+ * (by fecha, then updated_at) is used. Do NOT SUM across history.
  */
 export async function GET(_req: NextRequest) {
   try {
-    // 1. Fetch counts from segunda DB
-    const items = await querySegundaDB<{
-      producto_id: string
-      cantidad: string
-    }>(`
-      SELECT producto_id, SUM(CAST(contado AS bigint)) AS cantidad
-      FROM conteo_diario
+    // 1. Latest physical count per product
+    const items = await prisma.$queryRawUnsafe<
+      { producto_id: string; cantidad: bigint | number | string }[]
+    >(`
+      SELECT producto_id, CAST(contado AS bigint) AS cantidad
+      FROM (
+        SELECT DISTINCT ON (producto_id)
+          producto_id,
+          contado
+        FROM conteo_diario
+        ORDER BY producto_id, fecha DESC, updated_at DESC NULLS LAST
+      ) latest
       WHERE CAST(contado AS bigint) > 0
-      GROUP BY producto_id
     `)
 
-    // 2. Extract product IDs
+    // 2. Product names from primary DB
     const productIds = items.map(i => i.producto_id).filter(Boolean)
 
-    // 3. Fetch product names from primary DB
-    const products = productIds.length > 0 ? await prisma.productos.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, nombre_lista: true, nombre: true }
-    }) : []
+    const products =
+      productIds.length > 0
+        ? await prisma.productos.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, nombre_lista: true, nombre: true },
+          })
+        : []
 
     const nameMap = new Map<string, string>()
     for (const p of products) {
       nameMap.set(p.id, p.nombre_lista || p.nombre || 'Desconocido')
     }
 
-    // 4. Map names back to the items
-    const data: StockFisicoItem[] = items.map(p => ({
-      producto_id: p.producto_id,
-      nombre: nameMap.get(p.producto_id) || 'Desconocido',
-      cantidad: parseInt(p.cantidad || '0', 10),
-    })).sort((a, b) => a.nombre.localeCompare(b.nombre))
+    // 3. Map names
+    const data: StockFisicoItem[] = items
+      .map(p => ({
+        producto_id: p.producto_id,
+        nombre: nameMap.get(p.producto_id) || 'Desconocido',
+        cantidad: parseInt(String(p.cantidad ?? '0'), 10),
+      }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
     return NextResponse.json({ data })
   } catch (error: any) {
