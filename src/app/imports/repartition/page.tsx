@@ -445,7 +445,7 @@ export default function ImportRepartitionPage() {
   // ─────────────────────────────────────────────────────
   const handleProcess = async () => {
     const hasOrders = selectedOrderIds.size > 0
-    const hasStock = useStockFisico && stockFisico.length > 0
+    const hasStock = useStockFisico
     if (!hasOrders && !hasStock) { setError('Selecciona al menos una fuente de inventario.'); return }
     const facturas = selectedInvoices
       .filter(i => !i.isCotizacion && !isExcludedPrefixedFactura(i))
@@ -469,8 +469,23 @@ export default function ImportRepartitionPage() {
     setPackingError('')
 
     try {
+      // Ensure stock list is loaded for UI; API also reloads stock físico server-side
+      let stockItems = stockFisico
+      if (useStockFisico && stockItems.length === 0) {
+        try {
+          const resStock = await fetch('/api/stock-fisico')
+          const dataStock = await resStock.json()
+          stockItems = dataStock.data || []
+          setStockFisico(stockItems)
+        } catch { /* API will still load stock server-side */ }
+      }
+
       const selectedStockFisico = useStockFisico
-        ? stockFisico.map(s => ({ nombre: s.nombre, cantidad: s.cantidad }))
+        ? stockItems.map(s => ({
+            producto_id: s.producto_id,
+            nombre: s.nombre,
+            cantidad: s.cantidad,
+          }))
         : []
 
       const res = await fetch('/api/imports/repartition', {
@@ -479,6 +494,7 @@ export default function ImportRepartitionPage() {
         body: JSON.stringify({
           selectedOrderIds: Array.from(selectedOrderIds),
           selectedStockFisico,
+          useStockFisico,
           facturas,
           cotizacionIds,
           locale
