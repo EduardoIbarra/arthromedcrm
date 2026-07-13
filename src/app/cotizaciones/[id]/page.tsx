@@ -592,7 +592,7 @@ export default function CotizacionDetailPage() {
             </div>
 
             {/* Payment Plan */}
-            <CotizacionPaymentPlan quote={quote} onUpdate={fetchQuote} />
+            <CotizacionPaymentPlan quote={quote} onUpdate={fetchQuoteDetails} />
 
             {/* Comments Section */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-6">

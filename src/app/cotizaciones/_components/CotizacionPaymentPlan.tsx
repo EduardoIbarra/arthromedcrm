@@ -2,8 +2,13 @@
 
 import { useState } from 'react'
 import { Coins, Edit, Save, Plus, Trash2 } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN'
+  }).format(amount)
+}
 export default function CotizacionPaymentPlan({ quote, onUpdate }: { quote: any; onUpdate: () => void }) {
   const existingPlan = quote?.planes_pago?.[0]
   const [paymentPlan, setPaymentPlan] = useState(existingPlan || null)
