@@ -14,9 +14,9 @@ type OrderLine = {
   shippingLimit: string | null;
 };
 
-/** Facturas whose numero starts with F are excluded from repartition. */
-function isExcludedFPrefixedFolio(folio: string | null | undefined): boolean {
-  return /^F/i.test(String(folio || '').trim());
+/** Facturas whose numero starts with F or N are excluded from repartition. */
+function isExcludedPrefixedFolio(folio: string | null | undefined): boolean {
+  return /^[FN]/i.test(String(folio || '').trim());
 }
 
 function getPaymentSortTime(order: OrderLine): number {
@@ -134,14 +134,14 @@ export async function POST(req: Request) {
     const facturasClean = Array.isArray(facturas)
       ? facturas
           .map((f: string) => String(f).trim())
-          .filter((f: string) => f && !isExcludedFPrefixedFolio(f))
+          .filter((f: string) => f && !isExcludedPrefixedFolio(f))
       : []
 
     const hasFacturas = facturasClean.length > 0
     const hasCotizaciones = Array.isArray(cotizacionIds) && cotizacionIds.length > 0
     if (!hasFacturas && !hasCotizaciones) {
       return NextResponse.json(
-        { error: 'Faltan datos requeridos (facturas o cotizaciones). Las facturas con folio F* se ignoran.' },
+        { error: 'Faltan datos requeridos (facturas o cotizaciones). Las facturas con folio F* o N* se ignoran.' },
         { status: 400 }
       );
     }
@@ -241,7 +241,7 @@ export async function POST(req: Request) {
               }
             }
           })
-        ).filter((f: any) => !isExcludedFPrefixedFolio(f.numero_factura))
+        ).filter((f: any) => !isExcludedPrefixedFolio(f.numero_factura))
       : []
 
     const pendingCotizaciones = hasCotizaciones
@@ -266,7 +266,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'No hay facturas ni cotizaciones pendientes o válidas seleccionadas (folios F* se ignoran).',
+        aiReasoning: 'No hay facturas ni cotizaciones pendientes o válidas seleccionadas (folios F* y N* se ignoran).',
         invoiceIdFromChina
       });
     }

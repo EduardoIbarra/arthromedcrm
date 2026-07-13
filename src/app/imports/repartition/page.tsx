@@ -296,8 +296,9 @@ export default function ImportRepartitionPage() {
     finally { setLoadingHistory(false) }
   }
 
-  // Folios starting with F are ignored in repartition (historical / non-delivery invoices)
-  const isExcludedFFactura = (inv: any) => /^F/i.test(String(inv?.numero_factura || '').trim())
+  // Folios starting with F or N are ignored in repartition (historical / non-delivery invoices)
+  const isExcludedPrefixedFactura = (inv: any) =>
+    /^[FN]/i.test(String(inv?.numero_factura || '').trim())
 
   // Load pending invoices + ordenes on mount
   useEffect(() => {
@@ -313,7 +314,7 @@ export default function ImportRepartitionPage() {
         const merged: any[] = []
         const seen = new Set<string>()
         for (const inv of [...(d1.data || []), ...(d2.data || []), ...(d3.data || []), ...(d4.data || [])]) {
-          if (isExcludedFFactura(inv)) continue
+          if (isExcludedPrefixedFactura(inv)) continue
           if (!seen.has(inv.id)) {
             seen.add(inv.id)
             merged.push(inv)
@@ -347,7 +348,7 @@ export default function ImportRepartitionPage() {
     if (mainTab === 'historial' && history.length === 0) fetchHistory()
   }, [mainTab])
 
-  // Invoice search (exclude F* folios)
+  // Invoice search (exclude F* / N* folios)
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (invoiceSearch.length < 2) { setInvoiceResults([]); return }
@@ -355,7 +356,7 @@ export default function ImportRepartitionPage() {
       try {
         const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=50`)
         const data = await res.json()
-        setInvoiceResults((data.data || []).filter((inv: any) => !isExcludedFFactura(inv)))
+        setInvoiceResults((data.data || []).filter((inv: any) => !isExcludedPrefixedFactura(inv)))
       } catch (err) { console.error(err) }
       finally { setIsSearchingInvoices(false) }
     }, 300)
@@ -447,7 +448,7 @@ export default function ImportRepartitionPage() {
     const hasStock = useStockFisico && stockFisico.length > 0
     if (!hasOrders && !hasStock) { setError('Selecciona al menos una fuente de inventario.'); return }
     const facturas = selectedInvoices
-      .filter(i => !i.isCotizacion && !isExcludedFFactura(i))
+      .filter(i => !i.isCotizacion && !isExcludedPrefixedFactura(i))
       .map(i => String(i.numero_factura))
     const cotizacionIds = selectedInvoices
       .filter(i => i.isCotizacion)
@@ -1120,16 +1121,16 @@ export default function ImportRepartitionPage() {
     return Object.values(groups).sort((a, b) => a.product.localeCompare(b.product))
   }, [filteredAllocations])
 
-  // ── Displayed invoices (+ selected cotizaciones); never show F* facturas ──
+  // ── Displayed invoices (+ selected cotizaciones); never show F*/N* facturas ──
   const displayedInvoicesMap = new Map<string, any>()
   pendingInvoices.forEach(inv => {
-    if (!isExcludedFFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+    if (!isExcludedPrefixedFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
   })
   selectedInvoices.forEach(inv => {
-    if (inv.isCotizacion || !isExcludedFFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+    if (inv.isCotizacion || !isExcludedPrefixedFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
   })
   invoiceResults.forEach(inv => {
-    if (!isExcludedFFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+    if (!isExcludedPrefixedFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
   })
   let displayedInvoices = Array.from(displayedInvoicesMap.values())
   if (invoiceSearch.trim()) {
@@ -1244,7 +1245,7 @@ export default function ImportRepartitionPage() {
               <Info className="w-5 h-5 shrink-0 mt-0.5" />
               <p className="text-sm font-medium">
                 Prioridad estricta por <strong>fecha de pago</strong> y <strong>límite de entrega</strong> (sin mínimo de repartición).
-                Se ignoran facturas con folio que empieza en <strong>F</strong>.
+                Se ignoran facturas con folio que empieza en <strong>F</strong> o <strong>N</strong>.
               </p>
             </motion.div>
 
