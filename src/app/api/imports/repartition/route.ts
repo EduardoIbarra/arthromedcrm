@@ -231,16 +231,117 @@ function buildReasoning(
   ].join(' ');
 }
 
-/** Latest physical count per product from primary conteo_diario. */
+/** Name-like columns we may use if present on public.productos (discovered at runtime). */
+const PRODUCT_NAME_COLUMN_CANDIDATES = [
+  'nombre',
+  'nombre_lista',
+  'descripcion_hospitales',
+  'descripcion_angeles',
+  'invoice_concept',
+  'model',
+  'order_code',
+] as const
+
+type ProductNameRow = { id: string; names: string[]; preferred: string | null }
+
+/** Cached per request lifecycle via module-level promise for this process. */
+let productNameColumnsPromise: Promise<string[]> | null = null
+
+/**
+ * Inspect primary DB for which product name columns actually exist.
+ * Avoids assuming schema fields that may differ across environments.
+ */
+async function getProductNameColumns(): Promise<string[]> {
+  if (!productNameColumnsPromise) {
+    productNameColumnsPromise = (async () => {
+      try {
+        const inList = PRODUCT_NAME_COLUMN_CANDIDATES.map(c => `'${c}'`).join(',')
+        const rows = (await prisma.$queryRawUnsafe(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'productos'
+            AND column_name IN (${inList})
+        `)) as Array<{ column_name: string }>
+
+        const available = new Set(rows.map(r => String(r.column_name)))
+        const found = PRODUCT_NAME_COLUMN_CANDIDATES.filter(c => available.has(c))
+        return found.length > 0 ? [...found] : ['nombre']
+      } catch (err) {
+        console.warn('[repartition] could not inspect productos columns:', err)
+        return ['nombre']
+      }
+    })()
+  }
+  return productNameColumnsPromise
+}
+
+function extractNamesFromProductRow(
+  row: Record<string, unknown>,
+  nameColumns: string[]
+): { names: string[]; preferred: string | null } {
+  const names: string[] = []
+  for (const col of nameColumns) {
+    const v = row[col]
+    if (v != null && String(v).trim()) names.push(String(v).trim())
+  }
+  // Prefer nombre_lista when present, else first non-empty name column
+  const preferred =
+    (nameColumns.includes('nombre_lista') && row.nombre_lista != null && String(row.nombre_lista).trim())
+      ? String(row.nombre_lista).trim()
+      : names[0] || null
+  return { names: Array.from(new Set(names)), preferred }
+}
+
+async function loadProductsByIds(productIds: string[]): Promise<Map<string, ProductNameRow>> {
+  const map = new Map<string, ProductNameRow>()
+  if (productIds.length === 0) return map
+
+  const nameColumns = await getProductNameColumns()
+  // Always need id
+  const selectCols = ['id', ...nameColumns.filter(c => c !== 'id')]
+  const uniqueCols = Array.from(new Set(selectCols))
+  // Quote identifiers safely (only allow known candidate names / id)
+  const safeCols = uniqueCols.filter(
+    c => c === 'id' || (PRODUCT_NAME_COLUMN_CANDIDATES as readonly string[]).includes(c)
+  )
+  if (!safeCols.includes('id')) safeCols.unshift('id')
+
+  const placeholders = productIds.map((_, i) => `$${i + 1}`).join(', ')
+  const sql = `
+    SELECT ${safeCols.map(c => `"${c}"`).join(', ')}
+    FROM productos
+    WHERE id IN (${placeholders})
+  `
+  const rows = (await prisma.$queryRawUnsafe(sql, ...productIds)) as Array<Record<string, unknown>>
+
+  for (const row of rows) {
+    const id = String(row.id || '')
+    if (!id) continue
+    const { names, preferred } = extractNamesFromProductRow(row, nameColumns)
+    map.set(id, { id, names, preferred })
+  }
+  return map
+}
+
+/** Latest physical count per product from primary conteo_diario + product name aliases. */
 async function loadStockFisicoFromPrimary(): Promise<
-  Array<{ producto_id: string; cantidad: number; nombre: string | null; nombre_lista: string | null }>
+  Array<{ producto_id: string; cantidad: number; names: string[]; preferred: string | null }>
 > {
+  const nameColumns = await getProductNameColumns()
+  const productSelect =
+    nameColumns.length > 0
+      ? nameColumns
+          .filter(c => (PRODUCT_NAME_COLUMN_CANDIDATES as readonly string[]).includes(c))
+          .map(c => `p."${c}"`)
+          .join(', ')
+      : 'p.nombre'
+
   const rows = (await prisma.$queryRawUnsafe(`
     SELECT
       l.producto_id,
-      CAST(l.contado AS bigint) AS cantidad,
-      p.nombre,
-      p.nombre_lista
+      CAST(l.contado AS bigint) AS cantidad
+      ${productSelect ? `, ${productSelect}` : ''}
     FROM (
       SELECT DISTINCT ON (producto_id)
         producto_id,
@@ -250,19 +351,17 @@ async function loadStockFisicoFromPrimary(): Promise<
     ) l
     LEFT JOIN productos p ON p.id = l.producto_id
     WHERE CAST(l.contado AS bigint) > 0
-  `)) as Array<{
-    producto_id: string
-    cantidad: bigint | number | string
-    nombre: string | null
-    nombre_lista: string | null
-  }>
+  `)) as Array<Record<string, unknown>>
 
-  return rows.map(r => ({
-    producto_id: r.producto_id,
-    cantidad: parseInt(String(r.cantidad ?? '0'), 10) || 0,
-    nombre: r.nombre,
-    nombre_lista: r.nombre_lista,
-  }))
+  return rows.map(r => {
+    const { names, preferred } = extractNamesFromProductRow(r, nameColumns)
+    return {
+      producto_id: String(r.producto_id || ''),
+      cantidad: parseInt(String(r.cantidad ?? '0'), 10) || 0,
+      names,
+      preferred,
+    }
+  }).filter(r => r.producto_id && r.cantidad > 0)
 }
 
 export async function POST(req: Request) {
@@ -330,26 +429,21 @@ export async function POST(req: Request) {
           AND COALESCE(cantidad_recibida, 0) > 0
       `, selectedOrderIds);
 
-      const productIds = productos.map((p: any) => p.producto_id).filter(Boolean) as string[];
-      const mainProducts = productIds.length > 0 ? await prisma.productos.findMany({
-        where: { id: { in: productIds } },
-        select: { id: true, nombre_lista: true, nombre: true }
-      }) : [];
-      const productMeta = new Map(mainProducts.map((p: any) => [p.id, p]));
+      const productIds = productos.map((p) => p.producto_id).filter(Boolean) as string[];
+      const productMeta = await loadProductsByIds(productIds);
 
       let ocQty = 0;
       for (const p of productos) {
         const recibida = Number(p.cantidad_recibida) || 0;
         if (recibida <= 0) continue;
-        const meta = p.producto_id ? productMeta.get(p.producto_id) : null;
+        const meta = p.producto_id ? productMeta.get(p.producto_id) : undefined;
         const canonical =
-          meta?.nombre_lista || meta?.nombre || p.producto_nombre || null;
+          meta?.preferred || p.producto_nombre || null;
         pool.add(recibida, {
           canonical,
           productId: p.producto_id,
           names: [
-            meta?.nombre_lista,
-            meta?.nombre,
+            ...(meta?.names || []),
             p.producto_nombre,
             canonical,
           ],
@@ -372,12 +466,11 @@ export async function POST(req: Request) {
         let stockUnits = 0;
         for (const row of stockRows) {
           if (row.cantidad <= 0) continue;
-          const canonical =
-            row.nombre_lista || row.nombre || row.producto_id;
+          const canonical = row.preferred || row.names[0] || row.producto_id;
           pool.add(row.cantidad, {
             canonical,
             productId: row.producto_id,
-            names: [row.nombre_lista, row.nombre, canonical],
+            names: [...row.names, canonical],
           });
           stockUnits += row.cantidad;
         }
@@ -428,9 +521,6 @@ export async function POST(req: Request) {
             include: {
               factura_productos: {
                 where: { cantidad_pendiente: { gt: 0 } },
-                include: {
-                  productos: { select: { id: true, nombre_lista: true, nombre: true } }
-                }
               },
               planes_pago: {
                 include: {
@@ -446,11 +536,7 @@ export async function POST(req: Request) {
       ? await prisma.cotizaciones.findMany({
           where: { id: { in: cotizacionIds } },
           include: {
-            productos: {
-              include: {
-                productos: { select: { id: true, nombre_lista: true, nombre: true } }
-              }
-            },
+            productos: true,
             planes_pago: {
               include: {
                 parcialidades: { orderBy: { numero: 'asc' } }
@@ -469,6 +555,17 @@ export async function POST(req: Request) {
       });
     }
 
+    // Resolve product names for demand lines from primary DB columns that exist
+    const demandProductIds = Array.from(new Set([
+      ...pendingFacturas.flatMap((f: any) =>
+        (f.factura_productos || []).map((fp: any) => fp.producto_id).filter(Boolean)
+      ),
+      ...pendingCotizaciones.flatMap((c: any) =>
+        (c.productos || []).map((p: any) => p.producto_id).filter(Boolean)
+      ),
+    ])) as string[]
+    const demandProductMeta = await loadProductsByIds(demandProductIds)
+
     const ordersFromFacturas = pendingFacturas.flatMap((f: any) => {
       const delivery = computeDeliveryLimit(f)
       const shippingLimit = delivery.limitDate
@@ -481,9 +578,9 @@ export async function POST(req: Request) {
           : null
 
       return f.factura_productos.map((fp: any) => {
-        const linked = fp.productos
+        const meta = fp.producto_id ? demandProductMeta.get(fp.producto_id) : undefined
         const displayName =
-          linked?.nombre_lista || linked?.nombre || fp.producto_nombre
+          meta?.preferred || fp.producto_nombre || 'Producto'
         return {
           id: fp.id,
           folio: f.numero_factura,
@@ -492,10 +589,9 @@ export async function POST(req: Request) {
           shippingLimit,
           deliveryIsReference: delivery.isReferenceOnly,
           product: displayName,
-          productId: fp.producto_id || linked?.id || null,
+          productId: fp.producto_id || null,
           productAliases: [
-            linked?.nombre_lista,
-            linked?.nombre,
+            ...(meta?.names || []),
             fp.producto_nombre,
             displayName,
           ].filter(Boolean),
@@ -520,9 +616,9 @@ export async function POST(req: Request) {
       return (c.productos || [])
         .filter((p: any) => (Number(p.cantidad) || 0) > 0)
         .map((p: any) => {
-          const linked = p.productos
+          const meta = p.producto_id ? demandProductMeta.get(p.producto_id) : undefined
           const displayName =
-            linked?.nombre_lista || linked?.nombre || p.producto_nombre
+            meta?.preferred || p.producto_nombre || 'Producto'
           return {
             id: p.id,
             folio: c.numero_cotizacion,
@@ -531,10 +627,9 @@ export async function POST(req: Request) {
             shippingLimit,
             deliveryIsReference: true,
             product: displayName,
-            productId: p.producto_id || linked?.id || null,
+            productId: p.producto_id || null,
             productAliases: [
-              linked?.nombre_lista,
-              linked?.nombre,
+              ...(meta?.names || []),
               p.producto_nombre,
               displayName,
             ].filter(Boolean),
