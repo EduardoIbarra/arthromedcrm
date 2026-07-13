@@ -17,9 +17,10 @@ import {
   FileSpreadsheet
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
-import Modal from '@/components/Modal'
 import PermissionGuard from '@/components/PermissionGuard'
+import Modal from '@/components/Modal'
 import { PurchaseOrder, Product } from '@/types/database'
+import ImportModal from '@/components/purchase-orders/ImportModal'
 
 interface MissingProductItem {
   product_id: string
@@ -44,6 +45,7 @@ export default function PurchaseOrdersPage() {
   // Modal States
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
 
   // Form State
@@ -334,14 +336,24 @@ export default function PurchaseOrdersPage() {
               {t('appName')} / Gestión de abastecimiento de mercancías
             </p>
           </div>
-          <PermissionGuard section="purchase_orders" action="create">
-            <button 
-              onClick={handleOpenAdd} 
-              className="btn-primary flex items-center gap-2"
-            >
-              <Plus size={18} /> Nueva Orden
-            </button>
-          </PermissionGuard>
+          <div className="flex gap-2">
+            <PermissionGuard section="purchase_orders" action="create">
+              <button 
+                onClick={() => setIsImportModalOpen(true)} 
+                className="btn-secondary flex items-center gap-2 text-[#0763a9] border-[#0763a9]"
+              >
+                <FileSpreadsheet size={18} /> Importar Excel
+              </button>
+            </PermissionGuard>
+            <PermissionGuard section="purchase_orders" action="create">
+              <button 
+                onClick={handleOpenAdd} 
+                className="btn-primary flex items-center gap-2"
+              >
+                <Plus size={18} /> Nueva Orden
+              </button>
+            </PermissionGuard>
+          </div>
         </header>
 
         {/* Filters */}
@@ -658,6 +670,13 @@ export default function PurchaseOrdersPage() {
             </div>
           </div>
         </Modal>
+
+        {/* Import Modal */}
+        <ImportModal 
+          open={isImportModalOpen} 
+          onClose={() => setIsImportModalOpen(false)} 
+          onImportSuccess={() => fetchOrders()} 
+        />
 
       </div>
     </AppShell>

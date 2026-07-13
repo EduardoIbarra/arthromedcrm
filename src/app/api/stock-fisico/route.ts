@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest) {
       cantidad: string
     }>(`
       SELECT producto_id, nombre, cantidad
-      FROM stock_por_producto
+      FROM conteo_diario
       WHERE CAST(cantidad AS bigint) > 0
       ORDER BY nombre ASC
     `)
