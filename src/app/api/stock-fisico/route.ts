@@ -19,9 +19,8 @@ export interface StockFisicoItem {
 export async function GET(_req: NextRequest) {
   try {
     // 1. Latest physical count per product
-    const items = await prisma.$queryRawUnsafe<
-      { producto_id: string; cantidad: bigint | number | string }[]
-    >(`
+    // Note: prisma proxy may not type $queryRawUnsafe generics — cast result instead
+    const items = (await prisma.$queryRawUnsafe(`
       SELECT producto_id, CAST(contado AS bigint) AS cantidad
       FROM (
         SELECT DISTINCT ON (producto_id)
@@ -31,7 +30,7 @@ export async function GET(_req: NextRequest) {
         ORDER BY producto_id, fecha DESC, updated_at DESC NULLS LAST
       ) latest
       WHERE CAST(contado AS bigint) > 0
-    `)
+    `)) as { producto_id: string; cantidad: bigint | number | string }[]
 
     // 2. Product names from primary DB
     const productIds = items.map(i => i.producto_id).filter(Boolean)
