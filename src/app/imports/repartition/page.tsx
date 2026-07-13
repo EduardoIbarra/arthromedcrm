@@ -211,6 +211,8 @@ export default function ImportRepartitionPage() {
   const [ordenes, setOrdenes] = useState<OrdenCompra[]>([])
   const [loadingOrdenes, setLoadingOrdenes] = useState(true)
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
+  /** When set, treat that order's cantidad_ordenada as available (as if fully received). */
+  const [useOrderedQtyOrderIds, setUseOrderedQtyOrderIds] = useState<Set<string>>(new Set())
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
 
   // ── Stock físico ──────────────────────────────────────
@@ -388,11 +390,38 @@ export default function ImportRepartitionPage() {
   // Toggles
   // ─────────────────────────────────────────────────────
   const toggleOrder = (id: string) => setSelectedOrderIds(prev => {
-    const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next
+    const next = new Set(prev)
+    if (next.has(id)) {
+      next.delete(id)
+      setUseOrderedQtyOrderIds(prevU => {
+        const u = new Set(prevU)
+        u.delete(id)
+        return u
+      })
+    } else {
+      next.add(id)
+    }
+    return next
   })
   const toggleExpandOrder = (id: string) => setExpandedOrders(prev => {
     const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next
   })
+  const toggleUseOrderedQty = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    setUseOrderedQtyOrderIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    // Ensure order is selected when enabling "use ordered qty"
+    setSelectedOrderIds(prev => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }
   const toggleInvoice = (inv: any) => {
     setSelectedInvoices(prev =>
       prev.find(i => i.id === inv.id)
@@ -493,6 +522,7 @@ export default function ImportRepartitionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           selectedOrderIds: Array.from(selectedOrderIds),
+          useOrderedQtyOrderIds: Array.from(useOrderedQtyOrderIds),
           selectedStockFisico,
           useStockFisico,
           facturas,
@@ -1160,7 +1190,11 @@ export default function ImportRepartitionPage() {
   // ── Order totals for selected ───────────────────────────
   const selectedOrdenesData = ordenes.filter(o => selectedOrderIds.has(o.id))
   const totalSelOrdenado = selectedOrdenesData.reduce((s, o) => s + o.total_ordenado, 0)
-  const totalSelRecibido = selectedOrdenesData.reduce((s, o) => s + o.total_recibido, 0)
+  const totalSelRecibido = selectedOrdenesData.reduce((s, o) => {
+    // If "use ordered qty" is on for this order, count as fully received for the summary
+    if (useOrderedQtyOrderIds.has(o.id)) return s + o.total_ordenado
+    return s + o.total_recibido
+  }, 0)
 
   // ── Helpers ─────────────────────────────────────────────
   const estadoBadge = (estado: string | null) => {
@@ -1320,6 +1354,9 @@ export default function ImportRepartitionPage() {
                       ) : ordenes.map(orden => {
                         const isSelected = selectedOrderIds.has(orden.id)
                         const isExpanded = expandedOrders.has(orden.id)
+                        const useOrdered = useOrderedQtyOrderIds.has(orden.id)
+                        const displayRecibido = useOrdered ? orden.total_ordenado : orden.total_recibido
+                        const incomplete = orden.total_recibido < orden.total_ordenado
                         return (
                           <div key={orden.id} className={isSelected ? 'bg-indigo-50/30' : 'bg-white'}>
                             <div className="px-3 py-2.5 flex items-start gap-2 cursor-pointer hover:bg-indigo-50/50" onClick={() => toggleOrder(orden.id)}>
@@ -1330,11 +1367,29 @@ export default function ImportRepartitionPage() {
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="font-semibold text-gray-900 text-xs">{orden.numero_orden}</span>
                                   {estadoBadge(orden.estado)}
-                                  <span className={`text-[10px] font-mono px-1 py-0.5 rounded border ${orden.total_recibido < orden.total_ordenado ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-green-700 bg-green-50 border-green-200'}`}>
-                                    ({orden.total_recibido}/{orden.total_ordenado})
+                                  <span className={`text-[10px] font-mono px-1 py-0.5 rounded border ${
+                                    useOrdered
+                                      ? 'text-violet-700 bg-violet-50 border-violet-200'
+                                      : incomplete
+                                        ? 'text-amber-700 bg-amber-50 border-amber-200'
+                                        : 'text-green-700 bg-green-50 border-green-200'
+                                  }`}>
+                                    ({displayRecibido}/{orden.total_ordenado})
+                                    {useOrdered && incomplete ? ' *' : ''}
                                   </span>
                                 </div>
                                 <p className="text-[10px] text-gray-500 truncate">{orden.proveedor || '—'}</p>
+                                {incomplete && (
+                                  <label
+                                    className="mt-1.5 flex items-center gap-1.5 text-[10px] text-violet-700 cursor-pointer select-none w-fit"
+                                    onClick={e => toggleUseOrderedQty(orden.id, e)}
+                                  >
+                                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${useOrdered ? 'bg-violet-600 border-violet-600 text-white' : 'border-violet-300 bg-white'}`}>
+                                      {useOrdered && <CheckCircle2 className="w-2.5 h-2.5" />}
+                                    </div>
+                                    Usar cantidad ordenada ({orden.total_ordenado}/{orden.total_ordenado})
+                                  </label>
+                                )}
                               </div>
                               <button onClick={e => { e.stopPropagation(); toggleExpandOrder(orden.id) }} className="text-gray-400 p-0.5">
                                 {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -1342,14 +1397,23 @@ export default function ImportRepartitionPage() {
                             </div>
                             {isExpanded && (
                               <div className="px-3 pb-2 bg-gray-50/50 border-t border-gray-100">
-                                {orden.productos.map(p => (
-                                  <div key={p.id} className="flex justify-between text-[10px] gap-2 py-0.5">
-                                    <span className="text-gray-600 truncate">{p.producto_nombre}</span>
-                                    <span className={`font-mono shrink-0 ${(p.cantidad_recibida || 0) < p.cantidad_ordenada ? 'text-amber-700' : 'text-green-700'}`}>
-                                      ({p.cantidad_recibida || 0}/{p.cantidad_ordenada})
-                                    </span>
-                                  </div>
-                                ))}
+                                {orden.productos.map(p => {
+                                  const rec = useOrdered ? p.cantidad_ordenada : (p.cantidad_recibida || 0)
+                                  return (
+                                    <div key={p.id} className="flex justify-between text-[10px] gap-2 py-0.5">
+                                      <span className="text-gray-600 truncate">{p.producto_nombre}</span>
+                                      <span className={`font-mono shrink-0 ${
+                                        useOrdered
+                                          ? 'text-violet-700'
+                                          : rec < p.cantidad_ordenada
+                                            ? 'text-amber-700'
+                                            : 'text-green-700'
+                                      }`}>
+                                        ({rec}/{p.cantidad_ordenada})
+                                      </span>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )}
                           </div>
@@ -1360,11 +1424,14 @@ export default function ImportRepartitionPage() {
                     <div className="px-4 pb-3 flex justify-between items-center">
                       <span className="text-[10px] text-gray-500">
                         {selectedOrderIds.size}/{ordenes.length} seleccionadas
+                        {useOrderedQtyOrderIds.size > 0 && (
+                          <span className="text-violet-600"> · {useOrderedQtyOrderIds.size} con qty ordenada</span>
+                        )}
                       </span>
                       <div className="flex gap-2">
                         <button onClick={() => setSelectedOrderIds(new Set(ordenes.map(o => o.id)))} className="text-[10px] text-indigo-600 font-medium">Todas</button>
                         <span className="text-gray-300">|</span>
-                        <button onClick={() => setSelectedOrderIds(new Set())} className="text-[10px] text-gray-500 font-medium">Ninguna</button>
+                        <button onClick={() => { setSelectedOrderIds(new Set()); setUseOrderedQtyOrderIds(new Set()) }} className="text-[10px] text-gray-500 font-medium">Ninguna</button>
                       </div>
                     </div>
                   </div>

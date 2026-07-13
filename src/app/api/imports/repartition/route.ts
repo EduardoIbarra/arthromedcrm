@@ -415,31 +415,44 @@ export async function POST(req: Request) {
     }
 
     // Source 2: Órdenes de compra (segunda DB), names resolved via primary productos
+    // useOrderedQtyOrderIds: treat those POs as fully received (use cantidad_ordenada)
     if (selectedOrderIds && Array.isArray(selectedOrderIds) && selectedOrderIds.length > 0) {
+      const useOrderedSet = new Set<string>(
+        Array.isArray(body.useOrderedQtyOrderIds)
+          ? body.useOrderedQtyOrderIds.map((id: string) => String(id))
+          : []
+      )
       const placeholders = selectedOrderIds.map((_: any, i: number) => `$${i + 1}`).join(', ');
+      // Load all lines (not only recibida > 0) so "use ordered qty" can supply stock for 0/N orders
       const productos = await querySegundaDB<{
+        orden_id: string;
         producto_id: string | null;
         producto_nombre: string;
         cantidad_ordenada: number;
         cantidad_recibida: number | null;
       }>(`
-        SELECT producto_id, producto_nombre, cantidad_ordenada, COALESCE(cantidad_recibida, 0) AS cantidad_recibida
+        SELECT orden_id, producto_id, producto_nombre, cantidad_ordenada,
+               COALESCE(cantidad_recibida, 0) AS cantidad_recibida
         FROM orden_productos
         WHERE orden_id IN (${placeholders})
-          AND COALESCE(cantidad_recibida, 0) > 0
       `, selectedOrderIds);
 
       const productIds = productos.map((p) => p.producto_id).filter(Boolean) as string[];
       const productMeta = await loadProductsByIds(productIds);
 
       let ocQty = 0;
+      let usedOrderedOverride = false;
       for (const p of productos) {
-        const recibida = Number(p.cantidad_recibida) || 0;
-        if (recibida <= 0) continue;
+        const useOrdered = useOrderedSet.has(p.orden_id)
+        const qty = useOrdered
+          ? (Number(p.cantidad_ordenada) || 0)
+          : (Number(p.cantidad_recibida) || 0)
+        if (qty <= 0) continue
+        if (useOrdered) usedOrderedOverride = true
         const meta = p.producto_id ? productMeta.get(p.producto_id) : undefined;
         const canonical =
           meta?.preferred || p.producto_nombre || null;
-        pool.add(recibida, {
+        pool.add(qty, {
           canonical,
           productId: p.producto_id,
           names: [
@@ -448,9 +461,15 @@ export async function POST(req: Request) {
             canonical,
           ],
         });
-        ocQty += recibida;
+        ocQty += qty;
       }
-      if (ocQty > 0) sourceLabels.push('Órdenes de compra');
+      if (ocQty > 0) {
+        sourceLabels.push(
+          usedOrderedOverride
+            ? 'Órdenes de compra (incluye qty ordenada)'
+            : 'Órdenes de compra'
+        )
+      }
     }
 
     // Source 3: Stock físico — always load from primary DB when enabled
