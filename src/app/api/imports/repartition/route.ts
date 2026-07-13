@@ -34,6 +34,9 @@ function getDeadlineSortTime(order: OrderLine): number {
 /**
  * Inventory keyed by a canonical product name, with aliases (nombre, nombre_lista)
  * and product_id so stock físico and órdenes de compra merge correctly.
+ *
+ * Critical: product_id always wins for bucket selection so OC + stock físico
+ * never create two separate pools for the same product (which caused over-allocation).
  */
 class InventoryPool {
   /** canonical name -> qty */
@@ -45,6 +48,21 @@ class InventoryPool {
 
   private normalize(s: string) {
     return s.trim().toLowerCase();
+  }
+
+  /** Move all qty/aliases from `from` into `into` and drop `from`. */
+  private mergeCanonical(from: string, into: string) {
+    if (!from || !into || from === into) return into
+    this.qty[into] = (this.qty[into] || 0) + (this.qty[from] || 0)
+    delete this.qty[from]
+    for (const [alias, canon] of this.aliasToCanonical) {
+      if (canon === from) this.aliasToCanonical.set(alias, into)
+    }
+    for (const [id, canon] of this.idToCanonical) {
+      if (canon === from) this.idToCanonical.set(id, into)
+    }
+    this.aliasToCanonical.set(this.normalize(from), into)
+    return into
   }
 
   add(
@@ -61,65 +79,70 @@ class InventoryPool {
       .map(n => (n || '').trim())
       .filter(Boolean);
 
+    const productId = opts.productId || null
+
+    // Collect existing buckets this entry should join
+    const candidates = new Set<string>()
+    if (productId && this.idToCanonical.has(productId)) {
+      candidates.add(this.idToCanonical.get(productId)!)
+    }
+    for (const n of names) {
+      const hit = this.aliasToCanonical.get(this.normalize(n))
+      if (hit) candidates.add(hit)
+    }
+    const preferredName = (opts.canonical || '').trim()
+    if (preferredName) {
+      const hit = this.aliasToCanonical.get(this.normalize(preferredName))
+      if (hit) candidates.add(hit)
+    }
+
+    // Pick target bucket: prefer existing productId mapping, else first candidate, else new name
     let canonical =
-      (opts.canonical || '').trim() ||
-      (opts.productId && this.idToCanonical.get(opts.productId)) ||
-      '';
+      (productId && this.idToCanonical.get(productId)) ||
+      [...candidates][0] ||
+      preferredName ||
+      names[0] ||
+      ''
 
-    if (!canonical && opts.productId) {
-      // reuse existing alias if product already seen under another name
-      for (const n of names) {
-        const hit = this.aliasToCanonical.get(this.normalize(n));
-        if (hit) {
-          canonical = hit;
-          break;
-        }
-      }
+    if (!canonical) return
+
+    // Merge any other candidate buckets into the chosen one (collapse duplicates)
+    for (const c of candidates) {
+      if (c !== canonical) this.mergeCanonical(c, canonical)
     }
 
-    if (!canonical) {
-      for (const n of names) {
-        const hit = this.aliasToCanonical.get(this.normalize(n));
-        if (hit) {
-          canonical = hit;
-          break;
-        }
-      }
-    }
-
-    if (!canonical) {
-      canonical = names[0] || '';
-    }
-    if (!canonical) return;
-
-    this.qty[canonical] = (this.qty[canonical] || 0) + qty;
+    this.qty[canonical] = (this.qty[canonical] || 0) + qty
 
     for (const n of names) {
-      this.aliasToCanonical.set(this.normalize(n), canonical);
+      this.aliasToCanonical.set(this.normalize(n), canonical)
     }
-    this.aliasToCanonical.set(this.normalize(canonical), canonical);
-    if (opts.productId) this.idToCanonical.set(opts.productId, canonical);
+    if (preferredName) {
+      this.aliasToCanonical.set(this.normalize(preferredName), canonical)
+    }
+    this.aliasToCanonical.set(this.normalize(canonical), canonical)
+    if (productId) this.idToCanonical.set(productId, canonical)
   }
 
   /** Resolve demand product name/id to a key present in qty (or null). */
   resolve(productName: string | null | undefined, productId?: string | null): string | null {
     if (productId && this.idToCanonical.has(productId)) {
-      return this.idToCanonical.get(productId)!;
+      const key = this.idToCanonical.get(productId)!
+      if ((this.qty[key] || 0) > 0 || key in this.qty) return key
     }
     const name = (productName || '').trim();
     if (!name) return null;
     const lower = this.normalize(name);
 
     const exact = this.aliasToCanonical.get(lower);
-    if (exact && (this.qty[exact] || 0) >= 0) return exact;
+    if (exact) return exact;
 
-    // Fuzzy: demand contains alias or alias contains demand
+    // Fuzzy: demand contains alias or alias contains demand.
+    // Ignore very short aliases to avoid false matches (e.g. "RX", "IS").
     let best: string | null = null;
     let bestLen = 0;
     for (const [alias, canonical] of this.aliasToCanonical) {
-      if (!alias) continue;
+      if (!alias || alias.length < 4) continue;
       if (lower.includes(alias) || alias.includes(lower)) {
-        // Prefer longer alias matches (more specific)
         if (alias.length > bestLen) {
           best = canonical;
           bestLen = alias.length;
@@ -147,6 +170,8 @@ class InventoryPool {
  * 1) earliest delivery deadline
  * 2) oldest payment date
  * 3) folio tie-breaker
+ *
+ * Hard guarantee: for each product key, sum(allocated) <= inventory available.
  */
 function allocateByPaymentAndDeadline(
   orders: OrderLine[],
@@ -160,7 +185,10 @@ function allocateByPaymentAndDeadline(
   }
 
   const allocationMap = new Map<string, number>();
-  const remaining = { ...inventoryMap };
+  const remaining: Record<string, number> = {};
+  for (const [k, v] of Object.entries(inventoryMap)) {
+    remaining[k] = Math.max(0, Math.floor(Number(v) || 0));
+  }
 
   for (const [product, productOrders] of byProduct) {
     productOrders.sort((a, b) => {
@@ -173,11 +201,43 @@ function allocateByPaymentAndDeadline(
 
     let stock = remaining[product] || 0;
     for (const order of productOrders) {
-      const allocated = Math.min(order.requestedQty, Math.max(0, stock));
+      const requested = Math.max(0, Math.floor(Number(order.requestedQty) || 0));
+      const allocated = Math.min(requested, Math.max(0, stock));
       allocationMap.set(order.id, allocated);
       stock -= allocated;
     }
-    remaining[product] = stock;
+    remaining[product] = Math.max(0, stock);
+  }
+
+  // Safety pass: never allow total assigned > initial inventory per product
+  for (const [product, productOrders] of byProduct) {
+    const available = Math.max(0, Math.floor(Number(inventoryMap[product]) || 0));
+    let used = 0;
+    for (const order of productOrders) {
+      used += allocationMap.get(order.id) || 0;
+    }
+    if (used > available) {
+      let overflow = used - available;
+      // Peel from lowest priority (end of sorted list) first
+      for (let i = productOrders.length - 1; i >= 0 && overflow > 0; i--) {
+        const id = productOrders[i].id;
+        const cur = allocationMap.get(id) || 0;
+        const cut = Math.min(cur, overflow);
+        allocationMap.set(id, cur - cut);
+        overflow -= cut;
+      }
+      remaining[product] = 0;
+    }
+  }
+
+  // Recompute remaining from inventory - allocated for consistency
+  for (const product of Object.keys(inventoryMap)) {
+    const available = Math.max(0, Math.floor(Number(inventoryMap[product]) || 0));
+    let used = 0;
+    for (const order of orders) {
+      if (order.product === product) used += allocationMap.get(order.id) || 0;
+    }
+    remaining[product] = Math.max(0, available - used);
   }
 
   return { allocationMap, remaining };

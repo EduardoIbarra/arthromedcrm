@@ -533,18 +533,36 @@ export default function ImportRepartitionPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      const mergedAllocations = mergeAllocationsWithSelectedInvoices(data.allocations || [], selectedInvoices)
+      let mergedAllocations = mergeAllocationsWithSelectedInvoices(data.allocations || [], selectedInvoices)
+
+      // Hard cap: never show more allocated than total inventory for that product
+      // (total = remaining after API + sum of API allocations)
+      const invCap: Record<string, number> = { ...(data.remainingInventory || {}) }
+      for (const a of mergedAllocations) {
+        invCap[a.product] = (invCap[a.product] || 0) + (Number(a.allocatedQty) || 0)
+      }
+      const usedSoFar: Record<string, number> = {}
+      mergedAllocations = mergedAllocations.map(a => {
+        const cap = Math.max(0, Math.floor(Number(invCap[a.product]) || 0))
+        const used = usedSoFar[a.product] || 0
+        const left = Math.max(0, cap - used)
+        const requested = Math.max(0, Math.floor(Number(a.allocatedQty) || 0))
+        const capped = Math.min(requested, left, Math.max(0, Math.floor(Number(a.requestedQty) || 0) || requested))
+        usedSoFar[a.product] = used + capped
+        return capped === a.allocatedQty ? a : { ...a, allocatedQty: capped }
+      })
+
+      const remaining: Record<string, number> = {}
+      for (const [product, cap] of Object.entries(invCap)) {
+        remaining[product] = Math.max(0, Math.floor(Number(cap) || 0) - (usedSoFar[product] || 0))
+      }
+
       setAllocations(mergedAllocations)
-      setRemainingInventory(data.remainingInventory || {})
+      setRemainingInventory(remaining)
       setAiReasoning(data.aiReasoning || '')
       if (data.invoiceIdFromChina) setInvoiceIdFromChina(data.invoiceIdFromChina)
       setHasProcessed(true)
-
-      const initInv: Record<string, number> = { ...data.remainingInventory }
-      mergedAllocations.forEach((a: Allocation) => {
-        initInv[a.product] = (initInv[a.product] || 0) + a.allocatedQty
-      })
-      setInitialInventory(initInv)
+      setInitialInventory(invCap)
     } catch (err: any) { setError(err.message) }
     finally { setLoading(false) }
   }
