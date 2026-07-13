@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { querySegundaDB } from '@/lib/segundaDB'
+import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,28 +12,40 @@ export interface StockFisicoItem {
 
 /**
  * GET /api/stock-fisico
- * Returns all items from segunda DB's stock_por_producto with positive stock.
+ * Returns items from segunda DB's conteo_diario joined with primary DB's productos.
  */
 export async function GET(_req: NextRequest) {
   try {
-    // stock_por_producto is the live stock view (producto_id, nombre, cantidad).
-    // conteo_diario is daily counts only and has no nombre/cantidad columns.
+    // 1. Fetch counts from segunda DB
     const items = await querySegundaDB<{
       producto_id: string
-      nombre: string
       cantidad: string
     }>(`
-      SELECT producto_id, producto_nombre AS nombre, cantidad
+      SELECT producto_id, cantidad
       FROM conteo_diario
       WHERE CAST(cantidad AS bigint) > 0
-      ORDER BY producto_nombre ASC
     `)
 
+    // 2. Extract product IDs
+    const productIds = items.map(i => i.producto_id).filter(Boolean)
+
+    // 3. Fetch product names from primary DB
+    const products = productIds.length > 0 ? await prisma.productos.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, nombre_lista: true, nombre: true }
+    }) : []
+
+    const nameMap = new Map<string, string>()
+    for (const p of products) {
+      nameMap.set(p.id, p.nombre_lista || p.nombre || 'Desconocido')
+    }
+
+    // 4. Map names back to the items
     const data: StockFisicoItem[] = items.map(p => ({
       producto_id: p.producto_id,
-      nombre: p.nombre,
+      nombre: nameMap.get(p.producto_id) || 'Desconocido',
       cantidad: parseInt(p.cantidad || '0', 10),
-    }))
+    })).sort((a, b) => a.nombre.localeCompare(b.nombre))
 
     return NextResponse.json({ data })
   } catch (error: any) {
