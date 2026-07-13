@@ -1275,8 +1275,8 @@ export default function ImportRepartitionPage() {
                             <div className="py-4 text-center text-gray-400 text-xs">
                               {loadingStock ? 'Cargando...' : 'Sin productos'}
                             </div>
-                          ) : filteredStock.map(item => (
-                            <div key={item.producto_id} className="flex justify-between items-center px-3 py-2 text-xs">
+                          ) : filteredStock.map((item, idx) => (
+                            <div key={`${item.producto_id}-${idx}`} className="flex justify-between items-center px-3 py-2 text-xs">
                               <span className="text-gray-700 truncate flex-1 mr-2">{item.nombre}</span>
                               <span className="font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
                                 {item.cantidad} uds.

@@ -21,9 +21,10 @@ export async function GET(_req: NextRequest) {
       producto_id: string
       cantidad: string
     }>(`
-      SELECT producto_id, contado AS cantidad
+      SELECT producto_id, SUM(CAST(contado AS bigint)) AS cantidad
       FROM conteo_diario
       WHERE CAST(contado AS bigint) > 0
+      GROUP BY producto_id
     `)
 
     // 2. Extract product IDs
