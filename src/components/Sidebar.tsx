@@ -48,6 +48,7 @@ export default function Sidebar() {
       items: [
         { href: '/clients', icon: Users, label: t('clients'), section: 'clients' },
         { href: '/clients/kanban', icon: LayoutGrid, label: 'Kanban Clientes', section: 'clients' },
+        { href: '/cartas-distribuidor', icon: FileText, label: 'Cartas de Distribuidor', section: 'clients' },
         { href: '/products', icon: Package, label: t('products'), section: 'products' },
         { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
         { href: '/doctors', icon: Stethoscope, label: t('doctores'), section: 'doctors' },

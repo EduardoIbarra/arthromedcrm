@@ -19,6 +19,7 @@ import {
 import AppShell from '@/components/AppShell'
 import PermissionGuard from '@/components/PermissionGuard'
 import Modal from '@/components/Modal'
+import SearchableSelect from '@/components/SearchableSelect'
 import { PurchaseOrder, Product } from '@/types/database'
 import ImportModal from '@/components/purchase-orders/ImportModal'
 
@@ -90,6 +91,20 @@ export default function PurchaseOrdersPage() {
     fetchOrders()
     fetchProducts()
   }, [fetchOrders, fetchProducts])
+
+  const productOptions = useMemo(() => {
+    return products.map(prod => {
+      const listName = (prod as any).nombre_lista || prod.description || (prod as any).nombre || 'Producto'
+      const extras = [
+        prod.model ? `(${prod.model})` : null,
+        prod.order_code ? prod.order_code : null,
+      ].filter(Boolean).join(' · ')
+      return {
+        value: prod.id,
+        label: extras ? `${listName} · ${extras}` : listName,
+      }
+    }).sort((a, b) => a.label.localeCompare(b.label, 'es'))
+  }, [products])
 
   // Filter orders
   const filteredOrders = useMemo(() => {
@@ -575,19 +590,13 @@ export default function PurchaseOrdersPage() {
                     <span className="text-xs font-semibold text-gray-400 w-6">#{idx + 1}</span>
                     
                     <div className="flex-1 min-w-0">
-                      <select
-                        required
+                      <SearchableSelect
+                        options={productOptions}
                         value={item.product_id}
-                        onChange={e => handleItemChange(idx, 'product_id', e.target.value)}
-                        className="erp-input w-full text-sm py-1.5"
-                      >
-                        <option value="">Selecciona un producto...</option>
-                        {products.map(prod => (
-                          <option key={prod.id} value={prod.id}>
-                            {prod.description} {prod.model ? `(${prod.model})` : ''} {prod.order_code ? ` - ${prod.order_code}` : ''}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={val => handleItemChange(idx, 'product_id', val)}
+                        placeholder="Buscar producto (nombre lista)..."
+                        className="w-full text-sm"
+                      />
                     </div>
 
                     <div className="w-24">

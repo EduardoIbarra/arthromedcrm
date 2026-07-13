@@ -14,6 +14,7 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/clients': { section: 'clients', action: 'view' },
   '/clients/kanban': { section: 'clients', action: 'view' },
   '/clients/new': { section: 'clients', action: 'create' },
+  '/cartas-distribuidor': { section: 'clients', action: 'view' },
   '/doctors': { section: 'doctors', action: 'view' },
   '/import': { section: 'clients', action: 'create' },
   '/imports/repartition': { section: 'repartition', action: 'create' },
