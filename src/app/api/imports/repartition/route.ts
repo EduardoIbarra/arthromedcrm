@@ -89,10 +89,22 @@ function buildFifoReasoning(
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { facturas, locale, selectedOrderIds, selectedStockFisico, csvContent } = body;
+    const {
+      facturas,
+      cotizacionIds,
+      locale,
+      selectedOrderIds,
+      selectedStockFisico,
+      csvContent,
+    } = body;
 
-    if (!facturas || !Array.isArray(facturas)) {
-      return NextResponse.json({ error: 'Faltan datos requeridos (facturas)' }, { status: 400 });
+    const hasFacturas = Array.isArray(facturas) && facturas.length > 0
+    const hasCotizaciones = Array.isArray(cotizacionIds) && cotizacionIds.length > 0
+    if (!hasFacturas && !hasCotizaciones) {
+      return NextResponse.json(
+        { error: 'Faltan datos requeridos (facturas o cotizaciones)' },
+        { status: 400 }
+      );
     }
 
     // ──────────────────────────────────────────────────
@@ -174,34 +186,57 @@ export async function POST(req: Request) {
     }
 
     // Allow 'F-240' notation to match '240'
-    const expandedFacturas = Array.from(new Set(
-      facturas.flatMap((f: string) => [f, f.replace(/^F-?/i, '')])
-    ));
+    const expandedFacturas = hasFacturas
+      ? Array.from(new Set(
+          facturas.flatMap((f: string) => [f, f.replace(/^F-?/i, '')])
+        ))
+      : []
 
     // Fetch pending orders for the provided facturas
-    const pendingFacturas = await prisma.facturas_cliente.findMany({
-      where: { numero_factura: { in: expandedFacturas } },
-      include: {
-        factura_productos: {
-          where: { cantidad_pendiente: { gt: 0 } },
+    const pendingFacturas = expandedFacturas.length > 0
+      ? await prisma.facturas_cliente.findMany({
+          where: { numero_factura: { in: expandedFacturas } },
           include: {
-            productos: { select: { nombre_lista: true } }
+            factura_productos: {
+              where: { cantidad_pendiente: { gt: 0 } },
+              include: {
+                productos: { select: { nombre_lista: true } }
+              }
+            }
           }
-        }
-      }
-    });
+        })
+      : []
 
-    if (pendingFacturas.length === 0) {
+    // Cotizaciones selected for surtido (treated like demand lines)
+    const pendingCotizaciones = hasCotizaciones
+      ? await prisma.cotizaciones.findMany({
+          where: { id: { in: cotizacionIds } },
+          include: {
+            productos: {
+              include: {
+                productos: { select: { nombre_lista: true } }
+              }
+            },
+            planes_pago: {
+              include: {
+                parcialidades: { orderBy: { numero: 'asc' } }
+              }
+            }
+          }
+        })
+      : []
+
+    if (pendingFacturas.length === 0 && pendingCotizaciones.length === 0) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'No hay facturas pendientes o válidas seleccionadas.',
+        aiReasoning: 'No hay facturas ni cotizaciones pendientes o válidas seleccionadas.',
         invoiceIdFromChina
       });
     }
 
     // Build AI orders — shipping limit from first payment (5 weeks / 60% rule)
-    const ordersForAi = pendingFacturas.flatMap((f: any) => {
+    const ordersFromFacturas = pendingFacturas.flatMap((f: any) => {
       const delivery = computeDeliveryLimit(f)
       const shippingLimit = delivery.limitDate
         ? toIsoDate(delivery.limitDate)
@@ -226,14 +261,51 @@ export async function POST(req: Request) {
         product: fp.productos?.nombre_lista || fp.producto_nombre,
         facturadaQty: fp.cantidad_facturada || 0,
         requestedQty: fp.cantidad_pendiente || 0,
+        sourceType: 'factura' as const,
       }))
     })
+
+    const ordersFromCotizaciones = pendingCotizaciones.flatMap((c: any) => {
+      // Prefer payment plan first installment as payment date signal
+      const firstPartial = c.planes_pago?.[0]?.parcialidades?.[0]
+      const paymentDate = firstPartial?.fecha_vencimiento
+        ? toIsoDate(new Date(firstPartial.fecha_vencimiento))
+        : c.fecha_expedicion
+          ? toIsoDate(new Date(c.fecha_expedicion))
+          : null
+      const issueDate = c.fecha_expedicion
+        ? new Date(c.fecha_expedicion).toISOString()
+        : null
+      const shippingLimit = paymentDate
+        ? toIsoDate(new Date(new Date(paymentDate).getTime() + 35 * 24 * 60 * 60 * 1000))
+        : c.fecha_expedicion
+          ? toIsoDate(new Date(c.fecha_expedicion))
+          : null
+
+      return (c.productos || [])
+        .filter((p: any) => (Number(p.cantidad) || 0) > 0)
+        .map((p: any) => ({
+          id: p.id,
+          folio: c.numero_cotizacion,
+          customerName: c.cliente_nombre,
+          paymentDate,
+          shippingLimit,
+          deliveryIsReference: true,
+          issueDate,
+          product: p.productos?.nombre_lista || p.producto_nombre,
+          facturadaQty: Number(p.cantidad) || 0,
+          requestedQty: Number(p.cantidad) || 0,
+          sourceType: 'cotizacion' as const,
+        }))
+    })
+
+    const ordersForAi = [...ordersFromFacturas, ...ordersFromCotizaciones]
 
     if (ordersForAi.length === 0) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'No hay facturas pendientes válidas seleccionadas.',
+        aiReasoning: 'No hay líneas pendientes válidas en las facturas/cotizaciones seleccionadas.',
         invoiceIdFromChina,
       })
     }

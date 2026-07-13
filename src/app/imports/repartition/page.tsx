@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
+import Modal from '@/components/Modal'
 import {
   Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
   AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
   RefreshCw, Download, FileText, User, Tag, History, ArrowRight,
-  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer
+  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer, FileSpreadsheet
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -123,6 +124,27 @@ function mergeAllocationsWithSelectedInvoices(apiAllocations: Allocation[], sele
   return result
 }
 
+/** Map a cotización (with productos) into the invoice-like shape used by surtido selection. */
+function cotizacionToSurtidoItem(cot: any) {
+  return {
+    id: cot.id,
+    numero_factura: cot.numero_cotizacion,
+    cliente_nombre: cot.cliente_nombre,
+    fecha_expedicion: cot.fecha_expedicion,
+    estado_surtido: null,
+    isCotizacion: true,
+    planes_pago: cot.planes_pago || [],
+    factura_productos: (cot.productos || []).map((p: any) => ({
+      id: p.id,
+      producto_nombre: p.productos?.nombre_lista || p.producto_nombre,
+      producto_codigo: p.producto_codigo,
+      cantidad_facturada: Number(p.cantidad) || 0,
+      cantidad_pendiente: Number(p.cantidad) || 0,
+      productos: p.productos || null,
+    })),
+  }
+}
+
 // ── Types ─────────────────────────────────────────────────
 interface OrdenProducto {
   id: string
@@ -203,6 +225,13 @@ export default function ImportRepartitionPage() {
   const [isSearchingInvoices, setIsSearchingInvoices] = useState(false)
   const [selectedInvoices, setSelectedInvoices] = useState<any[]>([])
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([])
+
+  // ── Cotizaciones modal ────────────────────────────────
+  const [showCotizacionModal, setShowCotizacionModal] = useState(false)
+  const [cotizacionSearch, setCotizacionSearch] = useState('')
+  const [cotizacionResults, setCotizacionResults] = useState<any[]>([])
+  const [isSearchingCotizaciones, setIsSearchingCotizaciones] = useState(false)
+  const [isAddingCotizacion, setIsAddingCotizacion] = useState(false)
 
   // ── Results ───────────────────────────────────────────
   const [loading, setLoading] = useState(false)
@@ -329,6 +358,27 @@ export default function ImportRepartitionPage() {
     return () => clearTimeout(delay)
   }, [invoiceSearch])
 
+  // Cotización search (modal)
+  useEffect(() => {
+    if (!showCotizacionModal) return
+    const delay = setTimeout(async () => {
+      setIsSearchingCotizaciones(true)
+      try {
+        const params = new URLSearchParams()
+        if (cotizacionSearch.trim()) params.set('search', cotizacionSearch.trim())
+        const res = await fetch(`/api/cotizaciones?${params.toString()}`)
+        const data = await res.json()
+        setCotizacionResults(data.data || [])
+      } catch (err) {
+        console.error(err)
+        setCotizacionResults([])
+      } finally {
+        setIsSearchingCotizaciones(false)
+      }
+    }, cotizacionSearch.trim() ? 300 : 0)
+    return () => clearTimeout(delay)
+  }, [cotizacionSearch, showCotizacionModal])
+
   // ─────────────────────────────────────────────────────
   // Toggles
   // ─────────────────────────────────────────────────────
@@ -340,10 +390,45 @@ export default function ImportRepartitionPage() {
   })
   const toggleInvoice = (inv: any) => {
     setSelectedInvoices(prev =>
-      prev.find(i => i.numero_factura === inv.numero_factura)
-        ? prev.filter(i => i.numero_factura !== inv.numero_factura)
+      prev.find(i => i.id === inv.id)
+        ? prev.filter(i => i.id !== inv.id)
         : [...prev, inv]
     )
+  }
+
+  const openCotizacionModal = () => {
+    setCotizacionSearch('')
+    setCotizacionResults([])
+    setShowCotizacionModal(true)
+  }
+
+  const handleSelectCotizacion = async (cotSummary: any) => {
+    if (selectedInvoices.some(i => i.id === cotSummary.id)) {
+      setShowCotizacionModal(false)
+      return
+    }
+    setIsAddingCotizacion(true)
+    try {
+      const res = await fetch(`/api/cotizaciones/${cotSummary.id}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'No se pudo cargar la cotización')
+      const cot = data.data
+      if (!cot?.productos?.length) {
+        setError('La cotización no tiene productos para surtir.')
+        return
+      }
+      const item = cotizacionToSurtidoItem(cot)
+      setSelectedInvoices(prev => {
+        if (prev.some(i => i.id === item.id)) return prev
+        return [...prev, item]
+      })
+      setShowCotizacionModal(false)
+      setError('')
+    } catch (err: any) {
+      setError(err.message || 'Error al agregar cotización')
+    } finally {
+      setIsAddingCotizacion(false)
+    }
   }
   const toggleUseStockFisico = () => {
     if (!useStockFisico && stockFisico.length === 0) fetchStockFisico()
@@ -357,8 +442,16 @@ export default function ImportRepartitionPage() {
     const hasOrders = selectedOrderIds.size > 0
     const hasStock = useStockFisico && stockFisico.length > 0
     if (!hasOrders && !hasStock) { setError('Selecciona al menos una fuente de inventario.'); return }
-    const facturas = selectedInvoices.map(i => String(i.numero_factura))
-    if (!facturas.length) { setError('Selecciona facturas a surtir.'); return }
+    const facturas = selectedInvoices
+      .filter(i => !i.isCotizacion)
+      .map(i => String(i.numero_factura))
+    const cotizacionIds = selectedInvoices
+      .filter(i => i.isCotizacion)
+      .map(i => i.id)
+    if (!facturas.length && !cotizacionIds.length) {
+      setError('Selecciona facturas o cotizaciones a surtir.')
+      return
+    }
 
     setLoading(true); setError(''); setSuccessMsg('')
     setAllocations([]); setRemainingInventory({}); setInitialInventory({}); setAiReasoning('')
@@ -382,6 +475,7 @@ export default function ImportRepartitionPage() {
           selectedOrderIds: Array.from(selectedOrderIds),
           selectedStockFisico,
           facturas,
+          cotizacionIds,
           locale
         }),
       })
@@ -1022,11 +1116,11 @@ export default function ImportRepartitionPage() {
     return Object.values(groups).sort((a, b) => a.product.localeCompare(b.product))
   }, [filteredAllocations])
 
-  // ── Displayed invoices ──────────────────────────────────
-  const displayedInvoicesMap = new Map()
-  pendingInvoices.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
-  selectedInvoices.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
-  invoiceResults.forEach(inv => displayedInvoicesMap.set(inv.numero_factura, inv))
+  // ── Displayed invoices (+ selected cotizaciones) ────────
+  const displayedInvoicesMap = new Map<string, any>()
+  pendingInvoices.forEach(inv => displayedInvoicesMap.set(inv.id, inv))
+  selectedInvoices.forEach(inv => displayedInvoicesMap.set(inv.id, inv))
+  invoiceResults.forEach(inv => displayedInvoicesMap.set(inv.id, inv))
   let displayedInvoices = Array.from(displayedInvoicesMap.values())
   if (invoiceSearch.trim()) {
     const q = invoiceSearch.trim().toUpperCase()
@@ -1292,8 +1386,20 @@ export default function ImportRepartitionPage() {
 
                 {/* ── Facturas a Surtir ───────────────────── */}
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 360 }}>
-                  <h2 className="text-base font-semibold text-gray-900 mb-3">Facturas a surtir</h2>
-                  <p className="text-xs text-gray-500 mb-2">Las facturas no vencidas se cargarán desmarcadas por defecto.</p>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-gray-900">Facturas a surtir</h2>
+                      <p className="text-xs text-gray-500 mt-1">Las facturas no vencidas se cargarán desmarcadas por defecto.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openCotizacionModal}
+                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 text-xs font-semibold hover:bg-violet-100 transition-colors"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      Cotización
+                    </button>
+                  </div>
 
                   <div className="relative mb-3">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1311,7 +1417,7 @@ export default function ImportRepartitionPage() {
 
                   <div className="flex-1 border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 bg-gray-50/30" style={{ maxHeight: 260 }}>
                     {displayedInvoices.length > 0 ? displayedInvoices.map(inv => {
-                      const isSelected = !!selectedInvoices.find(i => i.numero_factura === inv.numero_factura)
+                      const isSelected = !!selectedInvoices.find(i => i.id === inv.id)
                       return (
                         <div
                           key={inv.id}
@@ -1324,8 +1430,16 @@ export default function ImportRepartitionPage() {
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-gray-900 text-sm flex items-center gap-1.5 flex-wrap">
                               {inv.numero_factura}
-                              <ShippingLimitBadge invoice={inv} />
-                              {surtidoBadge(inv.estado_surtido)}
+                              {inv.isCotizacion ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-violet-50 text-violet-700 border-violet-200">
+                                  Cotización
+                                </span>
+                              ) : (
+                                <>
+                                  <ShippingLimitBadge invoice={inv} />
+                                  {surtidoBadge(inv.estado_surtido)}
+                                </>
+                              )}
                             </div>
                             <p className="text-xs text-gray-500 truncate mt-0.5">{inv.cliente_nombre}</p>
                           </div>
@@ -1341,7 +1455,13 @@ export default function ImportRepartitionPage() {
 
                   <div className="pt-2 flex justify-between items-center text-xs">
                     <span className="text-gray-500">Seleccionadas: <span className="font-bold text-indigo-600">{selectedInvoices.length}</span></span>
-                    <button onClick={() => setSelectedInvoices(displayedInvoices)} className="text-indigo-600 font-medium">Seleccionar visibles</button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInvoices(displayedInvoices.filter((i: any) => !i.isCotizacion).concat(selectedInvoices.filter(i => i.isCotizacion)))}
+                      className="text-indigo-600 font-medium"
+                    >
+                      Seleccionar visibles
+                    </button>
                   </div>
                 </div>
 
@@ -1951,6 +2071,95 @@ export default function ImportRepartitionPage() {
           </>
         )}
       </div>
+
+      <Modal
+        open={showCotizacionModal}
+        onClose={() => !isAddingCotizacion && setShowCotizacionModal(false)}
+        title="Agregar cotización al surtido"
+        maxWidth="560px"
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">
+            Busca por número de cotización, cliente o RFC. La cotización se incluirá en el análisis de repartición junto con las facturas.
+          </p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              autoFocus
+              placeholder="Buscar cotización..."
+              value={cotizacionSearch}
+              onChange={e => setCotizacionSearch(e.target.value)}
+              className="erp-input pl-10 w-full"
+              disabled={isAddingCotizacion}
+            />
+            {isSearchingCotizaciones && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+            )}
+          </div>
+
+          <div className="border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 bg-gray-50/40 max-h-[340px]">
+            {isAddingCotizacion ? (
+              <div className="py-10 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-violet-600" />
+                Cargando cotización...
+              </div>
+            ) : isSearchingCotizaciones && cotizacionResults.length === 0 ? (
+              <div className="py-10 text-center text-gray-400 text-sm">Buscando...</div>
+            ) : cotizacionResults.length > 0 ? (
+              cotizacionResults.map((cot: any) => {
+                const already = selectedInvoices.some(i => i.id === cot.id)
+                return (
+                  <button
+                    key={cot.id}
+                    type="button"
+                    disabled={already || isAddingCotizacion}
+                    onClick={() => handleSelectCotizacion(cot)}
+                    className={`w-full text-left p-3 flex items-start gap-3 transition-colors ${
+                      already
+                        ? 'bg-violet-50/60 opacity-70 cursor-default'
+                        : 'bg-white hover:bg-violet-50/40'
+                    }`}
+                  >
+                    <div className="mt-0.5 w-8 h-8 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-gray-900">{cot.numero_cotizacion}</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-gray-50 text-gray-600 border-gray-200">
+                          {cot.estado || 'pendiente'}
+                        </span>
+                        {already && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-violet-100 text-violet-700 border-violet-200">
+                            Ya agregada
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{cot.cliente_nombre}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {cot.fecha_expedicion
+                          ? new Date(cot.fecha_expedicion).toLocaleDateString()
+                          : '—'}
+                        {cot.total != null ? ` · $${Number(cot.total).toLocaleString('es-MX')}` : ''}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })
+            ) : (
+              <div className="py-10 text-center text-gray-400">
+                <Search className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">
+                  {cotizacionSearch.trim()
+                    ? 'Sin resultados'
+                    : 'Escribe para buscar o espera la lista reciente'}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   )
 }
