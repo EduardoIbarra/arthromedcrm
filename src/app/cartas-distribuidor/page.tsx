@@ -75,6 +75,7 @@ export default function CartasDistribuidorPage() {
   const [destinatario, setDestinatario] = useState('')
   const [sort, setSort] = useState<SortKey>('created_at')
   const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+  const [status, setStatus] = useState<'active' | 'expired'>('active')
 
   const [clientOptions, setClientOptions] = useState<{ id: string; name: string }[]>([])
   const [institutionOptions, setInstitutionOptions] = useState<string[]>([])
@@ -89,6 +90,7 @@ export default function CartasDistribuidorPage() {
       if (destinatario) params.set('destinatario', destinatario)
       params.set('sort', sort)
       params.set('order', order)
+      params.set('status', status)
 
       const res = await fetch(`/api/cartas-distribucion?${params.toString()}`)
       const json = await res.json()
@@ -102,7 +104,7 @@ export default function CartasDistribuidorPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, clientId, destinatario, sort, order])
+  }, [debouncedSearch, clientId, destinatario, sort, order, status])
 
   useEffect(() => {
     fetchCartas()
@@ -156,6 +158,32 @@ export default function CartasDistribuidorPage() {
             <div className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
               {loading ? 'Cargando…' : `${rows.length} carta${rows.length === 1 ? '' : 's'}`}
             </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200">
+            <button
+              type="button"
+              onClick={() => setStatus('active')}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                status === 'active'
+                  ? 'border-[#0763a9] text-[#0763a9]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Vigentes
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('expired')}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                status === 'expired'
+                  ? 'border-[#0763a9] text-[#0763a9]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Vencidas
+            </button>
           </div>
 
           {/* Filters */}

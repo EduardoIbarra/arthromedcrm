@@ -28,8 +28,18 @@ export async function GET(request: NextRequest) {
     const orderRaw = (searchParams.get('order') || 'desc').toLowerCase()
     const sort = SORTABLE.has(sortRaw) ? sortRaw : 'created_at'
     const order = orderRaw === 'asc' ? 'asc' : 'desc'
+    const status = (searchParams.get('status') || 'active').trim().toLowerCase()
+
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
 
     const where: any = {}
+
+    if (status === 'expired') {
+      where.vigencia = { lt: today }
+    } else {
+      where.vigencia = { gte: today }
+    }
 
     if (clientId) {
       where.client_id = clientId
