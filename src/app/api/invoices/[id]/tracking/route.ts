@@ -13,7 +13,7 @@ export async function POST(
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
 
-    const { carrier, trackingNumber } = await request.json()
+    const { carrier, trackingNumber, estimatedDelivery, deliveryAddress } = await request.json()
 
     if (!carrier || !trackingNumber) {
       return NextResponse.json(
@@ -34,15 +34,19 @@ export async function POST(
 
     let trackingId = factura.tracking_id
 
+    const trackingData: any = {
+      carrier,
+      tracking_number: trackingNumber,
+      delivery_address: deliveryAddress || null,
+      estimated_delivery: estimatedDelivery ? new Date(estimatedDelivery) : null,
+      updated_at: new Date(),
+    }
+
     if (trackingId) {
       // Update existing tracking record
       await prisma.factura_tracking.update({
         where: { id: trackingId },
-        data: {
-          carrier,
-          tracking_number: trackingNumber,
-          updated_at: new Date(),
-        },
+        data: trackingData,
       })
     } else {
       // Create new tracking record
@@ -50,6 +54,8 @@ export async function POST(
         data: {
           carrier,
           tracking_number: trackingNumber,
+          delivery_address: trackingData.delivery_address,
+          estimated_delivery: trackingData.estimated_delivery,
         },
       })
       trackingId = tracking.id

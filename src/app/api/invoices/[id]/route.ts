@@ -159,7 +159,7 @@ export async function GET(
         factura_tracking: true,
         factura_tracking_updates: {
           orderBy: {
-            created_at: 'desc',
+            event_date: 'desc',
           },
         },
         remisiones: {

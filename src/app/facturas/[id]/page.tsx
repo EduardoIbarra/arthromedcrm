@@ -87,6 +87,8 @@ interface FacturaTracking {
   id: string
   carrier: string
   tracking_number: string
+  estimated_delivery?: string | null
+  delivery_address?: string | null
   created_at: string
   updated_at: string
 }
@@ -97,6 +99,7 @@ interface FacturaTrackingUpdate {
   status: string
   description: string
   location?: string | null
+  event_date: string
   created_at: string
 }
 
@@ -155,6 +158,10 @@ const TRACKING_STATUS_MAP: Record<string, { label: string; bg: string; text: str
   delivered: { label: 'Entregado', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
   delayed: { label: 'Demorado', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100' },
   cancelled: { label: 'Cancelado', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-100' },
+  import_customs: { label: 'Aduana / Importación', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100' },
+  import_transit: { label: 'Tránsito Internacional', bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', border: 'border-fuchsia-100' },
+  import_warehouse: { label: 'Almacén de Importación', bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-100' },
+  import_released: { label: 'Liberado de Aduana', bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-100' },
 }
 
 const getCarrierTrackingLink = (carrier: string, trackingNumber: string) => {
@@ -226,12 +233,15 @@ export default function FacturaDetailPage() {
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [trackingCarrier, setTrackingCarrier] = useState('DHL')
   const [trackingNumber, setTrackingNumber] = useState('')
+  const [estimatedDelivery, setEstimatedDelivery] = useState('')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
   const [isSavingTracking, setIsSavingTracking] = useState(false)
 
   // Tracking Update States
   const [updateStatus, setUpdateStatus] = useState('in_transit')
   const [updateDescription, setUpdateDescription] = useState('')
   const [updateLocation, setUpdateLocation] = useState('')
+  const [updateEventDate, setUpdateEventDate] = useState('')
   const [isSavingUpdate, setIsSavingUpdate] = useState(false)
 
   const downloadFile = async (type: 'pdf' | 'xml') => {
@@ -327,7 +337,12 @@ export default function FacturaDetailPage() {
       const res = await fetch(`/api/invoices/${invoice.id}/tracking`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ carrier: trackingCarrier, trackingNumber }),
+        body: JSON.stringify({
+          carrier: trackingCarrier,
+          trackingNumber,
+          estimatedDelivery: estimatedDelivery || null,
+          deliveryAddress: deliveryAddress || null,
+        }),
       })
       if (!res.ok) {
         const errorData = await res.json()
@@ -367,6 +382,7 @@ export default function FacturaDetailPage() {
           status: updateStatus,
           description: updateDescription,
           location: updateLocation,
+          eventDate: updateEventDate || null,
         }),
       })
       if (!res.ok) {
@@ -375,6 +391,7 @@ export default function FacturaDetailPage() {
       }
       setUpdateDescription('')
       setUpdateLocation('')
+      setUpdateEventDate('')
       setShowUpdateModal(false)
       await fetchInvoice()
     } catch (err: any) {
@@ -1974,6 +1991,8 @@ export default function FacturaDetailPage() {
                   onClick={() => {
                     setTrackingCarrier(invoice.factura_tracking?.carrier || 'DHL')
                     setTrackingNumber(invoice.factura_tracking?.tracking_number || '')
+                    setEstimatedDelivery(invoice.factura_tracking?.estimated_delivery ? invoice.factura_tracking.estimated_delivery.split('T')[0] : '')
+                    setDeliveryAddress(invoice.factura_tracking?.delivery_address || '')
                     setShowTrackingModal(true)
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#0763a9] hover:bg-[#0763a9]/5 text-[#0763a9] text-xs font-bold transition-colors shadow-sm bg-white"
@@ -1982,7 +2001,13 @@ export default function FacturaDetailPage() {
                 </button>
                 {invoice.factura_tracking && (
                   <button
-                    onClick={() => setShowUpdateModal(true)}
+                    onClick={() => {
+                      const now = new Date()
+                      const tzOffset = now.getTimezoneOffset() * 60000
+                      const localISOTime = (new Date(now.getTime() - tzOffset)).toISOString().slice(0, 16)
+                      setUpdateEventDate(localISOTime)
+                      setShowUpdateModal(true)
+                    }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0763a9] hover:bg-[#0a86e3] text-white text-xs font-bold transition-colors shadow-sm"
                   >
                     <Plus size={13} />
@@ -2002,8 +2027,8 @@ export default function FacturaDetailPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Left Column: Tracking Info Summary */}
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Detalles del Envío</span>
                         <button
                           onClick={handleDeleteTracking}
@@ -2021,6 +2046,22 @@ export default function FacturaDetailPage() {
                           <p className="text-xs text-gray-400">Número de Guía</p>
                           <p className="text-sm font-mono font-bold text-gray-800">{invoice.factura_tracking.tracking_number}</p>
                         </div>
+                        {invoice.factura_tracking.estimated_delivery && (
+                          <div>
+                            <p className="text-xs text-gray-400">Fecha Estimada de Entrega</p>
+                            <p className="text-sm font-bold text-gray-800">
+                              {formatDate(invoice.factura_tracking.estimated_delivery)}
+                            </p>
+                          </div>
+                        )}
+                        {invoice.factura_tracking.delivery_address && (
+                          <div>
+                            <p className="text-xs text-gray-400 font-semibold mb-0.5">Dirección de Entrega</p>
+                            <p className="text-xs text-gray-700 bg-white/60 p-2.5 rounded-lg border border-slate-200/50 whitespace-pre-wrap leading-relaxed">
+                              {invoice.factura_tracking.delivery_address}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -2074,7 +2115,7 @@ export default function FacturaDetailPage() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="text-[11px] text-gray-400 font-medium">
-                                    {new Date(update.created_at).toLocaleString('es-MX', {
+                                    {new Date(update.event_date || update.created_at).toLocaleString('es-MX', {
                                       year: 'numeric',
                                       month: 'short',
                                       day: 'numeric',
@@ -2151,6 +2192,29 @@ export default function FacturaDetailPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
               />
             </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Fecha Estimada de Entrega
+              </label>
+              <input
+                type="date"
+                value={estimatedDelivery}
+                onChange={e => setEstimatedDelivery(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Dirección de Entrega
+              </label>
+              <textarea
+                value={deliveryAddress}
+                onChange={e => setDeliveryAddress(e.target.value)}
+                placeholder="Dirección completa del destinatario..."
+                rows={3}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition resize-none"
+              />
+            </div>
           </div>
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
             <button
@@ -2205,7 +2269,23 @@ export default function FacturaDetailPage() {
                 <option value="delivered">Entregado</option>
                 <option value="delayed">Retrasado / Demora</option>
                 <option value="cancelled">Cancelado</option>
+                <option value="import_customs">Aduana / Importación</option>
+                <option value="import_transit">Tránsito Internacional</option>
+                <option value="import_warehouse">Almacén de Importación</option>
+                <option value="import_released">Liberado de Aduana</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Fecha y Hora del Evento
+              </label>
+              <input
+                type="datetime-local"
+                required
+                value={updateEventDate}
+                onChange={e => setUpdateEventDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">

@@ -2601,12 +2601,14 @@ model cotizacion_productos {
 }
 
 model factura_tracking {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  carrier          String
-  tracking_number  String
-  created_at       DateTime           @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
-  facturas_cliente facturas_cliente[]
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  carrier            String
+  tracking_number    String
+  estimated_delivery DateTime?          @db.Timestamptz(6)
+  delivery_address   String?
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime           @default(now()) @db.Timestamptz(6)
+  facturas_cliente   facturas_cliente[]
 
   @@schema("public")
 }
@@ -2617,6 +2619,7 @@ model factura_tracking_updates {
   status           String
   description      String
   location         String?
+  event_date       DateTime         @default(now()) @db.Timestamptz(6)
   created_at       DateTime         @default(now()) @db.Timestamptz(6)
   facturas_cliente facturas_cliente @relation(fields: [factura_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 

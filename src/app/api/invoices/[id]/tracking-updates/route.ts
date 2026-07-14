@@ -13,7 +13,7 @@ export async function POST(
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
 
-    const { status, description, location } = await request.json()
+    const { status, description, location, eventDate } = await request.json()
 
     if (!status || !description) {
       return NextResponse.json(
@@ -39,6 +39,7 @@ export async function POST(
         status,
         description,
         location: location || null,
+        event_date: eventDate ? new Date(eventDate) : new Date(),
       },
     })
 
