@@ -156,6 +156,12 @@ export async function GET(
             producto_nombre: 'asc',
           },
         },
+        factura_tracking: true,
+        factura_tracking_updates: {
+          orderBy: {
+            created_at: 'desc',
+          },
+        },
         remisiones: {
           include: {
             remision_productos: true,
@@ -301,6 +307,8 @@ export async function GET(
     return NextResponse.json({
       ...withDelivery,
       factura_productos: factura.factura_productos || [],
+      factura_tracking: (factura as any).factura_tracking || null,
+      factura_tracking_updates: (factura as any).factura_tracking_updates || [],
       complementos_pago,
       alegra_summary,
       products_backfilled: productsBackfilled,

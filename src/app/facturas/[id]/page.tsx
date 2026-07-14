@@ -83,6 +83,23 @@ interface AlegraSummary {
   status: string | null
 }
 
+interface FacturaTracking {
+  id: string
+  carrier: string
+  tracking_number: string
+  created_at: string
+  updated_at: string
+}
+
+interface FacturaTrackingUpdate {
+  id: string
+  factura_id: string
+  status: string
+  description: string
+  location?: string | null
+  created_at: string
+}
+
 interface Factura {
   id: string
   numero_factura: string
@@ -107,6 +124,8 @@ interface Factura {
   alegra_summary?: AlegraSummary | null
   products_backfilled?: boolean
   product_sync_error?: string | null
+  factura_tracking?: FacturaTracking | null
+  factura_tracking_updates?: FacturaTrackingUpdate[]
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -125,6 +144,27 @@ const ESTADO_SURTIDO_MAP: Record<string, { label: string; bg: string; text: stri
   parcial: { label: 'Parcial', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
   completa: { label: 'Completa', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
   surtida: { label: 'Completa', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' }
+}
+
+const TRACKING_STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  created: { label: 'Creado', bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-100' },
+  processing: { label: 'Procesando', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100' },
+  shipped: { label: 'Enviado', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-100' },
+  in_transit: { label: 'En Tránsito', bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-100' },
+  out_for_delivery: { label: 'En Ruta de Entrega', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
+  delivered: { label: 'Entregado', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+  delayed: { label: 'Demorado', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100' },
+  cancelled: { label: 'Cancelado', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-100' },
+}
+
+const getCarrierTrackingLink = (carrier: string, trackingNumber: string) => {
+  const c = carrier.toUpperCase()
+  if (c === 'DHL') return `https://www.dhl.com/mx-es/home/rastreo.html?tracking-id=${trackingNumber}`
+  if (c === 'FEDEX') return `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`
+  if (c === 'ESTAFETA') return `https://www.estafeta.com/Herramientas/Rastreo`
+  if (c === 'REDPACK') return `https://www.redpack.com.mx/es/rastreo/`
+  if (c === 'PAQUETEXPRESS') return `https://www.paquetexpress.com.mx/`
+  return null
 }
 
 export default function FacturaDetailPage() {
@@ -180,6 +220,19 @@ export default function FacturaDetailPage() {
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [payDocument, setPayDocument] = useState<File | null>(null)
   const [productSyncError, setProductSyncError] = useState<string | null>(null)
+
+  // Tracking States
+  const [showTrackingModal, setShowTrackingModal] = useState(false)
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [trackingCarrier, setTrackingCarrier] = useState('DHL')
+  const [trackingNumber, setTrackingNumber] = useState('')
+  const [isSavingTracking, setIsSavingTracking] = useState(false)
+
+  // Tracking Update States
+  const [updateStatus, setUpdateStatus] = useState('in_transit')
+  const [updateDescription, setUpdateDescription] = useState('')
+  const [updateLocation, setUpdateLocation] = useState('')
+  const [isSavingUpdate, setIsSavingUpdate] = useState(false)
 
   const downloadFile = async (type: 'pdf' | 'xml') => {
     const setLoading = type === 'pdf' ? setDownloadingPdf : setDownloadingXml
@@ -263,6 +316,84 @@ export default function FacturaDetailPage() {
       await fetchInvoice({ syncProducts: true })
     } finally {
       setSyncingProducts(false)
+    }
+  }
+
+  const handleSaveTracking = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!invoice) return
+    try {
+      setIsSavingTracking(true)
+      const res = await fetch(`/api/invoices/${invoice.id}/tracking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carrier: trackingCarrier, trackingNumber }),
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || 'Failed to save tracking')
+      }
+      setShowTrackingModal(false)
+      await fetchInvoice()
+    } catch (err: any) {
+      alert(err.message || 'Error al guardar la guía de envío')
+    } finally {
+      setIsSavingTracking(false)
+    }
+  }
+
+  const handleDeleteTracking = async () => {
+    if (!invoice || !confirm('¿Estás seguro de que deseas eliminar la información de envío?')) return
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/tracking`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Failed to delete tracking')
+      await fetchInvoice()
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar la guía de envío')
+    }
+  }
+
+  const handleAddTrackingUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!invoice) return
+    try {
+      setIsSavingUpdate(true)
+      const res = await fetch(`/api/invoices/${invoice.id}/tracking-updates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: updateStatus,
+          description: updateDescription,
+          location: updateLocation,
+        }),
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || 'Failed to add update')
+      }
+      setUpdateDescription('')
+      setUpdateLocation('')
+      setShowUpdateModal(false)
+      await fetchInvoice()
+    } catch (err: any) {
+      alert(err.message || 'Error al agregar la actualización')
+    } finally {
+      setIsSavingUpdate(false)
+    }
+  }
+
+  const handleDeleteTrackingUpdate = async (updateId: string) => {
+    if (!invoice || !confirm('¿Estás seguro de eliminar esta actualización?')) return
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/tracking-updates?updateId=${updateId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Failed to delete update')
+      await fetchInvoice()
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar la actualización')
     }
   }
 
@@ -1830,8 +1961,298 @@ export default function FacturaDetailPage() {
           </div>
         )}
 
+        {/* Seguimiento de Envío */}
+        {invoice && (
+          <div className="bg-white rounded-2xl border border-[#e8f1f9] shadow-sm overflow-hidden mt-6">
+            <div className="p-6 bg-gray-50/50 border-b border-[#e8f1f9] flex items-center justify-between">
+              <h4 className="text-sm font-extrabold uppercase text-gray-800 tracking-wider flex items-center gap-2">
+                <Truck className="text-[#0763a9]" size={18} />
+                Seguimiento de Envío
+              </h4>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setTrackingCarrier(invoice.factura_tracking?.carrier || 'DHL')
+                    setTrackingNumber(invoice.factura_tracking?.tracking_number || '')
+                    setShowTrackingModal(true)
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#0763a9] hover:bg-[#0763a9]/5 text-[#0763a9] text-xs font-bold transition-colors shadow-sm bg-white"
+                >
+                  {invoice.factura_tracking ? 'Editar Guía' : 'Registrar Guía'}
+                </button>
+                {invoice.factura_tracking && (
+                  <button
+                    onClick={() => setShowUpdateModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0763a9] hover:bg-[#0a86e3] text-white text-xs font-bold transition-colors shadow-sm"
+                  >
+                    <Plus size={13} />
+                    Agregar Evento
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="p-6 space-y-6">
+              {!invoice.factura_tracking ? (
+                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                  <Truck size={36} className="mb-2 opacity-40" />
+                  <p className="text-sm font-medium">Sin guía de envío registrada</p>
+                  <p className="text-xs mt-1">Registra los detalles del carrier para iniciar el rastreo</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column: Tracking Info Summary */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Detalles del Envío</span>
+                        <button
+                          onClick={handleDeleteTracking}
+                          className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:underline"
+                        >
+                          Eliminar Guía
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-gray-400">Paquetería / Carrier</p>
+                          <p className="text-sm font-bold text-gray-800">{invoice.factura_tracking.carrier}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Número de Guía</p>
+                          <p className="text-sm font-mono font-bold text-gray-800">{invoice.factura_tracking.tracking_number}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {getCarrierTrackingLink(invoice.factura_tracking.carrier, invoice.factura_tracking.tracking_number) && (
+                      <a
+                        href={getCarrierTrackingLink(invoice.factura_tracking.carrier, invoice.factura_tracking.tracking_number)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-6 inline-flex items-center justify-center gap-1.5 w-full py-2 bg-[#0763a9] hover:bg-[#0a86e3] text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                      >
+                        <ExternalLink size={13} />
+                        Rastrear en Portal Externo
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Right Column: Timeline updates */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <span className="text-xs font-bold uppercase text-slate-400 tracking-wider block">Historial de Eventos</span>
+                    {!invoice.factura_tracking_updates || invoice.factura_tracking_updates.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">No hay eventos registrados aún.</p>
+                    ) : (
+                      <div className="relative border-l border-slate-200 ml-3 pl-6 space-y-6 py-2">
+                        {invoice.factura_tracking_updates.map((update, idx) => {
+                          const statusStyle = TRACKING_STATUS_MAP[update.status] || {
+                            label: update.status,
+                            bg: 'bg-gray-100',
+                            text: 'text-gray-700',
+                            border: 'border-gray-200'
+                          }
+                          return (
+                            <div key={update.id} className="relative group">
+                              {/* Dot marker */}
+                              <span className={`absolute -left-[31px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ring-4 ring-slate-100 ${
+                                idx === 0 ? 'bg-[#0763a9] animate-pulse' : 'bg-slate-300'
+                              }`} />
+                              
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                                      {statusStyle.label}
+                                    </span>
+                                    {update.location && (
+                                      <span className="text-xs font-medium text-gray-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                        📍 {update.location}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm font-medium text-gray-800">{update.description}</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[11px] text-gray-400 font-medium">
+                                    {new Date(update.created_at).toLocaleString('es-MX', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                  <button
+                                    onClick={() => handleDeleteTrackingUpdate(update.id)}
+                                    className="text-xs text-rose-500 hover:text-rose-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Eliminar evento"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </AppShell>
+
+    {/* Tracking Modal */}
+    {showTrackingModal && invoice && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <form onSubmit={handleSaveTracking} className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="text-base font-extrabold text-gray-900">Registrar Información de Envío</h2>
+            <button
+              type="button"
+              onClick={() => setShowTrackingModal(false)}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Carrier / Paquetería
+              </label>
+              <select
+                value={trackingCarrier}
+                onChange={e => setTrackingCarrier(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+              >
+                <option value="DHL">DHL</option>
+                <option value="FedEx">FedEx</option>
+                <option value="Estafeta">Estafeta</option>
+                <option value="Redpack">Redpack</option>
+                <option value="Paquetexpress">Paquetexpress</option>
+                <option value="Self">Entrega Propia / Interno</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Número de Guía
+              </label>
+              <input
+                type="text"
+                required
+                value={trackingNumber}
+                onChange={e => setTrackingNumber(e.target.value)}
+                placeholder="Ej. 1234567890"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowTrackingModal(false)}
+              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSavingTracking}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0763a9] hover:bg-[#0a86e3] text-white text-sm font-bold transition-colors shadow-sm disabled:opacity-60"
+            >
+              {isSavingTracking && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              Guardar Guía
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+
+    {/* Tracking Update Modal */}
+    {showUpdateModal && invoice && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <form onSubmit={handleAddTrackingUpdate} className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="text-base font-extrabold text-gray-900">Agregar Evento al Envío</h2>
+            <button
+              type="button"
+              onClick={() => setShowUpdateModal(false)}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Estado del Envío
+              </label>
+              <select
+                value={updateStatus}
+                onChange={e => setUpdateStatus(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+              >
+                <option value="created">Creado / Registrado</option>
+                <option value="processing">En Procesamiento</option>
+                <option value="shipped">Recolectado / Enviado</option>
+                <option value="in_transit">En Tránsito</option>
+                <option value="out_for_delivery">En Ruta de Entrega</option>
+                <option value="delivered">Entregado</option>
+                <option value="delayed">Retrasado / Demora</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Ubicación (Opcional)
+              </label>
+              <input
+                type="text"
+                value={updateLocation}
+                onChange={e => setUpdateLocation(e.target.value)}
+                placeholder="Ej. Monterrey Hub, Recepción, etc."
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider mb-1.5">
+                Descripción
+              </label>
+              <textarea
+                required
+                value={updateDescription}
+                onChange={e => setUpdateDescription(e.target.value)}
+                placeholder="Ej. El paquete ha sido entregado exitosamente al destinatario."
+                rows={3}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0763a9]/30 focus:border-[#0763a9] transition resize-none"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowUpdateModal(false)}
+              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSavingUpdate}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0763a9] hover:bg-[#0a86e3] text-white text-sm font-bold transition-colors shadow-sm disabled:opacity-60"
+            >
+              {isSavingUpdate && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              Agregar Evento
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
 
     {/* Remision Modal */}
     {showRemisionModal && invoice && (

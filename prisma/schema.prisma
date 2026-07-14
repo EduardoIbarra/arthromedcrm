@@ -1212,6 +1212,9 @@ model facturas_cliente {
   clientes           clientes?           @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   remisiones         remisiones[]
   planes_pago        planes_pago[]
+  tracking_id               String?                     @db.Uuid
+  factura_tracking          factura_tracking?           @relation(fields: [tracking_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  factura_tracking_updates  factura_tracking_updates[]
 
   @@index([alegra_id], map: "idx_facturas_alegra_id")
   @@schema("public")
@@ -2593,6 +2596,29 @@ model cotizacion_productos {
   created_at      DateTime?    @default(now()) @db.Timestamptz(6)
   cotizaciones    cotizaciones @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   productos       productos?   @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model factura_tracking {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  carrier          String
+  tracking_number  String
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  facturas_cliente facturas_cliente[]
+
+  @@schema("public")
+}
+
+model factura_tracking_updates {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  factura_id       String           @db.Uuid
+  status           String
+  description      String
+  location         String?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  facturas_cliente facturas_cliente @relation(fields: [factura_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }

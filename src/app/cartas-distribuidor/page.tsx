@@ -280,8 +280,10 @@ export default function CartasDistribuidorPage() {
                             {row.destinatario || '—'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                          {row.estado_region || '—'}
+                        <td className="px-4 py-3 text-gray-600 max-w-[180px]">
+                          <span className="line-clamp-2" title={row.estado_region || undefined}>
+                            {row.estado_region || '—'}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
                           {formatDate(row.vigencia)}
