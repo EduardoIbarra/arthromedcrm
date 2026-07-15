@@ -26,7 +26,11 @@ async function fetchAlegraEstimatesPage(authHeader: string, start: number, limit
   return Array.isArray(data) ? data : []
 }
 
-async function fetchAllAlegraEstimates(authHeader: string, limit = 30): Promise<any[]> {
+async function fetchAllAlegraEstimates(authHeader: string, limit = 30, onlyRecent = false): Promise<any[]> {
+  if (onlyRecent) {
+    return fetchAlegraEstimatesPage(authHeader, 0, limit)
+  }
+
   const allEstimates: any[] = []
   const concurrentPages = 5
   let start = 0
@@ -62,8 +66,11 @@ async function processBatch<T, R>(
   return results
 }
 
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const onlyRecent = searchParams.get('recent') === 'true'
+
     const email = process.env.ALEGRA_API_EMAIL
     const token = process.env.ALEGRA_API_TOKEN
 
@@ -76,7 +83,7 @@ export async function POST(_request: NextRequest) {
 
     const authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`
 
-    const allEstimates = await fetchAllAlegraEstimates(authHeader)
+    const allEstimates = await fetchAllAlegraEstimates(authHeader, 30, onlyRecent)
 
     if (allEstimates.length === 0) {
       return NextResponse.json({ success: true, summary: { totalSynced: 0, created: 0, updated: 0 } })

@@ -415,7 +415,5 @@ const prisma = extendedPrisma as unknown as typeof basePrisma
 export { prismaSegunda }
 export default prisma
 
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.prisma = prisma
-  globalThis.prismaTriggerVersion = TRIGGER_VERSION
-}
+globalThis.prisma = prisma
+globalThis.prismaTriggerVersion = TRIGGER_VERSION

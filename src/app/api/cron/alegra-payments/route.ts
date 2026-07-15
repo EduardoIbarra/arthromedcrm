@@ -6,6 +6,12 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    // Prevent running cron job logic on non-production environments (e.g., develop or preview)
+    if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
+      console.log(`[Cron Alegra Payments] Skipped: Cron jobs are disabled on non-production environments (current: ${process.env.VERCEL_ENV})`);
+      return NextResponse.json({ message: `Cron jobs are disabled on non-production environments (current: ${process.env.VERCEL_ENV})` });
+    }
+
     const authHeader = getAlegraAuthHeader()
     if (!authHeader) {
       return NextResponse.json({ error: 'Credenciales de Alegra no configuradas' }, { status: 500 })

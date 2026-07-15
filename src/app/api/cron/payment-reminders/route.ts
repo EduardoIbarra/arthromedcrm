@@ -6,6 +6,12 @@ const RESPOND_CHANNEL_ID = parseInt(process.env.RESPOND_CHANNEL_ID || '0', 10);
 
 export async function GET(request: NextRequest) {
   try {
+    // Prevent running cron job logic on non-production environments (e.g., develop or preview)
+    if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
+      console.log(`[Cron Payment Reminders] Skipped: Cron jobs are disabled on non-production environments (current: ${process.env.VERCEL_ENV})`);
+      return NextResponse.json({ message: `Cron jobs are disabled on non-production environments (current: ${process.env.VERCEL_ENV})` });
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
