@@ -150,11 +150,15 @@ export async function POST(
     }
 
     // We need line IDs for generateClientLetter. Let's find IDs from catalog_lines by matching either ID or Name
+    const isUuid = (str: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(str)
+    const validUuids = finalLineas.filter(isUuid)
+    const lineNames = finalLineas.filter((str: string) => !isUuid(str))
+
     const linesDb = await prisma.catalog_lines.findMany({
       where: {
         OR: [
-          { id: { in: finalLineas } },
-          { name: { in: finalLineas } }
+          ...(validUuids.length > 0 ? [{ id: { in: validUuids } }] : []),
+          ...(lineNames.length > 0 ? [{ name: { in: lineNames } }] : [])
         ]
       }
     })
