@@ -40,6 +40,7 @@ export default function SettingsPage() {
   const [alegraConfig, setAlegraConfig] = useState<{ configured: boolean; email: string | null } | null>(null)
   const [garantiasUsers, setGarantiasUsers] = useState<string[]>([])
   const [inventarioUsers, setInventarioUsers] = useState<string[]>([])
+  const [cartasUsers, setCartasUsers] = useState<string[]>([])
   const [users, setUsers] = useState<{id: string, email: string, whatsapp: string}[]>([])
   const [savingNumbers, setSavingNumbers] = useState(false)
   const [deliveryDaysInput, setDeliveryDaysInput] = useState('25')
@@ -62,6 +63,7 @@ export default function SettingsPage() {
         if (data.value) {
           if (Array.isArray(data.value.garantias)) setGarantiasUsers(data.value.garantias)
           if (Array.isArray(data.value.inventario_salidas)) setInventarioUsers(data.value.inventario_salidas)
+          if (Array.isArray(data.value.cartas_distribucion)) setCartasUsers(data.value.cartas_distribucion)
         }
       })
       .catch(err => console.error('Error fetching notification config:', err))
@@ -80,7 +82,7 @@ export default function SettingsPage() {
     })
   }, [])
 
-  const saveConfig = async (newGarantias: string[], newInventario: string[]) => {
+  const saveConfig = async (newGarantias: string[], newInventario: string[], newCartas: string[]) => {
     setSavingNumbers(true)
     try {
       await fetch('/api/settings', {
@@ -88,11 +90,12 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           key: 'notification_config', 
-          value: { garantias: newGarantias, inventario_salidas: newInventario } 
+          value: { garantias: newGarantias, inventario_salidas: newInventario, cartas_distribucion: newCartas } 
         })
       })
       setGarantiasUsers(newGarantias)
       setInventarioUsers(newInventario)
+      setCartasUsers(newCartas)
     } catch (err) {
       console.error('Error saving config:', err)
     } finally {
@@ -100,13 +103,16 @@ export default function SettingsPage() {
     }
   }
 
-  const toggleUser = (userId: string, list: 'garantias' | 'inventario') => {
+  const toggleUser = (userId: string, list: 'garantias' | 'inventario' | 'cartas') => {
     if (list === 'garantias') {
       const nextUsers = garantiasUsers.includes(userId) ? garantiasUsers.filter(id => id !== userId) : [...garantiasUsers, userId]
-      saveConfig(nextUsers, inventarioUsers)
-    } else {
+      saveConfig(nextUsers, inventarioUsers, cartasUsers)
+    } else if (list === 'inventario') {
       const nextUsers = inventarioUsers.includes(userId) ? inventarioUsers.filter(id => id !== userId) : [...inventarioUsers, userId]
-      saveConfig(garantiasUsers, nextUsers)
+      saveConfig(garantiasUsers, nextUsers, cartasUsers)
+    } else {
+      const nextUsers = cartasUsers.includes(userId) ? cartasUsers.filter(id => id !== userId) : [...cartasUsers, userId]
+      saveConfig(garantiasUsers, inventarioUsers, nextUsers)
     }
   }
 
@@ -310,6 +316,40 @@ export default function SettingsPage() {
                           type="checkbox" 
                           checked={isSelected}
                           onChange={() => toggleUser(user.id, 'inventario')}
+                          disabled={savingNumbers}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: '#37383a' }}>{user.email}</p>
+                          <p className="text-xs font-mono" style={{ color: '#8a8b8d' }}>{user.whatsapp}</p>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 my-4" />
+
+          <div>
+            <p className="text-sm font-semibold mb-2" style={{ color: '#37383a' }}>Notificaciones de Cartas de Distribución</p>
+            <p className="text-xs mb-3" style={{ color: '#8a8b8d' }}>Selecciona qué usuarios recibirán las alertas cuando se cree una nueva solicitud de carta de distribución.</p>
+            
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {users.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No hay usuarios con número de WhatsApp configurado.</p>
+              ) : (
+                users.map((user) => {
+                  const isSelected = cartasUsers.includes(user.id)
+                  return (
+                    <label key={`c-${user.id}`} className="flex items-center justify-between p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{ border: isSelected ? '1px solid #c2e0ff' : '1px solid #e8f1f9', background: isSelected ? '#f0f7ff' : '#ffffff' }}>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => toggleUser(user.id, 'cartas')}
                           disabled={savingNumbers}
                           className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
                         />

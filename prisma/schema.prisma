@@ -457,6 +457,8 @@ model users {
   ordenes_compra              ordenes_compra[]
   tickets                     tickets[]
   user_profiles               user_profiles?
+  solicitudes_carta_distribucion solicitudes_carta_distribucion[]
+  solicitud_carta_acciones       solicitud_carta_acciones[]
 
   @@index([created_at(sort: Desc)], map: "idx_users_created_at_desc")
   @@index([email], map: "idx_users_email")
@@ -732,6 +734,7 @@ model clientes {
   remisiones         remisiones[]
   salidas_inventario salidas_inventario[]
   cotizaciones       cotizaciones[]
+  solicitudes_carta_distribucion solicitudes_carta_distribucion[]
 
   @@schema("public")
 }
@@ -2625,4 +2628,36 @@ model factura_tracking_updates {
 
   @@schema("public")
 }
+
+model solicitudes_carta_distribucion {
+  id                      String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at              DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                   @default(now()) @db.Timestamptz(6)
+  client_id               String                     @db.Uuid
+  user_id                 String                     @db.Uuid
+  lineas_producto         String[]
+  estados                 String[]
+  hospital                String
+  status                  String                     @default("pending")
+  clientes                clientes                   @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                   users                      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  solicitud_carta_acciones solicitud_carta_acciones[]
+
+  @@schema("public")
+}
+
+model solicitud_carta_acciones {
+  id            String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at    DateTime                       @default(now()) @db.Timestamptz(6)
+  solicitud_id  String                         @db.Uuid
+  user_id       String?                        @db.Uuid
+  action        String
+  comment       String?
+  metadata      Json?
+  solicitudes   solicitudes_carta_distribucion @relation(fields: [solicitud_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users?                         @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
 
