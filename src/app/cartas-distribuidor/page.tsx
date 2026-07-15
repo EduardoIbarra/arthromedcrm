@@ -50,6 +50,8 @@ type SolicitudRow = {
   lineas_producto: string[]
   estados: string[]
   hospital: string
+  hospital_email: string | null
+  hospital_phone: string | null
   status: 'pending' | 'approved' | 'rejected'
   clientes: {
     id: string
@@ -545,8 +547,14 @@ export default function CartasDistribuidorPage() {
                               <div className="text-[11px] font-mono text-gray-400">{sol.clientes.rfc}</div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-gray-800 font-medium">
-                            {sol.hospital}
+                          <td className="px-4 py-3 text-gray-800">
+                            <div className="font-medium">{sol.hospital}</div>
+                            {(sol.hospital_email || sol.hospital_phone) && (
+                              <div className="text-[11px] text-gray-400 mt-0.5 space-y-0.5">
+                                {sol.hospital_email && <div>{sol.hospital_email}</div>}
+                                {sol.hospital_phone && <div className="font-mono">{sol.hospital_phone}</div>}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1 max-w-[180px]">
@@ -746,9 +754,11 @@ export default function CartasDistribuidorPage() {
       <Modal open={rejectModalOpen} onClose={() => setRejectModalOpen(false)} title="Rechazar Solicitud">
         {selectedSolicitud && (
           <div className="space-y-4">
-            <div className="text-xs text-gray-500 space-y-1">
+            <div className="text-xs text-gray-500 space-y-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
               <p><strong>Cliente:</strong> {selectedSolicitud.clientes?.nombre}</p>
               <p><strong>Destinatario:</strong> {selectedSolicitud.hospital}</p>
+              {selectedSolicitud.hospital_email && <p><strong>Email Hospital:</strong> {selectedSolicitud.hospital_email}</p>}
+              {selectedSolicitud.hospital_phone && <p><strong>Teléfono Hospital:</strong> {selectedSolicitud.hospital_phone}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -918,6 +928,8 @@ export default function CartasDistribuidorPage() {
             <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 text-xs text-gray-700 space-y-1">
               <p><strong>Cliente:</strong> {selectedSolicitud.clientes?.nombre}</p>
               <p><strong>Destinatario:</strong> {selectedSolicitud.hospital}</p>
+              {selectedSolicitud.hospital_email && <p><strong>Email Hospital:</strong> {selectedSolicitud.hospital_email}</p>}
+              {selectedSolicitud.hospital_phone && <p><strong>Teléfono Hospital:</strong> {selectedSolicitud.hospital_phone}</p>}
               <p><strong>Estatus Actual:</strong> {getStatusBadge(selectedSolicitud.status)}</p>
             </div>
 

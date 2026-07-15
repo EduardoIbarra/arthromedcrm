@@ -2639,6 +2639,8 @@ model solicitudes_carta_distribucion {
   estados                 String[]
   hospital                String
   status                  String                     @default("pending")
+  hospital_email          String?
+  hospital_phone          String?
   clientes                clientes                   @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users                   users                      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   solicitud_carta_acciones solicitud_carta_acciones[]
