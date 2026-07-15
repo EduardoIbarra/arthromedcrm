@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { generateClientLetter } from '@/lib/services/letter'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { sendRespondMessage } from '@/lib/respond'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,6 +62,13 @@ export async function POST(
       return NextResponse.json({ error: `La solicitud ya está ${solicitud.status}` }, { status: 400 })
     }
 
+    // Fetch solicitor user profile for notifications
+    const solicitorProfile = await prisma.user_profiles.findUnique({
+      where: { id: solicitud.user_id }
+    })
+
+    const finalHospital = editedDetails?.hospital || solicitud.hospital
+
     if (action === 'reject') {
       if (!comment) {
         return NextResponse.json({ error: 'Se requiere un comentario para rechazar la solicitud' }, { status: 400 })
@@ -82,12 +90,35 @@ export async function POST(
         })
       ])
 
+      // Notify client via WhatsApp template
+      if (solicitorProfile?.whatsapp) {
+        const contactName = solicitorProfile.first_name || 'Distribuidor'
+        await sendRespondMessage(solicitorProfile.whatsapp, {
+          type: 'whatsapp_template',
+          template: {
+            name: 'distribuition_letter_client',
+            languageCode: 'es_MX',
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: contactName },
+                  { type: 'text', text: finalHospital },
+                  { type: 'text', text: 'Rechazada' },
+                  { type: 'text', text: `Comentarios: ${comment}` },
+                  { type: 'text', text: 'https://cliente.arthromed.com.mx/distributor-letter' }
+                ]
+              }
+            ]
+          }
+        }).catch(err => console.error('Failed to send rejection WhatsApp notification:', err))
+      }
+
       return NextResponse.json({ success: true, status: 'rejected' })
     }
 
     // Action is approve
     // Extract details to use, from body (if edited) or fallback to solicitud
-    const finalHospital = editedDetails?.hospital || solicitud.hospital
     const finalLineas = editedDetails?.lineas_producto || solicitud.lineas_producto // array of strings (names or IDs)
     const finalEstados = editedDetails?.estados || solicitud.estados
     const nextYear = new Date().getFullYear() + 1
@@ -171,6 +202,30 @@ export async function POST(
         }
       })
     ])
+
+    // Notify client via WhatsApp template
+    if (solicitorProfile?.whatsapp) {
+      const contactName = solicitorProfile.first_name || 'Distribuidor'
+      await sendRespondMessage(solicitorProfile.whatsapp, {
+        type: 'whatsapp_template',
+        template: {
+          name: 'distribuition_letter_client',
+          languageCode: 'es_MX',
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: contactName },
+                { type: 'text', text: finalHospital },
+                { type: 'text', text: 'Aprobada' },
+                { type: 'text', text: 'Tu carta ha sido generada exitosamente. Ya puedes descargarla desde el portal.' },
+                { type: 'text', text: 'https://cliente.arthromed.com.mx/distributor-letter' }
+              ]
+            }
+          ]
+        }
+      }).catch(err => console.error('Failed to send approval WhatsApp notification:', err))
+    }
 
     return NextResponse.json({ success: true, status: 'approved', letter: result })
   } catch (error: any) {

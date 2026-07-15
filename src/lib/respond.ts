@@ -183,3 +183,132 @@ export async function sendRespondMessage(targetPhone: string, messagePayload: an
   }
 }
 
+export async function getStaffNumbersForLetters(): Promise<string[]> {
+  try {
+    const configSetting = await prisma.app_settings.findUnique({
+      where: { key: 'notification_config' }
+    });
+    if (!configSetting?.value || typeof configSetting.value !== 'object') {
+      return [];
+    }
+    const value = configSetting.value as any;
+    const userIds = value.cartas_distribucion;
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return [];
+    }
+    const users = await prisma.user_profiles.findMany({
+      where: {
+        id: { in: userIds },
+        whatsapp: { not: null }
+      },
+      select: { whatsapp: true }
+    });
+    return users.map((u: any) => u.whatsapp).filter(Boolean) as string[];
+  } catch (error) {
+    console.error('Error fetching notification staff:', error);
+    return [];
+  }
+}
+
+export async function notifyStaffNewSolicitud(
+  solicitud: any, 
+  clientName: string, 
+  clientRfc: string, 
+  userEmail: string
+) {
+  const staffNumbers = await getStaffNumbersForLetters();
+  if (staffNumbers.length === 0) return;
+  const RESPOND_API_TOKEN = process.env.RESPOND_API_TOKEN;
+  const RESPOND_CHANNEL_ID = process.env.RESPOND_CHANNEL_ID;
+  const payload = {
+    channelId: RESPOND_CHANNEL_ID ? parseInt(RESPOND_CHANNEL_ID, 10) : undefined,
+    message: {
+      type: 'whatsapp_template',
+      template: {
+        name: 'distribuition_letter_staff',
+        languageCode: 'es_MX',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: clientName }, // {{1}} Empresa
+              { type: 'text', text: clientRfc || 'Sin RFC' }, // {{2}} RFC
+              { type: 'text', text: userEmail.split('@')[0] }, // {{3}} Solicitado por
+              { type: 'text', text: userEmail }, // {{4}} Email
+              { type: 'text', text: solicitud.hospital }, // {{5}} Hospital Destino
+              { type: 'text', text: solicitud.hospital_email || '-' }, // {{6}} Email Hospital
+              { type: 'text', text: solicitud.hospital_phone || '-' }, // {{7}} Teléfono Hospital
+              { type: 'text', text: solicitud.lineas_producto.join(', ') }, // {{8}} Líneas de producto
+              { type: 'text', text: solicitud.estados.join(', ') }, // {{9}} Cobertura
+              { type: 'text', text: 'https://erp.arthromed.com.mx/cartas-distribuidor' } // {{10}} Link ERP
+            ]
+          }
+        ]
+      }
+    }
+  };
+  
+  await Promise.allSettled(
+    staffNumbers.map(async (num) => {
+      const cleanNum = num.replace(/\D/g, '');
+      const phone = cleanNum.startsWith('52') ? cleanNum : `52${cleanNum}`;
+      const target = `phone:+${phone}`;
+      await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(target)}/message`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+    })
+  );
+}
+
+export async function notifyClientSolicitudUpdate(
+  clientWhatsapp: string,
+  clientContactName: string,
+  solicitud: any,
+  statusLabel: string, // "Pendiente", "Aprobada", "Rechazada"
+  additionalNotes: string // Comments or reason of rejection
+) {
+  if (!clientWhatsapp) return;
+  const RESPOND_API_TOKEN = process.env.RESPOND_API_TOKEN;
+  const RESPOND_CHANNEL_ID = process.env.RESPOND_CHANNEL_ID;
+  const cleanNum = clientWhatsapp.replace(/\D/g, '');
+  const phone = cleanNum.startsWith('52') ? cleanNum : `52${cleanNum}`;
+  const target = `phone:+${phone}`;
+  const payload = {
+    channelId: RESPOND_CHANNEL_ID ? parseInt(RESPOND_CHANNEL_ID, 10) : undefined,
+    message: {
+      type: 'whatsapp_template',
+      template: {
+        name: 'distribuition_letter_client',
+        languageCode: 'es_MX',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: clientContactName }, // {{1}} Hola {{1}}
+              { type: 'text', text: solicitud.hospital }, // {{2}} Hospital de Destino
+              { type: 'text', text: statusLabel }, // {{3}} Estado actual
+              { type: 'text', text: additionalNotes }, // {{4}} Comentarios / Notas
+              { type: 'text', text: 'https://cliente.arthromed.com.mx/distributor-letter' } // {{5}} Link Portal
+            ]
+          }
+        ]
+      }
+    }
+  };
+  await fetch(`https://api.respond.io/v2/contact/${encodeURIComponent(target)}/message`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESPOND_API_TOKEN}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
