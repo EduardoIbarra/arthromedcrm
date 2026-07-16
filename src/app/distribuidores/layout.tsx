@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Verificación de Distribuidores | Arthromed',
+  title: {
+    absolute: 'Verificación de Distribuidores | Arthromed',
+  },
   description: 'Portal de verificación oficial para distribuidores autorizados de Arthromed. Consulte la validez de nuestros socios comerciales.',
   keywords: ['Arthromed', 'distribuidores autorizados', 'verificación', 'equipo médico', 'socios comerciales'],
   openGraph: {

@@ -11,7 +11,10 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Arthromed ERP',
+  title: {
+    default: 'Arthromed ERP',
+    template: 'ERP - %s',
+  },
   description: 'Sistema de gestión de distribuidores para Arthromed — equipo médico de alto rendimiento',
   keywords: ['ERP', 'Arthromed', 'distribuidores', 'equipo médico', 'México'],
   authors: [{ name: 'Arthromed' }],
