@@ -71,16 +71,36 @@ export default function PrevioDetailPage() {
               </p>
             </div>
             
-            {previo.pdf_url && (
+            <div className="flex flex-wrap gap-2">
               <a 
-                href={previo.pdf_url} 
+                href={`/api/previos/${previo.id}/pdf`}
                 target="_blank" 
                 rel="noopener noreferrer" 
+                className="btn-secondary flex items-center gap-2"
+              >
+                <FileDown size={16} /> Descargar PDF
+              </a>
+
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/previos/${previo.id}/to-cotizacion`, { method: 'POST' })
+                    const data = await res.json()
+                    if (res.ok && data.success) {
+                      alert(`Convertido con éxito: Cotización ${data.numero}`)
+                      router.push(`/cotizaciones/${data.cotizacion_id}`)
+                    } else {
+                      alert(data.error || 'Error al convertir previo')
+                    }
+                  } catch (e: any) {
+                    alert(e.message || 'Error de red')
+                  }
+                }}
                 className="btn-primary flex items-center gap-2"
               >
-                <FileDown size={16} /> Ver PDF
-              </a>
-            )}
+                Convertir a Cotización (Alegra)
+              </button>
+            </div>
           </div>
         </div>
 
