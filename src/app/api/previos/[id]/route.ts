@@ -21,7 +21,9 @@ export async function GET(
     const previo = await prisma.previos.findUnique({
       where: { id },
       include: {
-        detalle_previo: true,
+        detalle_previo: {
+          orderBy: { orden: 'asc' }
+        },
       }
     })
 
@@ -36,5 +38,41 @@ export async function GET(
       { error: 'Internal Server Error' },
       { status: 500 }
     )
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+    const body = await request.json()
+    const { items } = body
+
+    if (!Array.isArray(items)) {
+      return NextResponse.json({ error: 'Invalid items array' }, { status: 400 })
+    }
+
+    await Promise.all(
+      items.map((item: any) =>
+        prisma.detalle_previo.update({
+          where: { id: item.id },
+          data: { orden: item.orden }
+        })
+      )
+    )
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error in PUT /api/previos/[id]:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

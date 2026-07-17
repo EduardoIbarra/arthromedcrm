@@ -49,7 +49,9 @@ export async function GET(
     const previo = await prisma.previos.findUnique({
       where: { id },
       include: {
-        detalle_previo: true,
+        detalle_previo: {
+          orderBy: { orden: 'asc' }
+        },
         clientes: true,
       }
     })

@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
-import { ChevronLeft, FileText, Download, Calendar, User, FileDown, Upload, X, Loader2, Trash2, Image as ImageIcon } from 'lucide-react'
+import { ChevronLeft, ChevronUp, ChevronDown, FileText, Download, Calendar, User, FileDown, Upload, X, Loader2, Trash2, Image as ImageIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import Modal from '@/components/Modal'
@@ -123,6 +123,46 @@ export default function PrevioDetailPage() {
       setProductError(e.message || 'Error de red')
     } finally {
       setSavingProduct(false)
+    }
+  }
+
+  async function moveItem(index: number, direction: 'up' | 'down') {
+    if (!previo || !previo.detalle_previo) return
+    const items = [...previo.detalle_previo]
+    const nextIndex = direction === 'up' ? index - 1 : index + 1
+    if (nextIndex < 0 || nextIndex >= items.length) return
+
+    // Swap items
+    const temp = items[index]
+    items[index] = items[nextIndex]
+    items[nextIndex] = temp
+
+    // Map new order
+    const updatedItems = items.map((item, idx) => ({
+      ...item,
+      orden: idx
+    }))
+
+    // Optimistically update frontend state
+    setPrevio((prev: any) => ({
+      ...prev,
+      detalle_previo: updatedItems
+    }))
+
+    // Save to API
+    try {
+      const res = await fetch(`/api/previos/${previo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: updatedItems.map(item => ({ id: item.id, orden: item.orden }))
+        })
+      })
+      if (!res.ok) {
+        console.error('Failed to save new order')
+      }
+    } catch (e) {
+      console.error('Error saving order:', e)
     }
   }
 
@@ -276,6 +316,7 @@ export default function PrevioDetailPage() {
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: '1px solid #e8f1f9', background: '#fafbfc' }}>
+                  <th className="w-16 px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: '#8a8b8d' }}>Pos.</th>
                   <th className="text-left text-xs font-semibold uppercase tracking-wide px-5 py-3" style={{ color: '#8a8b8d' }}>Descripción</th>
                   <th className="text-right text-xs font-semibold uppercase tracking-wide px-5 py-3" style={{ color: '#8a8b8d' }}>Cant.</th>
                   <th className="text-right text-xs font-semibold uppercase tracking-wide px-5 py-3" style={{ color: '#8a8b8d' }}>Precio Unit.</th>
@@ -287,13 +328,33 @@ export default function PrevioDetailPage() {
               <tbody>
                 {previo.detalle_previo?.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-sm" style={{ color: '#8a8b8d' }}>
+                    <td colSpan={7} className="px-5 py-8 text-center text-sm" style={{ color: '#8a8b8d' }}>
                       No hay productos registrados en este previo.
                     </td>
                   </tr>
                 ) : (
                   previo.detalle_previo?.map((item: any, i: number) => (
                     <tr key={item.id || i} style={{ borderBottom: '1px solid #f0f5fa' }}>
+                      <td className="px-5 py-3 text-center">
+                        <div className="flex items-center gap-1 justify-center">
+                          <button
+                            type="button"
+                            disabled={i === 0}
+                            onClick={() => moveItem(i, 'up')}
+                            className="text-gray-400 hover:text-blue-600 disabled:opacity-30 p-1 rounded hover:bg-gray-100 transition-colors"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={i === (previo.detalle_previo?.length || 0) - 1}
+                            onClick={() => moveItem(i, 'down')}
+                            className="text-gray-400 hover:text-blue-600 disabled:opacity-30 p-1 rounded hover:bg-gray-100 transition-colors"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </td>
                       <td className="px-5 py-3 text-sm font-medium" style={{ color: '#37383a' }}>
                         <div className="flex items-center gap-2">
                           <span>{item.descripcion || 'Producto sin descripción'}</span>

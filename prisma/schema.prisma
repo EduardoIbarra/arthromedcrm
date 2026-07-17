@@ -1062,6 +1062,7 @@ model detalle_previo {
   descuento_porcentaje Decimal? @db.Decimal
   descuento_monto      Decimal? @db.Decimal
   descripcion          String?
+  orden                Int      @default(0)
   previos              previos? @relation(fields: [previo_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
