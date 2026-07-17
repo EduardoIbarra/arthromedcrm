@@ -27,6 +27,38 @@ function formatDate(date: Date) {
   return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
+function wrapText(text: string, maxChars: number = 45): string[] {
+  const lines: string[] = []
+  const paragraphs = text.split('\n')
+  for (const para of paragraphs) {
+    if (!para.trim()) {
+      lines.push('')
+      continue
+    }
+    const words = para.split(/\s+/)
+    let currentLine = ''
+    for (const word of words) {
+      if (!word) continue
+      if ((currentLine + (currentLine ? ' ' : '') + word).length > maxChars) {
+        if (currentLine) {
+          lines.push(currentLine)
+          currentLine = word
+        } else {
+          // Word is too long, force split it or put it on its own line
+          lines.push(word)
+          currentLine = ''
+        }
+      } else {
+        currentLine += (currentLine ? ' ' : '') + word
+      }
+    }
+    if (currentLine) {
+      lines.push(currentLine)
+    }
+  }
+  return lines
+}
+
 async function fetchImageBytes(url: string): Promise<Buffer | null> {
   try {
     const res = await fetch(url)
@@ -251,7 +283,7 @@ export async function GET(
     if (previo.detalle_previo && previo.detalle_previo.length > 0) {
       for (const item of previo.detalle_previo) {
         const desc = item.descripcion || 'Producto'
-        const descLines = desc.split('\n').map((line: string) => line.substring(0, 45))
+        const descLines = wrapText(desc, 45)
         const rowH = Math.max(45, 15 + descLines.length * 10)
 
         // Draw grid lines
