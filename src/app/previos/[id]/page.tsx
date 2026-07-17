@@ -3,9 +3,10 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
-import { ChevronLeft, FileText, Download, Calendar, User, FileDown } from 'lucide-react'
+import { ChevronLeft, FileText, Download, Calendar, User, FileDown, Upload, X, Loader2, Trash2, Image as ImageIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import Modal from '@/components/Modal'
 
 const CARD = { background: '#ffffff', border: '1px solid #d4e0ec' }
 
@@ -15,6 +16,115 @@ export default function PrevioDetailPage() {
   const router = useRouter()
   const [previo, setPrevio] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+
+  // ── Edit product modal state ──
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
+  const [editingProduct, setEditingProduct] = useState<any>(null)
+  const [productLoading, setProductLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [savingProduct, setSavingProduct] = useState(false)
+  const [productError, setProductError] = useState<string | null>(null)
+
+  async function openEditProduct(productId: string) {
+    setEditingProductId(productId)
+    setProductLoading(true)
+    setProductError(null)
+    setShowProductModal(true)
+    try {
+      const res = await fetch(`/api/products/${productId}`)
+      const json = await res.json()
+      if (res.ok) {
+        setEditingProduct(json.data)
+      } else {
+        setProductError(json.error || 'Error al cargar el producto')
+      }
+    } catch (e: any) {
+      setProductError(e.message || 'Error de red')
+    } finally {
+      setProductLoading(false)
+    }
+  }
+
+  async function handleProductFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUploading(true)
+    setProductError(null)
+    
+    const { supabase } = await import('@/lib/supabase')
+
+    try {
+      const urls: string[] = []
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const ext = file.name.split('.').pop()
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
+        const filePath = `products/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('product_images')
+          .upload(filePath, file)
+
+        if (uploadError) throw uploadError
+
+        const { data } = supabase.storage.from('product_images').getPublicUrl(filePath)
+        urls.push(data.publicUrl)
+      }
+      setEditingProduct((prev: any) => ({
+        ...prev,
+        image_urls: [...(prev.image_urls || []), ...urls]
+      }))
+    } catch (err: any) {
+      setProductError(err.message || 'Error al subir imágenes')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  function removeProductImage(index: number) {
+    setEditingProduct((prev: any) => {
+      const urls = [...(prev.image_urls || [])]
+      urls.splice(index, 1)
+      return { ...prev, image_urls: urls }
+    })
+  }
+
+  async function saveProductChanges() {
+    if (!editingProduct) return
+    setSavingProduct(true)
+    setProductError(null)
+    try {
+      const res = await fetch(`/api/products/${editingProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editingProduct,
+          description: editingProduct.nombre
+        })
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setShowProductModal(false)
+        setEditingProduct(null)
+        // Refresh details
+        if (params.id) {
+          const resPrevio = await fetch(`/api/previos/${params.id}`)
+          if (resPrevio.ok) {
+            const jsonPrevio = await resPrevio.json()
+            setPrevio(jsonPrevio.data)
+          }
+        }
+      } else {
+        setProductError(json.error || 'Error al guardar cambios')
+      }
+    } catch (e: any) {
+      setProductError(e.message || 'Error de red')
+    } finally {
+      setSavingProduct(false)
+    }
+  }
 
   useEffect(() => {
     async function fetchPrevio() {
@@ -185,7 +295,18 @@ export default function PrevioDetailPage() {
                   previo.detalle_previo?.map((item: any, i: number) => (
                     <tr key={item.id || i} style={{ borderBottom: '1px solid #f0f5fa' }}>
                       <td className="px-5 py-3 text-sm font-medium" style={{ color: '#37383a' }}>
-                        {item.descripcion || 'Producto sin descripción'}
+                        <div className="flex items-center gap-2">
+                          <span>{item.descripcion || 'Producto sin descripción'}</span>
+                          {item.producto_id && (
+                            <button
+                              type="button"
+                              onClick={() => openEditProduct(item.producto_id)}
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-[#c5d9ee] hover:bg-blue-50 text-blue-600 transition-colors shrink-0"
+                            >
+                              Editar Imagen
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3 text-sm text-right" style={{ color: '#5a5b5d' }}>
                         {item.cantidad}
@@ -211,6 +332,98 @@ export default function PrevioDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Edit Product Modal */}
+      <Modal
+        open={showProductModal}
+        onClose={() => !savingProduct && !uploading && setShowProductModal(false)}
+        title="Editar Producto"
+        maxWidth="500px"
+      >
+        {productLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={24} className="animate-spin text-blue-600" />
+          </div>
+        ) : productError && !editingProduct ? (
+          <div className="text-center py-8 text-red-600 space-y-2">
+            <p>{productError}</p>
+            <button onClick={() => setShowProductModal(false)} className="btn-secondary">Cerrar</button>
+          </div>
+        ) : editingProduct ? (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Nombre del Producto</label>
+              <p className="text-sm font-medium text-gray-700">{editingProduct.nombre}</p>
+            </div>
+
+            {/* Images list */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Imágenes</label>
+              <div className="grid grid-cols-3 gap-2">
+                {editingProduct.image_urls?.map((url: string, idx: number) => (
+                  <div key={idx} className="relative aspect-square rounded-lg border overflow-hidden bg-gray-50 group">
+                    <img src={url} alt={`img-${idx}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeProductImage(idx)}
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                      title="Eliminar imagen"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Upload box */}
+                <label className="relative aspect-square border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors hover:bg-blue-50/50">
+                  {uploading ? (
+                    <Loader2 size={20} className="animate-spin text-blue-600" />
+                  ) : (
+                    <>
+                      <Upload size={20} className="text-gray-400" />
+                      <span className="text-[10px] font-medium text-gray-500 mt-1">Subir Foto</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    disabled={uploading}
+                    onChange={handleProductFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {productError && (
+              <div className="p-3 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg">
+                {productError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button
+                type="button"
+                onClick={() => setShowProductModal(false)}
+                disabled={savingProduct || uploading}
+                className="btn-secondary text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveProductChanges}
+                disabled={savingProduct || uploading}
+                className="btn-primary text-sm flex items-center gap-1"
+              >
+                {savingProduct && <Loader2 size={14} className="animate-spin" />}
+                Guardar Cambios
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </AppShell>
   )
 }

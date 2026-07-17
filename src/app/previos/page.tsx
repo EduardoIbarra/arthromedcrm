@@ -74,6 +74,89 @@ function emptyLine(): LineItem {
   return { producto_id: null, descripcion: '', cantidad: 1, precio_unitario: 0, iva_porcentaje: IVA_DEFAULT, descuento_porcentaje: 0 }
 }
 
+// ─── Templates ───────────────────────────────────────────────────────────────
+
+interface TemplateItem {
+  producto_id: string | null
+  descripcion: string
+  cantidad: number
+  precio_unitario: number
+  iva_porcentaje: number
+  descuento_porcentaje: number
+}
+
+interface Template {
+  name: string
+  description: string
+  items: TemplateItem[]
+}
+
+const TEMPLATES: Template[] = [
+  {
+    name: "Torre Bonss UBE",
+    description: "Plantilla para cotización de Torre Bonss UBE",
+    items: [
+      {
+        producto_id: "39a02175-5593-4c40-a06c-eb819d57c4a5", // Sistema de vision WEYO
+        descripcion: "Sistema de Visión Weyo 4K BONSS\n- Monitor 4K 32”\n- Procesador de video 4K\n- Fuente de luz fría\n- Guía de luz de fibra óptica\n- Cabezal de cámara endoscópica\n- Carro de torre endoscópica",
+        cantidad: 1,
+        precio_unitario: 1527960.00,
+        iva_porcentaje: 16,
+        descuento_porcentaje: 0
+      },
+      {
+        producto_id: "f0f5897d-7a97-45f7-9c00-d6bded28abfb", // Sistema Shaver RIC11
+        descripcion: "Sistema Shaver BONSS\n- Sistema RIC11\n- Interruptor de piso",
+        cantidad: 1,
+        precio_unitario: 230000.00,
+        iva_porcentaje: 16,
+        descuento_porcentaje: 0
+      },
+      {
+        producto_id: "2417eea3-b0be-498c-acad-b21458145bb3", // Pieza de Mano Shaver MMB0
+        descripcion: "Pieza de mano MMB0",
+        cantidad: 1,
+        precio_unitario: 145800.00,
+        iva_porcentaje: 16,
+        descuento_porcentaje: 0
+      },
+      {
+        producto_id: "f44d7ec9-bee4-499e-95aa-cc101dc88c7f", // Sistema BONSS ARS600
+        descripcion: "Sistema de radiofrecuencia BONSS\n- Sistema ARS600\n- Interruptor de piso",
+        cantidad: 1,
+        precio_unitario: 137500.00,
+        iva_porcentaje: 16,
+        descuento_porcentaje: 0
+      },
+      {
+        producto_id: "dbe6325e-b49a-4009-a259-586f2a20631b", // INSTRUMENTAL BONSS UBE KIT AX + BX
+        descripcion: "BONSS UBE Kit AX+BX\n-Charola de esterilización-Kit instrumental de dilatadores y retractores-Kit de osteotomía endoscópica",
+        cantidad: 1,
+        precio_unitario: 253000.00,
+        iva_porcentaje: 16,
+        descuento_porcentaje: 0
+      },
+      {
+        producto_id: "747889a1-99a9-4563-8c5b-36075789abef", // INSTRUMENTAL BONSS UBE KIT CX
+        descripcion: "BONSS UBE Kit CX-Charola de esterilización\n- Kit de pinzas endoscópicas y Kerrison",
+        cantidad: 1,
+        precio_unitario: 128975.00,
+        iva_porcentaje: 16,
+        descuento_porcentaje: 0
+      },
+      {
+        producto_id: "d0ad4064-1d45-4d55-95e6-ed98f40d4148", // INSTRUMENTAL BONSS UBE Kit EX 0°
+        descripcion: "BONSS UBE Kit EX\n-Charola de esterilización\n-Dilatador-Cánula de endoscopio\n-Lente 0º o 30º",
+        cantidad: 1,
+        precio_unitario: 49500.00,
+        iva_porcentaje: 16,
+        descuento_porcentaje: 0
+      }
+    ]
+  }
+]
+
+
 // ─── Product Picker ───────────────────────────────────────────────────────────
 
 function ProductPicker({
@@ -130,9 +213,6 @@ function ProductPicker({
                 <Star size={13} className="shrink-0 text-amber-400 fill-amber-400" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: '#37383a' }}>{p.nombre}</p>
-                  {p.consecutivo_alg && (
-                    <p className="text-[11px] text-gray-400 font-mono">{p.consecutivo_alg}</p>
-                  )}
                 </div>
                 <span className="text-xs font-mono shrink-0" style={{ color: '#0763a9' }}>
                   ${fmt(p.precio_unitario)}
@@ -175,9 +255,6 @@ function ProductPicker({
                     </span>
                   )}
                 </div>
-                {p.consecutivo_alg && (
-                  <p className="text-[11px] text-gray-400 font-mono">{p.consecutivo_alg}</p>
-                )}
               </div>
               <span className="text-xs font-mono shrink-0" style={{ color: '#0763a9' }}>
                 ${fmt(p.precio_unitario)}
@@ -213,6 +290,7 @@ function PreviosContent() {
   // ── Creator wizard state ──
   const [showCreator, setShowCreator] = useState(false)
   const [step, setStep] = useState<1 | 2>(1)
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
 
   // Step 1: client
   const [clientSearch, setClientSearch] = useState('')
@@ -286,31 +364,46 @@ function PreviosContent() {
         setSuggested(d.suggested || [])
         setAllProducts(d.all || [])
 
-        // Pre-populate lines with suggested products (top 5 max)
-        const top = (d.suggested as Product[]).slice(0, 5)
-        if (top.length > 0) {
-          setLines(top.map((p) => ({
-            producto_id:          p.id,
-            descripcion:          p.nombre,
-            cantidad:             1,
-            precio_unitario:      p.precio_unitario,
-            iva_porcentaje:       IVA_DEFAULT,
-            descuento_porcentaje: 0,
-          })))
+        // Pre-populate lines with template items if chosen, otherwise suggested products (top 5 max)
+        if (selectedTemplate) {
+          setLines(selectedTemplate.items.map((item) => ({ ...item })))
         } else {
-          setLines([emptyLine()])
+          const top = (d.suggested as Product[]).slice(0, 5)
+          if (top.length > 0) {
+            setLines(top.map((p) => ({
+              producto_id:          p.id,
+              descripcion:          p.nombre,
+              cantidad:             1,
+              precio_unitario:      p.precio_unitario,
+              iva_porcentaje:       IVA_DEFAULT,
+              descuento_porcentaje: 0,
+            })))
+          } else {
+            setLines([emptyLine()])
+          }
         }
       })
       .catch(console.error)
       .finally(() => setProductsLoading(false))
-  }, [step, selectedClient])
+  }, [step, selectedClient, selectedTemplate])
 
   // ── Open / reset creator ──
   function openCreator() {
+    setSelectedTemplate(null)
     setStep(1)
     setSelectedClient(null)
     setClientSearch('')
     setLines([emptyLine()])
+    setSaveError(null)
+    setShowCreator(true)
+  }
+
+  function openCreatorWithTemplate(template: Template) {
+    setSelectedTemplate(template)
+    setStep(1)
+    setSelectedClient(null)
+    setClientSearch('')
+    setLines(template.items.map((item) => ({ ...item })))
     setSaveError(null)
     setShowCreator(true)
   }
@@ -445,14 +538,39 @@ function PreviosContent() {
             <h1 className="text-2xl font-bold" style={{ color: '#37383a' }}>Previos</h1>
             <p className="text-sm" style={{ color: '#5a5b5d' }}>{total} registros</p>
           </div>
-          <button
-            id="btn-nuevo-previo"
-            onClick={openCreator}
-            className="btn-primary flex items-center gap-2 self-start sm:self-auto"
-          >
-            <Plus size={16} />
-            Nuevo Previo
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="relative">
+              <select
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val === 'torre-bonss-ube') {
+                    openCreatorWithTemplate(TEMPLATES[0])
+                  }
+                  e.target.value = ''
+                }}
+                className="btn-secondary text-sm font-medium py-2 px-3 pr-8 rounded-xl border border-gray-300 appearance-none focus:outline-none cursor-pointer"
+                defaultValue=""
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: 'right 0.5rem center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '1.5em 1.5em',
+                  paddingRight: '2rem'
+                }}
+              >
+                <option value="" disabled>Crear desde Plantilla...</option>
+                <option value="torre-bonss-ube">Torre Bonss UBE</option>
+              </select>
+            </div>
+            <button
+              id="btn-nuevo-previo"
+              onClick={openCreator}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Nuevo Previo
+            </button>
+          </div>
         </div>
 
         {/* ── Convert result toast ── */}
@@ -706,12 +824,12 @@ function PreviosContent() {
               <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr style={{ background: '#fafbfc', borderBottom: '1px solid #e8f1f9' }}>
-                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[280px]">Producto</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Cant.</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Precio</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">IVA %</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Desc %</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Subtotal</th>
+                    <th className="text-left px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[280px]">Producto</th>
+                    <th className="text-right px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Cant.</th>
+                    <th className="text-right px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-40">Precio</th>
+                    <th className="text-right px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">IVA %</th>
+                    <th className="text-right px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Desc %</th>
+                    <th className="text-right px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Subtotal</th>
                     <th className="w-10"></th>
                   </tr>
                 </thead>
@@ -721,7 +839,7 @@ function PreviosContent() {
                     const isSuggested  = suggested.some((s) => s.id === line.producto_id)
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid #f0f5fa' }}>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <div className="relative">
                             <button
                               type="button"
@@ -730,47 +848,46 @@ function PreviosContent() {
                               style={{ border: '1px solid #e8f1f9' }}
                             >
                               {isSuggested && <Star size={11} className="shrink-0 text-amber-400 fill-amber-400" />}
-                              <span className={`flex-1 min-w-0 text-sm truncate ${line.descripcion ? '' : 'text-gray-400'}`}
-                                style={{ color: line.descripcion ? '#37383a' : undefined }}>
-                                {line.descripcion || 'Seleccionar producto...'}
+                              <span className={`flex-1 min-w-0 text-sm truncate ${line.producto_id || line.descripcion ? '' : 'text-gray-400'}`}
+                                style={{ color: line.producto_id || line.descripcion ? '#37383a' : undefined }}>
+                                {allProducts.find((p) => p.id === line.producto_id)?.nombre || line.descripcion || 'Seleccionar producto...'}
                               </span>
                               <Package size={12} className="shrink-0 text-gray-300" />
                             </button>
                           </div>
-                          {/* Free-text description field */}
-                          <input
-                            type="text"
-                            value={line.descripcion}
-                            onChange={(e) => updateLine(i, { descripcion: e.target.value, producto_id: null })}
-                            placeholder="o escribe descripción..."
-                            className="mt-1 w-full text-xs px-2 py-1 rounded-md border-0 bg-transparent focus:bg-gray-50 outline-none"
-                            style={{ color: '#5a5b5d' }}
-                          />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <input type="number" min="1" value={line.cantidad}
                             onChange={(e) => updateLine(i, { cantidad: Number(e.target.value) })}
-                            className="erp-input w-full text-right text-sm" />
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="erp-input w-full text-right text-sm no-spin"
+                            style={{ padding: '6px 8px' }} />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <input type="number" min="0" step="0.01" value={line.precio_unitario}
                             onChange={(e) => updateLine(i, { precio_unitario: Number(e.target.value) })}
-                            className="erp-input w-full text-right text-sm font-mono" />
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="erp-input w-full text-right text-sm font-mono no-spin"
+                            style={{ padding: '6px 8px' }} />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <input type="number" min="0" max="100" value={line.iva_porcentaje}
                             onChange={(e) => updateLine(i, { iva_porcentaje: Number(e.target.value) })}
-                            className="erp-input w-full text-right text-sm" />
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="erp-input w-full text-right text-sm no-spin"
+                            style={{ padding: '6px 8px' }} />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <input type="number" min="0" max="100" value={line.descuento_porcentaje}
                             onChange={(e) => updateLine(i, { descuento_porcentaje: Number(e.target.value) })}
-                            className="erp-input w-full text-right text-sm" />
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="erp-input w-full text-right text-sm no-spin"
+                            style={{ padding: '6px 8px' }} />
                         </td>
-                        <td className="px-3 py-2 text-right font-mono font-semibold text-sm" style={{ color: '#0763a9' }}>
+                        <td className="px-2 py-2 text-right font-mono font-semibold text-sm" style={{ color: '#0763a9' }}>
                           ${fmt(subtotal)}
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <button type="button" onClick={() => removeLine(i)}
                             className="btn-ghost p-1 text-red-400 hover:text-red-600">
                             <Trash2 size={14} />

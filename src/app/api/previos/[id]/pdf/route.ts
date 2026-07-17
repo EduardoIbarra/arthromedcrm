@@ -27,6 +27,18 @@ function formatDate(date: Date) {
   return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
+async function fetchImageBytes(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const arrayBuffer = await res.arrayBuffer()
+    return Buffer.from(arrayBuffer)
+  } catch (e) {
+    console.error('[fetchImageBytes] Error fetching image:', url, e)
+    return null
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -45,6 +57,34 @@ export async function GET(
     if (!previo) {
       return NextResponse.json({ error: 'Previo no encontrado' }, { status: 404 })
     }
+
+    const host = request.headers.get('host') || 'erp.arthromed.com.mx'
+    const protocol = host.includes('localhost') ? 'http' : 'https'
+    const baseUrl = `${protocol}://${host}`
+
+    // Fetch products referenced in detalle_previo to get their image_urls
+    const productIds = previo.detalle_previo.map(item => item.producto_id).filter(Boolean) as string[]
+    const dbProducts = productIds.length > 0 ? await prisma.productos.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, image_urls: true }
+    }) : []
+    const productMap = new Map(dbProducts.map(p => [p.id, p]))
+
+    // Map each item to its image bytes (if any) concurrently
+    const imageBytesMap = new Map<string, Buffer>()
+    await Promise.all(previo.detalle_previo.map(async (item) => {
+      const prod = item.producto_id ? productMap.get(item.producto_id) : null
+      let imageUrl = prod?.image_urls?.[0]
+      if (imageUrl) {
+        if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+          imageUrl = `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`
+        }
+        const bytes = await fetchImageBytes(imageUrl)
+        if (bytes) {
+          imageBytesMap.set(item.id, bytes)
+        }
+      }
+    }))
 
     // 1. Load background image template (machote1) and logo
     const machotePath = path.join(process.cwd(), 'resources', 'img', 'machote1.jpeg')
@@ -186,13 +226,12 @@ export async function GET(
       color: BLUE
     })
 
-    const colCodeX = LEFT + 8
-    const colDescX = LEFT + 85
+    const colDescX = LEFT + 54
     const colCantX = LEFT + 325
     const colPriceX = LEFT + 425
     const colImporteX = RIGHT - 8
 
-    page.drawText('CÓDIGO', { x: colCodeX, y: y - 14, size: 8, font: bold, color: rgb(1,1,1) })
+    page.drawText('IMAGEN', { x: LEFT + 8, y: y - 14, size: 8, font: bold, color: rgb(1,1,1) })
     page.drawText('DESCRIPCIÓN', { x: colDescX, y: y - 14, size: 8, font: bold, color: rgb(1,1,1) })
     
     const cantHeader = 'CANT'
@@ -209,30 +248,95 @@ export async function GET(
     // Draw rows
     if (previo.detalle_previo && previo.detalle_previo.length > 0) {
       for (const item of previo.detalle_previo) {
+        const desc = item.descripcion || 'Producto'
+        const descLines = desc.split('\n').map(line => line.substring(0, 45))
+        const rowH = Math.max(45, 15 + descLines.length * 10)
+
         // Draw grid lines
         page.drawRectangle({
           x: LEFT,
-          y: y - 22,
+          y: y - rowH,
           width: CONTENT_W,
-          height: 22,
+          height: rowH,
           color: rgb(1,1,1),
           borderColor: BORDER_COLOR,
           borderWidth: 0.5
         })
 
-        const code = item.producto_id ? item.producto_id.substring(0, 8) : '-'
-        const desc = item.descripcion || 'Producto'
         const qty = String(item.cantidad)
         const price = formatCurrency(Number(item.precio_unitario || 0))
         const imp = formatCurrency(Number(item.importe || 0))
 
-        page.drawText(code.substring(0, 16), { x: colCodeX, y: y - 15, size: 8, font: regular, color: DARK })
-        page.drawText(desc.substring(0, 40), { x: colDescX, y: y - 15, size: 8, font: regular, color: DARK })
-        page.drawText(qty, { x: colCantX - regular.widthOfTextAtSize(qty, 8), y: y - 15, size: 8, font: regular, color: DARK })
-        page.drawText(price, { x: colPriceX - regular.widthOfTextAtSize(price, 8), y: y - 15, size: 8, font: regular, color: DARK })
-        page.drawText(imp, { x: colImporteX - bold.widthOfTextAtSize(imp, 8), y: y - 15, size: 8, font: bold, color: DARK })
+        // Embed image if bytes are available
+        const imgBytes = imageBytesMap.get(item.id)
+        let embeddedImg = null
+        if (imgBytes) {
+          try {
+            embeddedImg = await pdf.embedPng(imgBytes)
+          } catch {
+            try {
+              embeddedImg = await pdf.embedJpg(imgBytes)
+            } catch {
+              // failed
+            }
+          }
+        }
 
-        y -= 22
+        const maxWidth = colDescX - LEFT - 12
+        const maxHeight = rowH - 10
+        const imgY = y - rowH + 5
+
+        if (embeddedImg) {
+          const imgW = embeddedImg.width
+          const imgH = embeddedImg.height
+          const scale = Math.min(maxWidth / imgW, maxHeight / imgH)
+          const finalW = imgW * scale
+          const finalH = imgH * scale
+          
+          const xOffset = (maxWidth - finalW) / 2
+          const yOffset = (maxHeight - finalH) / 2
+
+          page.drawImage(embeddedImg, {
+            x: LEFT + 8 + xOffset,
+            y: imgY + yOffset,
+            width: finalW,
+            height: finalH
+          })
+        } else {
+          // Draw nice fallback placeholder box matching dynamic height
+          page.drawRectangle({
+            x: LEFT + 8,
+            y: imgY,
+            width: maxWidth,
+            height: maxHeight,
+            color: rgb(0.93, 0.94, 0.96),
+            borderColor: rgb(0.8, 0.82, 0.85),
+            borderWidth: 0.5
+          })
+          const naText = 'N/A'
+          const naWidth = regular.widthOfTextAtSize(naText, 7)
+          page.drawText(naText, {
+            x: LEFT + 8 + (maxWidth - naWidth) / 2,
+            y: imgY + (maxHeight - 7) / 2 + 1,
+            size: 7,
+            font: bold,
+            color: GRAY
+          })
+        }
+
+        // Draw description lines starting from top
+        const descStartY = y - 12
+        descLines.forEach((line, k) => {
+          page.drawText(line, { x: colDescX, y: descStartY - k * 10, size: 8, font: regular, color: DARK })
+        })
+
+        // Draw other texts centered vertically within rowH
+        const textY = y - rowH + (rowH / 2) - 3
+        page.drawText(qty, { x: colCantX - regular.widthOfTextAtSize(qty, 8), y: textY, size: 8, font: regular, color: DARK })
+        page.drawText(price, { x: colPriceX - regular.widthOfTextAtSize(price, 8), y: textY, size: 8, font: regular, color: DARK })
+        page.drawText(imp, { x: colImporteX - bold.widthOfTextAtSize(imp, 8), y: textY, size: 8, font: bold, color: DARK })
+
+        y -= rowH
 
         if (y < 120) {
           break
@@ -258,10 +362,7 @@ export async function GET(
       y -= 30
     }
 
-    // Generate QR Code pointing to this previo's page
-    const host = request.headers.get('host') || 'erp.arthromed.com.mx'
-    const protocol = host.includes('localhost') ? 'http' : 'https'
-    const qrUrl = `${protocol}://${host}/previos/${previo.id}`
+    const qrUrl = `${baseUrl}/previos/${previo.id}`
     const qrBuffer = await QRCode.toBuffer(qrUrl, { type: 'png', margin: 1, width: 100 })
     const qrImage = await pdf.embedPng(qrBuffer)
 
