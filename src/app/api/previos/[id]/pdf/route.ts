@@ -63,17 +63,17 @@ export async function GET(
     const baseUrl = `${protocol}://${host}`
 
     // Fetch products referenced in detalle_previo to get their image_urls
-    const productIds = previo.detalle_previo.map(item => item.producto_id).filter(Boolean) as string[]
+    const productIds = previo.detalle_previo.map((item: any) => item.producto_id).filter(Boolean) as string[]
     const dbProducts = productIds.length > 0 ? await prisma.productos.findMany({
       where: { id: { in: productIds } },
       select: { id: true, image_urls: true }
     }) : []
-    const productMap = new Map(dbProducts.map(p => [p.id, p]))
+    const productMap = new Map(dbProducts.map((p: any) => [p.id, p]))
 
     // Map each item to its image bytes (if any) concurrently
     const imageBytesMap = new Map<string, Buffer>()
-    await Promise.all(previo.detalle_previo.map(async (item) => {
-      const prod = item.producto_id ? productMap.get(item.producto_id) : null
+    await Promise.all(previo.detalle_previo.map(async (item: any) => {
+      const prod: any = item.producto_id ? productMap.get(item.producto_id) : null
       let imageUrl = prod?.image_urls?.[0]
       if (imageUrl) {
         if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
@@ -249,7 +249,7 @@ export async function GET(
     if (previo.detalle_previo && previo.detalle_previo.length > 0) {
       for (const item of previo.detalle_previo) {
         const desc = item.descripcion || 'Producto'
-        const descLines = desc.split('\n').map(line => line.substring(0, 45))
+        const descLines = desc.split('\n').map((line: string) => line.substring(0, 45))
         const rowH = Math.max(45, 15 + descLines.length * 10)
 
         // Draw grid lines
@@ -326,7 +326,7 @@ export async function GET(
 
         // Draw description lines starting from top
         const descStartY = y - 12
-        descLines.forEach((line, k) => {
+        descLines.forEach((line: string, k: number) => {
           page.drawText(line, { x: colDescX, y: descStartY - k * 10, size: 8, font: regular, color: DARK })
         })
 
