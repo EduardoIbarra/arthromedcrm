@@ -121,7 +121,7 @@ const TEMPLATES: Template[] = [
         descuento_porcentaje: 0
       },
       {
-        producto_id: "f44d7ec9-bee4-499e-95aa-cc101dc88c7f", // Sistema BONSS ARS600
+        producto_id: "c54b85d5-9286-445f-b3c6-26a3c6d3e641", // Sistema BONSS ARS600
         descripcion: "Sistema de radiofrecuencia BONSS\n- Sistema ARS600\n- Interruptor de piso",
         cantidad: 1,
         precio_unitario: 137500.00,
