@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const categoryList = categories?.map((c: { name: string; id: string }) => `${c.name} (ID: ${c.id})`).join(', ') || ''
 
     const { object } = await generateObject({
-      model: google('models/gemini-2.5-flash'),
+      model: google('gemini-1.5-flash'),
       schema: z.object({
         spendings: z.array(
           z.object({

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { generateText } from 'ai'
-import { google } from '@ai-sdk/google'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { Client } from '@/types/database'
+
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+})
 
 export async function POST(request: NextRequest) {
   const { clientId } = await request.json()
@@ -49,7 +53,7 @@ El resumen debe sintetizar tanto los datos generales como la actividad reciente 
 
   try {
     const { text } = await generateText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-1.5-flash'),
       prompt,
     })
     return NextResponse.json({ summary: text })
