@@ -99,6 +99,7 @@ export interface Product {
   nombre_lista?: string | null
   created_at: string
   updated_at: string
+  sort_order?: number | null
 }
 
 export interface Hospital {

@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Menu, X, Package, Building, Calendar, Receipt,
   ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest, Bot, Sparkles, Ticket, Stethoscope, BookOpen,
-  Globe, Send, Palette, Car, Bell, LayoutGrid, Box
+  Globe, Send, Palette, Car, Bell, LayoutGrid, Box, Tag
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -50,7 +50,7 @@ export default function Sidebar() {
         { href: '/clients/kanban', icon: LayoutGrid, label: 'Kanban Clientes', section: 'clients' },
         { href: '/cartas-distribuidor', icon: FileText, label: 'Cartas de Distribuidor', section: 'clients' },
         { href: '/products', icon: Package, label: t('products'), section: 'products' },
-        { href: '/hospitals', icon: Building, label: t('hospitals'), section: 'hospitals' },
+        { href: '/hospitals', icon: Tag, label: t('hospitals'), section: 'hospitals' },
         { href: '/doctors', icon: Stethoscope, label: t('doctores'), section: 'doctors' },
         { href: '/catalogos', icon: FileText, label: t('catalogos'), section: 'catalogos' },
         { href: '/catalogos/lineas', icon: Palette, label: 'Líneas de Distribución', section: 'catalogos' },

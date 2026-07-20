@@ -1352,13 +1352,38 @@ model hospital_prices {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model hospitals {
-  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String            @unique
-  created_at      DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
-  hospital_prices hospital_prices[]
-  cirugias        cirugias[]
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String                     @unique
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  hospital_prices          hospital_prices[]
+  cirugias                 cirugias[]
+  price_list_publications  price_list_publications[]
 
+  @@schema("public")
+}
+
+/// Published hospital price lists — public QR validation points here
+model price_list_publications {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hospital_id     String?    @db.Uuid
+  hospital_name   String
+  document_date   DateTime   @db.Date
+  vigencia        DateTime   @db.Date
+  /// active | revoked
+  status          String     @default("active")
+  revoked_at      DateTime?  @db.Timestamptz(6)
+  revoke_reason   String?
+  include_iva     Boolean    @default(false)
+  currency        String     @default("MXN")
+  min_purchase    Decimal    @default(72500) @db.Decimal(12, 2)
+  delivery_time   String     @default("15 días hábiles")
+  created_at      DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime   @default(now()) @db.Timestamptz(6)
+  hospitals       hospitals? @relation(fields: [hospital_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([hospital_id])
+  @@index([status])
   @@schema("public")
 }
 
@@ -1768,6 +1793,7 @@ model products {
   category            String?
   specialty_ids       String[]
   image_urls          String[]
+  sort_order          Int?
   hospital_prices     hospital_prices[]
 
   @@schema("public")

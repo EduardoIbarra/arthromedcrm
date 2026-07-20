@@ -132,7 +132,7 @@ export const translations = {
     logout: 'Cerrar Sesión',
     notifications: 'Notificaciones',
     addTag: 'Agregar Etiqueta',
-    hospitals: 'Hospitales',
+    hospitals: 'Precios',
     all: 'Todos',
     // Pricing
     products: 'Productos',
@@ -809,7 +809,7 @@ export const translations = {
     logout: 'Log Out',
     notifications: 'Notifications',
     addTag: 'Add Tag',
-    hospitals: 'Hospitals',
+    hospitals: 'Prices',
     all: 'All',
     // Pricing
     products: 'Products',

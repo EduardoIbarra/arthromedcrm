@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { Hospital, HospitalGroup } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
-import { Building, ArrowRight, Plus, Edit2, Trash2 } from 'lucide-react'
+import { Building, ArrowRight, Plus, Edit2, Trash2, Tag } from 'lucide-react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
@@ -141,7 +141,7 @@ export default function HospitalsPage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <Building className="text-blue-600" size={28} />
+            <Tag className="text-blue-600" size={28} />
             {t('hospitals')}
           </h1>
           <p className="text-sm text-gray-500 mt-1">

@@ -7,6 +7,7 @@ export async function proxy(request: NextRequest) {
   const isPublicAsset = request.nextUrl.pathname.startsWith('/_next') || 
                         request.nextUrl.pathname.startsWith('/favicon.ico') ||
                         request.nextUrl.pathname.startsWith('/distribuidores') || // Public directory
+                        request.nextUrl.pathname.startsWith('/lista-precios') || // Public price list QR validation
                         request.nextUrl.pathname === '/registro' ||
                         request.nextUrl.pathname === '/registro-cliente' ||
                         request.nextUrl.pathname === '/qr' ||
@@ -24,6 +25,7 @@ export async function proxy(request: NextRequest) {
                       (request.nextUrl.pathname === '/api/workshops' && request.method === 'GET') ||
                       (request.nextUrl.pathname.startsWith('/api/workshops/')) ||
                       (request.nextUrl.pathname.startsWith('/api/public/')) ||
+                      (request.nextUrl.pathname === '/api/prices/export') ||
                       (request.nextUrl.pathname === '/api/whatsapp/send' && request.method === 'POST') ||
                       (request.nextUrl.pathname === '/api/whatsapp/webhook' && request.method === 'POST')
 
