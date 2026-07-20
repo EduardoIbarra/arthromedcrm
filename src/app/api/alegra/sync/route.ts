@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { recomputeEntregadaFromRemisiones } from '@/lib/fulfillment-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -249,6 +250,10 @@ export async function GET(_request: NextRequest) {
             }
           }
 
+          if (!facturaUuid) return 'error'
+          // Narrow for TS — always set after create/update paths above
+          const facturaId: string = facturaUuid
+
           // Transfer payment plans from estimate (cotización)
           const estimateObj = invoice.estimate;
           const estimateId = estimateObj?.id || estimateObj;
@@ -258,14 +263,34 @@ export async function GET(_request: NextRequest) {
             if (cot) {
               await prisma.planes_pago.updateMany({
                 where: { cotizacion_id: cot.id, factura_id: null },
-                data: { factura_id: facturaUuid }
+                data: { factura_id: facturaId }
               })
             }
           }
 
-          // Recreate line items (delete old + batch insert new)
+          // Recreate catalog lines from Alegra — NEVER wipe entregada.
+          // Snapshot prior deliveries, map onto new rows, then restore from remisiones.
           if (invoice.items?.length > 0) {
-            await prisma.factura_productos.deleteMany({ where: { factura_id: facturaUuid } })
+            const existingLines = await prisma.factura_productos.findMany({
+              where: { factura_id: facturaId },
+              select: {
+                alegra_id: true,
+                producto_codigo: true,
+                producto_nombre: true,
+                cantidad_entregada: true,
+              },
+            })
+            const deliveredByKey = new Map<string, number>()
+            for (const row of existingLines) {
+              const ent = row.cantidad_entregada || 0
+              if (row.alegra_id) deliveredByKey.set(`a:${row.alegra_id}`, ent)
+              if (row.producto_codigo) {
+                deliveredByKey.set(`c:${row.producto_codigo.toLowerCase()}`, ent)
+              }
+              deliveredByKey.set(`n:${row.producto_nombre.toLowerCase()}`, ent)
+            }
+
+            await prisma.factura_productos.deleteMany({ where: { factura_id: facturaId } })
             await prisma.factura_productos.createMany({
               data: invoice.items.map((item: any) => {
                 const iName  = item.name || item.description || 'Producto'
@@ -273,19 +298,31 @@ export async function GET(_request: NextRequest) {
                 const nKey   = iName.trim().toLowerCase()
                 const pid    = (rKey && productByRef.get(rKey)) ?? (nKey && productByName.get(nKey)) ?? null
                 const linea  = (rKey && productLineByRef.get(rKey)) ?? (nKey && productLineByName.get(nKey)) ?? null
+                const qty    = Math.round(item.quantity) || 1
+                const alegraLineId = item.id != null ? String(item.id) : null
+                const prevDelivered =
+                  (alegraLineId && deliveredByKey.get(`a:${alegraLineId}`)) ??
+                  (rKey ? deliveredByKey.get(`c:${rKey}`) : undefined) ??
+                  deliveredByKey.get(`n:${nKey}`) ??
+                  0
                 return {
-                  factura_id:         facturaUuid,
+                  factura_id:         facturaId,
                   producto_id:        pid || null,
                   producto_nombre:    iName,
                   producto_codigo:    item.reference || null,
-                  cantidad_facturada: Math.round(item.quantity) || 1,
+                  cantidad_facturada: qty,
+                  // Preserve prior entregada across wipe; remisiones overwrite matches next
+                  cantidad_entregada: Math.min(Number(prevDelivered) || 0, qty),
                   precio_unitario:    item.price || 0,
                   importe:            (item.price || 0) * (item.quantity || 0),
                   linea:              linea || null,
-                  alegra_id:          item.id ? String(item.id) : null
+                  alegra_id:          alegraLineId,
                 }
               })
             })
+
+            // Source of truth for deliveries: remisiones linked to this invoice
+            await recomputeEntregadaFromRemisiones(prisma as any, facturaId)
           }
 
           return action
