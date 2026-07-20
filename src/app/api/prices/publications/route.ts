@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({
-      publications: rows.map((p) => ({
+      publications: rows.map((p: (typeof rows)[number]) => ({
         ...p,
         min_purchase: Number(p.min_purchase),
         effective_status: computeStatus(p),

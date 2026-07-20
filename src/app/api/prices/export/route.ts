@@ -301,7 +301,9 @@ export async function GET(request: NextRequest) {
       const hospitalPrices = await prisma.hospital_prices.findMany({
         where: { hospital_id: hospitalId },
       })
-      hospitalPrices.forEach((hp) => priceMap.set(hp.product_id, Number(hp.price)))
+      hospitalPrices.forEach((hp: { product_id: string; price: unknown }) =>
+        priceMap.set(hp.product_id, Number(hp.price))
+      )
     }
 
     const items = productsData.map((p: any) => {
