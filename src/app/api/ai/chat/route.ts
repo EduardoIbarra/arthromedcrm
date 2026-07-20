@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma'
 import { z } from 'zod'
 
 const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 })
 
 export const dynamic = 'force-dynamic'

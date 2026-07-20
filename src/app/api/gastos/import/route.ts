@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 
 const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 })
 
 export async function POST(request: NextRequest) {
