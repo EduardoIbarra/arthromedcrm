@@ -699,17 +699,37 @@ export default function HospitalPricesPage({ params }: { params: Promise<{ id: s
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredAndSorted.map(item => {
-                  let lineUpper = (item.line || item.category || '').toUpperCase()
-                  // Map section names → catalog_lines keys (order matters; never bare "ENT" — matches INSTRUMENTAL)
-                  if (lineUpper.includes('SPORTS MEDICINE')) lineUpper = 'SPORTS MEDICINE'
-                  else if (lineUpper.includes('UBE KIT')) lineUpper = 'UBE'
-                  else if (lineUpper.includes('UBE')) lineUpper = 'UBE'
-                  else if (lineUpper.includes('SPINE')) lineUpper = 'SPINE'
-                  else if (lineUpper.startsWith('ENT') || lineUpper.includes('ENT (')) lineUpper = 'ENT'
-                  else if (lineUpper.includes('URO')) lineUpper = 'URO & GYN'
-                  else if (lineUpper.includes('SHAVER') || lineUpper.includes('PINZAS') || lineUpper.includes('BUR')) lineUpper = 'Systems'
-                  
-                  const customBg = lineColors[lineUpper]
+                  // Row tint matches official PDF palette (incl. SHAVER & BUR handpiece families)
+                  const lineU = (item.line || item.category || '').toUpperCase()
+                  const modelU = (item.model || '').toUpperCase()
+                  const codeU = (item.order_code || '').toUpperCase()
+                  const blob = `${modelU} ${codeU}`
+                  let customBg: string | undefined
+                  if (lineU.includes('SPORTS MEDICINE')) customBg = lineColors['SPORTS MEDICINE'] || '#F8CBAD'
+                  else if (lineU.includes('UBE KIT')) customBg = lineColors['UBE'] || '#33CCCC'
+                  else if (lineU.includes('UBE')) customBg = lineColors['UBE'] || '#33CCCC'
+                  else if (lineU.includes('SPINE')) customBg = lineColors['SPINE'] || '#C6E0B4'
+                  else if (lineU.startsWith('ENT') || lineU.includes('ENT (')) customBg = lineColors['ENT'] || '#BDD7EE'
+                  else if (lineU.includes('URO')) customBg = lineColors['URO & GYN'] || '#FFE699'
+                  else if (lineU.includes('PINZAS')) customBg = lineColors['PINZAS'] || lineColors['SPINE'] || '#C6E0B4'
+                  else if (lineU.includes('SHAVER SYSTEM')) customBg = lineColors['SHAVER SYSTEM'] || lineColors['Systems'] || '#D0D0D0'
+                  else if (lineU.includes('SHAVER') && lineU.includes('BUR')) {
+                    if (blob.includes('SHB0') || codeU.startsWith('BDJ')) customBg = '#F8CBAD'
+                    else if (blob.includes('SHA0') || codeU.startsWith('BDA')) customBg = '#BDD7EE'
+                    else if (blob.includes('MMD0') || codeU.includes('10510')) customBg = '#BDD7EE'
+                    else if (
+                      blob.includes('MMA0') ||
+                      codeU === 'DGB30UA290' ||
+                      codeU.includes('UA209') ||
+                      codeU.includes('UA290')
+                    ) {
+                      customBg = '#C6E0B4'
+                    } else if (blob.includes('MMB0') || codeU.startsWith('DGB') || codeU.startsWith('DG-')) {
+                      customBg = '#33CCCC'
+                    } else customBg = '#F8CBAD'
+                  } else if (lineU.includes('SHAVER') || lineU.includes('BUR')) {
+                    customBg = lineColors['Systems'] || '#D0D0D0'
+                  }
                   const isDragging = draggedId === item.id
                   
                   return (
@@ -724,7 +744,7 @@ export default function HospitalPricesPage({ params }: { params: Promise<{ id: s
                       } ${item.pending ? 'bg-amber-50/40 hover:bg-amber-50/80' : 'hover:bg-blue-50/30'} ${
                         canDrag ? 'cursor-grab active:cursor-grabbing' : ''
                       }`}
-                      style={customBg ? { backgroundColor: `${customBg}25` } : {}}
+                      style={customBg ? { backgroundColor: `${customBg}99` } : {}}
                     >
                       <td className="p-2 text-gray-300">
                         <GripVertical size={16} className={canDrag ? 'text-gray-400' : 'text-gray-200'} />

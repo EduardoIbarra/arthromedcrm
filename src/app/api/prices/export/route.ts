@@ -532,19 +532,77 @@ export async function GET(request: NextRequest) {
       y = bottom
     }
 
-    const resolveAccent = (line: string): RGB | undefined => {
-      // Map PDF section names → catalog_lines keys.
-      // Never use bare includes('ENT') — "INSTRUMENTAL" contains "ENT".
-      const key = (line || '').toUpperCase()
-      let mapKey: string | undefined
-      if (key.includes('SPORTS MEDICINE')) mapKey = 'SPORTS MEDICINE'
-      else if (key.includes('UBE KIT')) mapKey = 'UBE' // no separate catalog color yet
-      else if (key.includes('UBE')) mapKey = 'UBE'
-      else if (key.includes('SPINE')) mapKey = 'SPINE'
-      else if (key.startsWith('ENT') || key.includes('ENT (')) mapKey = 'ENT'
-      else if (key.includes('URO')) mapKey = 'URO & GYN'
-      else if (key.includes('SHAVER') || key.includes('PINZAS') || key.includes('BUR')) mapKey = 'Systems'
-      return mapKey ? colorMap.get(mapKey) : undefined
+    /**
+     * Official palette from the reference price list PDF (sampled RGB).
+     * SHAVER & BUR rows are multi-colored by handpiece family, not one gray.
+     */
+    const OFFICIAL: Record<string, RGB> = {
+      'SPORTS MEDICINE': hexToRgb('#F8CBAD'), // peach
+      UBE: hexToRgb('#33CCCC'), // cyan
+      SPINE: hexToRgb('#C6E0B4'), // green
+      ENT: hexToRgb('#BDD7EE'), // blue
+      'URO & GYN': hexToRgb('#FFE699'), // yellow
+      'UBE KIT': hexToRgb('#33CCCC'), // cyan (same family as UBE)
+      'SHAVER SYSTEM': hexToRgb('#D0D0D0'), // light gray
+      PINZAS: hexToRgb('#C6E0B4'), // green (same as SPINE on the official PDF)
+      // SHAVER & BUR handpiece families:
+      SHB0: hexToRgb('#F8CBAD'), // peach (BDJ*)
+      MMA0: hexToRgb('#C6E0B4'), // green (DGB30UA290 / MMA burs)
+      MMB0: hexToRgb('#33CCCC'), // cyan (MMB burs)
+      SHA0: hexToRgb('#BDD7EE'), // blue (BDA* shavers)
+      MMD0: hexToRgb('#BDD7EE'), // blue (MMD burs)
+    }
+
+    const resolveRowAccent = (item: {
+      line: string
+      model: string
+      order_code: string
+    }): RGB | undefined => {
+      const line = (item.line || '').toUpperCase()
+      const model = (item.model || '').toUpperCase()
+      const code = (item.order_code || '').toUpperCase()
+      const blob = `${model} ${code}`
+
+      // Never bare includes('ENT') — "INSTRUMENTAL" contains "ENT"
+      if (line.includes('SPORTS MEDICINE')) return OFFICIAL['SPORTS MEDICINE']
+      if (line.includes('UBE KIT')) return OFFICIAL['UBE KIT']
+      if (line.includes('UBE')) return OFFICIAL.UBE
+      if (line.includes('SPINE')) return OFFICIAL.SPINE
+      if (line.startsWith('ENT') || line.includes('ENT (')) return OFFICIAL.ENT
+      if (line.includes('URO')) return OFFICIAL['URO & GYN']
+      if (line.includes('PINZAS')) return OFFICIAL.PINZAS
+      if (line.includes('SHAVER SYSTEM')) return OFFICIAL['SHAVER SYSTEM']
+
+      // SHAVER & BUR — color by handpiece family (matches official PDF pages 8–9)
+      //   SHB0 / BDJ*  → peach
+      //   MMA0 / DGB30UA290 → green
+      //   MMB0 / other DGB* / DG-A* → cyan
+      //   SHA0 / BDA* → blue
+      //   MMD0 / *10510 → blue
+      if (line.includes('SHAVER') && line.includes('BUR')) {
+        if (blob.includes('SHB0') || code.startsWith('BDJ')) return OFFICIAL.SHB0
+        if (blob.includes('SHA0') || code.startsWith('BDA')) return OFFICIAL.SHA0
+        if (blob.includes('MMD0') || code.includes('10510')) return OFFICIAL.MMD0
+        if (
+          blob.includes('MMA0') ||
+          code === 'DGB30UA290' ||
+          code.includes('UA209') ||
+          code.includes('UA290')
+        ) {
+          return OFFICIAL.MMA0
+        }
+        if (blob.includes('MMB0') || code.startsWith('DGB') || code.startsWith('DG-')) {
+          return OFFICIAL.MMB0
+        }
+        return OFFICIAL.SHB0
+      }
+      if (line.includes('SHAVER')) return OFFICIAL['SHAVER SYSTEM']
+
+      // Fallback to catalog_lines if present
+      for (const [name, color] of colorMap.entries()) {
+        if (line.includes(name)) return color
+      }
+      return undefined
     }
 
     const ensureSpace = (needed: number) => {
@@ -603,15 +661,18 @@ export async function GET(request: NextRequest) {
 
       ensureSpace(rowH)
 
-      // Background: system/first row light gray; subsequent rows tinted by line color (alt strength)
-      const accent = resolveAccent(item.line)
+      // Background: tint from official palette (more vivid to match reference PDF)
+      // Sistema rows stay slightly lighter; alternate rows slightly stronger.
+      const accent = resolveRowAccent(item)
       let rowBg = rgb(0.98, 0.98, 0.99)
-      if (rowIndexInGroup === 0 && (item.model || '').toLowerCase().includes('sistema')) {
-        rowBg = rgb(0.96, 0.96, 0.97)
-      } else if (accent) {
-        rowBg = tint(accent, rowIndexInGroup % 2 === 0 ? 0.22 : 0.32)
+      const isSistema =
+        rowIndexInGroup === 0 && (item.model || '').toLowerCase().includes('sistema')
+      if (accent) {
+        // Reference uses strong brand tints (~0.45–0.65 mix). Alternate for readability.
+        const strength = isSistema ? 0.28 : rowIndexInGroup % 2 === 0 ? 0.48 : 0.62
+        rowBg = tint(accent, strength)
       } else {
-        rowBg = rowIndexInGroup % 2 === 0 ? rgb(0.99, 0.99, 1) : rgb(0.96, 0.96, 0.97)
+        rowBg = rowIndexInGroup % 2 === 0 ? rgb(0.99, 0.99, 1) : rgb(0.94, 0.94, 0.95)
       }
 
       // CRITICAL: non-overlapping geometry
