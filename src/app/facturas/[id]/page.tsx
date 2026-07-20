@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode, ExternalLink, RefreshCw, Receipt, Paperclip, FileText } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode, ExternalLink, RefreshCw, Receipt, Paperclip, FileText, Pencil } from 'lucide-react'
 import AppShell from '@/components/AppShell'
+import Modal from '@/components/Modal'
 import { createClient } from '@/lib/supabase/client'
 
 interface FacturaProducto {
   id: string
+  producto_id?: string | null
   producto_nombre: string
   producto_codigo: string | null
   cantidad_facturada: number
@@ -15,6 +17,16 @@ interface FacturaProducto {
   cantidad_pendiente: number
   precio_unitario: number
   importe: number
+}
+
+interface CatalogProductOption {
+  id: string
+  nombre: string
+  description?: string
+  consecutivo_alg?: string | null
+  order_code?: string | null
+  precio_unitario?: number | null
+  sale_price?: number | null
 }
 
 interface RemisionProducto {
@@ -244,6 +256,21 @@ export default function FacturaDetailPage() {
   const [updateEventDate, setUpdateEventDate] = useState('')
   const [isSavingUpdate, setIsSavingUpdate] = useState(false)
 
+  // Product line edit (price / product / quantity + required note)
+  const [editingProduct, setEditingProduct] = useState<FacturaProducto | null>(null)
+  const [editProductForm, setEditProductForm] = useState({
+    producto_id: '' as string | null,
+    producto_nombre: '',
+    producto_codigo: '',
+    cantidad_facturada: 1,
+    precio_unitario: 0,
+    note: '',
+  })
+  const [productSearch, setProductSearch] = useState('')
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProductOption[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [isSavingProductEdit, setIsSavingProductEdit] = useState(false)
+
   const downloadFile = async (type: 'pdf' | 'xml') => {
     const setLoading = type === 'pdf' ? setDownloadingPdf : setDownloadingXml
     try {
@@ -326,6 +353,84 @@ export default function FacturaDetailPage() {
       await fetchInvoice({ syncProducts: true })
     } finally {
       setSyncingProducts(false)
+    }
+  }
+
+  const openProductEdit = (prod: FacturaProducto) => {
+    setEditingProduct(prod)
+    setEditProductForm({
+      producto_id: prod.producto_id || null,
+      producto_nombre: prod.producto_nombre,
+      producto_codigo: prod.producto_codigo || '',
+      cantidad_facturada: prod.cantidad_facturada,
+      precio_unitario: Number(prod.precio_unitario) || 0,
+      note: '',
+    })
+    setProductSearch('')
+  }
+
+  const loadCatalogProducts = async () => {
+    if (catalogProducts.length > 0 || catalogLoading) return
+    try {
+      setCatalogLoading(true)
+      const res = await fetch('/api/products')
+      if (!res.ok) throw new Error('No se pudieron cargar productos')
+      const json = await res.json()
+      setCatalogProducts(json.data || [])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
+
+  const filteredCatalog = productSearch.trim()
+    ? catalogProducts
+        .filter((p) => {
+          const q = productSearch.toLowerCase()
+          const name = (p.nombre || p.description || '').toLowerCase()
+          const code = (p.consecutivo_alg || p.order_code || '').toLowerCase()
+          return name.includes(q) || code.includes(q)
+        })
+        .slice(0, 40)
+    : []
+
+  const handleSaveProductEdit = async () => {
+    if (!invoice || !editingProduct) return
+    if (!editProductForm.note.trim()) {
+      alert('Debes escribir una nota que justifique el cambio.')
+      return
+    }
+    if (editProductForm.cantidad_facturada < 1) {
+      alert('La cantidad debe ser al menos 1.')
+      return
+    }
+    try {
+      setIsSavingProductEdit(true)
+      const res = await fetch(
+        `/api/invoices/${invoice.id}/products/${editingProduct.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            producto_id: editProductForm.producto_id || null,
+            producto_nombre: editProductForm.producto_nombre,
+            producto_codigo: editProductForm.producto_codigo || null,
+            cantidad_facturada: editProductForm.cantidad_facturada,
+            precio_unitario: editProductForm.precio_unitario,
+            note: editProductForm.note.trim(),
+          }),
+        }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Error al guardar cambios')
+      setEditingProduct(null)
+      await fetchInvoice()
+    } catch (e: any) {
+      console.error(e)
+      alert(e.message || 'Error al guardar el producto')
+    } finally {
+      setIsSavingProductEdit(false)
     }
   }
 
@@ -1116,6 +1221,7 @@ export default function FacturaDetailPage() {
                     </th>
                     <th className="p-4 text-right border-l border-gray-100">Precio Unit.</th>
                     <th className="p-4 text-right">Importe</th>
+                    <th className="p-4 text-center w-14">Editar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e8f1f9] text-gray-800">
@@ -1150,11 +1256,24 @@ export default function FacturaDetailPage() {
                         </td>
                         <td className="p-4 text-right font-mono text-gray-600 border-l border-gray-100">{formatCurrency(prod.precio_unitario)}</td>
                         <td className="p-4 text-right font-bold text-gray-900 font-mono">{formatCurrency(prod.importe)}</td>
+                        <td className="p-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              openProductEdit(prod)
+                              void loadCatalogProducts()
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-[#0763a9] hover:bg-blue-50 rounded-md transition-colors"
+                            title="Editar producto, cantidad o precio"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center">
+                      <td colSpan={7} className="p-8 text-center">
                         <p className="text-gray-400 italic mb-2">No hay productos en esta factura</p>
                         {productSyncError && (
                           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3 max-w-lg mx-auto">
@@ -2458,6 +2577,173 @@ export default function FacturaDetailPage() {
         </div>
       </div>
     )}
+
+      {/* Edit product line: product / qty / price + required note */}
+      <Modal
+        open={!!editingProduct}
+        onClose={() => !isSavingProductEdit && setEditingProduct(null)}
+        title="Editar partida de factura"
+        maxWidth="560px"
+      >
+        {editingProduct && (
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">
+              Puedes cambiar el producto, la cantidad facturada y el precio unitario. Siempre se requiere una nota;
+              queda registrada en las observaciones de la factura.
+            </p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Buscar producto del catálogo</label>
+              <input
+                type="text"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                onFocus={() => void loadCatalogProducts()}
+                className="erp-input w-full"
+                placeholder={catalogLoading ? 'Cargando catálogo…' : 'Nombre o código…'}
+              />
+              {productSearch.trim() && (
+                <div className="mt-1 max-h-40 overflow-y-auto border border-gray-200 rounded-xl bg-white shadow-sm">
+                  {filteredCatalog.length === 0 ? (
+                    <p className="text-xs text-gray-400 p-3">Sin resultados</p>
+                  ) : (
+                    filteredCatalog.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0"
+                        onClick={() => {
+                          const price =
+                            p.sale_price != null
+                              ? Number(p.sale_price)
+                              : p.precio_unitario != null
+                                ? Number(p.precio_unitario)
+                                : editProductForm.precio_unitario
+                          setEditProductForm((f) => ({
+                            ...f,
+                            producto_id: p.id,
+                            producto_nombre: p.nombre || p.description || f.producto_nombre,
+                            producto_codigo: p.consecutivo_alg || p.order_code || '',
+                            precio_unitario: price,
+                          }))
+                          setProductSearch('')
+                        }}
+                      >
+                        <span className="font-semibold text-gray-900">{p.nombre || p.description}</span>
+                        {(p.consecutivo_alg || p.order_code) && (
+                          <span className="ml-2 text-xs font-mono text-gray-500">
+                            {p.consecutivo_alg || p.order_code}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre en factura</label>
+              <input
+                type="text"
+                value={editProductForm.producto_nombre}
+                onChange={(e) =>
+                  setEditProductForm((f) => ({ ...f, producto_nombre: e.target.value }))
+                }
+                className="erp-input w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Código</label>
+              <input
+                type="text"
+                value={editProductForm.producto_codigo}
+                onChange={(e) =>
+                  setEditProductForm((f) => ({ ...f, producto_codigo: e.target.value }))
+                }
+                className="erp-input w-full font-mono text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={editProductForm.cantidad_facturada}
+                  onChange={(e) =>
+                    setEditProductForm((f) => ({
+                      ...f,
+                      cantidad_facturada: Math.max(1, parseInt(e.target.value) || 1),
+                    }))
+                  }
+                  className="erp-input w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Precio unitario</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={editProductForm.precio_unitario}
+                  onChange={(e) =>
+                    setEditProductForm((f) => ({
+                      ...f,
+                      precio_unitario: Math.max(0, parseFloat(e.target.value) || 0),
+                    }))
+                  }
+                  className="erp-input w-full"
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Importe estimado:{' '}
+              <strong className="font-mono text-gray-800">
+                {formatCurrency(
+                  editProductForm.cantidad_facturada * editProductForm.precio_unitario
+                )}
+              </strong>
+            </p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nota del cambio <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={editProductForm.note}
+                onChange={(e) => setEditProductForm((f) => ({ ...f, note: e.target.value }))}
+                className="erp-input w-full min-h-[80px]"
+                placeholder="Ej. Corrección de precio acordado con el cliente / producto incorrecto en sync…"
+                required
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={isSavingProductEdit}
+                onClick={() => setEditingProduct(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={isSavingProductEdit || !editProductForm.note.trim()}
+                onClick={() => void handleSaveProductEdit()}
+              >
+                {isSavingProductEdit ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   )
 }
