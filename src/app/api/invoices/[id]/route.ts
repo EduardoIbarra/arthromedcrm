@@ -5,7 +5,10 @@ import {
   attachDeliveryLimitFields,
   firstPaymentFieldsFromAlegraInvoice,
 } from '@/lib/delivery-limit'
-import { computeEstadoSurtido } from '@/lib/fulfillment-status'
+import {
+  computeEstadoSurtido,
+  recomputeEntregadaFromRemisiones,
+} from '@/lib/fulfillment-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +36,7 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
     }
   }
 
+  // Snapshot deliveries before rebuild (fallback when no remisión matches a line)
   const existing = await prisma.factura_productos.findMany({
     where: { factura_id: facturaId },
     select: {
@@ -42,13 +46,14 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
       cantidad_entregada: true,
     },
   })
-
-  // Preserve delivered qty by alegra line id, then code, then name
   const deliveredByKey = new Map<string, number>()
   for (const row of existing) {
-    if (row.alegra_id) deliveredByKey.set(`a:${row.alegra_id}`, row.cantidad_entregada || 0)
-    if (row.producto_codigo) deliveredByKey.set(`c:${row.producto_codigo.toLowerCase()}`, row.cantidad_entregada || 0)
-    deliveredByKey.set(`n:${row.producto_nombre.toLowerCase()}`, row.cantidad_entregada || 0)
+    const ent = row.cantidad_entregada || 0
+    if (row.alegra_id) deliveredByKey.set(`a:${row.alegra_id}`, ent)
+    if (row.producto_codigo) {
+      deliveredByKey.set(`c:${row.producto_codigo.toLowerCase()}`, ent)
+    }
+    deliveredByKey.set(`n:${row.producto_nombre.toLowerCase()}`, ent)
   }
 
   const allProductos = await prisma.productos.findMany({
@@ -67,6 +72,7 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
     }
   }
 
+  // Alegra supplies catalog qty/price only — entregada from prior snapshot + remisiones
   const rows = items.map((item: any) => {
     const iName = (item.name || item.description || item.reference || 'Producto').toString().trim() || 'Producto'
     const rKey = item.reference?.toString().trim().toLowerCase() || null
@@ -93,6 +99,7 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
       producto_nombre: iName,
       producto_codigo: item.reference ? String(item.reference) : null,
       cantidad_facturada: qty,
+      // Provisional — remisiones overwrite matching lines right after insert
       cantidad_entregada: Math.min(Number(prevDelivered) || 0, qty),
       precio_unitario: price,
       importe: lineTotal,
@@ -120,11 +127,8 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
       // cantidad_pendiente is generated in DB — do not write it
       await tx.factura_productos.createMany({ data: rows })
     }
-    // Keep header status aligned with line deliveries after product rebuild
-    await tx.facturas_cliente.update({
-      where: { id: facturaId },
-      data: { estado_surtido: computeEstadoSurtido(rows) },
-    })
+    // Restore deliveries + estado_surtido from remisiones (never trust Alegra for entregada)
+    await recomputeEntregadaFromRemisiones(tx, facturaId)
   })
 
   const products = await prisma.factura_productos.findMany({
