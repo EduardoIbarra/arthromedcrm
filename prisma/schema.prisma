@@ -903,8 +903,16 @@ model congreso_viajeros {
   notes       String?
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
   updated_at  DateTime  @default(now()) @db.Timestamptz(6)
-  user_id     String?   @db.Uuid
-  congresos   congresos @relation(fields: [congreso_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id          String?   @db.Uuid
+  travel_by_plane  Boolean   @default(false)
+  flight_airline   String?
+  flight_number    String?
+  flight_departure DateTime?
+  flight_arrival   DateTime?
+  flight_locator   String?
+  ticket_file_url  String?
+  ticket_file_name String?
+  congresos        congresos @relation(fields: [congreso_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([congreso_id])
   @@schema("public")
@@ -1547,19 +1555,49 @@ model orden_productos {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model ordenes_compra {
-  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  numero_orden    String            @db.VarChar(50)
-  proveedor       String?           @db.VarChar(255)
-  fecha_orden     DateTime?         @default(dbgenerated("CURRENT_DATE")) @db.Date
-  fecha_esperada  DateTime?         @db.Date
-  estado          String?           @default("pendiente") @db.VarChar(20)
-  observaciones   String?
-  created_at      DateTime?         @default(now()) @db.Timestamptz(6)
-  created_by      String?           @db.Uuid
-  orden_productos orden_productos[]
-  users           users?            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero_orden      String            @db.VarChar(50)
+  proveedor         String?           @db.VarChar(255)
+  fecha_orden       DateTime?         @default(dbgenerated("CURRENT_DATE")) @db.Date
+  fecha_esperada    DateTime?         @db.Date
+  estado            String?           @default("pendiente") @db.VarChar(20)
+  observaciones     String?
+  created_at        DateTime?         @default(now()) @db.Timestamptz(6)
+  created_by        String?           @db.Uuid
+  es_pre_orden      Boolean?          @default(false)
+  factura_compra_id String?           @db.Uuid
+  orden_productos   orden_productos[]
+  users             users?            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  facturas_compra   facturas_compra?  @relation(fields: [factura_compra_id], references: [id], onDelete: SetNull)
 
   @@index([estado], map: "idx_ordenes_estado")
+  @@schema("public")
+}
+
+model facturas_compra {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero_factura       String                 @db.VarChar(50)
+  nombre               String?                @db.VarChar(255)
+  observaciones        String?
+  fecha_factura        DateTime?              @default(dbgenerated("CURRENT_DATE")) @db.Date
+  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  created_by           String?                @db.Uuid
+  ordenes_compra       ordenes_compra[]
+  factura_compra_items factura_compra_items[]
+
+  @@schema("public")
+}
+
+model factura_compra_items {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  factura_compra_id String          @db.Uuid
+  producto_id       String?         @db.Uuid
+  producto_nombre   String?         @db.VarChar(255)
+  cantidad          Int             @default(1)
+  created_at        DateTime?       @default(now()) @db.Timestamptz(6)
+  facturas_compra   facturas_compra @relation(fields: [factura_compra_id], references: [id], onDelete: Cascade)
+  productos         productos?      @relation(fields: [producto_id], references: [id], onDelete: NoAction)
+
   @@schema("public")
 }
 
@@ -1757,6 +1795,7 @@ model productos {
   detalle_plan_pago         detalle_plan_pago[]
   evento_inventario         evento_inventario[]
   factura_productos         factura_productos[]
+  factura_compra_items      factura_compra_items[]
   garantias                 garantias[]
   inventario_lotes          inventario_lotes[]
   inventario_movimientos    inventario_movimientos[]

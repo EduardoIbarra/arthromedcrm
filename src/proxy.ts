@@ -6,8 +6,8 @@ export async function proxy(request: NextRequest) {
   const isAuthCallback = request.nextUrl.pathname.startsWith('/api/auth')
   const isPublicAsset = request.nextUrl.pathname.startsWith('/_next') || 
                         request.nextUrl.pathname.startsWith('/favicon.ico') ||
-                        request.nextUrl.pathname.startsWith('/distribuidores') || // Public directory
-                        request.nextUrl.pathname.startsWith('/lista-precios') || // Public price list QR validation
+                        request.nextUrl.pathname.startsWith('/distribuidores') ||
+                        request.nextUrl.pathname.startsWith('/lista-precios') ||
                         request.nextUrl.pathname === '/registro' ||
                         request.nextUrl.pathname === '/registro-cliente' ||
                         request.nextUrl.pathname === '/qr' ||
@@ -29,7 +29,6 @@ export async function proxy(request: NextRequest) {
                       (request.nextUrl.pathname === '/api/whatsapp/send' && request.method === 'POST') ||
                       (request.nextUrl.pathname === '/api/whatsapp/webhook' && request.method === 'POST')
 
-  // Fast-path for completely public routes to avoid hitting Supabase in middleware
   if (isPublicAsset || isPublicApi) {
     return NextResponse.next()
   }
@@ -63,12 +62,52 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data?.user || null
+  } catch {
+    user = null
+  }
+
+  // Fallback 1: Check Authorization header
+  if (!user) {
+    const authHeader = request.headers.get('Authorization') || request.headers.get('authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7).trim()
+      try {
+        const { data } = await supabase.auth.getUser(token)
+        if (data?.user) user = data.user
+      } catch {
+        // Ignore token verification errors
+      }
+    }
+  }
+
+  // Fallback 2: Check all sb-*-auth-token cookies across projects
+  if (!user) {
+    const allCookies = request.cookies.getAll()
+    for (const c of allCookies) {
+      if (c.name.includes('-auth-token') && c.value) {
+        try {
+          const raw = c.value.replace(/^base64-/, '')
+          const parsed = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
+          const token = parsed.access_token || (Array.isArray(parsed) ? parsed[0] : null)
+          if (token && typeof token === 'string') {
+            const { data } = await supabase.auth.getUser(token)
+            if (data?.user) {
+              user = data.user
+              break
+            }
+          }
+        } catch {
+          // Ignore invalid JSON / chunked cookies
+        }
+      }
+    }
+  }
 
   if (!user && !isLoginPage && !isAuthCallback) {
-    // Return 401 for API routes instead of redirecting
     if (request.nextUrl.pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -88,13 +127,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

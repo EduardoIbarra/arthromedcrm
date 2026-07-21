@@ -7,11 +7,12 @@ import AppShell from '@/components/AppShell'
 import { 
   ArrowLeft, Calendar, Users, Plus, Trash2, Edit2, Check, X, 
   Upload, FileSpreadsheet, Loader2, Info, CheckSquare, Square,
-  MapPin, Clock, FileText, Settings, UserPlus
+  MapPin, Clock, FileText, Settings, UserPlus, Plane, Paperclip, ExternalLink
 } from 'lucide-react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as XLSX from 'xlsx'
+import { createClient } from '@/lib/supabase/client'
 
 interface ItineraryItem {
   id?: string
@@ -30,6 +31,14 @@ interface Traveler {
   has_pin: boolean
   has_gafete: boolean
   notes: string | null
+  travel_by_plane?: boolean
+  flight_airline?: string | null
+  flight_number?: string | null
+  flight_departure?: string | null
+  flight_arrival?: string | null
+  flight_locator?: string | null
+  ticket_file_url?: string | null
+  ticket_file_name?: string | null
   isEditing?: boolean
 }
 
@@ -79,8 +88,17 @@ export default function CongressPlanningPage() {
     role: '',
     has_pin: false,
     has_gafete: true,
-    notes: ''
+    notes: '',
+    travel_by_plane: false,
+    flight_airline: '',
+    flight_number: '',
+    flight_departure: '',
+    flight_arrival: '',
+    flight_locator: '',
+    ticket_file_url: '',
+    ticket_file_name: ''
   })
+  const [isUploadingTicket, setIsUploadingTicket] = useState<string | null>(null) // traveler ID or 'new'
   const [systemUsers, setSystemUsers] = useState<{id: string, email: string}[]>([])
 
   // Load Data
@@ -244,7 +262,15 @@ export default function CongressPlanningPage() {
           role: newTraveler.role || null,
           has_pin: newTraveler.has_pin,
           has_gafete: newTraveler.has_gafete,
-          notes: newTraveler.notes || null
+          notes: newTraveler.notes || null,
+          travel_by_plane: newTraveler.travel_by_plane,
+          flight_airline: newTraveler.flight_airline || null,
+          flight_number: newTraveler.flight_number || null,
+          flight_departure: newTraveler.flight_departure || null,
+          flight_arrival: newTraveler.flight_arrival || null,
+          flight_locator: newTraveler.flight_locator || null,
+          ticket_file_url: newTraveler.ticket_file_url || null,
+          ticket_file_name: newTraveler.ticket_file_name || null
         })
       })
       
@@ -252,8 +278,22 @@ export default function CongressPlanningPage() {
       const json = await res.json()
       
       setTravelers(prev => [...prev, json.data].sort((a, b) => a.name.localeCompare(b.name)))
-      setNewTraveler({ name: '', user_id: '', role: '', has_pin: false, has_gafete: true, notes: '' })
-      showToast('Viajero agregado con éxito')
+      setNewTraveler({ 
+        name: '', 
+        user_id: '', 
+        role: '', 
+        has_pin: false, 
+        has_gafete: true, 
+        notes: '',
+        travel_by_plane: false,
+        flight_airline: '',
+        flight_number: '',
+        flight_departure: '',
+        flight_arrival: '',
+        flight_locator: '',
+        ticket_file_url: '',
+        ticket_file_name: ''
+      })
       showToast('Viajero agregado con éxito')
     } catch (err: any) {
       setError(err.message)
@@ -271,7 +311,15 @@ export default function CongressPlanningPage() {
           role: traveler.role,
           has_pin: traveler.has_pin,
           has_gafete: traveler.has_gafete,
-          notes: traveler.notes
+          notes: traveler.notes,
+          travel_by_plane: traveler.travel_by_plane,
+          flight_airline: traveler.flight_airline,
+          flight_number: traveler.flight_number,
+          flight_departure: traveler.flight_departure,
+          flight_arrival: traveler.flight_arrival,
+          flight_locator: traveler.flight_locator,
+          ticket_file_url: traveler.ticket_file_url,
+          ticket_file_name: traveler.ticket_file_name
         })
       })
       
@@ -281,6 +329,43 @@ export default function CongressPlanningPage() {
       showToast('Viajero actualizado')
     } catch (err: any) {
       setError(err.message)
+    }
+  }
+
+  const handleTicketUpload = async (e: React.ChangeEvent<HTMLInputElement>, travelerId: string | 'new') => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const fileExt = file.name.split('.').pop()
+    const fileName = `ticket_${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+    
+    setIsUploadingTicket(travelerId)
+    try {
+      const supabase = createClient()
+      const { data, error: uploadError } = await supabase.storage.from('documents').upload(`tickets/${fileName}`, file)
+      if (uploadError) throw uploadError
+      
+      const { data: publicUrlData } = supabase.storage.from('documents').getPublicUrl(data.path)
+      const url = publicUrlData.publicUrl
+      
+      if (travelerId === 'new') {
+        setNewTraveler(prev => ({
+          ...prev,
+          ticket_file_url: url,
+          ticket_file_name: file.name
+        }))
+      } else {
+        setTravelers(prev => prev.map(t => t.id === travelerId ? {
+          ...t,
+          ticket_file_url: url,
+          ticket_file_name: file.name
+        } : t))
+      }
+      showToast('Boleto subido con éxito')
+    } catch (err: any) {
+      console.error(err)
+      setError(`Error al subir boleto: ${err.message}`)
+    } finally {
+      setIsUploadingTicket(null)
     }
   }
 
@@ -934,7 +1019,8 @@ export default function CongressPlanningPage() {
                             <th className="p-4">Rol / Responsabilidad</th>
                             <th className="p-4 text-center">Gafete</th>
                             <th className="p-4 text-center">Pin</th>
-                            <th className="p-4">Notas de Logística (Vuelos, Hotel)</th>
+                            <th className="p-4">Transporte / Vuelo</th>
+                            <th className="p-4">Notas de Logística (Hotel, etc.)</th>
                             <th className="p-4 pr-6 text-right">Acciones</th>
                           </tr>
                         </thead>
@@ -944,7 +1030,7 @@ export default function CongressPlanningPage() {
                               
                               {traveler.isEditing ? (
                                 // Edit Mode
-                                <td colSpan={6} className="p-4 px-6 bg-indigo-50/20">
+                                <td colSpan={7} className="p-4 px-6 bg-indigo-50/20">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                     <div className="md:col-span-2">
                                       <label className="block text-[10px] font-bold text-gray-400 uppercase">Nombre *</label>
@@ -985,11 +1071,110 @@ export default function CongressPlanningPage() {
                                         Pin
                                       </label>
                                     </div>
+
+                                    {/* Flight Info Fields */}
+                                    <div className="md:col-span-4 border-t border-gray-200/60 pt-3">
+                                      <label className="flex items-center gap-2 text-xs font-bold text-gray-600 cursor-pointer mb-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={traveler.travel_by_plane}
+                                          onChange={e => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, travel_by_plane: e.target.checked } : t))}
+                                          className="rounded border-gray-300 text-indigo-600"
+                                        />
+                                        Viaja en Avión (Detalles de Vuelo)
+                                      </label>
+                                      
+                                      {traveler.travel_by_plane && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase">Aerolínea</label>
+                                            <input
+                                              type="text"
+                                              placeholder="Ej. Aeroméxico"
+                                              className="erp-input w-full bg-white text-xs"
+                                              value={traveler.flight_airline || ''}
+                                              onChange={e => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, flight_airline: e.target.value } : t))}
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase">Número de Vuelo</label>
+                                            <input
+                                              type="text"
+                                              placeholder="Ej. AM-402"
+                                              className="erp-input w-full bg-white text-xs"
+                                              value={traveler.flight_number || ''}
+                                              onChange={e => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, flight_number: e.target.value } : t))}
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase">Código Reservación (Locator)</label>
+                                            <input
+                                              type="text"
+                                              placeholder="Ej. XYZ123"
+                                              className="erp-input w-full bg-white text-xs"
+                                              value={traveler.flight_locator || ''}
+                                              onChange={e => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, flight_locator: e.target.value } : t))}
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase">Boleto Adjunto</label>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                              {traveler.ticket_file_url ? (
+                                                <div className="flex items-center justify-between w-full px-2 py-1 bg-green-50 border border-green-200 text-green-700 text-xs rounded-lg">
+                                                  <div className="flex items-center gap-1 overflow-hidden">
+                                                    <Paperclip size={12} className="flex-shrink-0" />
+                                                    <span className="truncate max-w-[100px]" title={traveler.ticket_file_name || 'Boleto'}>{traveler.ticket_file_name || 'Boleto'}</span>
+                                                  </div>
+                                                  <button 
+                                                    type="button" 
+                                                    onClick={() => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, ticket_file_url: null, ticket_file_name: null } : t))} 
+                                                    className="text-red-500 hover:text-red-700 font-bold ml-1"
+                                                  >
+                                                    ×
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <label className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-xs rounded-lg cursor-pointer font-medium transition-colors w-full justify-center">
+                                                  {isUploadingTicket === traveler.id ? <Loader2 size={12} className="animate-spin text-indigo-600" /> : <Upload size={12} />}
+                                                  {isUploadingTicket === traveler.id ? 'Subiendo...' : 'Subir Boleto'}
+                                                  <input 
+                                                    type="file" 
+                                                    accept=".pdf,.png,.jpg,.jpeg" 
+                                                    className="hidden" 
+                                                    onChange={e => handleTicketUpload(e, traveler.id!)} 
+                                                    disabled={!!isUploadingTicket}
+                                                  />
+                                                </label>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase">Fecha/Hora Salida</label>
+                                            <input
+                                              type="datetime-local"
+                                              className="erp-input w-full bg-white text-xs"
+                                              value={traveler.flight_departure ? new Date(new Date(traveler.flight_departure).getTime() - new Date(traveler.flight_departure).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                                              onChange={e => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, flight_departure: e.target.value } : t))}
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase">Fecha/Hora Llegada</label>
+                                            <input
+                                              type="datetime-local"
+                                              className="erp-input w-full bg-white text-xs"
+                                              value={traveler.flight_arrival ? new Date(new Date(traveler.flight_arrival).getTime() - new Date(traveler.flight_arrival).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                                              onChange={e => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, flight_arrival: e.target.value } : t))}
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+
                                     <div className="md:col-span-4">
                                       <label className="block text-[10px] font-bold text-gray-400 uppercase">Notas de Logística</label>
                                       <input
                                         type="text"
-                                        placeholder="Vuelo de salida, hotel asignado, etc."
+                                        placeholder="Hotel asignado, conductor, etc."
                                         className="erp-input w-full bg-white"
                                         value={traveler.notes || ''}
                                         onChange={e => setTravelers(prev => prev.map(t => t.id === traveler.id ? { ...t, notes: e.target.value } : t))}
@@ -1049,6 +1234,38 @@ export default function CongressPlanningPage() {
                                         <Square size={18} />
                                       )}
                                     </button>
+                                  </td>
+                                  <td className="p-4">
+                                    {traveler.travel_by_plane ? (
+                                      <div className="space-y-1 text-xs">
+                                        <div className="flex items-center gap-1 text-slate-700 font-semibold">
+                                          <Plane size={12} className="text-blue-500 flex-shrink-0" />
+                                          {traveler.flight_airline || 'Vuelo'} {traveler.flight_number ? `(${traveler.flight_number})` : ''}
+                                        </div>
+                                        {traveler.flight_locator && (
+                                          <div className="text-slate-500 font-mono text-[10px]">
+                                            Locator: {traveler.flight_locator}
+                                          </div>
+                                        )}
+                                        {traveler.flight_departure && (
+                                          <div className="text-slate-400 text-[10px]">
+                                            Salida: {new Date(traveler.flight_departure).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                                          </div>
+                                        )}
+                                        {traveler.ticket_file_url && (
+                                          <a 
+                                            href={traveler.ticket_file_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline mt-1 font-medium"
+                                          >
+                                            <Paperclip size={11} /> Ver boleto
+                                          </a>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-400 text-xs italic">Terrestre</span>
+                                    )}
                                   </td>
                                   <td className="p-4 text-xs text-gray-500 max-w-[240px] truncate" title={traveler.notes || ''}>
                                     {traveler.notes || '-'}
@@ -1144,11 +1361,110 @@ export default function CongressPlanningPage() {
                         Pin
                       </label>
                     </div>
+
+                    {/* Flight Info Fields for Quick Add */}
+                    <div className="border-t border-gray-100 pt-3">
+                      <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newTraveler.travel_by_plane}
+                          onChange={e => setNewTraveler({ ...newTraveler, travel_by_plane: e.target.checked })}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        Viaja por Avión
+                      </label>
+                      
+                      {newTraveler.travel_by_plane && (
+                        <div className="space-y-3 mt-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase">Aerolínea</label>
+                            <input
+                              type="text"
+                              placeholder="Ej. Aeroméxico"
+                              className="erp-input w-full text-xs"
+                              value={newTraveler.flight_airline}
+                              onChange={e => setNewTraveler({ ...newTraveler, flight_airline: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase">Número de Vuelo</label>
+                            <input
+                              type="text"
+                              placeholder="Ej. AM-402"
+                              className="erp-input w-full text-xs"
+                              value={newTraveler.flight_number}
+                              onChange={e => setNewTraveler({ ...newTraveler, flight_number: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase">Código de Reservación (Locator)</label>
+                            <input
+                              type="text"
+                              placeholder="Ej. XYZ123"
+                              className="erp-input w-full text-xs"
+                              value={newTraveler.flight_locator}
+                              onChange={e => setNewTraveler({ ...newTraveler, flight_locator: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase">Boleto de Avión</label>
+                            <div className="flex items-center gap-2 mt-1">
+                              {newTraveler.ticket_file_url ? (
+                                <div className="flex items-center justify-between w-full px-2 py-1 bg-green-50 border border-green-200 text-green-700 text-xs rounded-lg">
+                                  <div className="flex items-center gap-1 overflow-hidden">
+                                    <Paperclip size={12} className="flex-shrink-0" />
+                                    <span className="truncate max-w-[180px]">{newTraveler.ticket_file_name || 'Boleto'}</span>
+                                  </div>
+                                  <button 
+                                    type="button" 
+                                    onClick={() => setNewTraveler({ ...newTraveler, ticket_file_url: '', ticket_file_name: '' })} 
+                                    className="text-red-500 hover:text-red-700 font-bold ml-1"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-xs rounded-lg cursor-pointer font-medium transition-colors w-full justify-center">
+                                  {isUploadingTicket === 'new' ? <Loader2 size={12} className="animate-spin text-indigo-600" /> : <Upload size={12} />}
+                                  {isUploadingTicket === 'new' ? 'Subiendo...' : 'Subir Boleto'}
+                                  <input 
+                                    type="file" 
+                                    accept=".pdf,.png,.jpg,.jpeg" 
+                                    className="hidden" 
+                                    onChange={e => handleTicketUpload(e, 'new')} 
+                                    disabled={!!isUploadingTicket}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase">Fecha/Hora Salida</label>
+                            <input
+                              type="datetime-local"
+                              className="erp-input w-full text-xs"
+                              value={newTraveler.flight_departure}
+                              onChange={e => setNewTraveler({ ...newTraveler, flight_departure: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase">Fecha/Hora Llegada</label>
+                            <input
+                              type="datetime-local"
+                              className="erp-input w-full text-xs"
+                              value={newTraveler.flight_arrival}
+                              onChange={e => setNewTraveler({ ...newTraveler, flight_arrival: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">Notas de Logística</label>
                       <input
                         type="text"
-                        placeholder="Vuelos, hotel, etc."
+                        placeholder="Hotel, conductor, etc."
                         className="erp-input w-full"
                         value={newTraveler.notes}
                         onChange={e => setNewTraveler({ ...newTraveler, notes: e.target.value })}

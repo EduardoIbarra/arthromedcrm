@@ -1,57 +1,46 @@
 import { NextResponse } from 'next/server'
-import { querySegundaDB } from '@/lib/segundaDB'
 import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const [items, localProducts] = await Promise.all([
-      querySegundaDB<{
-        producto_id: string
-        nombre: string
-        cantidad: string
-      }>(`
-        SELECT producto_id, nombre, cantidad
-        FROM stock_por_producto
-        ORDER BY nombre ASC
-      `),
-      prisma.productos.findMany({
-        select: {
-          id: true,
-          precio_unitario: true,
-          categoria: true,
-          tipo: true,
-        },
-      }),
-    ])
+    const products = await prisma.productos.findMany({
+      select: {
+        id: true,
+        nombre: true,
+        nombre_lista: true,
+        precio_unitario: true,
+        categoria: true,
+        tipo: true,
+        stock_actual: true,
+        stock_updated_at: true,
+        activo: true
+      },
+      orderBy: { nombre: 'asc' }
+    })
 
-    const productMap = new Map<string, { precio_unitario: any; categoria: string | null; tipo: string | null }>(
-      (localProducts as any[]).map((p: any) => [p.id, p])
-    )
-
-    const mapped = items.map((p) => {
-      const cantidadNum = parseInt(p.cantidad || '0', 10)
-      const localProd = productMap.get(p.producto_id)
-      const price = localProd?.precio_unitario ? Number(localProd.precio_unitario) : 0
-      const cat = localProd?.categoria || 'General'
-      const t = localProd?.tipo || 'General'
+    const mapped = products.map((p: any) => {
+      const cantidadNum = p.stock_actual || 0
+      const price = p.precio_unitario ? Number(p.precio_unitario) : 0
+      const cat = p.categoria || 'General'
+      const t = p.tipo || 'General'
 
       return {
-        id: p.producto_id,
-        nombre: p.nombre,
+        id: p.id,
+        nombre: p.nombre_lista || p.nombre,
         categoria: cat,
         tipo: t,
-        activo: true,
+        activo: p.activo ?? true,
         stock_actual: cantidadNum,
         precio_unitario: price,
-        stock_updated_at: new Date().toISOString(),
+        stock_updated_at: p.stock_updated_at ? p.stock_updated_at.toISOString() : new Date().toISOString(),
         inventarios: [
           {
-            id: 'segunda-db-stock',
-            nombre: 'Almacén Segunda DB',
+            id: 'almacen-principal',
+            nombre: 'Almacén Principal',
             stock: cantidadNum,
-            updated_at: new Date().toISOString()
+            updated_at: p.stock_updated_at ? p.stock_updated_at.toISOString() : new Date().toISOString()
           }
         ]
       }
@@ -63,4 +52,3 @@ export async function GET() {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
-

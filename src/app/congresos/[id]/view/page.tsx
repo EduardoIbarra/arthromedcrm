@@ -367,13 +367,15 @@ export default function CongresoViewPage() {
               </section>
             )}
 
-            {congreso.contacts?.length > 0 && (
+            {((congreso.congress_contacts || congreso.contacts || []).length) > 0 && (
               <section className="card">
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                  <h2 className="font-bold text-gray-900 text-sm">{t('contacts')}</h2>
+                  <h2 className="font-bold text-gray-900 text-sm">
+                    {t('contacts')} ({(congreso.congress_contacts || congreso.contacts || []).length})
+                  </h2>
                 </div>
                 <div className="p-4 space-y-4">
-                  {congreso.contacts.map((c: any, i: number) => (
+                  {(congreso.congress_contacts || congreso.contacts || []).map((c: any, i: number) => (
                     <div key={i} className="space-y-1 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
                       <p className="font-medium text-gray-900 text-sm">{c.name}</p>
                       {c.number && (

@@ -227,6 +227,14 @@ export default function FacturaDetailPage() {
   const [invoicePayMethod, setInvoicePayMethod] = useState('Efectivo')
   const [isSavingInvoicePayment, setIsSavingInvoicePayment] = useState(false)
 
+  // Credit Note (Nota de Crédito) State
+  const [showCreditNoteModal, setShowCreditNoteModal] = useState(false)
+  const [clientInvoices, setClientInvoices] = useState<Factura[]>([])
+  const [loadingClientInvoices, setLoadingClientInvoices] = useState(false)
+  const [selectedAdvanceInvoice, setSelectedAdvanceInvoice] = useState<Factura | null>(null)
+  const [creditNoteAmount, setCreditNoteAmount] = useState<string>('')
+  const [submittingCreditNote, setSubmittingCreditNote] = useState(false)
+
   // Remision Modal State
   const [showRemisionModal, setShowRemisionModal] = useState(false)
   const [editingRemision, setEditingRemision] = useState<Remision | null>(null)
@@ -316,6 +324,77 @@ export default function FacturaDetailPage() {
       alert('Error al registrar pago de factura')
     } finally {
       setIsSavingInvoicePayment(false)
+    }
+  }
+
+  const handleOpenCreditNoteModal = async () => {
+    if (!invoice?.cliente_id) return
+    setShowCreditNoteModal(true)
+    setLoadingClientInvoices(true)
+    try {
+      const res = await fetch(`/api/invoices?cliente_id=${invoice.cliente_id}&all=true`)
+      if (res.ok) {
+        const result = await res.json()
+        // Filter out this invoice and canceled invoices, and must have an alegra_id
+        const otherInvoices = (result.data || []).filter(
+          (inv: Factura) => inv.id !== invoice.id && inv.estado !== 'cancelada' && inv.alegra_id
+        )
+        setClientInvoices(otherInvoices)
+        if (otherInvoices.length > 0) {
+          setSelectedAdvanceInvoice(otherInvoices[0])
+          const outstandingBalance = invoice.alegra_summary?.balance ?? (invoice.total - (invoice.total_pagado ? Number(invoice.total_pagado) : 0))
+          const initialAmt = Math.min(outstandingBalance, otherInvoices[0].total)
+          setCreditNoteAmount(initialAmt.toFixed(2))
+        } else {
+          setSelectedAdvanceInvoice(null)
+          setCreditNoteAmount('')
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching client invoices:', err)
+    } finally {
+      setLoadingClientInvoices(false)
+    }
+  }
+
+  const handleAdvanceInvoiceChange = (invId: string) => {
+    const found = clientInvoices.find(i => i.id === invId) || null
+    setSelectedAdvanceInvoice(found)
+    if (found && invoice) {
+      const outstandingBalance = invoice.alegra_summary?.balance ?? (invoice.total - (invoice.total_pagado ? Number(invoice.total_pagado) : 0))
+      const initialAmt = Math.min(outstandingBalance, found.total)
+      setCreditNoteAmount(initialAmt.toFixed(2))
+    }
+  }
+
+  const handleSubmitCreditNote = async () => {
+    if (!selectedAdvanceInvoice || !creditNoteAmount || Number(creditNoteAmount) <= 0) {
+      alert('Por favor, selecciona una factura de anticipo y especifica un monto válido.')
+      return
+    }
+    setSubmittingCreditNote(true)
+    try {
+      const res = await fetch(`/api/invoices/${id}/nota-credito`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          advanceInvoiceId: selectedAdvanceInvoice.id,
+          amount: Number(creditNoteAmount)
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert('Nota de Crédito generada y timbrada exitosamente en Alegra.')
+        setShowCreditNoteModal(false)
+        await fetchInvoice()
+      } else {
+        alert(data.error || 'Error al generar la Nota de Crédito.')
+      }
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Error de conexión.')
+    } finally {
+      setSubmittingCreditNote(false)
     }
   }
 
@@ -1041,16 +1120,29 @@ export default function FacturaDetailPage() {
                 <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Estado Pago</p>
                 <div className="flex items-center gap-2">
                   {!['pagada', 'pagado'].includes(invoice.estado) && !paymentPlan && (
-                    <button
-                      onClick={() => {
-                        setPayingInvoice(true)
-                        setInvoicePayDate(new Date().toISOString().split('T')[0])
-                        setInvoicePayMethod('Efectivo')
-                      }}
-                      className="text-xs text-[#0763a9] hover:text-[#0a86e3] underline-offset-2 hover:underline font-bold transition-colors cursor-pointer"
-                    >
-                      (Registrar Pago)
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setPayingInvoice(true)
+                          setInvoicePayDate(new Date().toISOString().split('T')[0])
+                          setInvoicePayMethod('Efectivo')
+                        }}
+                        className="text-xs text-[#0763a9] hover:text-[#0a86e3] underline-offset-2 hover:underline font-bold transition-colors cursor-pointer"
+                      >
+                        (Registrar Pago)
+                      </button>
+                      {invoice.cliente_id && (
+                        <>
+                          <span className="text-gray-300 text-xs">|</span>
+                          <button
+                            onClick={() => void handleOpenCreditNoteModal()}
+                            className="text-xs text-indigo-600 hover:text-indigo-850 underline-offset-2 hover:underline font-bold transition-colors cursor-pointer"
+                          >
+                            (Aplicar Anticipo)
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                   <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold border ${
                     STATUS_MAP[invoice.estado]?.bg || 'bg-gray-50'
@@ -2743,6 +2835,89 @@ export default function FacturaDetailPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal for applying advance payment via Credit Note */}
+      <Modal
+        open={showCreditNoteModal}
+        onClose={() => !submittingCreditNote && setShowCreditNoteModal(false)}
+        title="Aplicar Anticipo (Nota de Crédito)"
+        maxWidth="500px"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Esta operación creará y timbrará una <strong>Nota de Crédito (CFDI de Egreso)</strong> en Alegra vinculada a esta factura bajo el tipo de relación <strong>"07 - CFDI por aplicación de anticipo"</strong>.
+          </p>
+
+          {loadingClientInvoices ? (
+            <div className="flex flex-col items-center justify-center py-6 space-y-2">
+              <span className="inline-block w-6 h-6 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+              <p className="text-xs text-gray-500 font-semibold">Buscando facturas del cliente...</p>
+            </div>
+          ) : clientInvoices.length === 0 ? (
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm text-amber-800">
+              No se encontraron otras facturas activas con Alegra ID para este cliente para usar como anticipo.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Factura de Anticipo
+                </label>
+                <select
+                  value={selectedAdvanceInvoice?.id || ''}
+                  onChange={(e) => handleAdvanceInvoiceChange(e.target.value)}
+                  className="erp-input w-full font-medium"
+                >
+                  {clientInvoices.map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      Factura {inv.numero_factura} ({inv.fecha_expedicion.split('T')[0]}) - Total: ${inv.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Monto a aplicar (MXN con IVA)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={creditNoteAmount}
+                  onChange={(e) => setCreditNoteAmount(e.target.value)}
+                  className="erp-input w-full font-medium"
+                  placeholder="0.00"
+                  max={selectedAdvanceInvoice?.total || undefined}
+                />
+                {selectedAdvanceInvoice && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Monto máximo disponible en el anticipo: <strong>${selectedAdvanceInvoice.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={submittingCreditNote}
+              onClick={() => setShowCreditNoteModal(false)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary bg-indigo-600 hover:bg-indigo-700 text-white border-none"
+              disabled={submittingCreditNote || clientInvoices.length === 0 || !creditNoteAmount || Number(creditNoteAmount) <= 0}
+              onClick={() => void handleSubmitCreditNote()}
+            >
+              {submittingCreditNote ? 'Generando y Timbrando...' : 'Aplicar Anticipo'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </>
   )
