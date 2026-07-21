@@ -302,17 +302,30 @@ export default function EditPurchaseInvoicePage() {
     return items.reduce((sum, item) => sum + (item.quantity || 0), 0)
   }, [items])
 
-  // Export to Excel (.xlsx) with background colors & styling
+  // Helper to get soft ARGB hex for Excel row fills matching line colors
+  const getSoftExcelArgb = (hex: string): string => {
+    const clean = hex.replace('#', '').trim()
+    if (clean.length !== 6) return 'FFF8FAFC'
+    const r = parseInt(clean.substring(0, 2), 16)
+    const g = parseInt(clean.substring(2, 4), 16)
+    const b = parseInt(clean.substring(4, 6), 16)
+    const tr = Math.round(r * 0.14 + 255 * 0.86)
+    const tg = Math.round(g * 0.14 + 255 * 0.86)
+    const tb = Math.round(b * 0.14 + 255 * 0.86)
+    const toHex = (n: number) => n.toString(16).padStart(2, '0').toUpperCase()
+    return `FF${toHex(tr)}${toHex(tg)}${toHex(tb)}`
+  }
+
+  // Export to Excel (.xlsx) with background colors & styling (without separate Línea column)
   const handleExportExcel = async () => {
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('Productos Factura')
 
     worksheet.columns = [
       { header: '#', key: 'idx', width: 6 },
-      { header: 'Línea', key: 'line', width: 20 },
-      { header: 'Producto', key: 'product', width: 45 },
-      { header: 'Modelo', key: 'model', width: 22 },
-      { header: 'Código de Orden', key: 'code', width: 22 },
+      { header: 'Producto', key: 'product', width: 50 },
+      { header: 'Modelo', key: 'model', width: 24 },
+      { header: 'Código de Orden', key: 'code', width: 24 },
       { header: 'Cantidad', key: 'qty', width: 14 },
     ]
 
@@ -332,49 +345,30 @@ export default function EditPurchaseInvoicePage() {
     // Data Rows
     items.forEach((item, idx) => {
       const lineName = getProductLine(item.productObj) || '—'
-      const rawColor = getLineColor(lineName).replace('#', '')
-      const lineHex = rawColor.length === 6 ? rawColor : '0763A9'
+      const hexColor = getLineColor(lineName)
+      const softArgb = getSoftExcelArgb(hexColor)
 
       const row = worksheet.addRow({
         idx: idx + 1,
-        line: lineName,
         product: item.productObj?.nombre_lista || item.productObj?.nombre || item.product_nombre || 'Producto',
         model: item.productObj?.model || '—',
         code: item.productObj?.order_code || '—',
         qty: item.quantity
       })
 
-      row.height = 22
-
-      // Style line cell with custom background color
-      const lineCell = row.getCell('line')
-      lineCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: `FF${lineHex.toUpperCase()}` }
-      }
-      lineCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
-      lineCell.alignment = { vertical: 'middle', horizontal: 'center' }
+      row.height = 24
 
       // Quantity cell highlight
       const qtyCell = row.getCell('qty')
-      qtyCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFDCFCE7' }
-      }
       qtyCell.font = { bold: true, color: { argb: 'FF15803D' } }
       qtyCell.alignment = { vertical: 'middle', horizontal: 'center' }
 
-      // Row zebra background and borders
-      const bg = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC'
+      // Apply row line background color to all cells in the row
       row.eachCell((cell, colNumber) => {
-        if (colNumber !== 2 && colNumber !== 6) {
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: bg }
-          }
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: softArgb }
         }
         cell.border = {
           top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -382,7 +376,13 @@ export default function EditPurchaseInvoicePage() {
           left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
           right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
         }
-        if (colNumber === 1) cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        if (colNumber === 1) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' }
+          cell.font = { bold: true, color: { argb: 'FF475569' } }
+        }
+        if (colNumber === 2) {
+          cell.font = { bold: true }
+        }
       })
     })
 
@@ -398,7 +398,7 @@ export default function EditPurchaseInvoicePage() {
     window.URL.revokeObjectURL(url)
   }
 
-  // Print / Save as PDF with exact colors
+  // Print / Save as PDF with line background colors (without separate Línea column)
   const handlePrint = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
@@ -409,18 +409,13 @@ export default function EditPurchaseInvoicePage() {
       const lineColor = getLineColor(lineName)
 
       rowsHtml += `
-        <tr>
-          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; background-color: #f8fafc;">${idx + 1}</td>
-          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">
-            <span style="display: inline-block; padding: 3px 10px; border-radius: 9999px; font-size: 10px; font-weight: bold; color: #ffffff; background-color: ${lineColor};">
-              ${lineName}
-            </span>
-          </td>
-          <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">${item.productObj?.nombre_lista || item.productObj?.nombre || item.product_nombre || 'Producto'}</td>
-          <td style="padding: 8px; border: 1px solid #e2e8f0;">${item.productObj?.model || '—'}</td>
-          <td style="padding: 8px; border: 1px solid #e2e8f0;">${item.productObj?.order_code || '—'}</td>
-          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">
-            <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: bold; color: #15803d; background-color: #dcfce7;">
+        <tr style="background-color: ${lineColor}22; border-left: 5px solid ${lineColor};">
+          <td style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center; font-weight: bold; color: #475569;">${idx + 1}</td>
+          <td style="padding: 10px 8px; border: 1px solid #e2e8f0; font-weight: 600; color: #0f172a;">${item.productObj?.nombre_lista || item.productObj?.nombre || item.product_nombre || 'Producto'}</td>
+          <td style="padding: 10px 8px; border: 1px solid #e2e8f0; color: #334155;">${item.productObj?.model || '—'}</td>
+          <td style="padding: 10px 8px; border: 1px solid #e2e8f0; color: #334155;">${item.productObj?.order_code || '—'}</td>
+          <td style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center;">
+            <span style="display: inline-block; padding: 3px 10px; border-radius: 6px; font-weight: bold; color: #15803d; background-color: #dcfce7;">
               ${item.quantity}
             </span>
           </td>
@@ -455,7 +450,6 @@ export default function EditPurchaseInvoicePage() {
             table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
             th { background-color: #0763a9; color: white; padding: 10px; border: 1px solid #0284c7; text-align: left; font-weight: bold; }
             td { padding: 9px; border: 1px solid #e2e8f0; }
-            tr:nth-child(even) { background-color: #f8fafc; }
             .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }
           </style>
         </head>
@@ -484,11 +478,10 @@ export default function EditPurchaseInvoicePage() {
             <thead>
               <tr>
                 <th style="text-align: center; width: 35px;">#</th>
-                <th style="width: 120px; text-align: center;">Línea</th>
                 <th>Producto</th>
-                <th style="width: 140px;">Modelo</th>
-                <th style="width: 140px;">Código de Orden</th>
-                <th style="text-align: center; width: 80px;">Cantidad</th>
+                <th style="width: 150px;">Modelo</th>
+                <th style="width: 150px;">Código de Orden</th>
+                <th style="text-align: center; width: 90px;">Cantidad</th>
               </tr>
             </thead>
             <tbody>
@@ -692,7 +685,6 @@ export default function EditPurchaseInvoicePage() {
               <thead className="sticky top-0 bg-gray-100 border-b border-gray-200 z-10">
                 <tr>
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase w-10 text-center">#</th>
-                  <th className="py-2 px-3 font-bold text-gray-600 uppercase w-28">Línea</th>
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase">Producto</th>
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase w-32">Modelo / Código</th>
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase text-center w-28">Cantidad</th>
@@ -702,7 +694,7 @@ export default function EditPurchaseInvoicePage() {
               <tbody className="divide-y divide-gray-100">
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-gray-400 italic">
+                    <td colSpan={5} className="py-12 text-center text-gray-400 italic">
                       {tableSearchTerm ? 'No se encontraron productos coincidentes.' : 'No hay productos en esta factura.'}
                     </td>
                   </tr>
@@ -714,7 +706,7 @@ export default function EditPurchaseInvoicePage() {
                     // Generate soft background tint with matching crisp left border
                     const rowStyle = {
                       backgroundColor: `${hexColor}18`, // 10% - 12% opacity
-                      borderLeft: `4px solid ${hexColor}`
+                      borderLeft: `5px solid ${hexColor}`
                     }
 
                     return (
@@ -725,14 +717,6 @@ export default function EditPurchaseInvoicePage() {
                       >
                         <td className="py-1.5 px-3 text-center text-gray-500 font-mono font-semibold">
                           {displayIdx + 1}
-                        </td>
-                        <td className="py-1.5 px-3">
-                          <span 
-                            style={{ backgroundColor: `${hexColor}33`, color: '#1e293b', borderColor: hexColor }}
-                            className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider border shadow-2xs"
-                          >
-                            {lineName}
-                          </span>
                         </td>
                         <td className="py-1.5 px-3">
                           <div className="font-medium text-gray-900 text-xs">
