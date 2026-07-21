@@ -195,3 +195,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { ids } = await request.json()
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'Se requiere una lista de IDs para eliminar' }, { status: 400 })
+    }
+
+    await prisma.orden_productos.deleteMany({
+      where: { orden_id: { in: ids } }
+    })
+
+    await prisma.ordenes_compra.deleteMany({
+      where: { id: { in: ids } }
+    })
+
+    return NextResponse.json({ success: true, count: ids.length })
+  } catch (error: any) {
+    console.error('Error in DELETE /api/purchase-orders:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
