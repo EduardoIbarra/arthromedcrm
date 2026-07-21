@@ -10,7 +10,7 @@ import {
   Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
   AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
   RefreshCw, Download, FileText, User, Tag, History, ArrowRight,
-  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer, FileSpreadsheet
+  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer, FileSpreadsheet, Receipt
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -221,6 +221,12 @@ export default function ImportRepartitionPage() {
   const [useStockFisico, setUseStockFisico] = useState(false)
   const [stockSearchQuery, setStockSearchQuery] = useState('')
 
+  // ── Facturas de Compra (Source) ───────────────────────
+  const [purchaseInvoices, setPurchaseInvoices] = useState<any[]>([])
+  const [loadingPurchaseInvoices, setLoadingPurchaseInvoices] = useState(true)
+  const [selectedPurchaseInvoiceIds, setSelectedPurchaseInvoiceIds] = useState<Set<string>>(new Set())
+  const [expandedPurchaseInvoices, setExpandedPurchaseInvoices] = useState<Set<string>>(new Set())
+
   // ── Facturas ──────────────────────────────────────────
   const [invoiceSearch, setInvoiceSearch] = useState('')
   const [invoiceResults, setInvoiceResults] = useState<any[]>([])
@@ -276,6 +282,37 @@ export default function ImportRepartitionPage() {
       }
     } catch (err) { console.error(err) }
     finally { setLoadingOrdenes(false) }
+  }
+
+  const fetchPurchaseInvoices = async () => {
+    setLoadingPurchaseInvoices(true)
+    try {
+      const res = await fetch('/api/purchase-invoices')
+      const data = await res.json()
+      if (data.data) {
+        setPurchaseInvoices(data.data)
+        setSelectedPurchaseInvoiceIds(new Set())
+      }
+    } catch (err) { console.error(err) }
+    finally { setLoadingPurchaseInvoices(false) }
+  }
+
+  const togglePurchaseInvoice = (id: string) => {
+    setSelectedPurchaseInvoiceIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleExpandPurchaseInvoice = (id: string) => {
+    setExpandedPurchaseInvoices(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   const fetchStockFisico = async () => {
@@ -343,6 +380,7 @@ export default function ImportRepartitionPage() {
     }
     fetchPending()
     fetchOrdenes()
+    fetchPurchaseInvoices()
   }, [])
 
   // Lazy-load history
@@ -475,7 +513,8 @@ export default function ImportRepartitionPage() {
   const handleProcess = async () => {
     const hasOrders = selectedOrderIds.size > 0
     const hasStock = useStockFisico
-    if (!hasOrders && !hasStock) { setError('Selecciona al menos una fuente de inventario.'); return }
+    const hasPurchaseInvoices = selectedPurchaseInvoiceIds.size > 0
+    if (!hasOrders && !hasStock && !hasPurchaseInvoices) { setError('Selecciona al menos una fuente de inventario.'); return }
     const facturas = selectedInvoices
       .filter(i => !i.isCotizacion && !isExcludedPrefixedFactura(i))
       .map(i => String(i.numero_factura))
@@ -522,6 +561,7 @@ export default function ImportRepartitionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           selectedOrderIds: Array.from(selectedOrderIds),
+          selectedPurchaseInvoiceIds: Array.from(selectedPurchaseInvoiceIds),
           useOrderedQtyOrderIds: Array.from(useOrderedQtyOrderIds),
           selectedStockFisico,
           useStockFisico,
@@ -702,6 +742,10 @@ export default function ImportRepartitionPage() {
       for (const id of selectedOrderIds) {
         const orden = ordenes.find(o => o.id === id)
         if (orden) selectedSources.push({ type: 'orden_compra', id, label: orden.numero_orden })
+      }
+      for (const id of selectedPurchaseInvoiceIds) {
+        const fc = purchaseInvoices.find(p => p.id === id)
+        if (fc) selectedSources.push({ type: 'factura_compra', id, label: fc.numero_factura })
       }
       if (useStockFisico) selectedSources.push({ type: 'stock_fisico', id: 'stock_fisico', label: 'Stock Físico' })
 
@@ -1454,7 +1498,83 @@ export default function ImportRepartitionPage() {
                     </div>
                   </div>
 
-                  {/* Source 2: Stock físico */}
+                  {/* Source 2: Facturas de Compra */}
+                  <div className="border-t border-gray-100">
+                    <div className="px-5 py-3 flex justify-between items-center bg-gray-50/50">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="w-3.5 h-3.5 text-blue-600" />
+                        <p className="text-sm font-semibold text-gray-800">Facturas de Compra</p>
+                        {selectedPurchaseInvoiceIds.size > 0 && (
+                          <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full font-medium">
+                            {selectedPurchaseInvoiceIds.size} selec.
+                          </span>
+                        )}
+                      </div>
+                      <button onClick={fetchPurchaseInvoices} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="max-h-52 overflow-y-auto divide-y divide-gray-50 mx-2 mb-2 border border-gray-100 rounded-xl">
+                      {loadingPurchaseInvoices ? (
+                        <div className="flex items-center justify-center py-6 gap-2 text-gray-400">
+                          <Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Cargando...</span>
+                        </div>
+                      ) : purchaseInvoices.length === 0 ? (
+                        <div className="py-6 text-center text-gray-400 text-sm">No hay facturas de compra registradas</div>
+                      ) : purchaseInvoices.map(inv => {
+                        const isSelected = selectedPurchaseInvoiceIds.has(inv.id)
+                        const isExpanded = expandedPurchaseInvoices.has(inv.id)
+                        const itemsCount = (inv.items || []).reduce((s: number, i: any) => s + (i.quantity || 0), 0)
+                        return (
+                          <div key={inv.id} className={isSelected ? 'bg-blue-50/30' : 'bg-white'}>
+                            <div className="px-3 py-2.5 flex items-start gap-2 cursor-pointer hover:bg-blue-50/50" onClick={() => togglePurchaseInvoice(inv.id)}>
+                              <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
+                                {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-gray-900 text-xs">{inv.numero_factura}</span>
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                                    {itemsCount} uds
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-gray-500 truncate">{inv.nombre || 'Sin nombre'}</p>
+                              </div>
+                              <button onClick={e => { e.stopPropagation(); toggleExpandPurchaseInvoice(inv.id) }} className="text-gray-400 p-0.5">
+                                {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                              </button>
+                            </div>
+                            {isExpanded && (
+                              <div className="px-3 pb-2 bg-gray-50/50 border-t border-gray-100">
+                                {(inv.items || []).map((p: any) => (
+                                  <div key={p.id} className="flex justify-between text-[10px] gap-2 py-0.5">
+                                    <span className="text-gray-600 truncate">{p.productos?.nombre_lista || p.productos?.nombre || p.product_nombre}</span>
+                                    <span className="font-mono text-blue-700 shrink-0">
+                                      {p.quantity} uds
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="px-4 pb-3 flex justify-between items-center">
+                      <span className="text-[10px] text-gray-500">
+                        {selectedPurchaseInvoiceIds.size}/{purchaseInvoices.length} seleccionadas
+                      </span>
+                      <div className="flex gap-2">
+                        <button onClick={() => setSelectedPurchaseInvoiceIds(new Set(purchaseInvoices.map(i => i.id)))} className="text-[10px] text-blue-600 font-medium">Todas</button>
+                        <span className="text-gray-300">|</span>
+                        <button onClick={() => setSelectedPurchaseInvoiceIds(new Set())} className="text-[10px] text-gray-500 font-medium">Ninguna</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Source 3: Stock físico */}
                   <div>
                     <div className="px-5 py-3">
                       <div className="flex items-center gap-2 cursor-pointer" onClick={toggleUseStockFisico}>
@@ -1582,7 +1702,7 @@ export default function ImportRepartitionPage() {
 
                 <button
                   onClick={handleProcess}
-                  disabled={loading || (selectedOrderIds.size === 0 && !useStockFisico) || selectedInvoices.length === 0}
+                  disabled={loading || (selectedOrderIds.size === 0 && selectedPurchaseInvoiceIds.size === 0 && !useStockFisico) || selectedInvoices.length === 0}
                   className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}

@@ -36,8 +36,11 @@ export default function SearchableSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const normalizeText = (str: string) =>
+    str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : ''
+
   const filteredOptions = options.filter(o =>
-    o.label.toLowerCase().includes(search.toLowerCase())
+    normalizeText(o.label).includes(normalizeText(search))
   )
 
   return (

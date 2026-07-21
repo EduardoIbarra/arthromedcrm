@@ -114,13 +114,17 @@ export default function Sidebar() {
     }))
   }
 
+  const normalizeText = (str: string) =>
+    str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : ''
+
   // Filter groups and items based on permissions and search query
   const filteredNavGroups = navGroups.map(group => {
     const matchedItems = group.items.filter(item => {
       const hasPerm = hasPermission(item.section, item.action || 'view')
       if (!hasPerm) return false
       if (!searchQuery.trim()) return true
-      return item.label.toLowerCase().includes(searchQuery.toLowerCase())
+      const q = normalizeText(searchQuery)
+      return normalizeText(item.label).includes(q) || (group.title && normalizeText(group.title).includes(q))
     })
     return {
       ...group,

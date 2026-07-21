@@ -431,6 +431,7 @@ export async function POST(req: Request) {
       cotizacionIds,
       locale,
       selectedOrderIds,
+      selectedPurchaseInvoiceIds,
       selectedStockFisico,
       useStockFisico,
       csvContent,
@@ -526,6 +527,45 @@ export async function POST(req: Request) {
             ? 'Órdenes de compra (incluye qty ordenada)'
             : 'Órdenes de compra'
         )
+      }
+    }
+
+    // Source 2b: Facturas de compra
+    if (selectedPurchaseInvoiceIds && Array.isArray(selectedPurchaseInvoiceIds) && selectedPurchaseInvoiceIds.length > 0) {
+      const fcItems = await prisma.factura_compra_items.findMany({
+        where: {
+          factura_compra_id: { in: selectedPurchaseInvoiceIds }
+        },
+        select: {
+          factura_compra_id: true,
+          producto_id: true,
+          producto_nombre: true,
+          cantidad: true
+        }
+      });
+
+      const fcProductIds = fcItems.map((p: any) => p.producto_id).filter(Boolean) as string[];
+      const fcProductMeta = await loadProductsByIds(fcProductIds);
+
+      let fcQty = 0;
+      for (const item of fcItems) {
+        const qty = Number(item.cantidad) || 0;
+        if (qty <= 0) continue;
+        const meta = item.producto_id ? fcProductMeta.get(item.producto_id) : undefined;
+        const canonical = meta?.preferred || item.producto_nombre || null;
+        pool.add(qty, {
+          canonical,
+          productId: item.producto_id,
+          names: [
+            ...(meta?.names || []),
+            item.producto_nombre,
+            canonical,
+          ]
+        });
+        fcQty += qty;
+      }
+      if (fcQty > 0) {
+        sourceLabels.push('Facturas de compra');
       }
     }
 
