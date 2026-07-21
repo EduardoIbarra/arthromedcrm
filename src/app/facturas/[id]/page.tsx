@@ -118,6 +118,7 @@ interface FacturaTrackingUpdate {
 interface Factura {
   id: string
   numero_factura: string
+  cliente_id?: string | null
   cliente_nombre: string
   cliente_rfc: string | null
   fecha_expedicion: string
@@ -127,6 +128,7 @@ interface Factura {
   subtotal: number
   iva: number
   total: number
+  total_pagado?: number | string | null
   observaciones: string | null
   alegra_id: string | null
   xml_original: string | null
