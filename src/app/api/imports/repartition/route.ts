@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { querySegundaDB } from '@/lib/segundaDB';
 import { computeDeliveryLimit, toIsoDate } from '@/lib/delivery-limit';
 
 type OrderLine = {
@@ -482,22 +481,20 @@ export async function POST(req: Request) {
           ? body.useOrderedQtyOrderIds.map((id: string) => String(id))
           : []
       )
-      const placeholders = selectedOrderIds.map((_: any, i: number) => `$${i + 1}`).join(', ');
-      // Load all lines (not only recibida > 0) so "use ordered qty" can supply stock for 0/N orders
-      const productos = await querySegundaDB<{
-        orden_id: string;
-        producto_id: string | null;
-        producto_nombre: string;
-        cantidad_ordenada: number;
-        cantidad_recibida: number | null;
-      }>(`
-        SELECT orden_id, producto_id, producto_nombre, cantidad_ordenada,
-               COALESCE(cantidad_recibida, 0) AS cantidad_recibida
-        FROM orden_productos
-        WHERE orden_id IN (${placeholders})
-      `, selectedOrderIds);
+      const productos = await prisma.orden_productos.findMany({
+        where: {
+          orden_id: { in: selectedOrderIds }
+        },
+        select: {
+          orden_id: true,
+          producto_id: true,
+          producto_nombre: true,
+          cantidad_ordenada: true,
+          cantidad_recibida: true
+        }
+      });
 
-      const productIds = productos.map((p) => p.producto_id).filter(Boolean) as string[];
+      const productIds = productos.map((p: any) => p.producto_id).filter(Boolean) as string[];
       const productMeta = await loadProductsByIds(productIds);
 
       let ocQty = 0;

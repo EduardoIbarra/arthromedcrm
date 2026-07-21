@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { querySegundaDB } from '@/lib/segundaDB'
 import prisma from '@/lib/prisma'
-import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,89 +21,65 @@ function mapStatusToEstado(status: string | null): 'pendiente' | 'completa' | 'c
   return 'pendiente'
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // 1. Fetch orders from the second DB
-    const orders = await querySegundaDB(`
-      SELECT id, numero_orden, proveedor, fecha_orden, fecha_esperada, estado, observaciones, created_at, created_by
-      FROM ordenes_compra
-      ORDER BY created_at DESC NULLS LAST, numero_orden DESC
-    `)
+    const { searchParams } = new URL(request.url)
+    const preOrderParam = searchParams.get('pre_order')
 
-    if (orders.length === 0) {
-      return NextResponse.json({ data: [] })
+    let whereClause: any = {}
+
+    if (preOrderParam === 'true') {
+      whereClause.es_pre_orden = true
+    } else if (preOrderParam === 'false') {
+      whereClause.OR = [
+        { es_pre_orden: false },
+        { es_pre_orden: null }
+      ]
     }
 
-    const orderIds = orders.map(o => o.id)
-    const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(', ')
-    
-    // 2. Fetch order items from the second DB
-    const items = await querySegundaDB(`
-      SELECT id, orden_id, producto_id, producto_nombre, cantidad_ordenada, cantidad_recibida, created_at, id_alegra
-      FROM orden_productos
-      WHERE orden_id IN (${placeholders})
-    `, orderIds)
-
-    // 3. Resolve products from primary DB to match expected frontend structure
-    // Find all distinct product IDs referenced (some could be null)
-    // We should map them. Wait, since some producto_ids could be from the second DB,
-    // let's fetch primary products by ID, but also by model/order_code if they don't match,
-    // or just fetch by ID. Let's do a findMany on primary DB using all non-null product IDs.
-    const productIds = Array.from(new Set(items.map(i => i.producto_id).filter(Boolean))) as string[]
-    
-    const primaryProducts = await prisma.productos.findMany({
-      where: {
-        id: { in: productIds }
+    const orders = await prisma.ordenes_compra.findMany({
+      where: whereClause,
+      orderBy: { created_at: 'desc' },
+      include: {
+        facturas_compra: {
+          select: {
+            numero_factura: true,
+            nombre: true
+          }
+        },
+        orden_productos: {
+          include: {
+            productos: true
+          }
+        }
       }
     })
 
-    const productMap = new Map<string, any>()
-    for (const p of primaryProducts) {
-      productMap.set(p.id, {
-        ...p,
-        description: p.nombre
-      })
-    }
-
-    // Group items by order
-    const itemsByOrder = new Map<string, any[]>()
-    for (const item of items) {
-      if (!itemsByOrder.has(item.orden_id)) {
-        itemsByOrder.set(item.orden_id, [])
-      }
-
-      // Find the corresponding primary DB product
-      let matchedProduct = productMap.get(item.producto_id)
-      
-      // Fallback if not found by UUID
-      if (!matchedProduct && item.producto_nombre) {
-        matchedProduct = {
-          id: item.producto_id || uuidv4(),
-          nombre: item.producto_nombre,
-          description: item.producto_nombre,
-          model: '',
-          order_code: ''
-        }
-      }
-
-      itemsByOrder.get(item.orden_id)!.push({
+    const data = orders.map((o: any) => ({
+      id: o.id,
+      status: mapEstadoToStatus(o.estado),
+      notes: o.observaciones || null,
+      created_at: o.created_at ? o.created_at.toISOString() : new Date().toISOString(),
+      numero_orden: o.numero_orden,
+      proveedor: o.proveedor,
+      es_pre_orden: !!o.es_pre_orden,
+      factura_compra_id: o.factura_compra_id || null,
+      factura_compra_numero: o.facturas_compra?.numero_factura || null,
+      factura_compra_nombre: o.facturas_compra?.nombre || null,
+      items: (o.orden_productos || []).map((item: any) => ({
         id: item.id,
         purchase_order_id: item.orden_id,
         product_id: item.producto_id,
         quantity: item.cantidad_ordenada || 0,
-        productos: matchedProduct
-      })
-    }
-
-    // Map to frontend expected structure
-    const data = orders.map(o => ({
-      id: o.id,
-      status: mapEstadoToStatus(o.estado),
-      notes: o.observaciones || null,
-      created_at: o.created_at || new Date().toISOString(),
-      numero_orden: o.numero_orden,
-      proveedor: o.proveedor,
-      items: itemsByOrder.get(o.id) || []
+        productos: item.productos ? {
+          ...item.productos,
+          description: item.productos.nombre
+        } : (item.producto_nombre ? {
+          id: item.producto_id,
+          nombre: item.producto_nombre,
+          description: item.producto_nombre
+        } : null)
+      }))
     }))
 
     return NextResponse.json({ data })
@@ -118,42 +92,32 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { status, notes, items, numero_orden: requestedNumeroOrden } = body
+    const { status, notes, items, numero_orden: requestedNumeroOrden, es_pre_orden } = body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'La orden debe contener al menos un producto' }, { status: 400 })
     }
 
-    // 1. Generate unique PO ID
-    const purchaseOrderId = uuidv4()
-
-    // 2. Resolve numero_orden:
-    // - Excel import sends the exact INVOICE NO. extracted from the file — keep it as-is
-    // - Manual creates (no numero_orden) auto-increment BS{YY}-{nnn}
-    let numero_orden = typeof requestedNumeroOrden === 'string'
-      ? requestedNumeroOrden.trim()
-      : ''
+    let numero_orden = typeof requestedNumeroOrden === 'string' ? requestedNumeroOrden.trim() : ''
 
     if (numero_orden) {
-      const existing = await querySegundaDB(
-        `SELECT id FROM ordenes_compra WHERE numero_orden = $1 LIMIT 1`,
-        [numero_orden]
-      )
-      if (existing.length > 0) {
+      const existing = await prisma.ordenes_compra.findFirst({
+        where: { numero_orden }
+      })
+      if (existing) {
         return NextResponse.json(
-          { error: `Ya existe una orden de compra con el número ${numero_orden}` },
+          { error: `Ya existe una orden con el número ${numero_orden}` },
           { status: 409 }
         )
       }
     } else {
-      const currentYear = new Date().getFullYear().toString().slice(-2) // e.g. "26"
-      const prefix = `BS${currentYear}-`
+      const currentYear = new Date().getFullYear().toString().slice(-2)
+      const prefix = es_pre_orden ? `POC${currentYear}-` : `BS${currentYear}-`
 
-      const existingOrders = await querySegundaDB(`
-        SELECT numero_orden
-        FROM ordenes_compra
-        WHERE numero_orden LIKE $1
-      `, [`${prefix}%`])
+      const existingOrders = await prisma.ordenes_compra.findMany({
+        where: { numero_orden: { startsWith: prefix } },
+        select: { numero_orden: true }
+      })
 
       let maxNum = 0
       for (const order of existingOrders) {
@@ -170,121 +134,62 @@ export async function POST(request: NextRequest) {
     }
 
     const estado = mapStatusToEstado(status)
-    const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
 
-    // 3. Insert purchase order into second DB
-    await querySegundaDB(`
-      INSERT INTO ordenes_compra (id, numero_orden, proveedor, fecha_orden, fecha_esperada, estado, observaciones, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [
-      purchaseOrderId,
-      numero_orden,
-      'BONSS MEDICAL',
-      today,
-      today,
-      estado,
-      notes || null,
-      new Date().toISOString()
-    ])
-
-    // 4. Fetch all products from second DB for matching
-    const secondDBProducts = await querySegundaDB(`
-      SELECT id, nombre, model, order_code FROM productos
-    `)
-
-    // Fetch primary DB products referenced in the request
-    const primaryProductIds = items.map((it: any) => it.product_id)
+    const productIds = items.map((it: any) => it.product_id).filter(Boolean)
     const primaryProducts = await prisma.productos.findMany({
-      where: { id: { in: primaryProductIds } }
+      where: { id: { in: productIds } }
+    })
+    const productMap = new Map<string, any>(primaryProducts.map((p: any) => [p.id, p]))
+
+    const createdPO = await prisma.ordenes_compra.create({
+      data: {
+        numero_orden,
+        proveedor: 'BONSS MEDICAL',
+        estado,
+        observaciones: notes || null,
+        es_pre_orden: !!es_pre_orden,
+        orden_productos: {
+          create: items.map((it: any) => {
+            const prod = productMap.get(it.product_id)
+            return {
+              producto_id: it.product_id || null,
+              producto_nombre: prod ? prod.nombre : 'Producto',
+              cantidad_ordenada: parseInt(it.quantity, 10) || 0,
+              cantidad_recibida: 0
+            }
+          })
+        }
+      },
+      include: {
+        orden_productos: {
+          include: {
+            productos: true
+          }
+        }
+      }
     })
 
-    const primaryProductMap = new Map<string, any>(primaryProducts.map((p: any) => [p.id, p]))
-
-    const createdItems = []
-
-    // 5. Insert items into second DB orden_productos
-    for (const item of items) {
-      const primaryProd = primaryProductMap.get(item.product_id)
-      if (!primaryProd) continue
-
-      // Match logic with second DB products
-      let matchedSecondDBProduct = null
-
-      const pModel = (primaryProd.model || '').trim().toLowerCase()
-      const pCode = (primaryProd.order_code || '').trim().toLowerCase()
-      const pName = (primaryProd.nombre || '').trim().toLowerCase()
-
-      // Match by exact ID first
-      matchedSecondDBProduct = secondDBProducts.find(sp => sp.id === primaryProd.id)
-
-      if (!matchedSecondDBProduct && pModel && pCode) {
-        // Match by model + code
-        matchedSecondDBProduct = secondDBProducts.find(sp => 
-          (sp.model && sp.model.trim().toLowerCase() === pModel) &&
-          (sp.order_code && sp.order_code.trim().toLowerCase() === pCode)
-        )
-      }
-      if (!matchedSecondDBProduct && pModel) {
-        // Match by model only
-        matchedSecondDBProduct = secondDBProducts.find(sp => 
-          sp.model && sp.model.trim().toLowerCase() === pModel
-        )
-      }
-      if (!matchedSecondDBProduct && pCode) {
-        // Match by code only
-        matchedSecondDBProduct = secondDBProducts.find(sp => 
-          sp.order_code && sp.order_code.trim().toLowerCase() === pCode
-        )
-      }
-      if (!matchedSecondDBProduct && pName) {
-        // Match by name
-        matchedSecondDBProduct = secondDBProducts.find(sp => 
-          sp.nombre && sp.nombre.trim().toLowerCase() === pName
-        )
-      }
-
-      const matchedId = matchedSecondDBProduct ? matchedSecondDBProduct.id : null
-      const matchedName = matchedSecondDBProduct ? matchedSecondDBProduct.nombre : primaryProd.nombre
-
-      const itemId = uuidv4()
-      const quantity = parseInt(item.quantity, 10) || 0
-
-      await querySegundaDB(`
-        INSERT INTO orden_productos (id, orden_id, producto_id, producto_nombre, cantidad_ordenada, cantidad_recibida, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [
-        itemId,
-        purchaseOrderId,
-        matchedId,
-        matchedName,
-        quantity,
-        0, // cantidad_recibida default
-        new Date().toISOString()
-      ])
-
-      createdItems.push({
-        id: itemId,
-        purchase_order_id: purchaseOrderId,
-        product_id: matchedId || primaryProd.id,
-        quantity,
-        productos: {
-          ...primaryProd,
-          description: primaryProd.nombre
-        }
-      })
+    const data = {
+      id: createdPO.id,
+      status: mapEstadoToStatus(createdPO.estado),
+      notes: createdPO.observaciones || null,
+      created_at: createdPO.created_at ? createdPO.created_at.toISOString() : new Date().toISOString(),
+      numero_orden: createdPO.numero_orden,
+      proveedor: createdPO.proveedor,
+      es_pre_orden: !!createdPO.es_pre_orden,
+      items: (createdPO.orden_productos || []).map((item: any) => ({
+        id: item.id,
+        purchase_order_id: item.orden_id,
+        product_id: item.producto_id,
+        quantity: item.cantidad_ordenada || 0,
+        productos: item.productos ? {
+          ...item.productos,
+          description: item.productos.nombre
+        } : null
+      }))
     }
 
-    const createdPO = {
-      id: purchaseOrderId,
-      status: mapEstadoToStatus(estado),
-      notes: notes || null,
-      created_at: new Date().toISOString(),
-      numero_orden,
-      proveedor: 'BONSS MEDICAL',
-      items: createdItems
-    }
-
-    return NextResponse.json({ data: createdPO }, { status: 201 })
+    return NextResponse.json({ data }, { status: 201 })
   } catch (error: any) {
     console.error('Error in POST /api/purchase-orders:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

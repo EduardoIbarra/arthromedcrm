@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { querySegundaDB } from '@/lib/segundaDB'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,17 +21,18 @@ export async function GET() {
       }
     })
 
-    // 2. Query stock from the second DB (http://localhost:3000/inventario uses stock_por_producto)
-    const stockRows = await querySegundaDB(`
-      SELECT producto_id, cantidad 
-      FROM stock_por_producto
-    `)
+    // 2. Query stock from primary DB productos table
+    const productsStock = await prisma.productos.findMany({
+      select: {
+        id: true,
+        stock_actual: true
+      }
+    })
 
     const stockMap = new Map<string, number>()
-    for (const row of stockRows) {
-      if (row.producto_id) {
-        const stockQty = parseInt(row.cantidad || '0', 10)
-        stockMap.set(row.producto_id, stockQty)
+    for (const p of productsStock) {
+      if (p.id) {
+        stockMap.set(p.id, p.stock_actual || 0)
       }
     }
 
@@ -63,7 +63,7 @@ export async function GET() {
       }
     }
 
-    // 4. Subtract stock from missing quantities so we don't order more than needed
+    // 4. Subtract stock from missing quantities
     const data = []
     for (const item of missingMap.values()) {
       const stock = stockMap.get(item.product_id) || 0

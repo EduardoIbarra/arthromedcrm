@@ -251,7 +251,7 @@ export default function EditCongresoPage() {
           ...w,
           doctorIds: w.doctors ? w.doctors.map((d: any) => d.doctor_id) : []
         })))
-        setContacts(data.contacts || [])
+        setContacts(data.congress_contacts || data.contacts || [])
         setGlobalBudget(data.global_budget ? data.global_budget.toString() : '')
         
         if (data.gastos_estimados && data.gastos_estimados.length > 0) {
@@ -1334,7 +1334,7 @@ export default function EditCongresoPage() {
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'contactos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
             onClick={() => setActiveTab('contactos')}
           >
-            <Users size={16} /> Contactos
+            <Users size={16} /> Contactos ({contacts.length})
           </button>
           <button
             type="button"

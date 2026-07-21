@@ -6,7 +6,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
   try {
     const body = await request.json()
-    const { name, role, has_pin, has_gafete, notes } = body
+    const { 
+      name, 
+      role, 
+      has_pin, 
+      has_gafete, 
+      notes,
+      travel_by_plane,
+      flight_airline,
+      flight_number,
+      flight_departure,
+      flight_arrival,
+      flight_locator,
+      ticket_file_url,
+      ticket_file_name
+    } = body
 
     if (!name) {
       return NextResponse.json({ error: 'El nombre es requerido.' }, { status: 400 })
@@ -20,7 +34,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         user_id: body.user_id || null,
         has_pin: !!has_pin,
         has_gafete: !!has_gafete,
-        notes: notes || null
+        notes: notes || null,
+        travel_by_plane: !!travel_by_plane,
+        flight_airline: flight_airline || null,
+        flight_number: flight_number || null,
+        flight_departure: flight_departure ? new Date(flight_departure) : null,
+        flight_arrival: flight_arrival ? new Date(flight_arrival) : null,
+        flight_locator: flight_locator || null,
+        ticket_file_url: ticket_file_url || null,
+        ticket_file_name: ticket_file_name || null
       }
     })
 
