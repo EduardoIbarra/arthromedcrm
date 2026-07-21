@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import {
   ClipboardList,
@@ -37,6 +38,7 @@ interface MissingProductItem {
 
 export default function PurchaseOrdersPage() {
   const { t } = useI18n()
+  const router = useRouter()
 
   // Tab State: 'orders' | 'pre_orders' | 'invoices'
   const [activeTab, setActiveTab] = useState<'orders' | 'pre_orders' | 'invoices'>('pre_orders')
@@ -362,12 +364,14 @@ export default function PurchaseOrdersPage() {
       const res = await fetch(`/api/purchase-orders/${selectedOrder.id}`, {
         method: 'DELETE'
       })
-      if (!res.ok) throw new Error('Error al eliminar la orden')
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Error al eliminar la orden')
       setIsDeleteModalOpen(false)
+      setSelectedOrder(null)
       fetchOrders()
     } catch (err: any) {
       console.error(err)
-      alert(err.message)
+      alert(err.message || 'Error al eliminar la orden')
     } finally {
       setIsDeleting(false)
     }
@@ -381,12 +385,14 @@ export default function PurchaseOrdersPage() {
       const res = await fetch(`/api/purchase-invoices/${selectedInvoice.id}`, {
         method: 'DELETE'
       })
-      if (!res.ok) throw new Error('Error al eliminar factura de compra')
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Error al eliminar factura de compra')
       setIsDeleteInvoiceModalOpen(false)
+      setSelectedInvoice(null)
       fetchOrders()
     } catch (err: any) {
       console.error(err)
-      alert(err.message)
+      alert(err.message || 'Error al eliminar factura de compra')
     } finally {
       setIsDeleting(false)
     }
@@ -634,9 +640,9 @@ export default function PurchaseOrdersPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           <PermissionGuard section="purchase_orders" action="edit">
                             <button
-                              onClick={() => { setSelectedInvoice(inv); setIsInvoiceModalOpen(true); }}
+                              onClick={() => router.push(`/purchase-orders/invoices/${inv.id}`)}
                               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Editar factura de compra"
+                              title="Ver / Editar factura de compra"
                             >
                               <Edit2 size={16} />
                             </button>
