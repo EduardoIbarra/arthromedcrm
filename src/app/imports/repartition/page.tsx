@@ -939,9 +939,11 @@ export default function ImportRepartitionPage() {
             .warning-banner { background-color: #fffbeb; border: 1px solid #fde68a; color: #b45309; padding: 10px; border-radius: 6px; font-size: 11px; margin-bottom: 20px; }
             .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 10px; }
             @media print {
-              body { margin: 10px; }
+              body { margin: 10px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
               .no-print { display: none; }
             }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           </style>
         </head>
         <body>

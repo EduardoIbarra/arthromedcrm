@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/AppShell'
+import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { 
   ArrowLeft, 
@@ -301,37 +302,128 @@ export default function EditPurchaseInvoicePage() {
     return items.reduce((sum, item) => sum + (item.quantity || 0), 0)
   }, [items])
 
-  // Export to Excel (.xlsx)
-  const handleExportExcel = () => {
-    const data = items.map((item, idx) => ({
-      '#': idx + 1,
-      'Producto': item.productObj?.nombre_lista || item.productObj?.nombre || item.product_nombre || 'Producto',
-      'Modelo': item.productObj?.model || '—',
-      'Código de Orden': item.productObj?.order_code || '—',
-      'Línea': getProductLine(item.productObj) || '—',
-      'Cantidad': item.quantity
-    }))
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos Factura')
-    XLSX.writeFile(workbook, `Factura_Compra_${invoice?.numero_factura || 'detalles'}.xlsx`)
+  // Export to Excel (.xlsx) with background colors & styling
+  const handleExportExcel = async () => {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Productos Factura')
+
+    worksheet.columns = [
+      { header: '#', key: 'idx', width: 6 },
+      { header: 'Línea', key: 'line', width: 20 },
+      { header: 'Producto', key: 'product', width: 45 },
+      { header: 'Modelo', key: 'model', width: 22 },
+      { header: 'Código de Orden', key: 'code', width: 22 },
+      { header: 'Cantidad', key: 'qty', width: 14 },
+    ]
+
+    // Style Header Row
+    const headerRow = worksheet.getRow(1)
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    headerRow.height = 26
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0763A9' }
+      }
+      cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    })
+
+    // Data Rows
+    items.forEach((item, idx) => {
+      const lineName = getProductLine(item.productObj) || '—'
+      const rawColor = getLineColor(lineName).replace('#', '')
+      const lineHex = rawColor.length === 6 ? rawColor : '0763A9'
+
+      const row = worksheet.addRow({
+        idx: idx + 1,
+        line: lineName,
+        product: item.productObj?.nombre_lista || item.productObj?.nombre || item.product_nombre || 'Producto',
+        model: item.productObj?.model || '—',
+        code: item.productObj?.order_code || '—',
+        qty: item.quantity
+      })
+
+      row.height = 22
+
+      // Style line cell with custom background color
+      const lineCell = row.getCell('line')
+      lineCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: `FF${lineHex.toUpperCase()}` }
+      }
+      lineCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      lineCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+      // Quantity cell highlight
+      const qtyCell = row.getCell('qty')
+      qtyCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFDCFCE7' }
+      }
+      qtyCell.font = { bold: true, color: { argb: 'FF15803D' } }
+      qtyCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+      // Row zebra background and borders
+      const bg = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC'
+      row.eachCell((cell, colNumber) => {
+        if (colNumber !== 2 && colNumber !== 6) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: bg }
+          }
+        }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        }
+        if (colNumber === 1) cell.alignment = { vertical: 'middle', horizontal: 'center' }
+      })
+    })
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Factura_Compra_${invoice?.numero_factura || 'detalles'}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
   }
 
-  // Print / Save as PDF
+  // Print / Save as PDF with exact colors
   const handlePrint = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
 
     let rowsHtml = ''
     items.forEach((item, idx) => {
+      const lineName = getProductLine(item.productObj) || '—'
+      const lineColor = getLineColor(lineName)
+
       rowsHtml += `
         <tr>
-          <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${idx + 1}</td>
-          <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: 600;">${item.productObj?.nombre_lista || item.productObj?.nombre || item.product_nombre || 'Producto'}</td>
-          <td style="padding: 8px; border: 1px solid #e5e7eb;">${item.productObj?.model || '—'}</td>
-          <td style="padding: 8px; border: 1px solid #e5e7eb;">${item.productObj?.order_code || '—'}</td>
-          <td style="padding: 8px; border: 1px solid #e5e7eb;">${getProductLine(item.productObj) || '—'}</td>
-          <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold;">${item.quantity}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; background-color: #f8fafc;">${idx + 1}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">
+            <span style="display: inline-block; padding: 3px 10px; border-radius: 9999px; font-size: 10px; font-weight: bold; color: #ffffff; background-color: ${lineColor};">
+              ${lineName}
+            </span>
+          </td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600;">${item.productObj?.nombre_lista || item.productObj?.nombre || item.product_nombre || 'Producto'}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0;">${item.productObj?.model || '—'}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0;">${item.productObj?.order_code || '—'}</td>
+          <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: bold; color: #15803d; background-color: #dcfce7;">
+              ${item.quantity}
+            </span>
+          </td>
         </tr>
       `
     })
@@ -342,29 +434,60 @@ export default function EditPurchaseInvoicePage() {
         <head>
           <title>Factura de Compra ${invoice?.numero_factura || ''}</title>
           <style>
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+            }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
             body { font-family: system-ui, -apple-system, sans-serif; color: #111827; padding: 24px; }
-            h1 { font-size: 20px; font-weight: bold; margin-bottom: 4px; }
-            p { font-size: 12px; color: #6b7280; margin: 2px 0; }
-            table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
-            th { background-color: #f3f4f6; padding: 8px; border: 1px solid #e5e7eb; text-align: left; font-weight: bold; }
-            .footer { margin-top: 24px; text-align: center; font-size: 10px; color: #9ca3af; }
+            .header-banner { background-color: #0763a9; color: white; padding: 16px 20px; border-radius: 12px; margin-bottom: 20px; }
+            .header-title { font-size: 22px; font-weight: bold; margin: 0; }
+            .header-sub { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+            .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+            .meta-card { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 8px; }
+            .meta-label { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; }
+            .meta-val { font-size: 13px; font-weight: 600; color: #0f172a; margin-top: 2px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+            th { background-color: #0763a9; color: white; padding: 10px; border: 1px solid #0284c7; text-align: left; font-weight: bold; }
+            td { padding: 9px; border: 1px solid #e2e8f0; }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }
           </style>
         </head>
         <body>
-          <h1>Factura de Compra: ${invoice?.numero_factura || ''}</h1>
-          ${nombre ? `<p><strong>Nombre / Referencia:</strong> ${nombre}</p>` : ''}
-          ${observaciones ? `<p><strong>Observaciones:</strong> ${observaciones}</p>` : ''}
-          <p><strong>Fecha de Creación:</strong> ${invoice?.created_at ? new Date(invoice.created_at).toLocaleDateString() : '-'}</p>
-          <p><strong>Total de Unidades:</strong> ${totalUnits} (${items.length} productos distintos)</p>
+          <div class="header-banner">
+            <div class="header-title">Factura de Compra: ${invoice?.numero_factura || ''}</div>
+            <div class="header-sub">Arthromed ERP · Resumen de Productos</div>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-card">
+              <div class="meta-label">Referencia</div>
+              <div class="meta-val">${nombre || '—'}</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Observaciones</div>
+              <div class="meta-val">${observaciones || '—'}</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Total Unidades</div>
+              <div class="meta-val">${totalUnits} (${items.length} productos distintos)</div>
+            </div>
+          </div>
           
           <table>
             <thead>
               <tr>
-                <th style="text-align: center; width: 40px;">#</th>
+                <th style="text-align: center; width: 35px;">#</th>
+                <th style="width: 120px; text-align: center;">Línea</th>
                 <th>Producto</th>
-                <th>Modelo</th>
-                <th>Código de Orden</th>
-                <th>Línea</th>
+                <th style="width: 140px;">Modelo</th>
+                <th style="width: 140px;">Código de Orden</th>
                 <th style="text-align: center; width: 80px;">Cantidad</th>
               </tr>
             </thead>
@@ -372,7 +495,7 @@ export default function EditPurchaseInvoicePage() {
               ${rowsHtml}
             </tbody>
           </table>
-          <div class="footer">Arthromed ERP - Factura de Compra</div>
+          <div class="footer">Arthromed ERP — Documento generado el ${new Date().toLocaleDateString()}</div>
           <script>
             window.addEventListener('DOMContentLoaded', () => {
               setTimeout(() => { window.print(); }, 400);
