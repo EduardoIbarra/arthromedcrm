@@ -64,6 +64,7 @@ export default function PurchaseOrdersPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [isConsolidateModalOpen, setIsConsolidateModalOpen] = useState(false)
+  const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false)
 
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
 
@@ -398,6 +399,30 @@ export default function PurchaseOrdersPage() {
     }
   }
 
+  // Batch Delete Pre-Orders Handler
+  const handleBatchDeletePreOrders = async () => {
+    if (selectedPreOrderIds.length === 0) return
+    setIsDeleting(true)
+    try {
+      const res = await fetch('/api/purchase-orders', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedPreOrderIds })
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Error al eliminar pre-órdenes')
+
+      setSelectedPreOrderIds([])
+      setIsBatchDeleteModalOpen(false)
+      fetchOrders()
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Error al eliminar pre-órdenes')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':
@@ -450,12 +475,22 @@ export default function PurchaseOrdersPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {activeTab === 'pre_orders' && selectedPreOrderIds.length > 0 && (
-              <button 
-                onClick={() => setIsConsolidateModalOpen(true)}
-                className="btn-primary flex items-center gap-2 bg-emerald-600 border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700"
-              >
-                <Receipt size={18} /> Consolidar Factura ({selectedPreOrderIds.length})
-              </button>
+              <>
+                <button 
+                  onClick={() => setIsConsolidateModalOpen(true)}
+                  className="btn-primary flex items-center gap-2 bg-emerald-600 border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700"
+                >
+                  <Receipt size={18} /> Consolidar Factura ({selectedPreOrderIds.length})
+                </button>
+                <PermissionGuard section="purchase_orders" action="delete">
+                  <button
+                    onClick={() => setIsBatchDeleteModalOpen(true)}
+                    className="btn-secondary flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300"
+                  >
+                    <Trash2 size={18} /> Eliminar Selección ({selectedPreOrderIds.length})
+                  </button>
+                </PermissionGuard>
+              </>
             )}
 
             <PermissionGuard section="purchase_orders" action="create">
@@ -1005,6 +1040,27 @@ export default function PurchaseOrdersPage() {
               </button>
               <button onClick={handleDeleteInvoice} className="btn-primary bg-red-600 border-red-600 hover:bg-red-700 text-white" disabled={isDeleting}>
                 {isDeleting ? <Loader2 size={18} className="animate-spin" /> : t('delete')}
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Batch Delete Pre-Orders Modal */}
+        <Modal
+          open={isBatchDeleteModalOpen}
+          onClose={() => !isDeleting && setIsBatchDeleteModalOpen(false)}
+          title="Eliminar Pre-Órdenes Seleccionadas"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-600 text-sm">
+              ¿Estás seguro de que deseas eliminar las <strong className="text-gray-900">{selectedPreOrderIds.length}</strong> pre-órdenes de compra seleccionadas? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setIsBatchDeleteModalOpen(false)} className="btn-secondary" disabled={isDeleting}>
+                Cancelar
+              </button>
+              <button onClick={handleBatchDeletePreOrders} className="btn-primary bg-red-600 border-red-600 hover:bg-red-700 text-white" disabled={isDeleting}>
+                {isDeleting ? <Loader2 size={18} className="animate-spin" /> : `Eliminar ${selectedPreOrderIds.length} Pre-Órdenes`}
               </button>
             </div>
           </div>
