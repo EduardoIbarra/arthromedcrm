@@ -134,7 +134,23 @@ export default function NewPurchaseOrderPage() {
       }
     }
 
-    const data = Array.from(productMap.values()).sort((a, b) => b.missing - a.missing)
+    // Apply stock & purchase invoice coverage deduction at the aggregated product level
+    const data: MissingProductItem[] = []
+    for (const item of productMap.values()) {
+      const serverItem = shortage.data.find(d => d.product_id === item.product_id)
+      const stock = serverItem?.covered_by_stock || 0
+      const invStock = serverItem?.covered_by_invoices || 0
+      // Calculate net missing after deducting stock/purchase invoice coverage
+      const netMissing = Math.max(0, item.missing - stock - invStock)
+      if (netMissing > 0) {
+        data.push({
+          ...item,
+          missing: netMissing
+        })
+      }
+    }
+
+    data.sort((a, b) => b.missing - a.missing)
     const totalMissing = data.reduce((acc, curr) => acc + curr.missing, 0)
 
     return {
