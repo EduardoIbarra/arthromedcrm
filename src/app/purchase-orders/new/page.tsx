@@ -333,14 +333,14 @@ export default function NewPurchaseOrderPage() {
                 <button
                   type="button"
                   onClick={handleFillFromShortage}
-                  disabled={shortageLoading || !shortage || shortage.data.length === 0}
+                  disabled={shortageLoading || activeShortageData.data.length === 0}
                   className="btn-secondary text-xs flex items-center gap-1.5 bg-blue-50/50 hover:bg-blue-50 text-[#0763a9] border-[#0763a9]/10 disabled:opacity-50"
                 >
                   {shortageLoading ? <Loader2 size={14} className="animate-spin" /> : <FileCheck size={14} />}
                   Llenar con Faltante
-                  {shortage && shortage.totalMissing > 0 && (
+                  {activeShortageData.totalNetMissing > 0 && (
                     <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">
-                      {shortage.totalMissing}
+                      {activeShortageData.totalNetMissing}
                     </span>
                   )}
                 </button>
