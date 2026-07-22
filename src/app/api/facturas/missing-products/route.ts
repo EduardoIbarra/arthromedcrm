@@ -179,21 +179,23 @@ export async function GET() {
       }
     }
 
-    // 5. Subtract physical stock AND purchase invoice stock from missing quantities
+    // 5. Subtract physical stock AND purchase invoice stock from missing quantities.
+    //    IMPORTANT: include ALL products (even fully covered ones, missing=0) so the
+    //    UI can look up covered_by_stock / covered_by_invoices for every product.
+    //    Without this, the UI treats covered products as having 0 coverage and
+    //    double-counts them in the shortage total.
     const data: Array<{ product_id: string; name: string; code: string; missing: number; covered_by_stock: number; covered_by_invoices: number }> = []
     for (const item of missingMap.values()) {
       const physicalStock = stockMap.get(item.product_id) || 0
       const invoiceStock = purchaseInvoiceStockMap.get(item.product_id) || 0
-      const totalAvailable = physicalStock + invoiceStock
-      const actualMissing = item.missing - totalAvailable
-      if (actualMissing > 0) {
-        data.push({
-          ...item,
-          missing: actualMissing,
-          covered_by_stock: Math.min(physicalStock, item.missing),
-          covered_by_invoices: Math.max(0, Math.min(invoiceStock, item.missing - physicalStock))
-        })
-      }
+      const coveredByStock = Math.min(physicalStock, item.missing)
+      const coveredByInvoices = Math.max(0, Math.min(invoiceStock, item.missing - physicalStock))
+      data.push({
+        ...item,
+        missing: Math.max(0, item.missing - physicalStock - invoiceStock),
+        covered_by_stock: coveredByStock,
+        covered_by_invoices: coveredByInvoices
+      })
     }
 
     // 6. Build "by invoice" view: for each pending client invoice, show what is pending delivery
