@@ -364,7 +364,7 @@ export default function ImportModal({ open, onClose, onImportSuccess, isPreOrder
                             <tr
                               key={itemIdx}
                               style={rowStyle}
-                              className="hover:brightness-95 transition-all border-b border-gray-100"
+                              className="hover:brightness-95 transition-all border-b border-gray-100 relative hover:z-20 focus-within:z-30"
                             >
                               <td className="p-3 text-sm text-gray-800">
                                 <div className="line-clamp-2" title={item.originalDescription}>

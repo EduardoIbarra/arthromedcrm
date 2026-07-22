@@ -44,7 +44,7 @@ export default function SearchableSelect({
   )
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`relative ${isOpen ? 'z-50' : ''} ${className}`} ref={containerRef}>
       <button
         type="button"
         className="w-full text-left bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between transition-colors"

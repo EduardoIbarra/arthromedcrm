@@ -418,8 +418,11 @@ const extendedPrisma = basePrisma.$extends({
         const isRead = ['findMany', 'findUnique', 'findFirst', 'findFirstOrThrow', 'findUniqueOrThrow', 'count', 'groupBy', 'aggregate'].includes(operation)
         if (isRead) {
           const nextArgs = args ? { ...args } : {}
-          // Only apply soft delete filter if caller hasn't explicitly specified deleted_at filter or set includeDeleted
-          if (!nextArgs.includeDeleted) {
+          // Check if model client definition contains deleted_at field to prevent invalid query args on unmigrated schemas/models
+          const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[model]?.fields
+          const hasDeletedAtField = !modelFields || modelFields.some((f: any) => f.name === 'deleted_at')
+
+          if (hasDeletedAtField && !nextArgs.includeDeleted) {
             if (nextArgs.where) {
               if (nextArgs.where.deleted_at === undefined) {
                 nextArgs.where = { ...nextArgs.where, deleted_at: null }
