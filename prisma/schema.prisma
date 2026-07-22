@@ -1655,6 +1655,7 @@ model facturas_compra {
   numero_factura       String?                @db.VarChar(50)
   nombre               String?                @db.VarChar(255)
   observaciones        String?
+  status               String?                @default("Creado") @db.VarChar(50)
   fecha_factura        DateTime?              @default(dbgenerated("CURRENT_DATE")) @db.Date
   created_at           DateTime?              @default(now()) @db.Timestamptz(6)
   created_by           String?                @db.Uuid
