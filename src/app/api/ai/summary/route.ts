@@ -53,7 +53,7 @@ El resumen debe sintetizar tanto los datos generales como la actividad reciente 
 
   try {
     const { text } = await generateText({
-      model: google('gemini-2.0-flash'),
+      model: google('gemini-1.5-flash'),
       prompt,
     })
     return NextResponse.json({ summary: text })

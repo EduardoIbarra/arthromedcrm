@@ -41,7 +41,7 @@ Reglas de razonamiento y uso de herramientas:
 `
 
     const result = await generateText({
-      model: google('gemini-2.0-flash'),
+      model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages,
       tools: {

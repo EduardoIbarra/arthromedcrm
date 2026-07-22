@@ -7,7 +7,7 @@ import AppShell from '@/components/AppShell'
 import { 
   ArrowLeft, Calendar, Users, Plus, Trash2, Edit2, Check, X, 
   Upload, FileSpreadsheet, Loader2, Info, CheckSquare, Square,
-  MapPin, Clock, FileText, Settings, UserPlus, Plane, Paperclip, ExternalLink
+  MapPin, Clock, FileText, Settings, UserPlus, Plane, Paperclip, ExternalLink, HandCoins
 } from 'lucide-react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -670,6 +670,12 @@ export default function CongressPlanningPage() {
           </div>
           
           <div className="flex items-center gap-2">
+            <Link
+              href={`/congresos/${id}/gastos`}
+              className="btn-secondary bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
+            >
+              <HandCoins size={16} /> Gastos
+            </Link>
             <button
               onClick={() => setActiveTab('import')}
               className={`btn-secondary ${activeTab === 'import' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white'}`}

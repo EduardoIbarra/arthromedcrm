@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
             }))
           },
           congress_catalogos: {
-            create: (catalog_ids || []).map((cid: string) => ({
+            create: Array.from(new Set<string>(catalog_ids || [])).map((cid: string) => ({
               catalog_id: cid
             }))
           },
