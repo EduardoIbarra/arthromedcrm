@@ -290,26 +290,11 @@ function PurchaseOrdersContent() {
   }
 
   const handleOpenAdd = () => {
-    setSelectedOrder(null)
-    setNotes('')
-    setStatus('PENDING')
-    setItems([{ product_id: '', quantity: 1 }])
-    setFormError(null)
-    setIsEditModalOpen(true)
+    router.push('/purchase-orders/new')
   }
 
   const handleOpenEdit = (order: PurchaseOrder) => {
-    setSelectedOrder(order)
-    setNotes(order.notes || '')
-    setStatus(order.status)
-    setItems(
-      (order.items || []).map(item => ({
-        product_id: item.product_id,
-        quantity: item.quantity
-      }))
-    )
-    setFormError(null)
-    setIsEditModalOpen(true)
+    router.push(`/purchase-orders/edit/${order.id}`)
   }
 
   const handleOpenDelete = (order: PurchaseOrder) => {
@@ -935,140 +920,7 @@ function PurchaseOrdersContent() {
           </div>
         )}
 
-        {/* PO Create / Edit Modal */}
-        <Modal
-          open={isEditModalOpen}
-          onClose={() => !isSaving && !isFaltanteLoading && setIsEditModalOpen(false)}
-          title={selectedOrder ? (activeTab === 'pre_orders' ? 'Editar Pre-Orden de Compra' : 'Editar Orden de Compra') : (activeTab === 'pre_orders' ? 'Nueva Pre-Orden de Compra' : 'Nueva Orden de Compra')}
-          maxWidth="800px"
-        >
-          <form onSubmit={handleSave} className="space-y-5">
-            {formError && (
-              <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-sm rounded-xl flex items-start gap-2 animate-shake">
-                <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Notas / Observaciones</label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Instrucciones especiales, proveedor, etc."
-                  className="erp-input w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Estado de Orden</label>
-                <select
-                  value={status}
-                  onChange={e => setStatus(e.target.value as any)}
-                  className="erp-input w-full py-2.5"
-                >
-                  <option value="PENDING">Pendiente</option>
-                  <option value="COMPLETED">Surtida</option>
-                  <option value="PARTIAL">Parcial</option>
-                  <option value="CANCELLED">Cancelada</option>
-                </select>
-              </div>
-            </div>
-
-            {!selectedOrder && (
-              <div className="flex justify-between items-center border-t border-gray-100 pt-4">
-                <span className="text-xs text-gray-400 italic">
-                  Completa los productos o usa la función de autoabastecimiento:
-                </span>
-                <button
-                  type="button"
-                  onClick={handleLlenarFaltante}
-                  disabled={isFaltanteLoading}
-                  className="btn-secondary text-xs flex items-center gap-1.5 bg-blue-50/50 hover:bg-blue-50 text-[#0763a9] border-[#0763a9]/10"
-                >
-                  {isFaltanteLoading ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <FileCheck size={14} />
-                  )}
-                  Llenar con Faltante
-                </button>
-              </div>
-            )}
-
-            {/* Items list */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <h3 className="text-sm font-bold text-gray-700">Productos Solicitados</h3>
-                <button
-                  type="button"
-                  onClick={handleAddRow}
-                  className="text-xs text-[#0763a9] hover:text-blue-700 font-semibold flex items-center gap-1"
-                >
-                  <PlusCircle size={14} /> Agregar Producto
-                </button>
-              </div>
-
-              <div className="border border-gray-100 rounded-xl overflow-hidden divide-y divide-gray-100 max-h-96 overflow-y-auto bg-gray-50/30">
-                {items.map((item, idx) => (
-                  <div key={idx} className="p-3 flex items-center gap-3">
-                    <span className="text-xs font-semibold text-gray-400 w-6">#{idx + 1}</span>
-                    
-                    <div className="flex-1 min-w-0">
-                      <SearchableSelect
-                        options={productOptions}
-                        value={item.product_id}
-                        onChange={val => handleItemChange(idx, 'product_id', val)}
-                        placeholder="Buscar producto (nombre lista)..."
-                        className="w-full text-sm"
-                      />
-                    </div>
-
-                    <div className="w-24">
-                      <input
-                        required
-                        type="number"
-                        min="1"
-                        placeholder="Cant."
-                        value={item.quantity}
-                        onChange={e => handleItemChange(idx, 'quantity', e.target.value)}
-                        className="erp-input w-full text-sm text-center py-1.5"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveRow(idx)}
-                      disabled={items.length <= 1}
-                      className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-rose-50 transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="btn-secondary"
-                disabled={isSaving || isFaltanteLoading}
-              >
-                {t('cancel')}
-              </button>
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={isSaving || isFaltanteLoading}
-              >
-                {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Guardar Orden'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        {/* PO Create / Edit: now handled by dedicated pages */}
 
         {/* PO Delete Modal */}
         <Modal
