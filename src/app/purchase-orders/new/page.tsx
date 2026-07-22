@@ -117,7 +117,7 @@ export default function NewPurchaseOrderPage() {
 
   // Calculate filtered shortage based on active checked invoices
   const activeShortageData = useMemo(() => {
-    if (!shortage) return { data: [], totalMissing: 0, byInvoice: [] }
+    if (!shortage) return { data: [], totalMissing: 0, totalRawMissing: 0, totalNetMissing: 0, totalCovered: 0, byInvoice: [] }
 
     const activeInvoices = shortage.byInvoice.filter(inv => checkedInvoiceIds.has(inv.invoice_id))
     
@@ -134,28 +134,40 @@ export default function NewPurchaseOrderPage() {
       }
     }
 
+    const totalRawMissing = Array.from(productMap.values()).reduce((acc, curr) => acc + curr.missing, 0)
+
     // Apply stock & purchase invoice coverage deduction at the aggregated product level
     const data: MissingProductItem[] = []
+    let totalCovered = 0
+
     for (const item of productMap.values()) {
       const serverItem = shortage.data.find(d => d.product_id === item.product_id)
       const stock = serverItem?.covered_by_stock || 0
       const invStock = serverItem?.covered_by_invoices || 0
+      const coverage = Math.min(item.missing, stock + invStock)
+      totalCovered += coverage
+
       // Calculate net missing after deducting stock/purchase invoice coverage
-      const netMissing = Math.max(0, item.missing - stock - invStock)
+      const netMissing = Math.max(0, item.missing - (stock + invStock))
       if (netMissing > 0) {
         data.push({
           ...item,
-          missing: netMissing
+          missing: netMissing,
+          covered_by_stock: Math.min(stock, item.missing),
+          covered_by_invoices: Math.max(0, Math.min(invStock, item.missing - stock))
         })
       }
     }
 
     data.sort((a, b) => b.missing - a.missing)
-    const totalMissing = data.reduce((acc, curr) => acc + curr.missing, 0)
+    const totalNetMissing = data.reduce((acc, curr) => acc + curr.missing, 0)
 
     return {
       data,
-      totalMissing,
+      totalMissing: totalNetMissing,
+      totalRawMissing,
+      totalNetMissing,
+      totalCovered,
       byInvoice: shortage.byInvoice
     }
   }, [shortage, checkedInvoiceIds])
@@ -408,23 +420,35 @@ export default function NewPurchaseOrderPage() {
             <div className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden">
               {/* Panel Header */}
               <div className="p-5 bg-gradient-to-br from-rose-50 to-orange-50 border-b border-rose-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 mt-1">
                       <AlertTriangle size={18} className="text-rose-600" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Piezas Faltantes</p>
+                      <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Faltante Neto a Comprar</p>
                       {shortageLoading ? (
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <Loader2 size={14} className="animate-spin text-rose-400" />
                           <span className="text-sm text-rose-400">Calculando...</span>
                         </div>
                       ) : (
-                        <p className="text-3xl font-black text-rose-700">
-                          {activeShortageData.totalMissing.toLocaleString()}
-                          <span className="text-sm font-semibold text-rose-500 ml-1">uds</span>
-                        </p>
+                        <div>
+                          <p className="text-3xl font-black text-rose-700">
+                            {activeShortageData.totalNetMissing.toLocaleString()}
+                            <span className="text-sm font-semibold text-rose-500 ml-1">uds por pedir</span>
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+                            <span className="bg-white/80 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-md font-medium">
+                              Bruto en facturas: <strong>{activeShortageData.totalRawMissing.toLocaleString()}</strong> uds
+                            </span>
+                            {activeShortageData.totalCovered > 0 && (
+                              <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-md font-medium">
+                                Cubierto por stock/FC: <strong>-{activeShortageData.totalCovered.toLocaleString()}</strong> uds
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
