@@ -32,7 +32,7 @@ export async function GET() {
 
     // Apply folio-prefix exclusion (F* / N* are non-delivery historical invoices)
     const filteredInvoices = pendingInvoices.filter(
-      inv => !isExcludedFolio(inv.numero_factura)
+      (inv: any) => !isExcludedFolio(inv.numero_factura)
     )
 
     // 2. Query physical stock from productos table
