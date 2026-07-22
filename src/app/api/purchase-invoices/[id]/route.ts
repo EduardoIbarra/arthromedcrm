@@ -52,6 +52,7 @@ export async function GET(
         factura_compra_id: item.factura_compra_id,
         product_id: item.producto_id,
         quantity: item.cantidad,
+        cantidad_real: item.cantidad_real ?? 0,
         productos: item.productos ? {
           ...item.productos,
           description: item.productos.nombre
@@ -107,7 +108,8 @@ export async function PUT(
             factura_compra_id: id,
             producto_id: item.product_id || null,
             producto_nombre: prod ? prod.nombre : 'Producto',
-            cantidad: parseInt(item.quantity, 10) || 0
+            cantidad: parseInt(item.quantity, 10) || 0,
+            cantidad_real: item.cantidad_real !== undefined ? parseInt(item.cantidad_real, 10) || 0 : 0
           }
         })
       })

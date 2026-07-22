@@ -13,7 +13,7 @@ export interface PurchaseInvoiceData {
   fecha_factura?: string
   created_at?: string
   pre_orders?: { id: string; numero_orden: string }[]
-  items: { id?: string; product_id: string; quantity: number; productos?: any }[]
+  items: { id?: string; product_id: string; quantity: number; cantidad_real?: number; productos?: any }[]
 }
 
 interface PurchaseInvoiceModalProps {

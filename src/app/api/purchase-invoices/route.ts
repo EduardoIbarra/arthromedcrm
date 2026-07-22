@@ -43,6 +43,7 @@ export async function GET() {
         factura_compra_id: item.factura_compra_id,
         product_id: item.producto_id,
         quantity: item.cantidad,
+        cantidad_real: item.cantidad_real ?? 0,
         productos: item.productos ? {
           ...item.productos,
           description: item.productos.nombre

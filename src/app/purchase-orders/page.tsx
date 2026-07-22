@@ -686,13 +686,30 @@ export default function PurchaseOrdersPage() {
                       <td className="p-4">
                         {(() => {
                           const totalUnits = (inv.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0)
+                          const totalRealUnits = (inv.items || []).reduce((sum, item) => sum + (item.cantidad_real || 0), 0)
                           const lineCount = (inv.items || []).length
+                          const isRevisado = inv.status === 'Revisado'
+                          const isMatch = totalUnits === totalRealUnits
+
                           return (
                             <div>
-                              <span className="font-semibold text-sm text-gray-800">
-                                {totalUnits} {totalUnits === 1 ? 'unidad' : 'unidades'}
-                              </span>
-                              <span className="block text-xs text-gray-400">
+                              {isRevisado ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`font-extrabold text-sm px-2 py-0.5 rounded-md border ${
+                                    isMatch
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200 font-black'
+                                  }`}>
+                                    {totalUnits} / {totalRealUnits}
+                                  </span>
+                                  <span className="text-xs text-gray-500 font-medium">unidades</span>
+                                </div>
+                              ) : (
+                                <span className="font-semibold text-sm text-gray-800">
+                                  {totalUnits} {totalUnits === 1 ? 'unidad' : 'unidades'}
+                                </span>
+                              )}
+                              <span className="block text-xs text-gray-400 mt-0.5">
                                 ({lineCount} {lineCount === 1 ? 'producto' : 'productos'})
                               </span>
                             </div>
