@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit, Car, ChevronDown, ChevronUp, Hotel, Users, BedDouble, Boxes, Wrench } from 'lucide-react'
 import AppShell from '@/components/AppShell'
@@ -22,6 +22,8 @@ interface ItineraryItem {
   notes: string
   involvedMemberIds: string[]
 }
+
+type TabType = 'general' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones'
 
 interface HotelOccupant {
   id?: string
@@ -69,7 +71,25 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const [uploading, setUploading] = useState(false)
   const [congresos, setCongresos] = useState<{id: string, name: string}[]>([])
 
-  const [activeTab, setActiveTab] = useState<'general' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones'>('general')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<TabType>(
+    (searchParams.get('tab') as TabType) || 'general'
+  )
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as TabType
+    if (['general', 'staff', 'itinerary', 'resumen', 'hotel', 'estaciones'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
+
+  const handleTabChange = (newTab: TabType) => {
+    setActiveTab(newTab)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', newTab)
+    const basePath = tallerId ? `/talleres/${tallerId}` : '/talleres/new'
+    router.replace(`${basePath}?${params.toString()}`, { scroll: false })
+  }
   const [isNotifyingAll, setIsNotifyingAll] = useState(false)
   const [isNotifying, setIsNotifying] = useState<Record<string, boolean>>({})
   const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({})
@@ -1124,7 +1144,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
         <div className="flex border-b border-gray-200 gap-6">
           <button
             type="button"
-            onClick={() => setActiveTab('general')}
+            onClick={() => handleTabChange('general')}
             className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
               ${activeTab === 'general'
                 ? 'border-blue-600 text-blue-600'
@@ -1141,7 +1161,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                 alert('Por favor ingresa la fecha y hora de inicio primero.')
                 return
               }
-              setActiveTab('staff')
+              handleTabChange('staff')
             }}
             className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
               ${activeTab === 'staff'
@@ -1159,7 +1179,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                 alert('Por favor ingresa la fecha y hora de inicio primero.')
                 return
               }
-              setActiveTab('itinerary')
+              handleTabChange('itinerary')
             }}
             className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
               ${activeTab === 'itinerary'
@@ -1178,7 +1198,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                   alert('Por favor ingresa la fecha y hora de inicio primero.')
                   return
                 }
-                setActiveTab('resumen')
+                handleTabChange('resumen')
               }}
               className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
                 ${activeTab === 'resumen'
@@ -1193,7 +1213,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           {!isNew && (
             <button
               type="button"
-              onClick={() => setActiveTab('hotel')}
+              onClick={() => handleTabChange('hotel')}
               className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
                 ${activeTab === 'hotel'
                   ? 'border-blue-600 text-blue-600'
@@ -1208,7 +1228,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           {!isNew && (
             <button
               type="button"
-              onClick={() => setActiveTab('estaciones')}
+              onClick={() => handleTabChange('estaciones')}
               className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
                 ${activeTab === 'estaciones'
                   ? 'border-blue-600 text-blue-600'

@@ -175,6 +175,13 @@ export default function ClientDetailPage() {
       setActiveTab(tab)
     }
   }, [searchParams])
+
+  const handleTabChange = (newTab: 'info' | 'cartas' | 'facturas' | 'analytics') => {
+    setActiveTab(newTab)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', newTab)
+    router.replace(`/clients/${id}?${params.toString()}`, { scroll: false })
+  }
   const [cartasDistribucion, setCartasDistribucion] = useState<any[]>([])
 
   // Analytics/Reports Tab States
@@ -907,7 +914,7 @@ export default function ClientDetailPage() {
                 ? 'border-[#0763a9] text-[#0763a9]'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
-            onClick={() => setActiveTab('info')}
+            onClick={() => handleTabChange('info')}
           >
             <Building2 size={16} /> Información General
           </button>
@@ -918,7 +925,7 @@ export default function ClientDetailPage() {
                 ? 'border-[#0763a9] text-[#0763a9]'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
-            onClick={() => setActiveTab('cartas')}
+            onClick={() => handleTabChange('cartas')}
           >
             <FileText size={16} /> Cartas de Distribución
           </button>
@@ -929,7 +936,7 @@ export default function ClientDetailPage() {
                 ? 'border-[#0763a9] text-[#0763a9]'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
-            onClick={() => setActiveTab('facturas')}
+            onClick={() => handleTabChange('facturas')}
           >
             <DollarSign size={16} /> Facturas
           </button>
@@ -940,7 +947,7 @@ export default function ClientDetailPage() {
                 ? 'border-[#0763a9] text-[#0763a9]'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
-            onClick={() => setActiveTab('analytics')}
+            onClick={() => handleTabChange('analytics')}
           >
             <Activity size={16} /> Análisis / Reportes
           </button>
