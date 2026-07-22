@@ -29,6 +29,8 @@ import ImportModal from '@/components/purchase-orders/ImportModal'
 import ConsolidateModal from '@/components/purchase-orders/ConsolidateModal'
 import PurchaseInvoiceModal, { PurchaseInvoiceData } from '@/components/purchase-orders/PurchaseInvoiceModal'
 
+import { Suspense } from 'react'
+
 interface MissingProductItem {
   product_id: string
   name: string
@@ -36,7 +38,7 @@ interface MissingProductItem {
   missing: number
 }
 
-export default function PurchaseOrdersPage() {
+function PurchaseOrdersContent() {
   const { t } = useI18n()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1160,5 +1162,22 @@ export default function PurchaseOrdersPage() {
 
       </div>
     </AppShell>
+  )
+}
+
+export default function PurchaseOrdersPage() {
+  return (
+    <Suspense fallback={
+      <AppShell>
+        <div className="p-8 max-w-7xl mx-auto flex justify-center items-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-10 h-10 border-4 border-blue-200 border-t-[#0763a9] rounded-full animate-spin" />
+            <p className="text-sm font-semibold text-gray-500">Cargando compras...</p>
+          </div>
+        </div>
+      </AppShell>
+    }>
+      <PurchaseOrdersContent />
+    </Suspense>
   )
 }
