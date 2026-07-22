@@ -38,6 +38,11 @@ interface ShortageData {
     status: string | null
     items: Array<{ product_id: string; quantity: number; nombre: string }>
   }>
+  physicalStockSources?: Array<{
+    product_id: string
+    nombre: string
+    quantity: number
+  }>
 }
 
 export default function NewPurchaseOrderPage() {
@@ -632,45 +637,92 @@ export default function NewPurchaseOrderPage() {
                     )
                   })
                 ) : (
-                  /* Sources (Facturas de Compra) View */
-                  shortage.purchaseInvoiceSources.map(source => {
-                    const isExpanded = expandedPurchaseInvoices.has(source.id)
-                    const sourceTotal = source.items.reduce((s, i) => s + i.quantity, 0)
-                    return (
-                      <div key={source.id}>
+                  /* Sources View (Stock Físico + Facturas de Compra) */
+                  <div className="divide-y divide-gray-100">
+                    {/* Physical Stock Source */}
+                    {shortage.physicalStockSources && shortage.physicalStockSources.length > 0 && (
+                      <div>
                         <div
-                          onClick={() => togglePurchaseInvoice(source.id)}
-                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => togglePurchaseInvoice('stock_fisico')}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer bg-blue-50/20"
                         >
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-mono font-bold text-emerald-700">FC: {source.numero_factura}</span>
-                              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
-                                Factura de Compra
+                              <span className="text-xs font-mono font-bold text-blue-700">Stock Físico</span>
+                              <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-medium border border-blue-200">
+                                Inventario QR (Disponible)
                               </span>
                             </div>
-                            {source.nombre && (
-                              <p className="text-xs text-gray-500 truncate mt-0.5">{source.nombre}</p>
-                            )}
+                            <p className="text-xs text-gray-500 truncate mt-0.5">
+                              {shortage.physicalStockSources.length} productos en almacén
+                            </p>
                           </div>
                           <div className="shrink-0 flex items-center gap-2">
-                            <span className="text-sm font-black text-emerald-700 tabular-nums">+{sourceTotal} uds</span>
-                            {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                            <span className="text-sm font-black text-blue-700 tabular-nums">
+                              +{shortage.physicalStockSources.reduce((s, i) => s + i.quantity, 0)} uds
+                            </span>
+                            {expandedPurchaseInvoices.has('stock_fisico') ? (
+                              <ChevronDown size={14} className="text-gray-400" />
+                            ) : (
+                              <ChevronRight size={14} className="text-gray-400" />
+                            )}
                           </div>
                         </div>
-                        {isExpanded && (
-                          <div className="bg-emerald-50/40 divide-y divide-emerald-100/60 border-t border-emerald-100">
-                            {source.items.map((item, idx) => (
+                        {expandedPurchaseInvoices.has('stock_fisico') && (
+                          <div className="bg-blue-50/30 divide-y divide-blue-100/60 border-t border-blue-100">
+                            {shortage.physicalStockSources.map((item, idx) => (
                               <div key={idx} className="px-6 py-2 flex items-center justify-between">
                                 <p className="text-xs text-gray-700 truncate">{item.nombre}</p>
-                                <span className="text-xs font-bold text-emerald-700 shrink-0 ml-2 tabular-nums">+{item.quantity} uds</span>
+                                <span className="text-xs font-bold text-blue-700 shrink-0 ml-2 tabular-nums">
+                                  +{item.quantity} uds
+                                </span>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
-                    )
-                  })
+                    )}
+
+                    {/* Purchase Invoices Sources */}
+                    {shortage.purchaseInvoiceSources.map(source => {
+                      const isExpanded = expandedPurchaseInvoices.has(source.id)
+                      const sourceTotal = source.items.reduce((s, i) => s + i.quantity, 0)
+                      return (
+                        <div key={source.id}>
+                          <div
+                            onClick={() => togglePurchaseInvoice(source.id)}
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-mono font-bold text-emerald-700">FC: {source.numero_factura}</span>
+                                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
+                                  Factura de Compra
+                                </span>
+                              </div>
+                              {source.nombre && (
+                                <p className="text-xs text-gray-500 truncate mt-0.5">{source.nombre}</p>
+                              )}
+                            </div>
+                            <div className="shrink-0 flex items-center gap-2">
+                              <span className="text-sm font-black text-emerald-700 tabular-nums">+{sourceTotal} uds</span>
+                              {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                            </div>
+                          </div>
+                          {isExpanded && (
+                            <div className="bg-emerald-50/40 divide-y divide-emerald-100/60 border-t border-emerald-100">
+                              {source.items.map((item, idx) => (
+                                <div key={idx} className="px-6 py-2 flex items-center justify-between">
+                                  <p className="text-xs text-gray-700 truncate">{item.nombre}</p>
+                                  <span className="text-xs font-bold text-emerald-700 shrink-0 ml-2 tabular-nums">+{item.quantity} uds</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             </div>
