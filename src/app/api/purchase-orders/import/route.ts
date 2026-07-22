@@ -169,28 +169,44 @@ export async function POST(req: Request) {
       }
     }
 
-    // Fetch all products from primary DB for matching
-    const products = await prisma.productos.findMany({
-      select: {
-        id: true,
-        model: true,
-        nombre: true,
-        nombre_lista: true,
-        order_code: true,
-        alegra_id: true,
-        generic_description: true,
-        alg_description: true,
-        descripcion_angeles: true,
-        descripcion_hospitales: true
-      }
-    })
+    // Fetch all products and catalog lines from primary DB for matching
+    const [products, catalogLines] = await Promise.all([
+      prisma.productos.findMany({
+        select: {
+          id: true,
+          model: true,
+          nombre: true,
+          nombre_lista: true,
+          order_code: true,
+          alegra_id: true,
+          generic_description: true,
+          alg_description: true,
+          descripcion_angeles: true,
+          descripcion_hospitales: true,
+          line: true
+        }
+      }),
+      prisma.catalog_lines.findMany({
+        select: { name: true, color: true }
+      })
+    ])
+
+    const lineColors = new Map<string, string>()
+    for (const line of catalogLines) {
+      lineColors.set(line.name.toLowerCase(), line.color)
+    }
+
+    const productsWithColor = products.map((p: any) => ({
+      ...p,
+      line_color: p.line ? (lineColors.get(p.line.toLowerCase()) || null) : null
+    }))
 
     const processedItems = rawItems.map(item => {
       const { model, code, reference, originalDescription, quantity } = item
       const fullItemText = `${model} ${code} ${reference} ${originalDescription}`
       const excelIdentifiers = extractModelIdentifiers(fullItemText)
 
-      const matchedList = products.filter((p: any) => {
+      const matchedList = productsWithColor.filter((p: any) => {
         const dbFields = [
           p.model,
           p.order_code,

@@ -321,6 +321,12 @@ export default function ImportModal({ open, onClose, onImportSuccess, isPreOrder
                           const resolvedId = activeResult.resolvedItems[itemIdx]
                           const isMatched = !!resolvedId
 
+                          // Find resolved product to extract line_color
+                          const selectedProduct = resolvedId
+                            ? (item.matchedProducts.find(p => p.id === resolvedId) || allProducts.find(p => p.id === resolvedId))
+                            : null
+                          const lineColor = selectedProduct?.line_color
+
                           // Build dropdown options: Guesses at top (starred ⭐), then all other DB products
                           const guessSet = new Set(item.matchedProducts.map(mp => mp.id))
                           const guessOptions = item.matchedProducts.map(p => ({
@@ -350,8 +356,16 @@ export default function ImportModal({ open, onClose, onImportSuccess, isPreOrder
 
                           const selectOptions = [...guessOptions, ...otherOptions]
 
+                          const rowStyle = lineColor
+                            ? { backgroundColor: `${lineColor}18` }
+                            : undefined
+
                           return (
-                            <tr key={itemIdx} className="hover:bg-gray-50/50 transition-colors">
+                            <tr
+                              key={itemIdx}
+                              style={rowStyle}
+                              className="hover:brightness-95 transition-all border-b border-gray-100"
+                            >
                               <td className="p-3 text-sm text-gray-800">
                                 <div className="line-clamp-2" title={item.originalDescription}>
                                   {item.originalDescription}
@@ -366,7 +380,7 @@ export default function ImportModal({ open, onClose, onImportSuccess, isPreOrder
                                   value={resolvedId || ''}
                                   onChange={(val) => handleResolveChange(activeFileIdx, itemIdx, val)}
                                   placeholder="-- Selecciona un producto --"
-                                  className={isMatched ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50'}
+                                  className={isMatched ? 'border-emerald-200 bg-white/80 text-emerald-800' : 'border-amber-300 bg-amber-50'}
                                 />
                               </td>
                               <td className="p-3 text-center">
