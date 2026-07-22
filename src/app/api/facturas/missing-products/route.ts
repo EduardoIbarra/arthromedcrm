@@ -3,6 +3,16 @@ import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+// Extract a model code like "405Q3" or "302Q4" from a product name string
+function extractModelCode(name: string | null): string | null {
+  const m = (name || '').match(/\b(\d{3}Q\d+)\b/i)
+  return m ? m[1].toUpperCase() : null
+}
+
+function normalizeName(name: string | null): string {
+  return (name || '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
 export async function GET() {
   try {
     // Folios starting with F or N are excluded (historical / non-delivery invoices)
@@ -21,11 +31,7 @@ export async function GET() {
         deleted_at: null
       },
       include: {
-        factura_productos: {
-          where: {
-            producto_id: { not: null }
-          }
-        }
+        factura_productos: true
       }
     })
 
@@ -39,6 +45,7 @@ export async function GET() {
       select: {
         id: true,
         nombre: true,
+        order_code: true,
         stock_actual: true
       }
     })
@@ -60,11 +67,36 @@ export async function GET() {
 
     const stockMap = new Map<string, number>()
     const productNameMap = new Map<string, string>()
+    // Fallback lookup maps: by product code and by normalized name
+    const codeToProductId = new Map<string, string>()
+    const normalizedNameToId = new Map<string, string>()
     for (const p of productsStock) {
-      if (p.id) {
-        stockMap.set(p.id, realStockMap.get(p.id) ?? (p.stock_actual || 0))
-        productNameMap.set(p.id, p.nombre)
+      if (!p.id) continue
+      stockMap.set(p.id, realStockMap.get(p.id) ?? (p.stock_actual || 0))
+      productNameMap.set(p.id, p.nombre)
+      // Index by explicit product code (order_code)
+      if (p.order_code) codeToProductId.set(String(p.order_code).toUpperCase(), p.id)
+      // Index by model code extracted from name (e.g. 405Q3)
+      const mc = extractModelCode(p.nombre)
+      if (mc) codeToProductId.set(mc, p.id)
+      // Index by normalized name
+      normalizedNameToId.set(normalizeName(p.nombre), p.id)
+    }
+
+    // Resolve a null producto_id line to a product ID using fallback matching
+    function resolveProductId(nombre: string | null, codigo: string | null): string | null {
+      // 1. Try explicit code match
+      if (codigo) {
+        const upper = codigo.toUpperCase()
+        if (codeToProductId.has(upper)) return codeToProductId.get(upper)!
       }
+      // 2. Try model code extracted from invoice line name
+      const mc = extractModelCode(nombre)
+      if (mc && codeToProductId.has(mc)) return codeToProductId.get(mc)!
+      // 3. Try normalized name exact match
+      const nn = normalizeName(nombre)
+      if (nn && normalizedNameToId.has(nn)) return normalizedNameToId.get(nn)!
+      return null
     }
 
     // 3. Query incoming stock from facturas_compra (purchase invoices)
@@ -118,11 +150,14 @@ export async function GET() {
     }
 
     // 4. Aggregate missing quantity per product across all filtered pending client invoices
+    //    Lines with null producto_id are resolved via fallback (code / name matching)
     const missingMap = new Map<string, { product_id: string; name: string; code: string; missing: number }>()
 
     for (const invoice of filteredInvoices) {
       for (const prod of invoice.factura_productos) {
-        if (!prod.producto_id) continue
+        // Resolve product ID — use direct ID or fallback matching for null
+        const resolvedId = prod.producto_id ?? resolveProductId(prod.producto_nombre, prod.producto_codigo)
+        if (!resolvedId) continue  // truly unresolvable (e.g. shipping/service lines)
 
         const qtyFacturada = prod.cantidad_facturada || 0
         const qtyEntregada = prod.cantidad_entregada || 0
@@ -130,13 +165,13 @@ export async function GET() {
 
         if (missingQty <= 0) continue
 
-        const existing = missingMap.get(prod.producto_id)
+        const existing = missingMap.get(resolvedId)
         if (existing) {
           existing.missing += missingQty
         } else {
-          missingMap.set(prod.producto_id, {
-            product_id: prod.producto_id,
-            name: prod.producto_nombre,
+          missingMap.set(resolvedId, {
+            product_id: resolvedId,
+            name: prod.producto_nombre ?? productNameMap.get(resolvedId) ?? 'Producto',
             code: prod.producto_codigo || '',
             missing: missingQty
           })
@@ -173,15 +208,16 @@ export async function GET() {
       const invoiceItems: Array<{ product_id: string; name: string; code: string; missing: number }> = []
 
       for (const prod of invoice.factura_productos) {
-        if (!prod.producto_id) continue
+        const resolvedId = prod.producto_id ?? resolveProductId(prod.producto_nombre, prod.producto_codigo)
+        if (!resolvedId) continue
         const qtyFacturada = prod.cantidad_facturada || 0
         const qtyEntregada = prod.cantidad_entregada || 0
         const missingQty = qtyFacturada - qtyEntregada
         if (missingQty <= 0) continue
 
         invoiceItems.push({
-          product_id: prod.producto_id,
-          name: prod.producto_nombre,
+          product_id: resolvedId,
+          name: prod.producto_nombre ?? productNameMap.get(resolvedId) ?? 'Producto',
           code: prod.producto_codigo || '',
           missing: missingQty
         })
