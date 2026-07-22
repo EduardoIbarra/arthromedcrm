@@ -8,7 +8,7 @@ import { Product } from '@/types/database'
 import {
   ArrowLeft, PlusCircle, Trash2, FileCheck, Loader2, AlertCircle,
   AlertTriangle, Package, PackageCheck, FileText, ChevronDown, ChevronRight,
-  RefreshCw
+  RefreshCw, ExternalLink
 } from 'lucide-react'
 
 interface MissingProductItem {
@@ -53,11 +53,12 @@ export default function NewPurchaseOrderPage() {
   // Product data
   const [products, setProducts] = useState<Product[]>([])
 
-  // Shortage data
+  // Shortage data & Selection state
   const [shortage, setShortage] = useState<ShortageData | null>(null)
   const [shortageLoading, setShortageLoading] = useState(false)
   const [shortageView, setShortageView] = useState<'product' | 'invoice'>('product')
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set())
+  const [checkedInvoiceIds, setCheckedInvoiceIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/products')
@@ -75,12 +76,73 @@ export default function NewPurchaseOrderPage() {
       if (!res.ok) throw new Error('Error al cargar faltantes')
       const json: ShortageData = await res.json()
       setShortage(json)
+      // By default, select all invoices
+      setCheckedInvoiceIds(new Set(json.byInvoice.map(i => i.invoice_id)))
     } catch (err: any) {
       console.error(err)
     } finally {
       setShortageLoading(false)
     }
   }
+
+  const toggleInvoiceCheck = (invoiceId: string) => {
+    setCheckedInvoiceIds(prev => {
+      const next = new Set(prev)
+      if (next.has(invoiceId)) {
+        next.delete(invoiceId)
+      } else {
+        next.add(invoiceId)
+      }
+      return next
+    })
+  }
+
+  const toggleAllInvoicesCheck = () => {
+    if (!shortage) return
+    if (checkedInvoiceIds.size === shortage.byInvoice.length) {
+      setCheckedInvoiceIds(new Set())
+    } else {
+      setCheckedInvoiceIds(new Set(shortage.byInvoice.map(i => i.invoice_id)))
+    }
+  }
+
+  const toggleInvoice = (id: string) => {
+    setExpandedInvoices(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Calculate filtered shortage based on active checked invoices
+  const activeShortageData = useMemo(() => {
+    if (!shortage) return { data: [], totalMissing: 0, byInvoice: [] }
+
+    const activeInvoices = shortage.byInvoice.filter(inv => checkedInvoiceIds.has(inv.invoice_id))
+    
+    // Group missing items by product_id across checked invoices
+    const productMap = new Map<string, { product_id: string; name: string; code: string; missing: number }>()
+    for (const inv of activeInvoices) {
+      for (const item of inv.items) {
+        const existing = productMap.get(item.product_id)
+        if (existing) {
+          existing.missing += item.missing
+        } else {
+          productMap.set(item.product_id, { ...item })
+        }
+      }
+    }
+
+    const data = Array.from(productMap.values()).sort((a, b) => b.missing - a.missing)
+    const totalMissing = data.reduce((acc, curr) => acc + curr.missing, 0)
+
+    return {
+      data,
+      totalMissing,
+      byInvoice: shortage.byInvoice
+    }
+  }, [shortage, checkedInvoiceIds])
 
   const productOptions = useMemo(() => {
     return products.map(prod => {
@@ -106,8 +168,8 @@ export default function NewPurchaseOrderPage() {
   }
 
   const handleFillFromShortage = () => {
-    if (!shortage || shortage.data.length === 0) return
-    const newItems = shortage.data.map(item => ({
+    if (activeShortageData.data.length === 0) return
+    const newItems = activeShortageData.data.map(item => ({
       product_id: item.product_id,
       quantity: item.missing
     }))
@@ -159,15 +221,6 @@ export default function NewPurchaseOrderPage() {
     } finally {
       setIsSaving(false)
     }
-  }
-
-  const toggleInvoice = (id: string) => {
-    setExpandedInvoices(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
   }
 
   const totalFormUnits = items.reduce((s, i) => s + (i.quantity || 0), 0)
@@ -353,7 +406,7 @@ export default function NewPurchaseOrderPage() {
                         </div>
                       ) : (
                         <p className="text-3xl font-black text-rose-700">
-                          {shortage?.totalMissing?.toLocaleString() ?? '—'}
+                          {activeShortageData.totalMissing.toLocaleString()}
                           <span className="text-sm font-semibold text-rose-500 ml-1">uds</span>
                         </p>
                       )}
@@ -392,7 +445,7 @@ export default function NewPurchaseOrderPage() {
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  Por Producto ({shortage?.data.length ?? 0})
+                  Por Producto ({activeShortageData.data.length})
                 </button>
                 <button
                   onClick={() => setShortageView('invoice')}
@@ -406,22 +459,36 @@ export default function NewPurchaseOrderPage() {
                 </button>
               </div>
 
+              {/* Select all header for invoice view */}
+              {shortageView === 'invoice' && shortage && shortage.byInvoice.length > 0 && (
+                <div className="px-4 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={checkedInvoiceIds.size === shortage.byInvoice.length}
+                      onChange={toggleAllInvoicesCheck}
+                      className="rounded border-gray-300 text-[#0763a9] focus:ring-[#0763a9]"
+                    />
+                    <span>Seleccionar todas ({checkedInvoiceIds.size}/{shortage.byInvoice.length})</span>
+                  </label>
+                </div>
+              )}
+
               {/* Content */}
               <div className="max-h-[520px] overflow-y-auto divide-y divide-gray-100">
                 {shortageLoading ? (
                   <div className="p-8 flex justify-center">
                     <Loader2 className="animate-spin text-gray-300" size={24} />
                   </div>
-                ) : !shortage || (shortageView === 'product' ? shortage.data.length === 0 : shortage.byInvoice.length === 0) ? (
+                ) : !shortage || (shortageView === 'product' ? activeShortageData.data.length === 0 : shortage.byInvoice.length === 0) ? (
                   <div className="p-8 text-center">
                     <PackageCheck size={32} className="mx-auto mb-2 text-emerald-400" />
                     <p className="text-sm font-semibold text-gray-500">Sin faltantes detectados</p>
-                    <p className="text-xs text-gray-400 mt-1">Todo el stock cubre la demanda pendiente</p>
+                    <p className="text-xs text-gray-400 mt-1">Todo el stock o facturas desmarcadas cubren la demanda</p>
                   </div>
                 ) : shortageView === 'product' ? (
                   /* By-Product View */
-                  shortage.data
-                    .sort((a, b) => b.missing - a.missing)
+                  activeShortageData.data
                     .map(item => (
                       <div key={item.product_id} className="px-4 py-3 hover:bg-gray-50/60 transition-colors">
                         <div className="flex items-center justify-between gap-2">
@@ -443,28 +510,47 @@ export default function NewPurchaseOrderPage() {
                 ) : (
                   /* By-Invoice View */
                   shortage.byInvoice.map(group => {
+                    const isChecked = checkedInvoiceIds.has(group.invoice_id)
                     const isExpanded = expandedInvoices.has(group.invoice_id)
                     const groupTotal = group.items.reduce((s, i) => s + i.missing, 0)
                     return (
-                      <div key={group.invoice_id}>
-                        <button
-                          onClick={() => toggleInvoice(group.invoice_id)}
-                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
-                        >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-mono font-bold text-[#0763a9]">{group.numero_factura}</span>
-                              <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                                {group.items.length} {group.items.length === 1 ? 'prod' : 'prods'}
-                              </span>
+                      <div key={group.invoice_id} className={!isChecked ? 'opacity-50 bg-gray-50/40' : ''}>
+                        <div className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleInvoiceCheck(group.invoice_id)}
+                              className="rounded border-gray-300 text-[#0763a9] focus:ring-[#0763a9] shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-mono font-bold text-[#0763a9]">{group.numero_factura}</span>
+                                <a
+                                  href={`/facturas/${group.invoice_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-gray-400 hover:text-[#0763a9] transition-colors p-0.5"
+                                  title="Ver factura en nueva pestaña"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ExternalLink size={12} />
+                                </a>
+                                <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                  {group.items.length} {group.items.length === 1 ? 'prod' : 'prods'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 truncate mt-0.5">{group.cliente_nombre}</p>
                             </div>
-                            <p className="text-xs text-gray-500 truncate mt-0.5">{group.cliente_nombre}</p>
                           </div>
-                          <div className="shrink-0 flex items-center gap-2">
+                          <div
+                            onClick={() => toggleInvoice(group.invoice_id)}
+                            className="shrink-0 flex items-center gap-2 cursor-pointer p-1"
+                          >
                             <span className="text-sm font-black text-rose-600 tabular-nums">{groupTotal}</span>
                             {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
                           </div>
-                        </button>
+                        </div>
                         {isExpanded && (
                           <div className="bg-gray-50/70 divide-y divide-gray-100 border-t border-gray-100">
                             {group.items.map(item => (
