@@ -133,7 +133,24 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
   const [vehicles, setVehicles] = useState<any[]>([])
 
   // ── UI state ──
-  const [activeSection, setActiveSection] = useState<SectionId>('info')
+  const [activeSection, setActiveSection] = useState<SectionId>(
+    (searchParams.get('tab') as SectionId) || 'info'
+  )
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as SectionId
+    if (['info', 'equipo', 'productos', 'itinerario', 'habitaciones', 'precios'].includes(tabParam)) {
+      setActiveSection(tabParam)
+    }
+  }, [searchParams])
+
+  const handleSectionChange = (newSection: SectionId) => {
+    setActiveSection(newSection)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', newSection)
+    const basePath = cirugiaId ? `/cirugias/${cirugiaId}` : '/cirugias/new'
+    router.replace(`${basePath}?${params.toString()}`, { scroll: false })
+  }
   const [groupStaffByVehicle, setGroupStaffByVehicle] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(!isNew)
@@ -672,7 +689,7 @@ export default function CirugiaDetailContent({ cirugiaId }: Props) {
             <button
               key={id}
               id={`tab-${id}`}
-              onClick={() => setActiveSection(id)}
+              onClick={() => handleSectionChange(id)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeSection === id
                   ? 'border-blue-600 text-blue-700'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import AppShell from '@/components/AppShell'
 import { 
@@ -20,12 +20,31 @@ export default function EditCongresoPage() {
   const { id } = useParams<{ id: string }>()
   const { t } = useI18n()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  const [activeTab, setActiveTab] = useState<'general' | 'talleres' | 'contactos' | 'catalogos' | 'gastos' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones' | 'pendientes'>('general')
+  type TabType = 'general' | 'talleres' | 'contactos' | 'catalogos' | 'gastos' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones' | 'pendientes'
+
+  const [activeTab, setActiveTab] = useState<TabType>(
+    (searchParams.get('tab') as TabType) || 'general'
+  )
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as TabType
+    if (['general', 'talleres', 'contactos', 'catalogos', 'gastos', 'staff', 'itinerary', 'resumen', 'hotel', 'estaciones', 'pendientes'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
+
+  const handleTabChange = (newTab: TabType) => {
+    setActiveTab(newTab)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', newTab)
+    router.replace(`/congresos/${id}?${params.toString()}`, { scroll: false })
+  }
 
   const [availableSpecialties, setAvailableSpecialties] = useState<{ id: string; name: string }[]>([])
   const [availableLines, setAvailableLines] = useState<{ id: string; name: string }[]>([])
@@ -1246,21 +1265,21 @@ export default function EditCongresoPage() {
           <button
             type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-            onClick={() => setActiveTab('general')}
+            onClick={() => handleTabChange('general')}
           >
             <FileText size={16} /> Información General
           </button>
           <button
             type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'pendientes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-            onClick={() => setActiveTab('pendientes')}
+            onClick={() => handleTabChange('pendientes')}
           >
             <ClipboardList size={16} /> Pendientes ({pendientes.length})
           </button>
           <button
             type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'talleres' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-            onClick={() => setActiveTab('talleres')}
+            onClick={() => handleTabChange('talleres')}
           >
             <Calendar size={16} /> Talleres
           </button>
@@ -1272,7 +1291,7 @@ export default function EditCongresoPage() {
                 alert('Por favor ingresa la fecha de inicio primero.')
                 return
               }
-              setActiveTab('staff')
+              handleTabChange('staff')
             }}
           >
             <Users size={16} /> Miembros del Staff ({memberIds.length})
@@ -1285,7 +1304,7 @@ export default function EditCongresoPage() {
                 alert('Por favor ingresa la fecha de inicio primero.')
                 return
               }
-              setActiveTab('itinerary')
+              handleTabChange('itinerary')
             }}
           >
             <Calendar size={16} /> Itinerario ({itinerary.length})
@@ -1298,7 +1317,7 @@ export default function EditCongresoPage() {
                 alert('Por favor ingresa la fecha de inicio primero.')
                 return
               }
-              setActiveTab('resumen')
+              handleTabChange('resumen')
             }}
           >
             <FileText size={16} /> Resumen Staff
@@ -1311,7 +1330,7 @@ export default function EditCongresoPage() {
                 alert('Por favor ingresa la fecha de inicio primero.')
                 return
               }
-              setActiveTab('hotel')
+              handleTabChange('hotel')
             }}
           >
             <Hotel size={16} /> Habitaciones ({hotelRooms.length})
@@ -1324,7 +1343,7 @@ export default function EditCongresoPage() {
                 alert('Por favor ingresa la fecha de inicio primero.')
                 return
               }
-              setActiveTab('estaciones')
+              handleTabChange('estaciones')
             }}
           >
             <Boxes size={16} /> Estaciones ({stations.length})
@@ -1332,21 +1351,21 @@ export default function EditCongresoPage() {
           <button
             type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'contactos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-            onClick={() => setActiveTab('contactos')}
+            onClick={() => handleTabChange('contactos')}
           >
             <Users size={16} /> Contactos ({contacts.length})
           </button>
           <button
             type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'catalogos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-            onClick={() => setActiveTab('catalogos')}
+            onClick={() => handleTabChange('catalogos')}
           >
             <FileText size={16} /> Catálogos Asociados
           </button>
           <button
             type="button"
             className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'gastos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-            onClick={() => setActiveTab('gastos')}
+            onClick={() => handleTabChange('gastos')}
           >
             <HandCoins size={16} /> Gastos Estimados
           </button>

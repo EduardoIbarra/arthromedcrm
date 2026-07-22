@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import {
   ClipboardList,
@@ -39,9 +39,26 @@ interface MissingProductItem {
 export default function PurchaseOrdersPage() {
   const { t } = useI18n()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Tab State: 'orders' | 'pre_orders' | 'invoices'
-  const [activeTab, setActiveTab] = useState<'orders' | 'pre_orders' | 'invoices'>('pre_orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'pre_orders' | 'invoices'>(
+    (searchParams.get('tab') as 'orders' | 'pre_orders' | 'invoices') || 'pre_orders'
+  )
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'orders' || tabParam === 'pre_orders' || tabParam === 'invoices') {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
+
+  const handleTabChange = (newTab: 'orders' | 'pre_orders' | 'invoices') => {
+    setActiveTab(newTab)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', newTab)
+    router.replace(`/purchase-orders?${params.toString()}`, { scroll: false })
+  }
 
   // Data States
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
@@ -528,7 +545,7 @@ export default function PurchaseOrdersPage() {
         {/* Tab Navigation Bar */}
         <div className="flex border-b border-gray-200 gap-1 bg-white p-1 rounded-2xl border shadow-xs">
           <button
-            onClick={() => setActiveTab('pre_orders')}
+            onClick={() => handleTabChange('pre_orders')}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-bold rounded-xl transition-all ${
               activeTab === 'pre_orders'
                 ? 'bg-[#0763a9] text-white shadow-sm'
@@ -547,7 +564,7 @@ export default function PurchaseOrdersPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('orders')}
+            onClick={() => handleTabChange('orders')}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-bold rounded-xl transition-all ${
               activeTab === 'orders'
                 ? 'bg-[#0763a9] text-white shadow-sm'
@@ -566,7 +583,7 @@ export default function PurchaseOrdersPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('invoices')}
+            onClick={() => handleTabChange('invoices')}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-bold rounded-xl transition-all ${
               activeTab === 'invoices'
                 ? 'bg-[#0763a9] text-white shadow-sm'
