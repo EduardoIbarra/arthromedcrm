@@ -39,6 +39,7 @@ interface InvoiceItem {
   product_id: string
   product_nombre?: string
   quantity: number
+  cantidad_real?: number
   productos?: ProductOption | null
 }
 
