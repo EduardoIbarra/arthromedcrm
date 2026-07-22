@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateText, tool, stepCountIs } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenAI } from '@ai-sdk/openai'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
+
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
@@ -40,11 +45,10 @@ Reglas de razonamiento y uso de herramientas:
 9. Sé muy directo y breve en tus introducciones y explicaciones de texto (máximo 1 o 2 párrafos cortos antes de cualquier tabla) para que la lectura por voz sea fluida y rápida. No repitas en prosa o en texto los números o datos exactos que ya se detallan en la tabla.
 `
 
-    const result = await generateText({
-      model: google('gemini-1.5-flash'),
-      system: systemPrompt,
-      messages,
-      tools: {
+    const primaryModel = process.env.OPENAI_API_KEY ? openai('gpt-4o-mini') : google('gemini-1.5-flash')
+    const fallbackModel = process.env.OPENAI_API_KEY ? google('gemini-1.5-flash') : openai('gpt-4o-mini')
+
+    const chatTools = {
         getSalesData: tool({
           description: 'Obtiene las ventas mensuales detalladas de los clientes filtrando por año, mes o nombre del cliente.',
           inputSchema: z.object({
@@ -450,9 +454,27 @@ Reglas de razonamiento y uso de herramientas:
             }
           }
         })
-      },
-      stopWhen: stepCountIs(5),
-    })
+    }
+
+    let result;
+    try {
+      result = await generateText({
+        model: primaryModel as any,
+        system: systemPrompt,
+        messages,
+        tools: chatTools,
+        stopWhen: stepCountIs(5),
+      })
+    } catch (primaryError) {
+      console.error('Primary LLM call failed in /chat, falling back to secondary:', primaryError)
+      result = await generateText({
+        model: fallbackModel as any,
+        system: systemPrompt,
+        messages,
+        tools: chatTools,
+        stopWhen: stepCountIs(5),
+      })
+    }
 
     return NextResponse.json({
       text: result.text,
