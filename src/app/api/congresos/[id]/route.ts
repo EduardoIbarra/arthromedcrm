@@ -113,11 +113,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // Sync catalog associations
       await tx.congress_catalogos.deleteMany({ where: { congress_id: id } })
       if (catalog_ids && catalog_ids.length > 0) {
+        const uniqueCatalogIds = Array.from(new Set<string>(catalog_ids))
         await tx.congress_catalogos.createMany({
-          data: catalog_ids.map((cid: string) => ({
+          data: uniqueCatalogIds.map((cid: string) => ({
             congress_id: id,
             catalog_id: cid
-          }))
+          })),
+          skipDuplicates: true
         })
       }
 
