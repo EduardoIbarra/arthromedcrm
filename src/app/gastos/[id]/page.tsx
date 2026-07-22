@@ -40,7 +40,10 @@ export default function EditGastoPage() {
     expense_date: new Date().toISOString().split('T')[0]
   })
 
-  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([])
+  const [especifiqueOtro, setEspecifiqueOtro] = useState('')
+
+  const selectedCategory = categories.find(c => c.id === formData.category_id)
+  const isOtrosCategory = selectedCategory?.name === 'Otros (Especifique)'
 
   const supabase = createClient()
 
@@ -202,11 +205,16 @@ export default function EditGastoPage() {
     setError(null)
     
     try {
+      const finalDescription = isOtrosCategory && especifiqueOtro.trim()
+        ? (formData.description ? `${formData.description} (Especifique: ${especifiqueOtro.trim()})` : `Especifique: ${especifiqueOtro.trim()}`)
+        : formData.description
+
       const res = await fetch(`/api/gastos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          description: finalDescription,
           congress_id: formData.congress_id || null,
           category_id: formData.category_id || null,
           attachments
@@ -408,6 +416,21 @@ export default function EditGastoPage() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+
+              {isOtrosCategory && (
+                <div className="mt-3 animate-fade-in">
+                  <label className="block text-xs font-semibold text-amber-800 mb-1">
+                    Especifique detalles de categoría *
+                  </label>
+                  <input
+                    type="text"
+                    className="erp-input w-full border-amber-300 bg-amber-50/50"
+                    placeholder="Ej. Pago de derechos de licencia, Servicio de grúa..."
+                    value={especifiqueOtro}
+                    onChange={e => setEspecifiqueOtro(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
 
             <div>
