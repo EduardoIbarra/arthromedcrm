@@ -392,17 +392,52 @@ const extendedPrisma = basePrisma.$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }: any) {
-        if (SECONDARY_MODELS.includes(model)) {
-          const isRead = ['findMany', 'findUnique', 'findFirst', 'findFirstOrThrow', 'findUniqueOrThrow'].includes(operation)
-          if (isRead) {
-            return processQueryArgsAndResolve(model, operation, args, query)
+        // 1. Intercept delete operation -> convert into logical update setting deleted_at = now()
+        if (operation === 'delete') {
+          const updateFn = (basePrisma as any)[model]?.update
+          if (updateFn && args?.where) {
+            return updateFn({
+              where: args.where,
+              data: { deleted_at: new Date() }
+            })
           }
-          return (prismaSegunda as any)[model][operation](args)
         }
 
-        const isRead = ['findMany', 'findUnique', 'findFirst', 'findFirstOrThrow', 'findUniqueOrThrow'].includes(operation)
+        // 2. Intercept deleteMany operation -> convert into logical updateMany setting deleted_at = now()
+        if (operation === 'deleteMany') {
+          const updateManyFn = (basePrisma as any)[model]?.updateMany
+          if (updateManyFn) {
+            return updateManyFn({
+              where: args?.where || {},
+              data: { deleted_at: new Date() }
+            })
+          }
+        }
+
+        // 3. Intercept read queries -> filter out soft-deleted records (deleted_at IS NULL)
+        const isRead = ['findMany', 'findUnique', 'findFirst', 'findFirstOrThrow', 'findUniqueOrThrow', 'count', 'groupBy', 'aggregate'].includes(operation)
         if (isRead) {
-          return processQueryArgsAndResolve(model, operation, args, query)
+          const nextArgs = args ? { ...args } : {}
+          // Only apply soft delete filter if caller hasn't explicitly specified deleted_at filter or set includeDeleted
+          if (!nextArgs.includeDeleted) {
+            if (nextArgs.where) {
+              if (nextArgs.where.deleted_at === undefined) {
+                nextArgs.where = { ...nextArgs.where, deleted_at: null }
+              }
+            } else if (['findMany', 'findFirst', 'count', 'groupBy', 'aggregate'].includes(operation)) {
+              nextArgs.where = { deleted_at: null }
+            }
+          }
+          delete nextArgs.includeDeleted
+
+          if (SECONDARY_MODELS.includes(model)) {
+            return processQueryArgsAndResolve(model, operation, nextArgs, query)
+          }
+          return query(nextArgs)
+        }
+
+        if (SECONDARY_MODELS.includes(model)) {
+          return (prismaSegunda as any)[model][operation](args)
         }
 
         return query(args)
