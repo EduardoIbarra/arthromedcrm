@@ -17,7 +17,6 @@ export async function GET() {
     const pendingInvoices = await prisma.facturas_cliente.findMany({
       where: {
         estado: { in: ['pagada', 'parcial'] },
-        estado_surtido: { in: ['no_surtida', 'parcial'] },
         oculta: { not: true },
         deleted_at: null
       },
@@ -35,7 +34,7 @@ export async function GET() {
       (inv: any) => !isExcludedFolio(inv.numero_factura)
     )
 
-    // 2. Query physical stock from productos table
+    // 2. Query physical stock from productos table + unidades_inventario (disponible)
     const productsStock = await prisma.productos.findMany({
       select: {
         id: true,
@@ -44,11 +43,26 @@ export async function GET() {
       }
     })
 
+    const realStockItems = (await prisma.$queryRawUnsafe(`
+      SELECT il.producto_id, CAST(COUNT(u.id) AS bigint) AS cantidad
+      FROM unidades_inventario u
+      JOIN inventario_lotes il ON il.id = u.lote_id
+      WHERE u.deleted_at IS NULL AND u.estado = 'disponible' AND il.deleted_at IS NULL
+      GROUP BY il.producto_id
+    `)) as { producto_id: string; cantidad: bigint | number | string }[]
+
+    const realStockMap = new Map<string, number>()
+    for (const item of realStockItems) {
+      if (item.producto_id) {
+        realStockMap.set(item.producto_id, parseInt(String(item.cantidad ?? '0'), 10))
+      }
+    }
+
     const stockMap = new Map<string, number>()
     const productNameMap = new Map<string, string>()
     for (const p of productsStock) {
       if (p.id) {
-        stockMap.set(p.id, p.stock_actual || 0)
+        stockMap.set(p.id, realStockMap.get(p.id) ?? (p.stock_actual || 0))
         productNameMap.set(p.id, p.nombre)
       }
     }
@@ -186,11 +200,21 @@ export async function GET() {
     // 7. Compute total missing pieces
     const totalMissing = data.reduce((sum, item) => sum + item.missing, 0)
 
+    // Build physical stock sources list for UI
+    const physicalStockSources = Array.from(stockMap.entries())
+      .filter(([_, qty]) => qty > 0)
+      .map(([prodId, qty]) => ({
+        product_id: prodId,
+        nombre: productNameMap.get(prodId) || 'Producto',
+        quantity: qty
+      }))
+
     return NextResponse.json({
       data,
       byInvoice,
       totalMissing,
-      purchaseInvoiceSources
+      purchaseInvoiceSources,
+      physicalStockSources
     })
   } catch (error: any) {
     console.error('Error fetching missing products:', error)

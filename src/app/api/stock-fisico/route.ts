@@ -12,22 +12,17 @@ export interface StockFisicoItem {
 /**
  * GET /api/stock-fisico
  *
- * Primary DB only — public.conteo_diario.
- * One row per product: the most recent count (fecha, then updated_at).
- * Do not SUM historical daily rows.
+ * Physical stock derived from QR units in `unidades_inventario` where estado = 'disponible'.
  */
 export async function GET(_req: NextRequest) {
   try {
     const items = (await prisma.$queryRawUnsafe(`
-      SELECT producto_id, CAST(contado AS bigint) AS cantidad
-      FROM (
-        SELECT DISTINCT ON (producto_id)
-          producto_id,
-          contado
-        FROM conteo_diario
-        ORDER BY producto_id, fecha DESC, updated_at DESC NULLS LAST
-      ) latest
-      WHERE CAST(contado AS bigint) > 0
+      SELECT il.producto_id, CAST(COUNT(u.id) AS bigint) AS cantidad
+      FROM unidades_inventario u
+      JOIN inventario_lotes il ON il.id = u.lote_id
+      WHERE u.deleted_at IS NULL AND u.estado = 'disponible' AND il.deleted_at IS NULL
+      GROUP BY il.producto_id
+      HAVING COUNT(u.id) > 0
     `)) as { producto_id: string; cantidad: bigint | number | string }[]
 
     const productIds = items.map(i => i.producto_id).filter(Boolean)
