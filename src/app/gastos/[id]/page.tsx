@@ -424,6 +424,7 @@ export default function EditGastoPage() {
                     Especifique detalles de categoría *
                   </label>
                   <input
+                    required
                     type="text"
                     className="erp-input w-full border-amber-300 bg-amber-50/50"
                     placeholder="Ej. Pago de derechos de licencia, Servicio de grúa..."
