@@ -5,12 +5,21 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // 1. Find all client invoices with state PARCIAL or NO SURTIDA
+    // Folios starting with F or N are excluded (historical / non-delivery invoices)
+    // — mirrors the same rule used in imports/repartition
+    const isExcludedFolio = (numero_factura: string | null) =>
+      /^[FN]/i.test(String(numero_factura || '').trim())
+
+    // 1. Find pending client invoices — same filter as imports/repartition:
+    //    • estado (payment) = pagada or parcial  (only invoices that have been paid)
+    //    • estado_surtido = no_surtida or parcial (not yet fully delivered)
+    //    • oculta ≠ true                          (not hidden)
     const pendingInvoices = await prisma.facturas_cliente.findMany({
       where: {
-        estado_surtido: {
-          in: ['no_surtida', 'parcial']
-        }
+        estado: { in: ['pagada', 'parcial'] },
+        estado_surtido: { in: ['no_surtida', 'parcial'] },
+        oculta: { not: true },
+        deleted_at: null
       },
       include: {
         factura_productos: {
@@ -20,6 +29,11 @@ export async function GET() {
         }
       }
     })
+
+    // Apply folio-prefix exclusion (F* / N* are non-delivery historical invoices)
+    const filteredInvoices = pendingInvoices.filter(
+      inv => !isExcludedFolio(inv.numero_factura)
+    )
 
     // 2. Query physical stock from productos table
     const productsStock = await prisma.productos.findMany({
@@ -89,10 +103,10 @@ export async function GET() {
       }
     }
 
-    // 4. Aggregate missing quantity per product across all pending client invoices
+    // 4. Aggregate missing quantity per product across all filtered pending client invoices
     const missingMap = new Map<string, { product_id: string; name: string; code: string; missing: number }>()
 
-    for (const invoice of pendingInvoices) {
+    for (const invoice of filteredInvoices) {
       for (const prod of invoice.factura_productos) {
         if (!prod.producto_id) continue
 
@@ -141,7 +155,7 @@ export async function GET() {
       items: Array<{ product_id: string; name: string; code: string; missing: number }>
     }> = []
 
-    for (const invoice of pendingInvoices) {
+    for (const invoice of filteredInvoices) {
       const invoiceItems: Array<{ product_id: string; name: string; code: string; missing: number }> = []
 
       for (const prod of invoice.factura_productos) {
