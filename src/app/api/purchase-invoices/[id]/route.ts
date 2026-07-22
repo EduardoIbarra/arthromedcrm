@@ -37,6 +37,7 @@ export async function GET(
       id: inv.id,
       numero_factura: inv.numero_factura,
       nombre: inv.nombre || null,
+      status: (inv as any).status || 'Creado',
       observaciones: inv.observaciones || null,
       fecha_factura: inv.fecha_factura ? inv.fecha_factura.toISOString() : null,
       created_at: inv.created_at ? inv.created_at.toISOString() : new Date().toISOString(),
@@ -75,14 +76,15 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { nombre, observaciones, items } = body
+    const { nombre, observaciones, status, items } = body
 
     // 1. Update purchase invoice main fields
     await prisma.facturas_compra.update({
       where: { id },
       data: {
         nombre: nombre || null,
-        observaciones: observaciones || null
+        observaciones: observaciones || null,
+        status: status || undefined
       }
     })
 

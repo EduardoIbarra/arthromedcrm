@@ -46,6 +46,7 @@ interface PurchaseInvoice {
   id: string
   numero_factura: string
   nombre: string | null
+  status?: string | null
   observaciones: string | null
   fecha_factura: string | null
   created_at: string | null
@@ -66,6 +67,7 @@ export default function EditPurchaseInvoicePage() {
 
   const [invoice, setInvoice] = useState<PurchaseInvoice | null>(null)
   const [nombre, setNombre] = useState('')
+  const [status, setStatus] = useState('Creado')
   const [observaciones, setObservaciones] = useState('')
   const [items, setItems] = useState<{ product_id: string; quantity: number; product_nombre?: string; productObj?: ProductOption | null }[]>([])
 
@@ -107,6 +109,7 @@ export default function EditPurchaseInvoicePage() {
         const inv: PurchaseInvoice = invData.data
         setInvoice(inv)
         setNombre(inv.nombre || '')
+        setStatus(inv.status || 'Creado')
         setObservaciones(inv.observaciones || '')
 
         const prods: ProductOption[] = prodData.data || prodData || []
@@ -255,6 +258,7 @@ export default function EditPurchaseInvoicePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: nombre.trim() || null,
+          status,
           observaciones: observaciones.trim() || null,
           items: items.map(it => ({
             product_id: it.product_id,
@@ -591,6 +595,27 @@ export default function EditPurchaseInvoicePage() {
               placeholder="Ej. Importación BONSS Julio 2026..."
               className="erp-input w-full text-sm font-semibold text-gray-900"
             />
+          </div>
+
+          <div className="card p-4 bg-white border border-gray-150 rounded-2xl space-y-3">
+            <label className="block text-xs font-bold uppercase text-gray-500">
+              Estado de la Factura
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className={`erp-input w-full text-sm font-bold transition-all ${
+                status === 'Revisado'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                  : status === 'Listo para revisión'
+                  ? 'bg-amber-50 text-amber-700 border-amber-300'
+                  : 'bg-blue-50 text-[#0763a9] border-blue-300'
+              }`}
+            >
+              <option value="Creado">Creado</option>
+              <option value="Listo para revisión">Listo para revisión</option>
+              <option value="Revisado">Revisado</option>
+            </select>
           </div>
 
           <div className="card p-4 bg-white border border-gray-150 rounded-2xl space-y-3">

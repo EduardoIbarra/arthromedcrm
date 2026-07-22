@@ -28,6 +28,7 @@ export async function GET() {
       id: inv.id,
       numero_factura: inv.numero_factura,
       nombre: inv.nombre || null,
+      status: inv.status || 'Creado',
       observaciones: inv.observaciones || null,
       fecha_factura: inv.fecha_factura ? inv.fecha_factura.toISOString() : null,
       created_at: inv.created_at ? inv.created_at.toISOString() : new Date().toISOString(),

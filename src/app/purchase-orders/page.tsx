@@ -174,9 +174,10 @@ export default function PurchaseOrdersPage() {
     return invoices.filter(inv => {
       const hasNameMatch = inv.nombre?.toLowerCase().includes(term)
       const hasNumMatch = inv.numero_factura.toLowerCase().includes(term)
+      const hasStatusMatch = inv.status?.toLowerCase().includes(term)
       const hasObsMatch = inv.observaciones?.toLowerCase().includes(term)
       const hasPoMatch = inv.pre_orders?.some(p => p.numero_orden.toLowerCase().includes(term))
-      return hasNameMatch || hasNumMatch || hasObsMatch || hasPoMatch
+      return hasNameMatch || hasNumMatch || hasStatusMatch || hasObsMatch || hasPoMatch
     })
   }, [invoices, searchTerm])
 
@@ -624,6 +625,7 @@ export default function PurchaseOrdersPage() {
                   <tr className="bg-gray-50/50 border-b border-gray-100">
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider"># Factura</th>
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nombre</th>
+                    <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</th>
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Pre-Órdenes Consolidadas</th>
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Productos</th>
                     <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</th>
@@ -638,6 +640,35 @@ export default function PurchaseOrdersPage() {
                       </td>
                       <td className="p-4 text-sm font-semibold text-gray-800">
                         {inv.nombre || <span className="text-gray-400 italic">Sin nombre</span>}
+                      </td>
+                      <td className="p-4">
+                        <select
+                          value={inv.status || 'Creado'}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value
+                            setInvoices(prev => prev.map(item => item.id === inv.id ? { ...item, status: newStatus } : item))
+                            try {
+                              await fetch(`/api/purchase-invoices/${inv.id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: newStatus })
+                              })
+                            } catch (err) {
+                              console.error('Error updating status:', err)
+                            }
+                          }}
+                          className={`text-xs font-bold px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none transition-all ${
+                            inv.status === 'Revisado'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : inv.status === 'Listo para revisión'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                              : 'bg-blue-50 text-[#0763a9] border-blue-200 hover:bg-blue-100'
+                          }`}
+                        >
+                          <option value="Creado">Creado</option>
+                          <option value="Listo para revisión">Listo para revisión</option>
+                          <option value="Revisado">Revisado</option>
+                        </select>
                       </td>
                       <td className="p-4 text-sm text-gray-600">
                         {inv.pre_orders && inv.pre_orders.length > 0 ? (
