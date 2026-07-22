@@ -123,6 +123,7 @@ export default function EditPurchaseInvoicePage() {
         setItems((inv.items || []).map(it => ({
           product_id: it.product_id,
           quantity: it.quantity || 1,
+          cantidad_real: it.cantidad_real !== undefined ? it.cantidad_real : 0,
           productObj: prodMap.get(it.product_id) || (it.productos as ProductOption) || {
             id: it.product_id,
             nombre: it.product_nombre || 'Producto'
@@ -200,6 +201,15 @@ export default function EditPurchaseInvoicePage() {
     })
   }
 
+  const handleCantidadRealChange = (originalIndex: number, newQty: number) => {
+    const val = Math.max(0, isNaN(newQty) ? 0 : newQty)
+    setItems(prev => {
+      const next = [...prev]
+      next[originalIndex] = { ...next[originalIndex], cantidad_real: val }
+      return next
+    })
+  }
+
   const handleRemoveItem = (originalIndex: number) => {
     setItems(prev => prev.filter((_, idx) => idx !== originalIndex))
   }
@@ -223,6 +233,7 @@ export default function EditPurchaseInvoicePage() {
         {
           product_id: prod.id,
           quantity: 1,
+          cantidad_real: 0,
           productObj: prod
         }
       ])
@@ -262,7 +273,8 @@ export default function EditPurchaseInvoicePage() {
           observaciones: observaciones.trim() || null,
           items: items.map(it => ({
             product_id: it.product_id,
-            quantity: it.quantity
+            quantity: it.quantity,
+            cantidad_real: it.cantidad_real ?? 0
           }))
         })
       })
@@ -304,6 +316,10 @@ export default function EditPurchaseInvoicePage() {
 
   const totalUnits = useMemo(() => {
     return items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+  }, [items])
+
+  const totalRealUnits = useMemo(() => {
+    return items.reduce((sum, item) => sum + (item.cantidad_real || 0), 0)
   }, [items])
 
   // Helper to get soft ARGB hex for Excel row fills matching line colors
@@ -553,9 +569,19 @@ export default function EditPurchaseInvoicePage() {
                 <h1 className="text-xl font-bold text-gray-900">
                   Factura {invoice.numero_factura}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#0763a9] border border-blue-200">
-                  {totalUnits} {totalUnits === 1 ? 'unidad' : 'unidades'} ({items.length} {items.length === 1 ? 'linea' : 'lineas'})
-                </span>
+                {status === 'Revisado' ? (
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${
+                    totalUnits === totalRealUnits
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}>
+                    {totalUnits} / {totalRealUnits} unidades ({items.length} {items.length === 1 ? 'linea' : 'lineas'})
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#0763a9] border border-blue-200">
+                    {totalUnits} {totalUnits === 1 ? 'unidad' : 'unidades'} ({items.length} {items.length === 1 ? 'linea' : 'lineas'})
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
                 Creada el {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : '-'}
@@ -713,20 +739,24 @@ export default function EditPurchaseInvoicePage() {
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase">Producto</th>
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase w-32">Modelo / Código</th>
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase text-center w-28">Cantidad</th>
+                  <th className="py-2 px-3 font-bold text-gray-600 uppercase text-center w-32">Cantidad Real</th>
                   <th className="py-2 px-3 font-bold text-gray-600 uppercase text-right w-24">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-gray-400 italic">
+                    <td colSpan={6} className="py-12 text-center text-gray-400 italic">
                       {tableSearchTerm ? 'No se encontraron productos coincidentes.' : 'No hay productos en esta factura.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredItems.map(({ product_id, quantity, productObj, originalIndex }, displayIdx) => {
+                  filteredItems.map(({ product_id, quantity, cantidad_real, productObj, originalIndex }, displayIdx) => {
                     const lineName = getProductLine(productObj)
                     const hexColor = getLineColor(lineName)
+                    const realQty = cantidad_real !== undefined ? cantidad_real : 0
+                    const isDivergent = status === 'Revisado' && quantity !== realQty
+                    const isPerfectMatch = status === 'Revisado' && quantity === realQty
                     
                     // Generate soft background tint with matching crisp left border
                     const rowStyle = {
@@ -762,6 +792,22 @@ export default function EditPurchaseInvoicePage() {
                             value={quantity}
                             onChange={(e) => handleQuantityChange(originalIndex, parseInt(e.target.value, 10))}
                             className="w-20 text-center py-1 px-2 font-bold text-xs border border-gray-300 rounded-lg bg-white focus:ring-1 focus:ring-[#0763a9] outline-none"
+                          />
+                        </td>
+                        <td className="py-1.5 px-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            value={realQty}
+                            onChange={(e) => handleCantidadRealChange(originalIndex, parseInt(e.target.value, 10))}
+                            className={`w-20 text-center py-1 px-2 font-bold text-xs border rounded-lg outline-none transition-colors ${
+                              isDivergent
+                                ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-200 font-extrabold'
+                                : isPerfectMatch
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-1 ring-emerald-200'
+                                : 'bg-white text-gray-700 border-gray-300 focus:ring-1 focus:ring-[#0763a9]'
+                            }`}
+                            title="Cantidad física recibida"
                           />
                         </td>
                         <td className="py-1.5 px-3 text-right">
