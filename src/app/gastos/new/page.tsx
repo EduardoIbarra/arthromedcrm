@@ -42,7 +42,7 @@ export default function NewGastoPage() {
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([])
 
   const selectedCategory = categories.find(c => c.id === formData.category_id)
-  const isOtrosCategory = selectedCategory?.name === 'Otros (Especifique)'
+  const isOtrosCategory = selectedCategory?.name === 'Otros'
 
   const supabase = createClient()
 
