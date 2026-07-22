@@ -70,7 +70,7 @@ export default function EditPurchaseInvoicePage() {
   const [nombre, setNombre] = useState('')
   const [status, setStatus] = useState('Creado')
   const [observaciones, setObservaciones] = useState('')
-  const [items, setItems] = useState<{ product_id: string; quantity: number; product_nombre?: string; productObj?: ProductOption | null }[]>([])
+  const [items, setItems] = useState<{ product_id: string; quantity: number; cantidad_real?: number; product_nombre?: string; productObj?: ProductOption | null }[]>([])
 
   const [allProducts, setAllProducts] = useState<ProductOption[]>([])
   const [catalogLines, setCatalogLines] = useState<CatalogLine[]>([])
