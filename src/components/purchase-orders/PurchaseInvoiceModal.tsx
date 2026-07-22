@@ -8,6 +8,7 @@ export interface PurchaseInvoiceData {
   id: string
   numero_factura: string
   nombre?: string | null
+  status?: 'Creado' | 'Listo para revisión' | 'Revisado' | string
   observaciones?: string | null
   fecha_factura?: string
   created_at?: string

@@ -473,7 +473,7 @@ model users {
   webauthn_credentials           webauthn_credentials[]
   cartas_distribucion            cartas_distribucion[]
   eventos                        eventos[]
-  gastos_legacy                  gastos_legacy[] @ignore
+  gastos_legacy gastos_legacy[] @ignore
   ordenes_compra                 ordenes_compra[]
   solicitud_carta_acciones       solicitud_carta_acciones[]
   solicitudes_carta_distribucion solicitudes_carta_distribucion[]
@@ -1216,7 +1216,7 @@ model eventos {
   created_at        DateTime?           @default(now()) @db.Timestamptz(6)
   evento_inventario evento_inventario[]
   users             users?              @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  gastos_legacy     gastos_legacy[] @ignore
+  gastos_legacy gastos_legacy[] @ignore
 
   @@schema("public")
 }
@@ -1970,7 +1970,7 @@ model remisiones {
   fecha_edicion       DateTime?             @db.Timestamptz(6)
   numero_factura      String?
   almacen_propio_id   String?               @db.Uuid
-  gastos_legacy       gastos_legacy[] @ignore
+  gastos_legacy gastos_legacy[] @ignore
   remision_productos  remision_productos[]
   clientes            clientes?             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   perfiles            perfiles?             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
