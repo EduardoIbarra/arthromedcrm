@@ -2174,6 +2174,7 @@ model user_profiles {
   roles                                                                       roles?                       @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   workshop_hotel_occupants                                                    workshop_hotel_occupants[]
   workshop_itinerary_members                                                  workshop_itinerary_members[]
+  congreso_pendientes                                                         congreso_pendientes[]
 
   @@schema("public")
 }
@@ -2490,16 +2491,17 @@ model congreso_station_products {
 
 model congreso_pendientes {
   deleted_at DateTime? @db.Timestamptz(6)
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  congreso_id    String   @db.Uuid
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  congreso_id    String         @db.Uuid
   name           String
   description    String?
-  amount         Decimal? @db.Decimal(10, 2)
-  completed      Boolean  @default(false)
+  amount         Decimal?       @db.Decimal(10, 2)
+  completed      Boolean        @default(false)
   comments       String?
-  responsable_id String?  @db.Uuid
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+  responsable_id String?        @db.Uuid
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
+  responsable    user_profiles? @relation(fields: [responsable_id], references: [id])
 
   @@index([congreso_id], map: "idx_congreso_pendientes_congreso_id")
   @@schema("public")
