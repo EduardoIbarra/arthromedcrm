@@ -56,8 +56,9 @@ export default function NewPurchaseOrderPage() {
   // Shortage data & Selection state
   const [shortage, setShortage] = useState<ShortageData | null>(null)
   const [shortageLoading, setShortageLoading] = useState(false)
-  const [shortageView, setShortageView] = useState<'product' | 'invoice'>('product')
+  const [shortageView, setShortageView] = useState<'product' | 'invoice' | 'sources'>('product')
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set())
+  const [expandedPurchaseInvoices, setExpandedPurchaseInvoices] = useState<Set<string>>(new Set())
   const [checkedInvoiceIds, setCheckedInvoiceIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -108,6 +109,15 @@ export default function NewPurchaseOrderPage() {
 
   const toggleInvoice = (id: string) => {
     setExpandedInvoices(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const togglePurchaseInvoice = (id: string) => {
+    setExpandedPurchaseInvoices(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -497,6 +507,16 @@ export default function NewPurchaseOrderPage() {
                 >
                   Por Factura ({shortage?.byInvoice.length ?? 0})
                 </button>
+                <button
+                  onClick={() => setShortageView('sources')}
+                  className={`flex-1 py-2.5 text-xs font-bold transition-colors ${
+                    shortageView === 'sources'
+                      ? 'text-[#0763a9] border-b-2 border-[#0763a9] bg-white'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Fuentes ({shortage?.purchaseInvoiceSources.length ?? 0})
+                </button>
               </div>
 
               {/* Select all header for invoice view */}
@@ -520,11 +540,15 @@ export default function NewPurchaseOrderPage() {
                   <div className="p-8 flex justify-center">
                     <Loader2 className="animate-spin text-gray-300" size={24} />
                   </div>
-                ) : !shortage || (shortageView === 'product' ? activeShortageData.data.length === 0 : shortage.byInvoice.length === 0) ? (
+                ) : !shortage || (shortageView === 'product' ? activeShortageData.data.length === 0 : shortageView === 'invoice' ? shortage.byInvoice.length === 0 : shortage.purchaseInvoiceSources.length === 0) ? (
                   <div className="p-8 text-center">
                     <PackageCheck size={32} className="mx-auto mb-2 text-emerald-400" />
-                    <p className="text-sm font-semibold text-gray-500">Sin faltantes detectados</p>
-                    <p className="text-xs text-gray-400 mt-1">Todo el stock o facturas desmarcadas cubren la demanda</p>
+                    <p className="text-sm font-semibold text-gray-500">
+                      {shortageView === 'sources' ? 'Sin fuentes de compra registradas' : 'Sin faltantes detectados'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {shortageView === 'sources' ? 'No hay facturas de compra activas con stock entrante' : 'Todo el stock o facturas desmarcadas cubren la demanda'}
+                    </p>
                   </div>
                 ) : shortageView === 'product' ? (
                   /* By-Product View */
@@ -547,7 +571,7 @@ export default function NewPurchaseOrderPage() {
                         </div>
                       </div>
                     ))
-                ) : (
+                ) : shortageView === 'invoice' ? (
                   /* By-Invoice View */
                   shortage.byInvoice.map(group => {
                     const isChecked = checkedInvoiceIds.has(group.invoice_id)
@@ -600,6 +624,46 @@ export default function NewPurchaseOrderPage() {
                                   {item.code && <p className="text-[10px] text-gray-400 font-mono">{item.code}</p>}
                                 </div>
                                 <span className="text-xs font-bold text-rose-600 shrink-0 ml-2 tabular-nums">{item.missing} uds</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                ) : (
+                  /* Sources (Facturas de Compra) View */
+                  shortage.purchaseInvoiceSources.map(source => {
+                    const isExpanded = expandedPurchaseInvoices.has(source.id)
+                    const sourceTotal = source.items.reduce((s, i) => s + i.quantity, 0)
+                    return (
+                      <div key={source.id}>
+                        <div
+                          onClick={() => togglePurchaseInvoice(source.id)}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-mono font-bold text-emerald-700">FC: {source.numero_factura}</span>
+                              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
+                                Factura de Compra
+                              </span>
+                            </div>
+                            {source.nombre && (
+                              <p className="text-xs text-gray-500 truncate mt-0.5">{source.nombre}</p>
+                            )}
+                          </div>
+                          <div className="shrink-0 flex items-center gap-2">
+                            <span className="text-sm font-black text-emerald-700 tabular-nums">+{sourceTotal} uds</span>
+                            {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <div className="bg-emerald-50/40 divide-y divide-emerald-100/60 border-t border-emerald-100">
+                            {source.items.map((item, idx) => (
+                              <div key={idx} className="px-6 py-2 flex items-center justify-between">
+                                <p className="text-xs text-gray-700 truncate">{item.nombre}</p>
+                                <span className="text-xs font-bold text-emerald-700 shrink-0 ml-2 tabular-nums">+{item.quantity} uds</span>
                               </div>
                             ))}
                           </div>
