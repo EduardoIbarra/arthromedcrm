@@ -24,10 +24,9 @@ export async function POST(request: NextRequest) {
     }
 
         const systemPrompt = `Eres un asistente de inteligencia artificial experto en el ERP de Arthromed (una empresa mexicana de equipo médico).
-Tu objetivo es ayudar a los usuarios a consultar, analizar, proyectar y comparar los datos de ventas de la empresa con total flexibilidad.
+Tu objetivo es ayudar a los usuarios a consultar, analizar, proyectar y comparar los datos de ventas, facturación y entregas/surtidos pendientes de la empresa con total flexibilidad.
 
-Tienes acceso a herramientas para consultar las ventas mensuales y desgloses de productos a partir de las facturas de clientes (facturas_cliente y factura_productos).
-Las ventas se registran mediante facturas, que contienen detalles de los clientes y los productos específicos vendidos (con cantidad, precio unitario e importe).
+Tienes acceso a herramientas para consultar las ventas mensuales, desgloses de productos a partir de las facturas de clientes, y el estado de surtido/artículos pendientes por entregar (de facturas pagadas o pendientes).
 
 Reglas de razonamiento y uso de herramientas:
 1. IMPORTANTE: Ejecuta las herramientas inmediatamente cuando la pregunta del usuario requiera consultar, comparar o analizar datos. Nunca pidas confirmación ni permisos al usuario para usar las herramientas, ejecútalas directamente en el primer paso.
@@ -35,13 +34,14 @@ Reglas de razonamiento y uso de herramientas:
    - Para VENTAS TOTALES de un periodo, mes, año, tendencias, o comparaciones generales de totales, usa SIEMPRE la herramienta "getSalesSummaryByPeriod". Esta herramienta calcula la suma total directamente en el servidor y te da el valor consolidado de forma 100% exacta sin inducir a errores de cálculo.
    - Para DESGLOSES DE CLIENTES, RANKINGS de clientes, o detalles por cliente, usa "getSalesData" pasando el año ("anio") y/o mes ("mes") si el usuario los especificó.
    - Para CONSULTAS SOBRE PRODUCTOS (cuál se vende más, volúmenes de venta, precios, qué productos compra un cliente, productos vendidos en un periodo, etc.), usa SIEMPRE la herramienta "getProductSalesSummary".
-   - Para CONSULTAS DETALLADAS O GRANULARES DE VENTAS DE UN PRODUCTO POR FACTURA (por ejemplo, cuántas unidades de un producto específico se vendieron este año o mes, en qué facturas, a qué clientes, a qué precios y cuáles son los montos de venta detallados), usa "getProductSalesByInvoice".
+   - Para CONSULTAS DETALLADAS O GRANULARES DE VENTAS DE UN PRODUCTO POR FACTURA, usa "getProductSalesByInvoice".
+   - Para ARTÍCULOS O PRODUCTOS PENDIENTES POR ENTREGAR / FALTANTES DE SURTIDO (ej. artículos pendientes por entregar, de facturas ya pagadas o pendientes), usa SIEMPRE la herramienta "getPendingProductsToDeliver".
 3. CONSULTAS DE FACTURAS ESPECÍFICAS: Si el usuario te pregunta por facturas específicas (ej. F-240, F-238, o simplemente 240, 238), usa SIEMPRE la herramienta "getSpecificInvoices" pasando los números de factura.
-4. PROYECCIONES: Si el usuario te pide proyecciones de ventas (por ejemplo, para el resto del año 2026 o para periodos futuros), obtén el histórico de ventas utilizando "getSalesSummaryByPeriod" (sin filtrar o filtrando por año), analiza el promedio mensual o la tendencia de crecimiento, y calcula una proyección razonada explicándola paso a paso en tu respuesta.
+4. PROYECCIONES: Si el usuario te pide proyecciones de ventas, obtén el histórico de ventas utilizando "getSalesSummaryByPeriod", analiza la tendencia, y calcula una proyección razonada explicándola paso a paso en tu respuesta.
 5. Responde siempre en español de manera profesional, analítica, clara y extremadamente concisa. Evita rodeos, saludos redundantes o explicaciones largas.
 6. Muestra siempre las cifras monetarias formateadas como pesos mexicanos (ej. $1,250,500.00 MXN).
 7. Presenta las respuestas de forma muy estructurada. Usa formato Markdown (tablas, negritas, viñetas) para que los rankings, desgloses y comparaciones sean visualmente impecables y fáciles de leer.
-8. Si te preguntan sobre cosas ajenas a las ventas o al ERP, responde amablemente que tu especialidad es el análisis de ventas y datos del ERP de Arthromed.
+8. Si te preguntan sobre datos del ERP de Arthromed (ventas, clientes, facturas, productos, entregas pendientes o surtidos), usa las herramientas correspondientes. Solo si preguntan sobre temas totalmente ajenos a la empresa, indica amablemente cuál es tu alcance.
 9. Sé muy directo y breve en tus introducciones y explicaciones de texto (máximo 1 o 2 párrafos cortos antes de cualquier tabla) para que la lectura por voz sea fluida y rápida. No repitas en prosa o en texto los números o datos exactos que ya se detallan en la tabla.
 `
 
@@ -450,6 +450,85 @@ Reglas de razonamiento y uso de herramientas:
               }))
             } catch (err: any) {
               console.error('Error in getProductSalesByInvoice tool:', err)
+              return { error: err.message }
+            }
+          }
+        }),
+        getPendingProductsToDeliver: tool({
+          description: 'Obtiene los artículos o productos pendientes por entregar (faltantes de surtido) a partir de las facturas de clientes (pagadas o pendientes por cobrar).',
+          inputSchema: z.object({
+            soloPagadas: z.boolean().optional().describe('Si es true (default), consulta únicamente facturas pagadas que tienen artículos pendientes por entregar. Si es false, incluye todas las facturas no anuladas.'),
+            clienteNombre: z.string().optional().describe('Filtra por nombre del cliente'),
+            productoNombre: z.string().optional().describe('Filtra por nombre del producto'),
+          }),
+          execute: async ({ soloPagadas = true, clienteNombre, productoNombre }: { soloPagadas?: boolean; clienteNombre?: string; productoNombre?: string }) => {
+            try {
+              const whereFactura: any = {
+                estado_surtido: { in: ['no_surtida', 'parcial'] },
+                ...(soloPagadas
+                  ? { estado: { in: ['pagada', 'pagado'] } }
+                  : { estado: { notIn: ['anulado', 'cancelada'] } })
+              }
+
+              if (clienteNombre) {
+                whereFactura.cliente_nombre = { contains: clienteNombre, mode: 'insensitive' }
+              }
+
+              const facturas = await prisma.facturas_cliente.findMany({
+                where: whereFactura,
+                include: {
+                  factura_productos: true
+                },
+                orderBy: { fecha_expedicion: 'desc' }
+              })
+
+              const itemsDetalle: any[] = []
+              const resumenPorProducto: Record<string, { producto: string; cantidadPendiente: number; facturasAfectadas: number }> = {}
+
+              for (const f of facturas) {
+                for (const p of f.factura_productos) {
+                  const qtyFacturada = p.cantidad_facturada || 0
+                  const qtyEntregada = p.cantidad_entregada || 0
+                  const missingQty = qtyFacturada - qtyEntregada
+
+                  if (missingQty <= 0) continue
+
+                  if (productoNombre && !p.producto_nombre?.toLowerCase().includes(productoNombre.toLowerCase())) {
+                    continue
+                  }
+
+                  itemsDetalle.push({
+                    numero_factura: f.numero_factura,
+                    cliente: f.cliente_nombre,
+                    fecha_factura: f.fecha_expedicion,
+                    estado_pago: f.estado,
+                    estado_surtido: f.estado_surtido,
+                    producto: p.producto_nombre,
+                    cantidad_facturada: qtyFacturada,
+                    cantidad_entregada: qtyEntregada,
+                    cantidad_pendiente: missingQty,
+                  })
+
+                  const prodName = p.producto_nombre || 'Desconocido'
+                  if (!resumenPorProducto[prodName]) {
+                    resumenPorProducto[prodName] = { producto: prodName, cantidadPendiente: 0, facturasAfectadas: 0 }
+                  }
+                  resumenPorProducto[prodName].cantidadPendiente += missingQty
+                  resumenPorProducto[prodName].facturasAfectadas += 1
+                }
+              }
+
+              const rankingFaltantes = Object.values(resumenPorProducto).sort((a, b) => b.cantidadPendiente - a.cantidadPendiente)
+
+              return {
+                filtroSoloFacturasPagadas: soloPagadas,
+                totalFacturasConFaltante: facturas.length,
+                totalItemsPendientes: itemsDetalle.length,
+                resumenConsolidadoPorProducto: rankingFaltantes,
+                detallePorFactura: itemsDetalle
+              }
+            } catch (err: any) {
+              console.error('Error in getPendingProductsToDeliver tool:', err)
               return { error: err.message }
             }
           }
