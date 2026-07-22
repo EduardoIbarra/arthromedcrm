@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { generateText } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenAI } from '@ai-sdk/openai'
 import { Client } from '@/types/database'
+
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
@@ -52,10 +57,19 @@ ${customFieldsText}
 El resumen debe sintetizar tanto los datos generales como la actividad reciente para identificar el estado actual de la relación, intereses clave del cliente y oportunidades. Sé directo y profesional.`
 
   try {
-    const { text } = await generateText({
-      model: google('gemini-1.5-flash'),
-      prompt,
-    })
+    const primaryModel = process.env.OPENAI_API_KEY ? openai('gpt-4o-mini') : google('gemini-1.5-flash')
+    const fallbackModel = process.env.OPENAI_API_KEY ? google('gemini-1.5-flash') : openai('gpt-4o-mini')
+
+    let text: string
+    try {
+      const res = await generateText({ model: primaryModel as any, prompt })
+      text = res.text
+    } catch (primaryErr) {
+      console.error('Primary LLM failed in summary route, falling back:', primaryErr)
+      const res = await generateText({ model: fallbackModel as any, prompt })
+      text = res.text
+    }
+
     return NextResponse.json({ summary: text })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
