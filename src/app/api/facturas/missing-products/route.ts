@@ -147,7 +147,7 @@ export async function GET() {
       }
     }
 
-    // 6. Build "by invoice" view: for each pending client invoice, show what remains missing
+    // 6. Build "by invoice" view: for each pending client invoice, show what is pending delivery
     const byInvoice: Array<{
       invoice_id: string
       numero_factura: string
@@ -165,22 +165,12 @@ export async function GET() {
         const missingQty = qtyFacturada - qtyEntregada
         if (missingQty <= 0) continue
 
-        // Check if this product is already in the global "still missing" data
-        const stillMissingItem = data.find(d => d.product_id === prod.producto_id)
-        if (!stillMissingItem) continue // fully covered by stock or purchase invoices
-
-        const physicalStock = stockMap.get(prod.producto_id) || 0
-        const invoiceStock = purchaseInvoiceStockMap.get(prod.producto_id) || 0
-        const totalAvailable = physicalStock + invoiceStock
-        const netMissing = missingQty - Math.max(0, totalAvailable)
-        if (netMissing > 0) {
-          invoiceItems.push({
-            product_id: prod.producto_id,
-            name: prod.producto_nombre,
-            code: prod.producto_codigo || '',
-            missing: netMissing
-          })
-        }
+        invoiceItems.push({
+          product_id: prod.producto_id,
+          name: prod.producto_nombre,
+          code: prod.producto_codigo || '',
+          missing: missingQty
+        })
       }
 
       if (invoiceItems.length > 0) {
