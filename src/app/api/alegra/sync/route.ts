@@ -270,7 +270,17 @@ export async function GET(_request: NextRequest) {
 
           // Recreate catalog lines from Alegra — NEVER wipe entregada.
           // Snapshot prior deliveries, map onto new rows, then restore from remisiones.
-          if (invoice.items?.length > 0) {
+          let invoiceItems = Array.isArray(invoice.items) && invoice.items.length > 0 ? invoice.items : null
+          if (!invoiceItems && invoice.id) {
+            try {
+              const fullInv = await fetchAlegraInvoice(invoice.id.toString())
+              if (Array.isArray(fullInv?.items) && fullInv.items.length > 0) {
+                invoiceItems = fullInv.items
+              }
+            } catch (e) {}
+          }
+
+          if (invoiceItems && invoiceItems.length > 0) {
             const existingLines = await prisma.factura_productos.findMany({
               where: { factura_id: facturaId },
               select: {
@@ -300,7 +310,7 @@ export async function GET(_request: NextRequest) {
               }
             })
             await prisma.factura_productos.createMany({
-              data: invoice.items.map((item: any) => {
+              data: invoiceItems.map((item: any) => {
                 const iName  = item.name || item.description || 'Producto'
                 const rKey   = item.reference?.trim().toLowerCase()
                 const nKey   = iName.trim().toLowerCase()

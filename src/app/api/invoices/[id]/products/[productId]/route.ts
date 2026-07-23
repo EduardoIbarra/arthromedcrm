@@ -129,6 +129,7 @@ export async function PATCH(
           precio_unitario: nextPrice,
           importe: nextImporte,
           linea: nextLinea,
+          manual: true,
         },
       })
 
