@@ -371,7 +371,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 19
+const TRIGGER_VERSION = 20
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
@@ -425,13 +425,22 @@ function applySoftDeleteFilters(modelName: string, args: any) {
       const targetModel = relationInfo?.type;
 
       if (targetModel) {
+        const targetFields = (basePrisma as any)?._runtimeDataModel?.models?.[targetModel]?.fields;
+        const targetHasDeletedAt = targetFields && targetFields.some((f: any) => f.name === 'deleted_at');
+        const isListRelation = Boolean(relationInfo?.isList);
+
         if (relationConfig === true) {
-          const targetFields = (basePrisma as any)?._runtimeDataModel?.models?.[targetModel]?.fields;
-          const targetHasDeletedAt = targetFields && targetFields.some((f: any) => f.name === 'deleted_at');
-          if (targetHasDeletedAt) {
+          if (targetHasDeletedAt && isListRelation) {
             relations[key] = { where: { deleted_at: null } };
           }
         } else if (typeof relationConfig === 'object') {
+          if (targetHasDeletedAt && isListRelation) {
+            if (!relationConfig.where) {
+              relationConfig.where = { deleted_at: null };
+            } else if (relationConfig.where.deleted_at === undefined) {
+              relationConfig.where.deleted_at = null;
+            }
+          }
           applySoftDeleteFilters(targetModel, relationConfig);
         }
       }
