@@ -404,7 +404,7 @@ function applySoftDeleteFilters(modelName: string, args: any) {
   if (!args) return;
 
   const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[modelName]?.fields;
-  const hasDeletedAtField = !modelFields || modelFields.some((f: any) => f.name === 'deleted_at');
+  const hasDeletedAtField = modelFields && modelFields.some((f: any) => f.name === 'deleted_at');
 
   if (hasDeletedAtField && !args.includeDeleted) {
     if (!args.where) {
@@ -427,7 +427,7 @@ function applySoftDeleteFilters(modelName: string, args: any) {
       if (targetModel) {
         if (relationConfig === true) {
           const targetFields = (basePrisma as any)?._runtimeDataModel?.models?.[targetModel]?.fields;
-          const targetHasDeletedAt = !targetFields || targetFields.some((f: any) => f.name === 'deleted_at');
+          const targetHasDeletedAt = targetFields && targetFields.some((f: any) => f.name === 'deleted_at');
           if (targetHasDeletedAt) {
             relations[key] = { where: { deleted_at: null } };
           }
