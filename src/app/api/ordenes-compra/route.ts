@@ -32,6 +32,7 @@ export async function GET(_request: NextRequest) {
       orderBy: { created_at: 'desc' },
       include: {
         orden_productos: {
+          where: { deleted_at: null },
           include: {
             productos: {
               select: {

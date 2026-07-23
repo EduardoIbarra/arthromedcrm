@@ -241,14 +241,79 @@ export async function POST(req: Request) {
         return false
       })
 
-      // Sort matched products: products with alegra_id present come FIRST
+      // Special override: if the Excel item references AC405 but doesn't mention Neo Blator/NeoBla/Neo,
+      // exclude Neo Blator in favor of EZ Blator.
+      let filteredMatched = matchedList
+      const hasAC405 = excelIdentifiers.includes('ac405') || fullItemText.toLowerCase().includes('ac405')
+      const mentionsNeo = fullItemText.toLowerCase().includes('neo') || fullItemText.toLowerCase().includes('neoblator') || fullItemText.toLowerCase().includes('neobla')
+      if (hasAC405 && !mentionsNeo) {
+        filteredMatched = matchedList.filter((p: any) => {
+          const nameLower = `${p.nombre || ''} ${p.nombre_lista || ''} ${p.generic_description || ''}`.toLowerCase()
+          return !nameLower.includes('neo blator') && !nameLower.includes('neoblator') && !nameLower.includes('neobla')
+        })
+        if (filteredMatched.length === 0) {
+          filteredMatched = matchedList
+        }
+      }
+
+      // Calculate matching score based on exact matches vs substring matches
+      const getMatchScoreInfo = (p: any) => {
+        const dbFields = [
+          p.model,
+          p.order_code,
+          p.nombre,
+          p.nombre_lista,
+          p.generic_description,
+          p.alg_description,
+          p.descripcion_angeles,
+          p.descripcion_hospitales
+        ].filter(Boolean).join(' ')
+
+        const dbIdentifiers = extractModelIdentifiers(dbFields)
+        const dbLower = dbFields.toLowerCase()
+
+        let maxExactLength = 0
+        let sumExactLength = 0
+        let maxSubstrLength = 0
+        let sumSubstrLength = 0
+
+        for (const id of excelIdentifiers) {
+          const isExact = dbIdentifiers.includes(id)
+          const isSubstr = id.length >= 4 && dbLower.includes(id)
+
+          if (isExact) {
+            if (id.length > maxExactLength) maxExactLength = id.length
+            sumExactLength += id.length
+          } else if (isSubstr) {
+            if (id.length > maxSubstrLength) maxSubstrLength = id.length
+            sumSubstrLength += id.length
+          }
+        }
+
+        return {
+          maxExactLength,
+          sumExactLength,
+          maxSubstrLength,
+          sumSubstrLength
+        }
+      }
+
+      // Sort matched products: longest exact matched code first, then exact sum, then substring max, then substring sum, then fallback to alegra_id
       const uniqueMap = new Map<string, any>()
-      for (const p of matchedList) {
+      for (const p of filteredMatched) {
         if (!uniqueMap.has(p.id)) {
           uniqueMap.set(p.id, p)
         }
       }
       const matchedProducts = Array.from(uniqueMap.values()).sort((a, b) => {
+        const scoreA = getMatchScoreInfo(a)
+        const scoreB = getMatchScoreInfo(b)
+
+        if (scoreB.maxExactLength !== scoreA.maxExactLength) return scoreB.maxExactLength - scoreA.maxExactLength
+        if (scoreB.sumExactLength !== scoreA.sumExactLength) return scoreB.sumExactLength - scoreA.sumExactLength
+        if (scoreB.maxSubstrLength !== scoreA.maxSubstrLength) return scoreB.maxSubstrLength - scoreA.maxSubstrLength
+        if (scoreB.sumSubstrLength !== scoreA.sumSubstrLength) return scoreB.sumSubstrLength - scoreA.sumSubstrLength
+
         const aHasAlg = a.alegra_id && String(a.alegra_id).trim() !== '' ? 1 : 0
         const bHasAlg = b.alegra_id && String(b.alegra_id).trim() !== '' ? 1 : 0
         if (bHasAlg !== aHasAlg) return bHasAlg - aHasAlg

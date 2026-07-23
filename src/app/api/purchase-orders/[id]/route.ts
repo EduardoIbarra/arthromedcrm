@@ -33,6 +33,7 @@ export async function GET(
       include: {
         facturas_compra: true,
         orden_productos: {
+          where: { deleted_at: null },
           include: {
             productos: true
           }
