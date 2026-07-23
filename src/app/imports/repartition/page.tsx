@@ -19,6 +19,7 @@ import {
   DELIVERY_REFERENCE_TOOLTIP,
   toIsoDate,
 } from '@/lib/delivery-limit'
+import { normalizeProductName } from '@/lib/productFuzzyMatch'
 
 // ── Delivery limit (5 weeks from first payment; <60% = reference only) ──
 
@@ -267,6 +268,10 @@ export default function ImportRepartitionPage() {
   // ── History ───────────────────────────────────────────
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // ── Totals Drawer State ────────────────────────────────
+  const [showTotalsDrawer, setShowTotalsDrawer] = useState(false)
+  const [totalsSearchQuery, setTotalsSearchQuery] = useState('')
 
   // ─────────────────────────────────────────────────────
   // Data fetchers
@@ -647,6 +652,138 @@ export default function ImportRepartitionPage() {
     [initialInventory, allocations]
   )
 
+  // ── Totals Computation for Drawer ───────────────────────
+  const totalsInfo = useMemo(() => {
+    const availableByProduct: Record<string, number> = {}
+    const displayNames: Record<string, string> = {}
+
+    const normName = (name: string) => normalizeProductName(name)
+
+    const addAvailable = (name: string, qty: number) => {
+      const norm = normName(name)
+      availableByProduct[norm] = (availableByProduct[norm] || 0) + qty
+      if (!displayNames[norm] || displayNames[norm] === 'Desconocido') {
+        displayNames[norm] = name
+      }
+    }
+
+    // A. Purchase Orders (selectedOrderIds)
+    ordenes.forEach(orden => {
+      if (selectedOrderIds.has(orden.id)) {
+        const useOrdered = useOrderedQtyOrderIds.has(orden.id)
+        orden.productos.forEach(p => {
+          const name = p.producto_nombre || 'Desconocido'
+          const qty = useOrdered ? p.cantidad_ordenada : (p.cantidad_recibida || 0)
+          addAvailable(name, qty)
+        })
+      }
+    })
+
+    // B. Purchase Invoices (selectedPurchaseInvoiceIds)
+    purchaseInvoices.forEach(inv => {
+      if (selectedPurchaseInvoiceIds.has(inv.id)) {
+        (inv.items || []).forEach((p: any) => {
+          const name = p.productos?.nombre_lista || p.productos?.nombre || p.product_nombre || 'Desconocido'
+          const qty = Number(p.quantity) || 0
+          addAvailable(name, qty)
+        })
+      }
+    })
+
+    // C. Physical Stock (useStockFisico)
+    if (useStockFisico) {
+      stockFisico.forEach(s => {
+        const name = s.nombre || 'Desconocido'
+        const qty = Number(s.cantidad) || 0
+        addAvailable(name, qty)
+      })
+    }
+
+    const totalAvailable = Object.values(availableByProduct).reduce((a, b) => a + b, 0)
+
+    // D. Pending to assign before repartition (selectedInvoices)
+    const pendingBeforeByProduct: Record<string, number> = {}
+    selectedInvoices.forEach(inv => {
+      (inv.factura_productos || []).forEach((fp: any) => {
+        const name = fp.producto_nombre || 'Desconocido'
+        const qty = Number(fp.cantidad_pendiente) || 0
+        const norm = normName(name)
+        pendingBeforeByProduct[norm] = (pendingBeforeByProduct[norm] || 0) + qty
+        if (!displayNames[norm] || displayNames[norm] === 'Desconocido') {
+          displayNames[norm] = name
+        }
+      })
+    })
+
+    const totalPendingBefore = Object.values(pendingBeforeByProduct).reduce((a, b) => a + b, 0)
+
+    // E. Pending to assign after repartition (allocations)
+    const allocatedByProduct: Record<string, number> = {}
+    allocations.forEach(a => {
+      const name = a.product || 'Desconocido'
+      const qty = Number(a.allocatedQty) || 0
+      const norm = normName(name)
+      allocatedByProduct[norm] = (allocatedByProduct[norm] || 0) + qty
+      if (!displayNames[norm] || displayNames[norm] === 'Desconocido') {
+        displayNames[norm] = name
+      }
+    })
+
+    const pendingAfterByProduct: Record<string, number> = {}
+    const allProducts = new Set([
+      ...Object.keys(pendingBeforeByProduct),
+      ...Object.keys(allocatedByProduct)
+    ])
+
+    allProducts.forEach(norm => {
+      const before = pendingBeforeByProduct[norm] || 0
+      const allocated = allocatedByProduct[norm] || 0
+      pendingAfterByProduct[norm] = Math.max(0, before - allocated)
+    })
+
+    const totalPendingAfter = Object.values(pendingAfterByProduct).reduce((a, b) => a + b, 0)
+
+    // Group all unique products to display in the table
+    const articlesList = Array.from(new Set([
+      ...Object.keys(availableByProduct),
+      ...Object.keys(pendingBeforeByProduct),
+      ...Object.keys(pendingAfterByProduct)
+    ])).map(norm => ({
+      name: displayNames[norm] || norm,
+      available: availableByProduct[norm] || 0,
+      pendingBefore: pendingBeforeByProduct[norm] || 0,
+      pendingAfter: pendingAfterByProduct[norm] || 0,
+    })).sort((a, b) => a.name.localeCompare(b.name))
+
+    return {
+      availableByProduct,
+      totalAvailable,
+      pendingBeforeByProduct,
+      totalPendingBefore,
+      pendingAfterByProduct,
+      totalPendingAfter,
+      articlesList
+    }
+  }, [
+    ordenes,
+    selectedOrderIds,
+    useOrderedQtyOrderIds,
+    purchaseInvoices,
+    selectedPurchaseInvoiceIds,
+    useStockFisico,
+    stockFisico,
+    selectedInvoices,
+    allocations
+  ])
+
+  const filteredTotalsArticles = useMemo(() => {
+    const q = totalsSearchQuery.toLowerCase().trim()
+    if (!q) return totalsInfo.articlesList
+    return totalsInfo.articlesList.filter(a =>
+      a.name.toLowerCase().includes(q)
+    )
+  }, [totalsInfo.articlesList, totalsSearchQuery])
+
   const handleAllocationCommentChange = (id: string, comment: string) => {
     setAllocations(prev => prev.map(a => a.id === id ? { ...a, comment, manualAdjustment: true } : a))
   }
@@ -834,6 +971,44 @@ export default function ImportRepartitionPage() {
     } finally {
       setIsPacking(false)
     }
+  }
+
+  const handleExportTotalsCSV = () => {
+    const headers = ['Artículo', 'Disponible', 'Pendiente Antes', 'Pendiente Después']
+    const rows: any[] = []
+
+    rows.push(['[TOTALES]', '', '', ''])
+    rows.push([
+      'TOTAL GLOBAL',
+      totalsInfo.totalAvailable,
+      totalsInfo.totalPendingBefore,
+      totalsInfo.totalPendingAfter
+    ])
+    rows.push(['', '', '', ''])
+
+    rows.push(['[DETALLE DE ARTÍCULOS]', '', '', ''])
+    totalsInfo.articlesList.forEach(art => {
+      rows.push([
+        art.name,
+        art.available,
+        art.pendingBefore,
+        art.pendingAfter
+      ])
+    })
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.map((v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `resumen_totales_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const downloadCSVReport = () => {
@@ -1288,19 +1463,27 @@ export default function ImportRepartitionPage() {
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{t('repartition')}</h1>
             <p className="text-gray-500 mt-1">{t('tagline')}</p>
           </div>
-          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setMainTab('nueva')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'nueva' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              onClick={() => setShowTotalsDrawer(true)}
+              className="px-4 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm"
             >
-              <Sparkles className="w-4 h-4" /> Nueva Repartición
+              <FileText className="w-4 h-4" /> Ver Totales
             </button>
-            <button
-              onClick={() => setMainTab('historial')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'historial' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              <History className="w-4 h-4" /> Historial
-            </button>
+            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+              <button
+                onClick={() => setMainTab('nueva')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'nueva' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <Sparkles className="w-4 h-4" /> Nueva Repartición
+              </button>
+              <button
+                onClick={() => setMainTab('historial')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${mainTab === 'historial' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <History className="w-4 h-4" /> Historial
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2397,6 +2580,147 @@ export default function ImportRepartitionPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Floating Button for totals */}
+      <button
+        onClick={() => setShowTotalsDrawer(true)}
+        className="fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-indigo-600 hover:bg-indigo-700 text-white rounded-l-2xl py-4 px-2.5 shadow-2xl flex flex-col items-center gap-2 cursor-pointer transition-all hover:pr-4 group"
+        title="Ver Resumen de Totales"
+      >
+        <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        <span className="text-[10px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">Totales</span>
+      </button>
+
+      {/* Totals Drawer */}
+      <AnimatePresence>
+        {showTotalsDrawer && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTotalsDrawer(false)}
+              className="fixed inset-0 bg-black z-50 cursor-pointer"
+            />
+
+            {/* Content Drawer Panel */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col h-screen"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-indigo-600" />
+                    Resumen de Totales
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Totales globales y por artículo basados en selección actual y repartición
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportTotalsCSV}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-100 transition-colors shadow-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Exportar CSV
+                  </button>
+                  <button
+                    onClick={() => setShowTotalsDrawer(false)}
+                    className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Global Stat Cards */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Disponibles en Fuentes</span>
+                    <span className="text-2xl font-extrabold text-indigo-900 mt-1">{totalsInfo.totalAvailable}</span>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Pendiente Antes</span>
+                    <span className="text-2xl font-extrabold text-amber-900 mt-1">{totalsInfo.totalPendingBefore}</span>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Pendiente Después</span>
+                    <span className="text-2xl font-extrabold text-emerald-900 mt-1">{totalsInfo.totalPendingAfter}</span>
+                  </div>
+                </div>
+
+                {/* Filter and Table Section */}
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Filtrar por nombre de artículo..."
+                      value={totalsSearchQuery}
+                      onChange={e => setTotalsSearchQuery(e.target.value)}
+                      className="erp-input pl-10 w-full"
+                    />
+                  </div>
+
+                  <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600">
+                          <th className="p-4">Artículo</th>
+                          <th className="p-4 text-center">Disponible</th>
+                          <th className="p-4 text-center">Pendiente Antes</th>
+                          <th className="p-4 text-center">Pendiente Después</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 text-xs">
+                        {filteredTotalsArticles.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="p-8 text-center text-gray-400">
+                              No hay artículos coincidentes o seleccionados
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredTotalsArticles.map((art, idx) => (
+                            <tr key={`${art.name}-${idx}`} className="hover:bg-gray-50/50">
+                              <td className="p-4 font-medium text-gray-800 break-words max-w-[240px]">
+                                {art.name}
+                              </td>
+                              <td className="p-4 text-center font-mono font-semibold text-indigo-600">
+                                {art.available}
+                              </td>
+                              <td className="p-4 text-center font-mono font-semibold text-amber-600">
+                                {art.pendingBefore}
+                              </td>
+                              <td className="p-4 text-center font-mono font-semibold">
+                                <span className={`px-2 py-1 rounded-md ${
+                                  art.pendingAfter === 0
+                                    ? 'bg-green-50 text-green-700'
+                                    : 'bg-red-50 text-red-700'
+                                }`}>
+                                  {art.pendingAfter}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </AppShell>
   )
 }

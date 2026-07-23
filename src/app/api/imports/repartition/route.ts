@@ -123,7 +123,7 @@ class InventoryPool {
   }
 
   /** Resolve demand product name/id to a key present in qty (or null). */
-  resolve(productName: string | null | undefined, productId?: string | null): string | null {
+  async resolve(productName: string | null | undefined, productId?: string | null): Promise<string | null> {
     if (productId && this.idToCanonical.has(productId)) {
       const key = this.idToCanonical.get(productId)!
       if ((this.qty[key] || 0) > 0 || key in this.qty) return key
@@ -135,7 +135,19 @@ class InventoryPool {
     const exact = this.aliasToCanonical.get(lower);
     if (exact) return exact;
 
-    // Fuzzy: demand contains alias or alias contains demand.
+    // Use cleanProductName and buildProductMatcher for superior fuzzy matching (Jaccard token similarity)
+    const cleanProductNameMod = (await import('@/lib/productFuzzyMatch')).cleanProductName;
+    const buildProductMatcherMod = (await import('@/lib/productFuzzyMatch')).buildProductMatcher;
+    
+    const canonicalNames = Array.from(new Set(Object.keys(this.qty)));
+    if (canonicalNames.length > 0) {
+      const match = buildProductMatcherMod(canonicalNames)(name);
+      if (match.matched) {
+        return match.canonicalName;
+      }
+    }
+
+    // Fallback: demand contains alias or alias contains demand.
     // Ignore very short aliases to avoid false matches (e.g. "RX", "IS").
     let best: string | null = null;
     let bestLen = 0;
@@ -768,20 +780,20 @@ export async function POST(req: Request) {
     }
 
     // Match demand lines to inventory (by product_id, then name aliases / fuzzy)
-    const relevantOrders = ordersForAi.filter((o: any) => {
-      let matchKey = pool.resolve(o.product, o.productId)
+    const relevantOrders: any[] = []
+    for (const o of ordersForAi) {
+      let matchKey = await pool.resolve(o.product, o.productId)
       if (!matchKey && Array.isArray(o.productAliases)) {
         for (const alias of o.productAliases) {
-          matchKey = pool.resolve(alias, o.productId)
+          matchKey = await pool.resolve(alias, o.productId)
           if (matchKey) break
         }
       }
       if (matchKey) {
         o.product = matchKey
-        return true
+        relevantOrders.push(o)
       }
-      return false
-    })
+    }
 
     const sourcesLabel = sourceLabels.length > 0 ? sourceLabels.join(' + ') : 'ninguna'
 

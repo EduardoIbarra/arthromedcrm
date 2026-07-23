@@ -18,6 +18,7 @@ export async function GET(
       where: { id },
       include: {
         orden_productos: {
+          where: { deleted_at: null },
           include: {
             productos: true
           }

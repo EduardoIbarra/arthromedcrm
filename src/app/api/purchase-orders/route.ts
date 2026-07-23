@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
           }
         },
         orden_productos: {
+          where: { deleted_at: null },
           include: {
             productos: true
           }
@@ -162,6 +163,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         orden_productos: {
+          where: { deleted_at: null },
           include: {
             productos: true
           }
