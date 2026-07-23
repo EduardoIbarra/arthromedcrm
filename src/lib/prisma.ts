@@ -371,7 +371,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 17
+const TRIGGER_VERSION = 18
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
@@ -456,6 +456,7 @@ const extendedPrisma = basePrisma.$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }: any) {
+        console.log('[DEBUG $allOperations] model:', model, 'operation:', operation, 'args:', JSON.stringify(args));
         // 1. Intercept delete operation -> convert into logical update setting deleted_at = now()
         if (operation === 'delete') {
           const updateFn = (basePrisma as any)[model]?.update
