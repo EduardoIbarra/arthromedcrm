@@ -371,7 +371,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 20
+const TRIGGER_VERSION = 21
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
@@ -400,13 +400,31 @@ function cloneQueryArgs(args: any): any {
   return copy;
 }
 
-function applySoftDeleteFilters(modelName: string, args: any) {
+function isListRelation(modelName: string, relationKey: string): boolean {
+  const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[modelName]?.fields;
+  if (!modelFields) return true;
+
+  const hasForeignKey = modelFields.some((f: any) => {
+    if (!f.name || typeof f.name !== 'string' || !f.name.endsWith('_id')) return false;
+    const fkPrefix = f.name.replace(/_id$/, '').toLowerCase();
+    const keyLower = relationKey.toLowerCase();
+    return (
+      keyLower === fkPrefix ||
+      keyLower.startsWith(fkPrefix) ||
+      fkPrefix.startsWith(keyLower)
+    );
+  });
+
+  return !hasForeignKey;
+}
+
+function applySoftDeleteFilters(modelName: string, args: any, isRoot = true) {
   if (!args) return;
 
   const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[modelName]?.fields;
   const hasDeletedAtField = modelFields && modelFields.some((f: any) => f.name === 'deleted_at');
 
-  if (hasDeletedAtField && !args.includeDeleted) {
+  if (hasDeletedAtField && !args.includeDeleted && isRoot) {
     if (!args.where) {
       args.where = { deleted_at: null };
     } else if (args.where.deleted_at === undefined) {
@@ -427,21 +445,21 @@ function applySoftDeleteFilters(modelName: string, args: any) {
       if (targetModel) {
         const targetFields = (basePrisma as any)?._runtimeDataModel?.models?.[targetModel]?.fields;
         const targetHasDeletedAt = targetFields && targetFields.some((f: any) => f.name === 'deleted_at');
-        const isListRelation = Boolean(relationInfo?.isList);
+        const isList = isListRelation(modelName, key);
 
         if (relationConfig === true) {
-          if (targetHasDeletedAt && isListRelation) {
+          if (targetHasDeletedAt && isList) {
             relations[key] = { where: { deleted_at: null } };
           }
         } else if (typeof relationConfig === 'object') {
-          if (targetHasDeletedAt && isListRelation) {
+          if (targetHasDeletedAt && isList) {
             if (!relationConfig.where) {
               relationConfig.where = { deleted_at: null };
             } else if (relationConfig.where.deleted_at === undefined) {
               relationConfig.where.deleted_at = null;
             }
           }
-          applySoftDeleteFilters(targetModel, relationConfig);
+          applySoftDeleteFilters(targetModel, relationConfig, isList);
         }
       }
     }
