@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode, ExternalLink, RefreshCw, Receipt, Paperclip, FileText, Pencil } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, Info, Edit, Check, X, AlertCircle, Coins, Plus, PackageOpen, Truck, FileDown, FileCode, ExternalLink, RefreshCw, Receipt, Paperclip, FileText, Pencil, Trash2 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
 import { createClient } from '@/lib/supabase/client'
@@ -249,6 +249,7 @@ export default function FacturaDetailPage() {
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [payDocument, setPayDocument] = useState<File | null>(null)
   const [productSyncError, setProductSyncError] = useState<string | null>(null)
+  const [deletingInvoice, setDeletingInvoice] = useState(false)
 
   // Tracking States
   const [showTrackingModal, setShowTrackingModal] = useState(false)
@@ -434,6 +435,29 @@ export default function FacturaDetailPage() {
       await fetchInvoice({ syncProducts: true })
     } finally {
       setSyncingProducts(false)
+    }
+  }
+
+  const handleDeleteInvoice = async () => {
+    if (!invoice) return
+    const isConfirmed = confirm('¿Estás seguro de que deseas eliminar esta factura y toda la información relacionada (conceptos, plan de pagos, etc.)? Esta acción no se puede deshacer.')
+    if (!isConfirmed) return
+
+    try {
+      setDeletingInvoice(true)
+      const res = await fetch(`/api/invoices/${invoice.id}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al eliminar la factura')
+      }
+      router.push('/facturas')
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Ocurrió un error al intentar eliminar la factura')
+    } finally {
+      setDeletingInvoice(false)
     }
   }
 
@@ -1101,6 +1125,18 @@ export default function FacturaDetailPage() {
                 {downloadingXml ? 'Descargando...' : 'Descargar XML'}
               </button>
             )}
+            <button
+              onClick={handleDeleteInvoice}
+              disabled={deletingInvoice}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-bold transition-colors shadow-sm disabled:opacity-60"
+            >
+              {deletingInvoice ? (
+                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Trash2 size={15} />
+              )}
+              {deletingInvoice ? 'Eliminando...' : 'Eliminar Factura'}
+            </button>
           </div>
         </div>
 
