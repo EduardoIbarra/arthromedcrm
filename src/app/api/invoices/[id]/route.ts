@@ -323,3 +323,37 @@ export async function GET(
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID is required' }, { status: 400 })
+    }
+
+    await prisma.$transaction(async (tx: any) => {
+      // Delete un-linked tables references
+      await tx.plan_distribucion.deleteMany({ where: { factura_id: id } })
+      await tx.factura_receipts.deleteMany({ where: { factura_id: id } })
+      
+      // Unlink in remisiones
+      await tx.remisiones.updateMany({
+        where: { factura_id: id },
+        data: { factura_id: null }
+      })
+      
+      // Delete the invoice (cascades factura_productos, planes_pago, etc.)
+      await tx.facturas_cliente.delete({ where: { id } })
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error deleting factura:', error)
+    return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 })
+  }
+}
+

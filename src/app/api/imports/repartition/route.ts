@@ -452,7 +452,7 @@ export async function POST(req: Request) {
     const facturasClean = Array.isArray(facturas)
       ? facturas
           .map((f: string) => String(f).trim())
-          .filter((f: string) => f && !isExcludedPrefixedFolio(f))
+          .filter((f: string) => !!f)
       : []
 
     const hasFacturas = facturasClean.length > 0
@@ -657,7 +657,7 @@ export async function POST(req: Request) {
               }
             }
           })
-        ).filter((f: any) => !isExcludedPrefixedFolio(f.numero_factura))
+        )
       : []
 
     const pendingCotizaciones = hasCotizaciones

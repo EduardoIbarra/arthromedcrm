@@ -401,7 +401,7 @@ export default function ImportRepartitionPage() {
       try {
         const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=50`)
         const data = await res.json()
-        setInvoiceResults((data.data || []).filter((inv: any) => !isExcludedPrefixedFactura(inv)))
+        setInvoiceResults(data.data || [])
       } catch (err) { console.error(err) }
       finally { setIsSearchingInvoices(false) }
     }, 300)
@@ -521,7 +521,7 @@ export default function ImportRepartitionPage() {
     const hasPurchaseInvoices = selectedPurchaseInvoiceIds.size > 0
     if (!hasOrders && !hasStock && !hasPurchaseInvoices) { setError('Selecciona al menos una fuente de inventario.'); return }
     const facturas = selectedInvoices
-      .filter(i => !i.isCotizacion && !isExcludedPrefixedFactura(i))
+      .filter(i => !i.isCotizacion)
       .map(i => String(i.numero_factura))
     const cotizacionIds = selectedInvoices
       .filter(i => i.isCotizacion)
@@ -1412,10 +1412,10 @@ export default function ImportRepartitionPage() {
     if (!isExcludedPrefixedFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
   })
   selectedInvoices.forEach(inv => {
-    if (inv.isCotizacion || !isExcludedPrefixedFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+    displayedInvoicesMap.set(inv.id, inv)
   })
   invoiceResults.forEach(inv => {
-    if (!isExcludedPrefixedFactura(inv)) displayedInvoicesMap.set(inv.id, inv)
+    displayedInvoicesMap.set(inv.id, inv)
   })
   let displayedInvoices = Array.from(displayedInvoicesMap.values())
   if (invoiceSearch.trim()) {
