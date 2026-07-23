@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { fetchAlegraInvoice } from '@/lib/alegra'
 import { recomputeEntregadaFromRemisiones } from '@/lib/fulfillment-status'
 
 export const dynamic = 'force-dynamic'
