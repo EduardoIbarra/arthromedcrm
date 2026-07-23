@@ -388,6 +388,70 @@ const hasUpdates = globalThis.prisma &&
 
 const basePrisma = hasUpdates ? globalThis.prisma! : prismaClientSingleton()
 
+function cloneQueryArgs(args: any): any {
+  if (!args || typeof args !== 'object') return args;
+  if (args instanceof Date) return new Date(args.getTime());
+  if (Array.isArray(args)) return args.map(cloneQueryArgs);
+  
+  const copy: any = {};
+  for (const key of Object.keys(args)) {
+    copy[key] = cloneQueryArgs(args[key]);
+  }
+  return copy;
+}
+
+function applySoftDeleteFilters(modelName: string, args: any) {
+  if (!args) return;
+
+  const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[modelName]?.fields;
+  const hasDeletedAtField = !modelFields || modelFields.some((f: any) => f.name === 'deleted_at');
+
+  if (hasDeletedAtField && !args.includeDeleted) {
+    if (!args.where) {
+      args.where = { deleted_at: null };
+    } else if (args.where.deleted_at === undefined) {
+      args.where.deleted_at = null;
+    }
+  }
+
+  // Traverse select/include
+  const relations = args.select || args.include;
+  if (relations && typeof relations === 'object') {
+    for (const key of Object.keys(relations)) {
+      const relationConfig = relations[key];
+      if (!relationConfig) continue;
+
+      const relationInfo = modelFields?.find((f: any) => f.name === key);
+      const targetModel = relationInfo?.type;
+
+      if (targetModel) {
+        if (relationConfig === true) {
+          const targetFields = (basePrisma as any)?._runtimeDataModel?.models?.[targetModel]?.fields;
+          const targetHasDeletedAt = !targetFields || targetFields.some((f: any) => f.name === 'deleted_at');
+          if (targetHasDeletedAt) {
+            relations[key] = { where: { deleted_at: null } };
+          }
+        } else if (typeof relationConfig === 'object') {
+          applySoftDeleteFilters(targetModel, relationConfig);
+        }
+      }
+    }
+  }
+}
+
+function cleanupIncludeDeleted(argsObj: any) {
+  if (!argsObj) return;
+  delete argsObj.includeDeleted;
+  const relations = argsObj.select || argsObj.include;
+  if (relations && typeof relations === 'object') {
+    for (const key of Object.keys(relations)) {
+      if (typeof relations[key] === 'object') {
+        cleanupIncludeDeleted(relations[key]);
+      }
+    }
+  }
+}
+
 const extendedPrisma = basePrisma.$extends({
   query: {
     $allModels: {
@@ -417,21 +481,9 @@ const extendedPrisma = basePrisma.$extends({
         // 3. Intercept read queries -> filter out soft-deleted records (deleted_at IS NULL)
         const isRead = ['findMany', 'findUnique', 'findFirst', 'findFirstOrThrow', 'findUniqueOrThrow', 'count', 'groupBy', 'aggregate'].includes(operation)
         if (isRead) {
-          const nextArgs = args ? { ...args } : {}
-          // Check if model client definition contains deleted_at field to prevent invalid query args on unmigrated schemas/models
-          const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[model]?.fields
-          const hasDeletedAtField = !modelFields || modelFields.some((f: any) => f.name === 'deleted_at')
-
-          if (hasDeletedAtField && !nextArgs.includeDeleted) {
-            if (nextArgs.where) {
-              if (nextArgs.where.deleted_at === undefined) {
-                nextArgs.where = { ...nextArgs.where, deleted_at: null }
-              }
-            } else if (['findMany', 'findFirst', 'count', 'groupBy', 'aggregate'].includes(operation)) {
-              nextArgs.where = { deleted_at: null }
-            }
-          }
-          delete nextArgs.includeDeleted
+          const nextArgs = cloneQueryArgs(args)
+          applySoftDeleteFilters(model, nextArgs)
+          cleanupIncludeDeleted(nextArgs)
 
           if (SECONDARY_MODELS.includes(model)) {
             return processQueryArgsAndResolve(model, operation, nextArgs, query)

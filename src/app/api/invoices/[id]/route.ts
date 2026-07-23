@@ -122,7 +122,15 @@ async function backfillProductsFromAlegra(facturaId: string, alegraId: string) {
   }
 
   await prisma.$transaction(async (tx: any) => {
-    await tx.factura_productos.deleteMany({ where: { factura_id: facturaId } })
+    await tx.factura_productos.deleteMany({
+      where: {
+        factura_id: facturaId,
+        OR: [
+          { manual: false },
+          { manual: null }
+        ]
+      }
+    })
     if (rows.length > 0) {
       // cantidad_pendiente is generated in DB — do not write it
       await tx.factura_productos.createMany({ data: rows })

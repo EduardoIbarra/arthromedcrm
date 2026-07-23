@@ -282,6 +282,19 @@ export default function FacturaDetailPage() {
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [isSavingProductEdit, setIsSavingProductEdit] = useState(false)
 
+  // Product line add
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addProductForm, setAddProductForm] = useState({
+    producto_id: '' as string | null,
+    producto_nombre: '',
+    producto_codigo: '',
+    cantidad_facturada: 1,
+    precio_unitario: 0,
+    note: '',
+  })
+  const [addProductSearch, setAddProductSearch] = useState('')
+  const [isSavingProductAdd, setIsSavingProductAdd] = useState(false)
+
   const downloadFile = async (type: 'pdf' | 'xml') => {
     const setLoading = type === 'pdf' ? setDownloadingPdf : setDownloadingXml
     try {
@@ -538,6 +551,74 @@ export default function FacturaDetailPage() {
       setIsSavingProductEdit(false)
     }
   }
+
+  const openProductAdd = () => {
+    setAddProductForm({
+      producto_id: null,
+      producto_nombre: '',
+      producto_codigo: '',
+      cantidad_facturada: 1,
+      precio_unitario: 0,
+      note: '',
+    })
+    setAddProductSearch('')
+    setShowAddModal(true)
+    void loadCatalogProducts()
+  }
+
+  const handleSaveProductAdd = async () => {
+    if (!invoice) return
+    if (!addProductForm.producto_nombre.trim()) {
+      alert('Debes indicar el nombre del producto.')
+      return
+    }
+    if (!addProductForm.note.trim()) {
+      alert('Debes escribir una nota que justifique el cambio.')
+      return
+    }
+    if (addProductForm.cantidad_facturada < 1) {
+      alert('La cantidad debe ser al menos 1.')
+      return
+    }
+    try {
+      setIsSavingProductAdd(true)
+      const res = await fetch(
+        `/api/invoices/${invoice.id}/products`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            producto_id: addProductForm.producto_id || null,
+            producto_nombre: addProductForm.producto_nombre,
+            producto_codigo: addProductForm.producto_codigo || null,
+            cantidad_facturada: addProductForm.cantidad_facturada,
+            precio_unitario: addProductForm.precio_unitario,
+            note: addProductForm.note.trim(),
+          }),
+        }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Error al agregar producto')
+      setShowAddModal(false)
+      await fetchInvoice()
+    } catch (e: any) {
+      console.error(e)
+      alert(e.message || 'Error al agregar el producto')
+    } finally {
+      setIsSavingProductAdd(false)
+    }
+  }
+
+  const filteredAddCatalog = addProductSearch.trim()
+    ? catalogProducts
+        .filter((p) => {
+          const q = addProductSearch.toLowerCase()
+          const name = (p.nombre || p.description || '').toLowerCase()
+          const code = (p.consecutivo_alg || p.order_code || '').toLowerCase()
+          return name.includes(q) || code.includes(q)
+        })
+        .slice(0, 40)
+    : []
 
   const handleSaveTracking = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1320,17 +1401,27 @@ export default function FacturaDetailPage() {
                 <span className="bg-[#0763a9] w-2 h-2 rounded-full"></span>
                 Detalle de Conceptos
               </h4>
-              {invoice.alegra_id && (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleSyncProductsFromAlegra}
-                  disabled={syncingProducts}
-                  className="text-xs text-[#0763a9] hover:text-[#0a86e3] font-bold flex items-center gap-1.5 border border-blue-200 rounded-lg px-2.5 py-1 bg-white hover:bg-blue-50 transition-colors disabled:opacity-50"
+                  onClick={openProductAdd}
+                  className="text-xs text-[#0763a9] hover:text-[#0a86e3] font-bold flex items-center gap-1.5 border border-blue-200 rounded-lg px-2.5 py-1 bg-white hover:bg-blue-50 transition-colors"
                 >
-                  <RefreshCw size={12} className={syncingProducts ? 'animate-spin' : ''} />
-                  {syncingProducts ? 'Sincronizando...' : 'Sincronizar productos de Alegra'}
+                  <Plus size={12} />
+                  Agregar concepto manual
                 </button>
-              )}
+                {invoice.alegra_id && (
+                  <button
+                    type="button"
+                    onClick={handleSyncProductsFromAlegra}
+                    disabled={syncingProducts}
+                    className="text-xs text-[#0763a9] hover:text-[#0a86e3] font-bold flex items-center gap-1.5 border border-blue-200 rounded-lg px-2.5 py-1 bg-white hover:bg-blue-50 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={syncingProducts ? 'animate-spin' : ''} />
+                    {syncingProducts ? 'Sincronizando...' : 'Sincronizar productos de Alegra'}
+                  </button>
+                )}
+              </div>
             </div>
             
             <div className="border border-[#e8f1f9] rounded-xl overflow-hidden shadow-sm">
@@ -2873,6 +2964,170 @@ export default function FacturaDetailPage() {
             </div>
           </div>
         )}
+      </Modal>
+      
+      {/* Add product line: product / qty / price + required note */}
+      <Modal
+        open={showAddModal}
+        onClose={() => !isSavingProductAdd && setShowAddModal(false)}
+        title="Agregar partida manual a factura"
+        maxWidth="560px"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Agrega un nuevo producto o concepto a la factura. Este cambio es únicamente local y <strong>no se enviará a Alegra</strong>.
+            Se requiere una nota que se registrará en las observaciones de la factura.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Buscar producto del catálogo</label>
+            <input
+              type="text"
+              value={addProductSearch}
+              onChange={(e) => setAddProductSearch(e.target.value)}
+              className="erp-input w-full"
+              placeholder={catalogLoading ? 'Cargando catálogo…' : 'Nombre o código…'}
+            />
+            {addProductSearch.trim() && (
+              <div className="mt-1 max-h-40 overflow-y-auto border border-gray-200 rounded-xl bg-white shadow-sm">
+                {filteredAddCatalog.length === 0 ? (
+                  <p className="text-xs text-gray-400 p-3">Sin resultados</p>
+                ) : (
+                  filteredAddCatalog.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0"
+                      onClick={() => {
+                        const price =
+                          p.sale_price != null
+                            ? Number(p.sale_price)
+                            : p.precio_unitario != null
+                              ? Number(p.precio_unitario)
+                              : addProductForm.precio_unitario
+                        setAddProductForm((f) => ({
+                          ...f,
+                          producto_id: p.id,
+                          producto_nombre: p.nombre || p.description || f.producto_nombre,
+                          producto_codigo: p.consecutivo_alg || p.order_code || '',
+                          precio_unitario: price,
+                        }))
+                        setAddProductSearch('')
+                      }}
+                    >
+                      <span className="font-semibold text-gray-900">{p.nombre || p.description}</span>
+                      {(p.consecutivo_alg || p.order_code) && (
+                        <span className="ml-2 text-xs font-mono text-gray-500">
+                          {p.consecutivo_alg || p.order_code}
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre en factura</label>
+            <input
+              type="text"
+              value={addProductForm.producto_nombre}
+              onChange={(e) =>
+                setAddProductForm((f) => ({ ...f, producto_nombre: e.target.value }))
+              }
+              className="erp-input w-full"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Código</label>
+            <input
+              type="text"
+              value={addProductForm.producto_codigo}
+              onChange={(e) =>
+                setAddProductForm((f) => ({ ...f, producto_codigo: e.target.value }))
+              }
+              className="erp-input w-full font-mono text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={addProductForm.cantidad_facturada}
+                onChange={(e) =>
+                  setAddProductForm((f) => ({
+                    ...f,
+                    cantidad_facturada: Math.max(1, parseInt(e.target.value) || 1),
+                  }))
+                }
+                className="erp-input w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Precio unitario</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={addProductForm.precio_unitario}
+                onChange={(e) =>
+                  setAddProductForm((f) => ({
+                    ...f,
+                    precio_unitario: Math.max(0, parseFloat(e.target.value) || 0),
+                  }))
+                }
+                className="erp-input w-full"
+              />
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Importe estimado:{' '}
+            <strong className="font-mono text-gray-800">
+              {formatCurrency(
+                addProductForm.cantidad_facturada * addProductForm.precio_unitario
+              )}
+            </strong>
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nota del cambio <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={addProductForm.note}
+              onChange={(e) => setAddProductForm((f) => ({ ...f, note: e.target.value }))}
+              className="erp-input w-full min-h-[80px]"
+              placeholder="Ej. Agregar concepto adicional no facturado por Alegra…"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={isSavingProductAdd}
+              onClick={() => setShowAddModal(false)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={isSavingProductAdd || !addProductForm.note.trim() || !addProductForm.producto_nombre.trim()}
+              onClick={() => void handleSaveProductAdd()}
+            >
+              {isSavingProductAdd ? 'Guardando…' : 'Agregar concepto'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal for applying advance payment via Credit Note */}

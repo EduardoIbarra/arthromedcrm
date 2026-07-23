@@ -290,7 +290,15 @@ export async function GET(_request: NextRequest) {
               deliveredByKey.set(`n:${row.producto_nombre.toLowerCase()}`, ent)
             }
 
-            await prisma.factura_productos.deleteMany({ where: { factura_id: facturaId } })
+            await prisma.factura_productos.deleteMany({
+              where: {
+                factura_id: facturaId,
+                OR: [
+                  { manual: false },
+                  { manual: null }
+                ]
+              }
+            })
             await prisma.factura_productos.createMany({
               data: invoice.items.map((item: any) => {
                 const iName  = item.name || item.description || 'Producto'
