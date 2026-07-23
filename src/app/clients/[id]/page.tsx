@@ -10,7 +10,7 @@ import { Client, ClientActivity } from '@/types/database'
 import {
   Phone, Mail, MapPin, Building2, FileText, Edit3, Save, X,
   MessageCircle, Bot, ChevronLeft, Trash2, Plus, Tag, Loader2, CheckCircle, Upload, Calendar,
-  HelpCircle, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Activity, Info
+  HelpCircle, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Activity, Info, Download, ExternalLink
 } from 'lucide-react'
 import {
   calendarDaysDiff,
@@ -1496,6 +1496,27 @@ export default function ClientDetailPage() {
                           {carta.vigencia ? formatDate(carta.vigencia) : '—'}
                         </td>
                         <td className="p-4 text-right pr-6">
+                          {carta.letter_url ? (
+                            <a
+                              href={carta.letter_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#0763a9] hover:bg-[#e8f1f9] p-1.5 rounded-lg transition-colors inline-flex items-center justify-center border border-transparent hover:border-[#c5d9ee] mr-2"
+                              title="Descargar / Ver Carta"
+                            >
+                              <Download size={14} />
+                            </a>
+                          ) : (carta.client_id || client?.id) ? (
+                            <a
+                              href={`/distribuidores/${carta.client_id || client?.id}/${carta.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#0763a9] hover:bg-[#e8f1f9] p-1.5 rounded-lg transition-colors inline-flex items-center justify-center border border-transparent hover:border-[#c5d9ee] mr-2"
+                              title="Abrir Carta"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => handleDeleteCartaRecord(carta.id)}
