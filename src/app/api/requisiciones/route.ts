@@ -52,10 +52,6 @@ export async function POST(request: NextRequest) {
       solicitante_telefono,
       observaciones,
       status,
-      aprobacion_nombre,
-      aprobacion_fecha,
-      autorizacion_nombre,
-      autorizacion_fecha,
       items,
       log_usuario // Who performed the action (for logs)
     } = body
@@ -76,14 +72,6 @@ export async function POST(request: NextRequest) {
 
     // Create inside a Prisma Transaction
     const result = await prisma.$transaction(async (tx: any) => {
-      const finalAprobacionFecha = status === 'APROBADA' || status === 'COMPRADA'
-        ? (aprobacion_fecha ? new Date(aprobacion_fecha) : new Date())
-        : null
-
-      const finalAutorizacionFecha = status === 'APROBADA' || status === 'COMPRADA'
-        ? new Date()
-        : null
-
       const req = await tx.requisiciones.create({
         data: {
           folio,
@@ -93,11 +81,7 @@ export async function POST(request: NextRequest) {
           solicitante_nombre,
           solicitante_telefono: solicitante_telefono || null,
           observaciones: observaciones || null,
-          status: status || 'PENDIENTE',
-          aprobacion_nombre: (status === 'APROBADA' || status === 'COMPRADA') ? (aprobacion_nombre || null) : null,
-          aprobacion_fecha: finalAprobacionFecha,
-          autorizacion_nombre: autorizacion_nombre || null,
-          autorizacion_fecha: autorizacion_nombre ? (finalAutorizacionFecha || new Date()) : null
+          status: status || 'PENDIENTE'
         }
       })
 

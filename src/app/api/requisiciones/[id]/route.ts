@@ -88,16 +88,26 @@ export async function PUT(
 
       const targetStatus = status || existing.status
 
+      // Preserve or set autorizer fields regardless of status
+      // Approval handling remains status‑dependent
       if (targetStatus === 'APROBADA' || targetStatus === 'COMPRADA') {
         finalAprobacionNombre = aprobacion_nombre !== undefined ? aprobacion_nombre : (existing.aprobacion_nombre || log_usuario || 'Aprobador')
         finalAprobacionFecha = finalAprobacionFecha || new Date()
-        
-        finalAutorizacionNombre = autorizacion_nombre !== undefined ? autorizacion_nombre : (existing.autorizacion_nombre || null)
-        finalAutorizacionFecha = finalAutorizacionNombre ? (finalAutorizacionFecha || new Date()) : null
-      } else if (targetStatus === 'PENDIENTE' || targetStatus === 'RECHAZADA') {
-        finalAprobacionNombre = null
-        finalAprobacionFecha = null
-        finalAutorizacionNombre = null
+      } else {
+        // For other statuses keep existing approval info
+        finalAprobacionNombre = existing.aprobacion_nombre
+        finalAprobacionFecha = existing.aprobacion_fecha
+      }
+      // Authorizer handling – only overwrite when a non‑null value is provided
+      if (autorizacion_nombre !== undefined && autorizacion_nombre !== null) {
+        finalAutorizacionNombre = autorizacion_nombre
+      } else {
+        finalAutorizacionNombre = existing.autorizacion_nombre
+      }
+      // If a name is present and no explicit date, default to now
+      if (finalAutorizacionNombre) {
+        finalAutorizacionFecha = autorizacion_fecha ? new Date(autorizacion_fecha) : (existing.autorizacion_fecha || new Date())
+      } else {
         finalAutorizacionFecha = null
       }
 

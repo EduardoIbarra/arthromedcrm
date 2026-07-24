@@ -399,11 +399,11 @@ export async function GET(
       const authTextW = regular.widthOfTextAtSize(authText, 8)
       page.drawText(authText, { x: 306 - authTextW / 2, y: sigBlockY - 12, size: 8, font: regular, color: ACCENT_BLUE })
 
-      if (requisicion.autorizacion_fecha) {
-        const dateText = `Fecha: ${formatDate(new Date(requisicion.autorizacion_fecha))}`
-        const dateTextW = regular.widthOfTextAtSize(dateText, 8)
-        page.drawText(dateText, { x: 306 - dateTextW / 2, y: sigBlockY - 24, size: 8, font: regular, color: GRAY })
-      }
+
+
+
+
+
 
       page.drawLine({
         start: { x: 306 - 90, y: sigY },

@@ -40,7 +40,7 @@ interface Requisicion {
   aprobacion_nombre: string | null
   aprobacion_fecha: string | null
   autorizacion_nombre: string | null
-  autorizacion_fecha: string | null
+
   status: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'COMPRADA'
   created_at: string
   items: RequisicionItem[]
@@ -137,6 +137,7 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
         status: req.status,
         aprobacion_nombre: req.aprobacion_nombre ? (isCustomAprobador ? 'Otro' : req.aprobacion_nombre) : '',
         autorizacion_nombre: req.autorizacion_nombre ? (isCustomAutorizador ? 'Otro' : req.autorizacion_nombre) : '',
+
         items: [...req.items],
         solicitante_otro: isCustomSolicitant ? req.solicitante_nombre : '',
         aprobador_otro: isCustomAprobador ? (req.aprobacion_nombre || '') : '',
@@ -230,6 +231,7 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
           status: form.status,
           aprobacion_nombre: aprobadorFinal || null,
           autorizacion_nombre: autorizadorFinal || null,
+
           items: form.items,
           log_usuario: currentUser,
           log_accion: `Actualizó campos generales o productos`
@@ -532,6 +534,7 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
                         className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg mt-2 focus:outline-none"
                       />
                     )}
+
                   </div>
 
                   <div className="md:col-span-2">
