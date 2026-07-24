@@ -3,7 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
 const prismaClientSingleton = () => {
-  const connectionString = process.env.DATABASE_URL || process.env.DIRECT_URL
+  const connectionString = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.DIRECT_URL
   
   if (!connectionString) {
     console.warn('Warning: DATABASE_URL is not defined. Prisma will fail at runtime.')
@@ -371,7 +371,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 22
+const TRIGGER_VERSION = 23
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
