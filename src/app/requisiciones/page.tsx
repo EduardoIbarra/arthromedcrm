@@ -186,7 +186,7 @@ export default function RequisicionesPage() {
                       <th className="px-6 py-4">Solicitante / Depto</th>
                       <th className="px-6 py-4">Fecha Solicitud</th>
                       <th className="px-6 py-4">Fecha Requerida</th>
-                      <th className="px-6 py-4 text-right">Total Estimado</th>
+                      <th className="px-6 py-4 text-right">Precio Total</th>
                       <th className="px-6 py-4 text-center">Estado</th>
                       <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>

@@ -434,7 +434,7 @@ export default function NuevaRequisicionPage() {
                       <th className="px-4 py-2.5 text-center">Cantidad</th>
                       <th className="px-4 py-2.5">Unidad</th>
                       <th className="px-4 py-2.5 text-right">Costo Unit.</th>
-                      <th className="px-4 py-2.5 text-right">Subtotal</th>
+                      <th className="px-4 py-2.5 text-right">Precio Total</th>
                       <th className="px-4 py-2.5 text-center"></th>
                     </tr>
                   </thead>
