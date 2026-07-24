@@ -9,7 +9,8 @@ import {
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
-import { useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 import {
   calendarDaysDiff,
   computeDeliveryLimit,
@@ -104,7 +105,7 @@ export default function FacturasPage() {
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [showDownloadModal, setShowDownloadModal] = useState(false)
-  const [downloadType, setDownloadType] = useState<'factura' | 'producto'>('factura')
+  const [downloadType, setDownloadType] = useState<'factura' | 'producto' | 'condensado'>('condensado')
 
   // Columns reordering & visibility states
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS)
@@ -281,7 +282,7 @@ export default function FacturasPage() {
   }
 
 
-  const handleDownloadReport = async (type: 'factura' | 'producto' = 'factura') => {
+  const handleDownloadReport = async (type: 'factura' | 'producto' | 'condensado' = 'condensado') => {
     try {
       setDownloading(true)
       const params = new URLSearchParams({
@@ -370,10 +371,174 @@ export default function FacturasPage() {
           }
         })
 
-        CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows].join('\n')
-        filename = `reporte_facturas_productos_${new Date().toISOString().slice(0, 10)}.csv`
+        const CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows].join('\n')
+        const filename = `reporte_facturas_productos_${new Date().toISOString().slice(0, 10)}.csv`
+        const blob = new Blob([CSV_CONTENT], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.setAttribute('download', filename)
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } else if (type === 'condensado') {
+          // Header definitions (Spanish fixed)
+          const headers = [
+            'Folio / Número',
+            'Cliente',
+            'RFC',
+            'Fecha Expedición',
+            'Vencimiento',
+            'Fecha Pago',
+            'Subtotal',
+            'IVA',
+            'Total',
+            'Surtido',
+            'Estado Pago',
+          ];
+
+          // Prepare main sheet rows
+          const data: (string | number)[][] = [headers];
+          allInvoices.forEach(invoice => {
+            let statusLabel = STATUS_MAP[invoice.estado]?.label || invoice.estado;
+            // Localise status labels per UI locale
+            if (locale === 'en') {
+              if (invoice.estado === 'pendiente') statusLabel = 'Pending';
+              else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = 'Paid';
+              else if (invoice.estado === 'parcial') statusLabel = 'Partial';
+              else if (invoice.estado === 'completa') statusLabel = 'Complete';
+              else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = 'Cancelled';
+              else if (invoice.estado === 'borrador') statusLabel = 'Draft';
+            } else if (locale === 'zh') {
+              if (invoice.estado === 'pendiente') statusLabel = '待处理';
+              else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = '已付款';
+              else if (invoice.estado === 'parcial') statusLabel = '部分';
+              else if (invoice.estado === 'completa') statusLabel = '已完成';
+              else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = '已取消';
+              else if (invoice.estado === 'borrador') statusLabel = '草稿';
+            }
+
+            const surtidoKey = invoice.estado_surtido === 'completa' ? 'completed' : invoice.estado_surtido === 'parcial' ? 'partial' : 'unfulfilled';
+            const surtidoLabel = t(surtidoKey as any) || ESTADO_SURTIDO_MAP[invoice.estado_surtido]?.label || invoice.estado_surtido || 'No Surtida';
+            const formatDate = (dateStr: string) => {
+              if (!dateStr) return '-';
+              const date = new Date(dateStr);
+              if (isNaN(date.getTime())) return '-';
+              const day = String(date.getUTCDate()).padStart(2, '0');
+              const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+              const year = date.getUTCFullYear();
+              return `${month}/${day}/${year}`;
+            };
+            const fechaPago = (['pagada', 'pagado'].includes(invoice.estado) && invoice.fecha_pago)
+              ? formatDate(invoice.fecha_pago)
+              : '-';
+            const fechaExp = formatDate(invoice.fecha_expedicion);
+            const fechaVen = formatDate(invoice.fecha_vencimiento);
+            data.push([
+              invoice.numero_factura,
+              invoice.cliente_nombre,
+              invoice.cliente_rfc || '',
+              fechaExp,
+              fechaVen,
+              fechaPago,
+              invoice.subtotal,
+              invoice.iva,
+              invoice.total,
+              surtidoLabel,
+              statusLabel,
+            ]);
+          });
+
+          // Complementos sheet rows (invoices with complementos_pago)
+          const complementHeaders = [...headers, 'Complemento ID'];
+          const complementData: (string | number)[][] = [complementHeaders];
+          allInvoices.forEach(invoice => {
+            if (invoice.complementos_pago && invoice.complementos_pago.length > 0) {
+              const complementoId = invoice.complementos_pago[0].id ?? '';
+              let statusLabel = STATUS_MAP[invoice.estado]?.label || invoice.estado;
+              if (locale === 'en') {
+                if (invoice.estado === 'pendiente') statusLabel = 'Pending';
+                else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = 'Paid';
+                else if (invoice.estado === 'parcial') statusLabel = 'Partial';
+                else if (invoice.estado === 'completa') statusLabel = 'Complete';
+                else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = 'Cancelled';
+                else if (invoice.estado === 'borrador') statusLabel = 'Draft';
+              } else if (locale === 'zh') {
+                if (invoice.estado === 'pendiente') statusLabel = '待处理';
+                else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = '已付款';
+                else if (invoice.estado === 'parcial') statusLabel = '部分';
+                else if (invoice.estado === 'completa') statusLabel = '已完成';
+                else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = '已取消';
+                else if (invoice.estado === 'borrador') statusLabel = '草稿';
+              }
+              const surtidoKey = invoice.estado_surtido === 'completa' ? 'completed' : invoice.estado_surtido === 'parcial' ? 'partial' : 'unfulfilled';
+              const surtidoLabel = t(surtidoKey as any) || ESTADO_SURTIDO_MAP[invoice.estado_surtido]?.label || invoice.estado_surtido || 'No Surtida';
+              const formatDate = (dateStr: string) => {
+                if (!dateStr) return '-';
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) return '-';
+                const day = String(date.getUTCDate()).padStart(2, '0');
+                const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const year = date.getUTCFullYear();
+                return `${month}/${day}/${year}`;
+              };
+              const fechaPago = (['pagada', 'pagado'].includes(invoice.estado) && invoice.fecha_pago)
+                ? formatDate(invoice.fecha_pago)
+                : '-';
+              const fechaExp = formatDate(invoice.fecha_expedicion);
+              const fechaVen = formatDate(invoice.fecha_vencimiento);
+              complementData.push([
+                invoice.numero_factura,
+                invoice.cliente_nombre,
+                invoice.cliente_rfc || '',
+                fechaExp,
+                fechaVen,
+                fechaPago,
+                invoice.subtotal,
+                invoice.iva,
+                invoice.total,
+                surtidoLabel,
+                statusLabel,
+                complementoId,
+              ]);
+            }
+          });
+
+          // Create worksheets and apply styling
+          const wsMain = XLSX.utils.aoa_to_sheet(data);
+          const wsComp = XLSX.utils.aoa_to_sheet(complementData);
+          const headerStyle = { font: { bold: true }, fill: { pattern: 'solid', fgColor: { rgb: 'D9E1F2' } } };
+          const applyHeaderStyle = (ws: any, count: number) => {
+            for (let C = 0; C < count; ++C) {
+              const address = XLSX.utils.encode_cell({ r: 0, c: C });
+              if (!ws[address]) ws[address] = { t: 's', v: '' };
+              ws[address].s = headerStyle;
+            }
+          };
+          applyHeaderStyle(wsMain, headers.length);
+          applyHeaderStyle(wsComp, complementHeaders.length);
+          // Auto‑size columns (approximate width)
+          const colWidth = 20;
+          wsMain['!cols'] = headers.map(() => ({ wch: colWidth }));
+          wsComp['!cols'] = complementHeaders.map(() => ({ wch: colWidth }));
+
+          // Assemble workbook
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, wsMain, 'Reporte');
+          XLSX.utils.book_append_sheet(wb, wsComp, 'Complementos');
+          const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+          const filename = `reporte_condensado_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', filename);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          return;
       } else {
-        // Compile CSV by invoice
+        // Fallback CSV
         const headers = [
           locale === 'en' ? 'Folio / Number' : locale === 'zh' ? '发票号' : 'Folio / Número',
           locale === 'en' ? 'Client' : locale === 'zh' ? '客户' : 'Cliente',
@@ -385,35 +550,34 @@ export default function FacturasPage() {
           locale === 'en' ? 'Tax (IVA)' : locale === 'zh' ? '税 (IVA)' : 'IVA',
           locale === 'en' ? 'Total' : locale === 'zh' ? '总计' : 'Total',
           locale === 'en' ? 'Fulfillment' : locale === 'zh' ? '发货履行' : 'Surtido',
-          locale === 'en' ? 'Payment Status' : locale === 'zh' ? '付款状态' : 'Estado Pago'
-        ]
-
+          locale === 'en' ? 'Payment Status' : locale === 'zh' ? '付款状态' : 'Estado Pago',
+        ];
         const rows = allInvoices.map(invoice => {
-          let statusLabel = STATUS_MAP[invoice.estado]?.label || invoice.estado
+          let statusLabel = STATUS_MAP[invoice.estado]?.label || invoice.estado;
           if (locale === 'en') {
-            if (invoice.estado === 'pendiente') statusLabel = 'Pending'
-            else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = 'Paid'
-            else if (invoice.estado === 'parcial') statusLabel = 'Partial'
-            else if (invoice.estado === 'completa') statusLabel = 'Complete'
-            else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = 'Cancelled'
-            else if (invoice.estado === 'borrador') statusLabel = 'Draft'
+            if (invoice.estado === 'pendiente') statusLabel = 'Pending';
+            else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = 'Paid';
+            else if (invoice.estado === 'parcial') statusLabel = 'Partial';
+            else if (invoice.estado === 'completa') statusLabel = 'Complete';
+            else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = 'Cancelled';
+            else if (invoice.estado === 'borrador') statusLabel = 'Draft';
           } else if (locale === 'zh') {
-            if (invoice.estado === 'pendiente') statusLabel = '待处理'
-            else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = '已付款'
-            else if (invoice.estado === 'parcial') statusLabel = '部分'
-            else if (invoice.estado === 'completa') statusLabel = '已完成'
-            else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = '已取消'
-            else if (invoice.estado === 'borrador') statusLabel = '草稿'
+            if (invoice.estado === 'pendiente') statusLabel = '待处理';
+            else if (['pagada', 'pagado'].includes(invoice.estado)) statusLabel = '已付款';
+            else if (invoice.estado === 'parcial') statusLabel = '部分';
+            else if (invoice.estado === 'completa') statusLabel = '已完成';
+            else if (invoice.estado === 'cancelada' || invoice.estado === 'anulado') statusLabel = '已取消';
+            else if (invoice.estado === 'borrador') statusLabel = '草稿';
           }
 
-          const surtidoKey = invoice.estado_surtido === 'completa' ? 'completed' : invoice.estado_surtido === 'parcial' ? 'partial' : 'unfulfilled'
-          const surtidoLabel = t(surtidoKey as any) || ESTADO_SURTIDO_MAP[invoice.estado_surtido]?.label || invoice.estado_surtido || 'No Surtida'
+          const surtidoKey = invoice.estado_surtido === 'completa' ? 'completed' : invoice.estado_surtido === 'parcial' ? 'partial' : 'unfulfilled';
+          const surtidoLabel = t(surtidoKey as any) || ESTADO_SURTIDO_MAP[invoice.estado_surtido]?.label || invoice.estado_surtido || 'No Surtida';
 
-          const fechaPago = (['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
-            ? formatDate(invoice.fecha_pago) 
-            : '-'
-          const fechaExp = formatDate(invoice.fecha_expedicion)
-          const fechaVen = formatDate(invoice.fecha_vencimiento)
+          const fechaPago = (['pagada', 'pagado'].includes(invoice.estado) && invoice.fecha_pago)
+            ? formatDate(invoice.fecha_pago)
+            : '-';
+          const fechaExp = formatDate(invoice.fecha_expedicion);
+          const fechaVen = formatDate(invoice.fecha_vencimiento);
 
           return [
             escapeCSV(invoice.numero_factura),
@@ -427,21 +591,19 @@ export default function FacturasPage() {
             invoice.total,
             escapeCSV(surtidoLabel),
             escapeCSV(statusLabel)
-          ].join(',')
-        })
-
-        CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows].join('\n')
-        filename = `reporte_facturas_${new Date().toISOString().slice(0, 10)}.csv`
+          ].join(',');
+        });
+        const CSV_CONTENT = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        const filename = `reporte_facturas_${new Date().toISOString().slice(0, 10)}.csv`;
+        const blob = new Blob([CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
-
-      const blob = new Blob([CSV_CONTENT], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', filename)
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
     } catch (err: any) {
       console.error('Error downloading invoice report:', err)
       alert(err.message || 'Error al descargar el reporte')
@@ -1174,7 +1336,29 @@ export default function FacturasPage() {
                 </span>
               </div>
             </label>
-          </div>
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-[#0763a9] hover:bg-blue-50/20 cursor-pointer transition-all">
+  <input
+    type="radio"
+    name="downloadType"
+    value="condensado"
+    checked={downloadType === 'condensado'}
+    onChange={() => setDownloadType('condensado')}
+    className="mt-1 text-[#0763a9] focus:ring-[#0763a9]"
+  />
+  <div>
+    <span className="text-sm font-semibold text-gray-800 block">
+      {locale === 'en' ? 'Condensado (Summary)' : locale === 'zh' ? '汇总' : 'Condensado'}
+    </span>
+    <span className="text-xs text-gray-500 block mt-0.5">
+      {locale === 'en'
+        ? 'Compact summary including pending complementos.'
+        : locale === 'zh'
+        ? '包含待处理补充的紧凑汇总。'
+        : 'Resumen compacto que incluye complementos pendientes.'}
+    </span>
+  </div>
+</label>
+</div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
             <button

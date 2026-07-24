@@ -5,7 +5,8 @@ import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
 import {
   Receipt, Plus, Minus, Search, Loader2, Download, Scale,
-  Trash2, AlertTriangle, CheckCircle, Calendar, RefreshCw
+  Trash2, AlertTriangle, CheckCircle, Calendar, RefreshCw,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
@@ -79,6 +80,10 @@ export default function CajaChicaPage() {
   const [typeFilter, setTypeFilter] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+
+  // Pagination
+  const [page, setPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(15)
 
   // Modals
   const [isTxModalOpen, setIsTxModalOpen] = useState(false)
@@ -588,73 +593,133 @@ export default function CajaChicaPage() {
               </button>
             </div>
 
-            {loading ? (
-              <div className="p-12 flex justify-center">
-                <Loader2 className="w-8 h-8 text-[#0763a9] animate-spin" />
-              </div>
-            ) : error ? (
-              <div className="p-8 text-center text-red-500 font-medium">{error}</div>
-            ) : transactions.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">No se encontraron movimientos registrados.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-500">
-                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="px-6 py-4">Fecha y Hora</th>
-                      <th className="px-6 py-4">Tipo</th>
-                      <th className="px-6 py-4">Monto</th>
-                      <th className="px-6 py-4">Entregó</th>
-                      <th className="px-6 py-4">Recibió</th>
-                      <th className="px-6 py-4">Nota / Concepto</th>
-                      <th className="px-6 py-4">Por</th>
-                      <th className="px-6 py-4 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((tx) => (
-                      <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                        <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
-                          {formatDateString(tx.date)}
-                        </td>
-                        <td className="px-6 py-4">
-                          {tx.type === 'INPUT' ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                              Ingreso
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
-                              Egreso
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 font-semibold text-gray-900">
-                          {tx.type === 'INPUT' ? '+' : '-'}{formatCurrencyMXN(tx.amount)}
-                        </td>
-                        <td className="px-6 py-4 text-gray-700">{tx.giver}</td>
-                        <td className="px-6 py-4 text-gray-700">{tx.receiver}</td>
-                        <td className="px-6 py-4 text-gray-600 max-w-xs truncate" title={tx.note || ''}>
-                          {tx.note || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-gray-500">
-                          {tx.users ? `${tx.users.first_name || ''} ${tx.users.last_name || ''}`.trim() : 'Sistema'}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <PermissionGuard section="caja_chica" action="delete">
-                            <button
-                              onClick={() => handleDeleteTransaction(tx.id)}
-                              className="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </PermissionGuard>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {(() => {
+              const totalItems = transactions.length
+              const totalPages = Math.ceil(totalItems / itemsPerPage) || 1
+              const paginatedTransactions = transactions.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+
+              if (loading) {
+                return (
+                  <div className="p-12 flex justify-center">
+                    <Loader2 className="w-8 h-8 text-[#0763a9] animate-spin" />
+                  </div>
+                )
+              }
+              if (error) {
+                return <div className="p-8 text-center text-red-500 font-medium">{error}</div>
+              }
+              if (transactions.length === 0) {
+                return <div className="p-12 text-center text-gray-500">No se encontraron movimientos registrados.</div>
+              }
+
+              return (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-gray-500">
+                      <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-6 py-4">Fecha y Hora</th>
+                          <th className="px-6 py-4">Tipo</th>
+                          <th className="px-6 py-4">Monto</th>
+                          <th className="px-6 py-4">Entregó</th>
+                          <th className="px-6 py-4">Recibió</th>
+                          <th className="px-6 py-4">Nota / Concepto</th>
+                          <th className="px-6 py-4">Por</th>
+                          <th className="px-6 py-4 text-center">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedTransactions.map((tx) => (
+                          <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                            <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
+                              {formatDateString(tx.date)}
+                            </td>
+                            <td className="px-6 py-4">
+                              {tx.type === 'INPUT' ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                                  Ingreso
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                                  Egreso
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 font-semibold text-gray-900">
+                              {tx.type === 'INPUT' ? '+' : '-'}{formatCurrencyMXN(tx.amount)}
+                            </td>
+                            <td className="px-6 py-4 text-gray-700">{tx.giver}</td>
+                            <td className="px-6 py-4 text-gray-700">{tx.receiver}</td>
+                            <td className="px-6 py-4 text-gray-600 max-w-xs truncate" title={tx.note || ''}>
+                              {tx.note || '-'}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-gray-500">
+                              {tx.users ? `${tx.users.first_name || ''} ${tx.users.last_name || ''}`.trim() : 'Sistema'}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <PermissionGuard section="caja_chica" action="delete">
+                                <button
+                                  onClick={() => handleDeleteTransaction(tx.id)}
+                                  className="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 transition"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </PermissionGuard>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-500 font-medium">
+                        Mostrando <strong className="text-gray-900">{Math.min((page - 1) * itemsPerPage + 1, totalItems)}</strong>–<strong className="text-gray-900">{Math.min(page * itemsPerPage, totalItems)}</strong> de <strong className="text-gray-900">{totalItems}</strong> transacciones
+                      </span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value))
+                          setPage(1)
+                        }}
+                        className="px-2 py-1 border border-gray-300 rounded text-xs bg-white text-gray-700 font-medium focus:ring-1 focus:ring-[#0763a9]"
+                      >
+                        <option value={10}>10 por pág.</option>
+                        <option value={15}>15 por pág.</option>
+                        <option value={25}>25 por pág.</option>
+                        <option value={50}>50 por pág.</option>
+                        <option value={100}>100 por pág.</option>
+                      </select>
+                    </div>
+                    {totalPages > 1 && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                          disabled={page === 1}
+                          className="p-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          aria-label="Página anterior"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span className="text-xs text-gray-600 px-2 font-semibold">
+                          Pág. {page} de {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                          disabled={page === totalPages}
+                          className="p-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          aria-label="Página siguiente"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         ) : (
           /* Conteos Audit Tab */
