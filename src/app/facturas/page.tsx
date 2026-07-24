@@ -5,7 +5,7 @@ import { useI18n } from '@/contexts/I18nContext'
 import { 
   FileText, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, 
   X, CheckCircle, AlertCircle, DollarSign, Calendar, TrendingUp, Info,
-  Download, SlidersHorizontal, GripVertical
+  Download, SlidersHorizontal, GripVertical, ChevronDown
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
@@ -199,6 +199,19 @@ export default function FacturasPage() {
   // Filters state
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false)
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+
+  const handleToggleStatus = (statusVal: string) => {
+    setSelectedStatuses(prev => {
+      const next = prev.includes(statusVal)
+        ? prev.filter(s => s !== statusVal)
+        : [...prev, statusVal]
+      setStatusFilter(next.join(','))
+      return next
+    })
+  }
+
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   
@@ -790,21 +803,65 @@ export default function FacturasPage() {
             />
           </div>
 
-          {/* Status select */}
-          <div className="w-full md:w-48">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="erp-input w-full !py-2 text-sm"
-              title="Estado"
+          {/* Status select (Multi-select dropdown popover) */}
+          <div className="w-full md:w-48 relative">
+            <button
+              type="button"
+              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              className="erp-input w-full !py-2 text-sm text-left flex justify-between items-center bg-white cursor-pointer select-none"
             >
-              <option value="">Todos los estados</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="pagada">Pagada</option>
-              <option value="parcial">Parcial</option>
-              <option value="completa">Completa</option>
-              <option value="cancelada">Cancelada</option>
-            </select>
+              <span className="truncate text-gray-700 font-medium">
+                {selectedStatuses.length === 0
+                  ? 'Todos los estados'
+                  : selectedStatuses.map(s => {
+                      const found = STATUS_MAP[s] || { label: s }
+                      return found.label
+                    }).join(', ')
+                }
+              </span>
+              <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 ml-1" />
+            </button>
+            
+            {isStatusDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsStatusDropdownOpen(false)} />
+                <div className="absolute left-0 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-2.5 space-y-2">
+                  {[
+                    { value: 'pendiente', label: 'Pendiente' },
+                    { value: 'pagada', label: 'Pagada' },
+                    { value: 'parcial', label: 'Parcial' },
+                    { value: 'completa', label: 'Completa' },
+                    { value: 'cancelada', label: 'Cancelada' },
+                    { value: 'borrador', label: 'Borrador' },
+                  ].map(opt => {
+                    const isChecked = selectedStatuses.includes(opt.value)
+                    return (
+                      <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleStatus(opt.value)}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-[#0763a9] focus:ring-blue-100"
+                        />
+                        {opt.label}
+                      </label>
+                    )
+                  })}
+                  {selectedStatuses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStatuses([])
+                        setStatusFilter('')
+                      }}
+                      className="w-full text-center text-[10px] font-semibold text-red-500 pt-1.5 border-t border-gray-100 hover:text-red-700 transition"
+                    >
+                      Limpiar selección
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Date Pickers */}
@@ -835,6 +892,7 @@ export default function FacturasPage() {
             <button
               onClick={() => {
                 setSearchTerm('')
+                setSelectedStatuses([])
                 setStatusFilter('')
                 setStartDate('')
                 setEndDate('')

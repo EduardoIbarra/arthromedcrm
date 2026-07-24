@@ -20,7 +20,12 @@ export async function GET(request: NextRequest) {
     const where: any = {}
 
     if (status) {
-      where.estado = status
+      const statusList = status.split(',').map(s => s.trim()).filter(Boolean)
+      if (statusList.length > 1) {
+        where.estado = { in: statusList }
+      } else if (statusList.length === 1) {
+        where.estado = statusList[0]
+      }
     }
     if (estado_surtido) {
       where.estado_surtido = estado_surtido

@@ -2176,6 +2176,8 @@ model user_profiles {
   workshop_hotel_occupants                                                    workshop_hotel_occupants[]
   workshop_itinerary_members                                                  workshop_itinerary_members[]
   congreso_pendientes                                                         congreso_pendientes[]
+  caja_chica_transactions                                                     caja_chica_transactions[]
+  caja_chica_conteos                                                          caja_chica_conteos[]
 
   @@schema("public")
 }
@@ -2892,6 +2894,37 @@ enum user_role {
   superadmin
   admin
   user
+
+  @@schema("public")
+}
+
+model caja_chica_transactions {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deleted_at  DateTime? @db.Timestamptz(6)
+  type        String    // "INPUT" or "OUTPUT"
+  amount      Float
+  giver       String    // Who gave the money
+  receiver    String    // Who received the money
+  date        DateTime  @db.Timestamptz(6)
+  note        String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  created_by  String?   @db.Uuid
+  users       user_profiles? @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model caja_chica_conteos {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deleted_at    DateTime? @db.Timestamptz(6)
+  date          DateTime  @db.Timestamptz(6)
+  system_amount Float     // Expected balance based on system
+  real_amount   Float     // Physically counted cash
+  discrepancy   Float     // real_amount - system_amount
+  note          String?   @db.Text
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  created_by    String?   @db.Uuid
+  users         user_profiles? @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }

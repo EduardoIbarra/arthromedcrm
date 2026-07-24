@@ -31,6 +31,7 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/talleres': { section: 'talleres', action: 'view' },
   '/gastos': { section: 'gastos', action: 'view' },
   '/gastos/new': { section: 'gastos', action: 'create' },
+  '/caja-chica': { section: 'caja_chica', action: 'view' },
   '/previos': { section: 'previos', action: 'view' },
   '/ventas': { section: 'ventas', action: 'view' },
   '/facturas': { section: 'facturas', action: 'view' },

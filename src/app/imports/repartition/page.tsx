@@ -10,7 +10,8 @@ import {
   Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
   AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
   RefreshCw, Download, FileText, User, Tag, History, ArrowRight,
-  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer, FileSpreadsheet, Receipt, Pencil
+  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer, FileSpreadsheet, Receipt, Pencil,
+  Maximize2, Minimize2
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -272,6 +273,7 @@ export default function ImportRepartitionPage() {
   const [remainingInventory, setRemainingInventory] = useState<Record<string, number>>({})
   const [initialInventory, setInitialInventory] = useState<Record<string, number>>({})
   const [aiReasoning, setAiReasoning] = useState('')
+  const [collapseAiReasoning, setCollapseAiReasoning] = useState(false)
   const [invoiceIdFromChina, setInvoiceIdFromChina] = useState('')
   const [hasProcessed, setHasProcessed] = useState(false)
   const [addingProductFolio, setAddingProductFolio] = useState<string | null>(null)
@@ -293,8 +295,10 @@ export default function ImportRepartitionPage() {
 
   // ── Totals Drawer State ────────────────────────────────
   const [showTotalsDrawer, setShowTotalsDrawer] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
   const [totalsSearchQuery, setTotalsSearchQuery] = useState('')
   const [totalsDrawerTab, setTotalsDrawerTab] = useState<'article' | 'invoice'>('article')
+  const [totalsDrawerInvoiceSort, setTotalsDrawerInvoiceSort] = useState<'missingPieces' | 'earliestPayment' | 'facturaNumber'>('missingPieces')
 
   // ── Invoice Product Editing / Addition (DB) ─────────────
   const [catalogProducts, setCatalogProducts] = useState<CatalogProductOption[]>([])
@@ -1858,7 +1862,8 @@ export default function ImportRepartitionPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* ── Left Column ──────────────────────────── */}
-              <div className="lg:col-span-1 space-y-5">
+              {!isMaximized && (
+                <div className="lg:col-span-1 space-y-5">
 
                 {/* ── Fuentes de inventario ──────────────── */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -2233,9 +2238,10 @@ export default function ImportRepartitionPage() {
                   Analizar y Repartir
                 </button>
               </div>
+              )}
 
               {/* ── Right Column: Results ─────────────────── */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className={`${isMaximized ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
                 <AnimatePresence mode="popLayout">
                   {loading && (
                     <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -2253,11 +2259,19 @@ export default function ImportRepartitionPage() {
                       className="bg-gradient-to-br from-violet-50 to-fuchsia-50 p-6 rounded-2xl border border-violet-100 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-4 opacity-10"><Brain className="w-24 h-24 text-violet-600" /></div>
                       <div className="relative z-10">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Sparkles className="w-5 h-5 text-violet-600" />
-                          <h3 className="font-bold text-violet-900">Razonamiento de la IA</h3>
+                        <div className="flex items-center justify-between gap-2 mb-3 cursor-pointer select-none" onClick={() => setCollapseAiReasoning(!collapseAiReasoning)}>
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-violet-600" />
+                            <h3 className="font-bold text-violet-900">Razonamiento de la IA</h3>
+                          </div>
+                          <button className="text-violet-600 hover:text-violet-950 font-semibold text-xs flex items-center gap-1 bg-violet-100/50 hover:bg-violet-100 px-2 py-1 rounded-lg transition-colors">
+                            {collapseAiReasoning ? 'Mostrar' : 'Ocultar'}
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${collapseAiReasoning ? '' : 'rotate-180'}`} />
+                          </button>
                         </div>
-                        <p className="text-violet-800 text-sm leading-relaxed whitespace-pre-wrap">{aiReasoning}</p>
+                        {!collapseAiReasoning && (
+                          <p className="text-violet-800 text-sm leading-relaxed whitespace-pre-wrap">{aiReasoning}</p>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -2273,6 +2287,22 @@ export default function ImportRepartitionPage() {
                           <p className="text-xs text-gray-500 mt-0.5">Ordenadas por límite de entrega / fecha de pago (más urgentes primero)</p>
                         </div>
                         <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsMaximized(!isMaximized)}
+                            className="py-2 px-3 border border-gray-200 text-gray-700 hover:text-indigo-600 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1.5 transition-colors"
+                            title={isMaximized ? 'Restaurar' : 'Maximizar'}
+                          >
+                            {isMaximized ? (
+                              <>
+                                <Minimize2 className="w-3.5 h-3.5" /> Restaurar
+                              </>
+                            ) : (
+                              <>
+                                <Maximize2 className="w-3.5 h-3.5" /> Maximizar
+                              </>
+                            )}
+                          </button>
                           <button onClick={downloadPDFReport} className="py-2 px-3 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1.5">
                             <Printer className="w-3.5 h-3.5" /> PDF
                           </button>
@@ -3129,15 +3159,29 @@ export default function ImportRepartitionPage() {
                 {/* Tab Content: Pendientes por Factura */}
                 {totalsDrawerTab === 'invoice' && (
                   <div className="space-y-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="Filtrar facturas por folio o cliente..."
-                        value={totalsSearchQuery}
-                        onChange={e => setTotalsSearchQuery(e.target.value)}
-                        className="erp-input pl-10 w-full text-xs"
-                      />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Filtrar facturas por folio o cliente..."
+                          value={totalsSearchQuery}
+                          onChange={e => setTotalsSearchQuery(e.target.value)}
+                          className="erp-input pl-10 w-full text-xs"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 whitespace-nowrap">Ordenar por:</span>
+                        <select
+                          value={totalsDrawerInvoiceSort}
+                          onChange={e => setTotalsDrawerInvoiceSort(e.target.value as any)}
+                          className="erp-input text-xs py-1.5 px-3 pr-8 focus:ring-indigo-500 bg-white"
+                        >
+                          <option value="missingPieces">Más piezas faltantes</option>
+                          <option value="earliestPayment">Fecha de pago más antigua</option>
+                          <option value="facturaNumber">Número de factura</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
@@ -3166,7 +3210,22 @@ export default function ImportRepartitionPage() {
                               (item.inv.cliente_nombre && String(item.inv.cliente_nombre).toLowerCase().includes(q))
                             )
                           })
-                          .sort((a, b) => b.totalMissing - a.totalMissing)
+                          .sort((a, b) => {
+                            if (totalsDrawerInvoiceSort === 'missingPieces') {
+                              return b.totalMissing - a.totalMissing
+                            }
+                            if (totalsDrawerInvoiceSort === 'earliestPayment') {
+                              const dateA = a.inv.fecha_pago ? new Date(a.inv.fecha_pago).getTime() : Infinity
+                              const dateB = b.inv.fecha_pago ? new Date(b.inv.fecha_pago).getTime() : Infinity
+                              return dateA - dateB
+                            }
+                            if (totalsDrawerInvoiceSort === 'facturaNumber') {
+                              const numA = String(a.inv.numero_factura || '')
+                              const numB = String(b.inv.numero_factura || '')
+                              return numA.localeCompare(numB, undefined, { numeric: true, sensitivity: 'base' })
+                            }
+                            return 0
+                          })
 
                         if (invoicesWithMissing.length === 0) {
                           return (
@@ -3208,16 +3267,16 @@ export default function ImportRepartitionPage() {
                                       </>
                                     )}
                                   </h4>
-                                  <p className="text-xs text-gray-500 mt-0.5">{inv.cliente_nombre}</p>
+                                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                    <p className="text-xs text-gray-600 font-medium">{inv.cliente_nombre}</p>
+                                    {inv.fecha_pago && (
+                                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200 font-mono">
+                                        Pago: {new Date(inv.fecha_pago).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => toggleInvoice(inv)}
-                                className="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors"
-                              >
-                                Desmarcar
-                              </button>
                             </div>
 
                             <div className="border border-gray-100 rounded-lg overflow-hidden bg-gray-50/50">

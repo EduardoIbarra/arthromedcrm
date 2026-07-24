@@ -31,7 +31,8 @@ export const SECTIONS = [
   'settings',
   'cajas',
   'purchase_orders',
-  'cotizaciones'
+  'cotizaciones',
+  'caja_chica'
 ] as const
 
 export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete', 'timbrar', 'cancelar', 'manage_payments']
