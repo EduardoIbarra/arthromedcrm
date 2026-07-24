@@ -371,7 +371,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 21
+const TRIGGER_VERSION = 22
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
@@ -384,6 +384,7 @@ const hasUpdates = globalThis.prisma &&
   ('car_fleet' in globalThis.prisma) &&
   ('directorio_categorias' in globalThis.prisma) &&
   ('purchase_orders' in globalThis.prisma) &&
+  ('vacaciones' in globalThis.prisma) &&
   globalThis.prismaTriggerVersion === TRIGGER_VERSION
 
 const basePrisma = hasUpdates ? globalThis.prisma! : prismaClientSingleton()
