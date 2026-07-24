@@ -280,29 +280,6 @@ export default function FacturasPage() {
     }
   }
 
-  const handleCancelarFactura = async () => {
-    if (!selectedInvoiceToCancel) return
-    setIsCanceling(true)
-    try {
-      const res = await fetch(`/api/facturas/${selectedInvoiceToCancel.id}/cancelar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: cancelReason })
-      })
-      const data = await res.json()
-      if (data.success) {
-        setSyncResult({ success: true, message: 'Factura cancelada exitosamente.' })
-        setShowCancelModal(false)
-        fetchInvoices()
-      } else {
-        alert(data.error || 'Error al cancelar la factura.')
-      }
-    } catch (err: any) {
-      alert(err.message || 'Error de conexión.')
-    } finally {
-      setIsCanceling(false)
-    }
-  }
 
   const handleDownloadReport = async (type: 'factura' | 'producto' = 'factura') => {
     try {
@@ -1085,18 +1062,7 @@ export default function FacturasPage() {
                               return (
                                 <td key={col.id} className="p-4 text-center">
                                   <div className="flex items-center justify-center">
-                                    {!['cancelada', 'anulado'].includes(invoice.estado?.toLowerCase()) && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setSelectedInvoiceToCancel(invoice)
-                                          setShowCancelModal(true)
-                                        }}
-                                        className="text-xs font-medium text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition"
-                                      >
-                                        Cancelar
-                                      </button>
-                                    )}
+                                    <span className="text-xs text-gray-400">-</span>
                                   </div>
                                 </td>
                               )
@@ -1231,57 +1197,7 @@ export default function FacturasPage() {
         </div>
       </Modal>
 
-      {/* CANCELAR FACTURA MODAL */}
-      <Modal
-        open={showCancelModal}
-        onClose={() => !isCanceling && setShowCancelModal(false)}
-        title="Cancelar Factura"
-        maxWidth="500px"
-      >
-        <div className="space-y-4 text-sm text-gray-700">
-          <p>
-            Estás a punto de cancelar la factura <strong>{selectedInvoiceToCancel?.numero_factura}</strong> ante el SAT. 
-            Esta acción no se puede deshacer.
-          </p>
-          <div className="space-y-3 mt-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Causa de Cancelación (SAT)</label>
-              <select
-                value={cancelReason}
-                onChange={e => setCancelReason(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-rose-500 outline-none"
-              >
-                <option value="01">01 - Comprobante emitido con errores con relación</option>
-                <option value="02">02 - Comprobante emitido con errores sin relación</option>
-                <option value="03">03 - No se llevó a cabo la operación</option>
-                <option value="04">04 - Operación nominativa relacionada en una factura global</option>
-              </select>
-            </div>
-            {cancelReason === '01' && (
-              <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 text-amber-800 text-xs">
-                La causa "01" requiere un UUID de sustitución, el cual debe gestionarse directamente desde el portal de Alegra. Te recomendamos usar "02" si no la sustituirás inmediatamente.
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => setShowCancelModal(false)}
-              disabled={isCanceling}
-              className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition"
-            >
-              Cerrar
-            </button>
-            <button
-              onClick={handleCancelarFactura}
-              disabled={isCanceling || cancelReason === '01'}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg flex items-center gap-2 transition disabled:opacity-50"
-            >
-              {isCanceling ? <RefreshCw className="animate-spin w-4 h-4" /> : <X size={16} />}
-              Confirmar Cancelación
-            </button>
-          </div>
-        </div>
-      </Modal>
+
     </AppShell>
   )
 }

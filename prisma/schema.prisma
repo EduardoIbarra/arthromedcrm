@@ -2928,3 +2928,57 @@ model caja_chica_conteos {
 
   @@schema("public")
 }
+
+model requisiciones {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deleted_at            DateTime?           @db.Timestamptz(6)
+  folio                 String              @unique
+  fecha_solicitud       DateTime            @db.Date
+  departamento          String
+  fecha_requerida       DateTime            @db.Date
+  solicitante_nombre    String
+  solicitante_telefono  String?
+  observaciones         String?
+  aprobacion_nombre     String?
+  aprobacion_fecha      DateTime?           @db.Timestamptz(6)
+  autorizacion_nombre   String?
+  autorizacion_fecha    DateTime?           @db.Timestamptz(6)
+  status                String              @default("PENDIENTE")
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime            @default(now()) @db.Timestamptz(6)
+  items                 requisicion_items[]
+  logs                  requisicion_logs[]
+
+  @@schema("public")
+}
+
+model requisicion_items {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deleted_at     DateTime?     @db.Timestamptz(6)
+  requisicion_id String        @db.Uuid
+  descripcion    String
+  cantidad       Int
+  unidad         String        @default("Pieza")
+  costo_estimado Float
+  created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime      @default(now()) @db.Timestamptz(6)
+  requisiciones  requisiciones @relation(fields: [requisicion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([requisicion_id], map: "idx_requisicion_items_requisicion_id")
+  @@schema("public")
+}
+
+model requisicion_logs {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requisicion_id String        @db.Uuid
+  fecha          DateTime      @default(now()) @db.Timestamptz(6)
+  usuario        String
+  accion         String
+  archivo_url    String?
+  archivo_nombre String?
+  requisiciones  requisiciones @relation(fields: [requisicion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([requisicion_id], map: "idx_requisicion_logs_requisicion_id")
+  @@schema("public")
+}
+

@@ -3,16 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
-import { 
-  Receipt, Plus, Minus, Search, Loader2, Download, Scale, 
-  Trash2, AlertTriangle, CheckCircle, Calendar, RefreshCw 
+import {
+  Receipt, Plus, Minus, Search, Loader2, Download, Scale,
+  Trash2, AlertTriangle, CheckCircle, Calendar, RefreshCw
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
 import PermissionGuard from '@/components/PermissionGuard'
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, BarChart, Bar, Legend 
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Legend
 } from 'recharts'
 
 interface Transaction {
@@ -46,9 +46,18 @@ interface Conteo {
   } | null
 }
 
+const getLocalDatetimeString = (dateObj: Date = new Date()) => {
+  const year = dateObj.getFullYear()
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  const hours = String(dateObj.getHours()).padStart(2, '0')
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
 export default function CajaChicaPage() {
   const { t } = useI18n()
-  const { hasPermission } = useUser()
+  const { profile, hasPermission } = useUser()
 
   // State
   const [loading, setLoading] = useState(true)
@@ -77,18 +86,24 @@ export default function CajaChicaPage() {
   const [isConteoModalOpen, setIsConteoModalOpen] = useState(false)
 
   // Form States
+  const [systemUsers, setSystemUsers] = useState<any[]>([])
+  const [giverSelection, setGiverSelection] = useState('')
+  const [giverOtherText, setGiverOtherText] = useState('')
+  const [receiverSelection, setReceiverSelection] = useState('')
+  const [receiverOtherText, setReceiverOtherText] = useState('')
+
   const [txFormData, setTxFormData] = useState({
     amount: '',
     giver: '',
     receiver: '',
-    date: new Date().toISOString().substring(0, 16),
+    date: getLocalDatetimeString(),
     note: ''
   })
 
   const [conteoFormData, setConteoFormData] = useState({
     system_amount: 0,
     real_amount: '',
-    date: new Date().toISOString().substring(0, 16),
+    date: getLocalDatetimeString(),
     note: ''
   })
 
@@ -136,6 +151,21 @@ export default function CajaChicaPage() {
   useEffect(() => {
     fetchData()
   }, [startDate, endDate, typeFilter])
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('/api/cirugias/usuarios')
+        if (res.ok) {
+          const { data } = await res.json()
+          setSystemUsers(data || [])
+        }
+      } catch (err) {
+        console.error('Error fetching system users:', err)
+      }
+    }
+    fetchUsers()
+  }, [])
 
   // Trigger search on debounce or enter
   const handleSearchKeyPress = (e: React.KeyboardEvent) => {
@@ -262,8 +292,11 @@ export default function CajaChicaPage() {
       return acc
     }, [])
 
-  // Calculate rolling balance for chart
-  let runningBal = 0
+  // Calculate rolling balance for chart aligning with the current balance
+  const totalChartInputs = chartData.reduce((sum, item) => sum + item.input, 0)
+  const totalChartOutputs = chartData.reduce((sum, item) => sum + item.output, 0)
+  let runningBal = kpis.currentBalance - totalChartInputs + totalChartOutputs
+
   chartData.forEach(item => {
     runningBal += (item.input - item.output)
     item.balance = runningBal
@@ -297,41 +330,51 @@ export default function CajaChicaPage() {
               Control de fondos menores, ingresos, egresos y auditorías físicas frecuentes
             </p>
           </div>
-          
+
           <div className="flex flex-wrap gap-2">
             <PermissionGuard section="caja_chica" action="create">
               <button
                 onClick={() => {
+                  const loggedInName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email : ''
                   setTxModalType('INPUT')
                   setTxFormData({
                     amount: '',
                     giver: '',
-                    receiver: 'Caja Chica',
-                    date: new Date().toISOString().substring(0, 16),
+                    receiver: loggedInName,
+                    date: getLocalDatetimeString(),
                     note: ''
                   })
+                  setGiverSelection('')
+                  setGiverOtherText('')
+                  setReceiverSelection(loggedInName)
+                  setReceiverOtherText('')
                   setIsTxModalOpen(true)
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition flex items-center gap-2"
               >
-                <Plus size={16} /> Ingresar Dinero
+                <Plus size={16} /> Ingresar
               </button>
 
               <button
                 onClick={() => {
+                  const loggedInName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email : ''
                   setTxModalType('OUTPUT')
                   setTxFormData({
                     amount: '',
-                    giver: 'Caja Chica',
+                    giver: loggedInName,
                     receiver: '',
-                    date: new Date().toISOString().substring(0, 16),
+                    date: getLocalDatetimeString(),
                     note: ''
                   })
+                  setGiverSelection(loggedInName)
+                  setGiverOtherText('')
+                  setReceiverSelection('')
+                  setReceiverOtherText('')
                   setIsTxModalOpen(true)
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition flex items-center gap-2"
               >
-                <Minus size={16} /> Retirar Dinero
+                <Minus size={16} /> Retirar
               </button>
 
               <button
@@ -339,7 +382,7 @@ export default function CajaChicaPage() {
                   setConteoFormData({
                     system_amount: kpis.currentBalance,
                     real_amount: '',
-                    date: new Date().toISOString().substring(0, 16),
+                    date: getLocalDatetimeString(),
                     note: ''
                   })
                   setIsConteoModalOpen(true)
@@ -376,7 +419,7 @@ export default function CajaChicaPage() {
 
         {/* KPI Panel */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div 
+          <div
             className="p-5 rounded-2xl text-white shadow-md flex flex-col justify-between"
             style={{ background: 'linear-gradient(135deg, #0763a9 0%, #008be5 100%)' }}
           >
@@ -439,8 +482,8 @@ export default function CajaChicaPage() {
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0763a9" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#0763a9" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#0763a9" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#0763a9" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -476,21 +519,19 @@ export default function CajaChicaPage() {
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab('transacciones')}
-            className={`py-2.5 px-5 font-semibold text-sm border-b-2 transition ${
-              activeTab === 'transacciones'
+            className={`py-2.5 px-5 font-semibold text-sm border-b-2 transition ${activeTab === 'transacciones'
                 ? 'border-[#0763a9] text-[#0763a9]'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
+              }`}
           >
             Transacciones
           </button>
           <button
             onClick={() => setActiveTab('conteos')}
-            className={`py-2.5 px-5 font-semibold text-sm border-b-2 transition ${
-              activeTab === 'conteos'
+            className={`py-2.5 px-5 font-semibold text-sm border-b-2 transition ${activeTab === 'conteos'
                 ? 'border-[#0763a9] text-[#0763a9]'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
+              }`}
           >
             Conteos Físicos ({conteos.length})
           </button>
@@ -701,33 +742,97 @@ export default function CajaChicaPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
                   Quién Entregó *
                 </label>
-                <input
-                  type="text"
+                <select
+                  value={giverSelection}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setGiverSelection(val)
+                    if (val === 'Otro') {
+                      setTxFormData(prev => ({ ...prev, giver: giverOtherText }))
+                    } else {
+                      setTxFormData(prev => ({ ...prev, giver: val }))
+                    }
+                  }}
                   required
-                  placeholder={txModalType === 'INPUT' ? 'Nombre de persona' : 'Caja Chica'}
-                  value={txFormData.giver}
-                  onChange={(e) => setTxFormData({ ...txFormData, giver: e.target.value })}
                   className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:border-[#0763a9] outline-none"
-                />
+                >
+                  <option value="">-- Seleccionar --</option>
+                  <option value="Caja Chica">Caja Chica</option>
+                  {systemUsers.map(u => {
+                    const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
+                    return (
+                      <option key={u.id} value={name}>
+                        {name} ({u.email})
+                      </option>
+                    )
+                  })}
+                  <option value="Otro">Otro (Especificar)</option>
+                </select>
+
+                {giverSelection === 'Otro' && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Especifique quién entregó"
+                    value={giverOtherText}
+                    onChange={(e) => {
+                      setGiverOtherText(e.target.value)
+                      setTxFormData(prev => ({ ...prev, giver: e.target.value }))
+                    }}
+                    className="w-full mt-2 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:border-[#0763a9] outline-none"
+                  />
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
                   Quién Recibió *
                 </label>
-                <input
-                  type="text"
+                <select
+                  value={receiverSelection}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setReceiverSelection(val)
+                    if (val === 'Otro') {
+                      setTxFormData(prev => ({ ...prev, receiver: receiverOtherText }))
+                    } else {
+                      setTxFormData(prev => ({ ...prev, receiver: val }))
+                    }
+                  }}
                   required
-                  placeholder={txModalType === 'INPUT' ? 'Caja Chica' : 'Nombre del beneficiario'}
-                  value={txFormData.receiver}
-                  onChange={(e) => setTxFormData({ ...txFormData, receiver: e.target.value })}
                   className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:border-[#0763a9] outline-none"
-                />
+                >
+                  <option value="">-- Seleccionar --</option>
+                  <option value="Caja Chica">Caja Chica</option>
+                  {systemUsers.map(u => {
+                    const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
+                    return (
+                      <option key={u.id} value={name}>
+                        {name} ({u.email})
+                      </option>
+                    )
+                  })}
+                  <option value="Otro">Otro (Especificar)</option>
+                </select>
+
+                {receiverSelection === 'Otro' && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Especifique quién recibió"
+                    value={receiverOtherText}
+                    onChange={(e) => {
+                      setReceiverOtherText(e.target.value)
+                      setTxFormData(prev => ({ ...prev, receiver: e.target.value }))
+                    }}
+                    className="w-full mt-2 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:border-[#0763a9] outline-none"
+                  />
+                )}
               </div>
             </div>
 
@@ -810,13 +915,12 @@ export default function CajaChicaPage() {
             </div>
 
             {conteoFormData.real_amount !== '' && (
-              <div className={`p-3.5 rounded-xl border flex items-center justify-between text-sm font-semibold ${
-                parseFloat(conteoFormData.real_amount) - conteoFormData.system_amount === 0
+              <div className={`p-3.5 rounded-xl border flex items-center justify-between text-sm font-semibold ${parseFloat(conteoFormData.real_amount) - conteoFormData.system_amount === 0
                   ? 'bg-green-50 border-green-200 text-green-700'
                   : parseFloat(conteoFormData.real_amount) - conteoFormData.system_amount < 0
-                  ? 'bg-red-50 border-red-200 text-red-700'
-                  : 'bg-blue-50 border-blue-200 text-blue-700'
-              }`}>
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-blue-50 border-blue-200 text-blue-700'
+                }`}>
                 <span>Diferencia calculada:</span>
                 <span>
                   {formatCurrencyMXN(parseFloat(conteoFormData.real_amount) - conteoFormData.system_amount)}

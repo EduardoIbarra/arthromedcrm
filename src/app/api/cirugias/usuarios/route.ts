@@ -12,7 +12,8 @@ export async function GET() {
         email: true,
         first_name: true,
         last_name: true,
-        position: true
+        position: true,
+        whatsapp: true
       },
       orderBy: { email: 'asc' },
     })

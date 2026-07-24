@@ -90,6 +90,7 @@ export default function Sidebar() {
         { href: '/cotizaciones', icon: ClipboardList, label: 'Cotizaciones', section: 'cotizaciones' },
         { href: '/gastos', icon: Receipt, label: t('gastos'), section: 'gastos' },
         { href: '/caja-chica', icon: Receipt, label: t('cajaChica' as any) || 'Caja Chica', section: 'caja_chica' },
+        { href: '/requisiciones', icon: ClipboardList, label: 'Requisiciones', section: 'requisiciones' },
         { href: '/previos', icon: ClipboardList, label: t('previos' as any) || 'Previos', section: 'previos' },
       ],
     },
