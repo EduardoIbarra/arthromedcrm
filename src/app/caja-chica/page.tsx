@@ -24,11 +24,18 @@ interface Transaction {
   receiver: string
   date: string
   note: string | null
+  category_id?: string | null
+  category_custom?: string | null
+  is_billed?: boolean
   created_at: string
   users: {
     first_name: string | null
     last_name: string | null
     email: string
+  } | null
+  catalog_spending_categories?: {
+    id: string
+    name: string
   } | null
 }
 
@@ -68,6 +75,7 @@ export default function CajaChicaPage() {
   // Data
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [conteos, setConteos] = useState<Conteo[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [kpis, setKpis] = useState({
     currentBalance: 0,
     totalInputs: 0,
@@ -102,7 +110,10 @@ export default function CajaChicaPage() {
     giver: '',
     receiver: '',
     date: getLocalDatetimeString(),
-    note: ''
+    note: '',
+    category_id: '',
+    category_custom: '',
+    is_billed: false
   })
 
   const [conteoFormData, setConteoFormData] = useState({
@@ -169,7 +180,21 @@ export default function CajaChicaPage() {
         console.error('Error fetching system users:', err)
       }
     }
+
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('/api/gastos/categories')
+        if (res.ok) {
+          const { data } = await res.json()
+          setCategories(data || [])
+        }
+      } catch (err) {
+        console.error('Error fetching categories:', err)
+      }
+    }
+
     fetchUsers()
+    fetchCategories()
   }, [])
 
   // Trigger search on debounce or enter
@@ -198,7 +223,10 @@ export default function CajaChicaPage() {
           giver: txFormData.giver,
           receiver: txFormData.receiver,
           date: new Date(txFormData.date).toISOString(),
-          note: txFormData.note
+          note: txFormData.note,
+          category_id: txModalType === 'OUTPUT' ? txFormData.category_id || null : null,
+          category_custom: txModalType === 'OUTPUT' ? txFormData.category_custom || null : null,
+          is_billed: txModalType === 'OUTPUT' ? txFormData.is_billed : false
         })
       })
 
@@ -347,7 +375,10 @@ export default function CajaChicaPage() {
                     giver: '',
                     receiver: loggedInName,
                     date: getLocalDatetimeString(),
-                    note: ''
+                    note: '',
+                    category_id: '',
+                    category_custom: '',
+                    is_billed: false
                   })
                   setGiverSelection('')
                   setGiverOtherText('')
@@ -369,7 +400,10 @@ export default function CajaChicaPage() {
                     giver: loggedInName,
                     receiver: '',
                     date: getLocalDatetimeString(),
-                    note: ''
+                    note: '',
+                    category_id: '',
+                    category_custom: '',
+                    is_billed: false
                   })
                   setGiverSelection(loggedInName)
                   setGiverOtherText('')
@@ -620,6 +654,8 @@ export default function CajaChicaPage() {
                         <tr>
                           <th className="px-6 py-4">Fecha y Hora</th>
                           <th className="px-6 py-4">Tipo</th>
+                          <th className="px-6 py-4">Categoría</th>
+                          <th className="px-6 py-4">Facturado</th>
                           <th className="px-6 py-4">Monto</th>
                           <th className="px-6 py-4">Entregó</th>
                           <th className="px-6 py-4">Recibió</th>
@@ -643,6 +679,33 @@ export default function CajaChicaPage() {
                                 <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
                                   Egreso
                                 </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              {tx.type === 'OUTPUT' ? (
+                                <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                                  {tx.catalog_spending_categories?.name || tx.category_custom || 'Sin categoría'}
+                                  {tx.catalog_spending_categories?.name === 'Otros' && tx.category_custom && (
+                                    <span className="ml-1 text-blue-900 font-semibold">({tx.category_custom})</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              {tx.type === 'OUTPUT' ? (
+                                tx.is_billed ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                                    <CheckCircle size={12} /> Facturado
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                    No
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
                               )}
                             </td>
                             <td className="px-6 py-4 font-semibold text-gray-900">
@@ -913,6 +976,59 @@ export default function CajaChicaPage() {
                 className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:border-[#0763a9] outline-none"
               />
             </div>
+
+            {txModalType === 'OUTPUT' && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                    Categoría de Gasto *
+                  </label>
+                  <select
+                    value={txFormData.category_id}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setTxFormData(prev => ({ ...prev, category_id: val }))
+                    }}
+                    required
+                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:border-[#0763a9] outline-none"
+                  >
+                    <option value="">-- Seleccionar Categoría --</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {categories.find(c => c.id === txFormData.category_id)?.name === 'Otros' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                      Categoría Personalizada / Detalle
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Escriba la categoría (ej: Oficina, Dirección, Taller...)"
+                      value={txFormData.category_custom}
+                      onChange={(e) => setTxFormData(prev => ({ ...prev, category_custom: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-200 focus:border-[#0763a9] outline-none"
+                    />
+                  </div>
+                )}
+
+                <div className="pt-1">
+                  <label className="inline-flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-gray-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={txFormData.is_billed}
+                      onChange={(e) => setTxFormData(prev => ({ ...prev, is_billed: e.target.checked }))}
+                      className="w-4.5 h-4.5 text-[#0763a9] border-gray-300 rounded focus:ring-[#0763a9]"
+                    />
+                    <span>Facturado (Gasto con factura)</span>
+                  </label>
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">

@@ -587,6 +587,7 @@ model catalog_spending_categories {
   created_at                DateTime                    @default(now()) @db.Timestamptz(6)
   congreso_gastos_estimados congreso_gastos_estimados[]
   gastos                    gastos[]
+  caja_chica_transactions   caja_chica_transactions[]
 
   @@schema("public")
 }
@@ -2907,9 +2908,13 @@ model caja_chica_transactions {
   receiver    String    // Who received the money
   date        DateTime  @db.Timestamptz(6)
   note        String?   @db.Text
+  category_id String?   @db.Uuid
+  category_custom String? @db.Text
+  is_billed   Boolean   @default(false)
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
   created_by  String?   @db.Uuid
   users       user_profiles? @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  catalog_spending_categories catalog_spending_categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }

@@ -112,6 +112,12 @@ export async function GET(request: NextRequest) {
             last_name: true,
             email: true
           }
+        },
+        catalog_spending_categories: {
+          select: {
+            id: true,
+            name: true
+          }
         }
       }
     })
@@ -141,7 +147,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { type, amount, giver, receiver, date, note } = body
+    const { type, amount, giver, receiver, date, note, category_id, category_custom, is_billed } = body
 
     if (!type || amount === undefined || !giver || !receiver || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -160,6 +166,9 @@ export async function POST(request: NextRequest) {
         receiver,
         date: new Date(date),
         note: note || '',
+        category_id: category_id || null,
+        category_custom: category_custom || null,
+        is_billed: Boolean(is_billed),
         created_by: user.id
       }
     })

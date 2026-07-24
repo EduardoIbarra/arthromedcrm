@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import prisma from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -33,7 +34,50 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
+  // Also include Caja Chica Retiros if not filtering by specific congress
+  let cajaChicaItems: any[] = []
+  if (!congressId) {
+    try {
+      const ccWhere: any = { type: 'OUTPUT', deleted_at: null }
+      if (startDate) ccWhere.date = { ...ccWhere.date, gte: new Date(startDate) }
+      if (endDate) ccWhere.date = { ...ccWhere.date, lte: new Date(endDate) }
+
+      const ccTxs = await prisma.caja_chica_transactions.findMany({
+        where: ccWhere,
+        orderBy: { date: 'desc' },
+        include: {
+          catalog_spending_categories: { select: { id: true, name: true } }
+        }
+      })
+
+      cajaChicaItems = ccTxs.map((tx: any) => ({
+        id: tx.id,
+        name: tx.note || tx.receiver || 'Retiro Caja Chica',
+        description: `Caja Chica (Entregó: ${tx.giver} | Recibió: ${tx.receiver})`,
+        amount: tx.amount,
+        iva_percent: 0,
+        iva: 0,
+        total: tx.amount,
+        comments: tx.note,
+        card: 'Caja Chica',
+        expense_date: tx.date.toISOString(),
+        category_id: tx.category_id,
+        category: tx.catalog_spending_categories || (tx.category_custom ? { name: tx.category_custom } : null),
+        is_billable: tx.is_billed,
+        is_billed: tx.is_billed,
+        is_caja_chica: true,
+        created_at: tx.created_at?.toISOString() || tx.date.toISOString()
+      }))
+    } catch (err) {
+      console.error('Error fetching caja chica transactions in /api/gastos:', err)
+    }
+  }
+
+  const combinedData = [...(data || []), ...cajaChicaItems].sort((a, b) =>
+    new Date(b.expense_date || b.created_at).getTime() - new Date(a.expense_date || a.created_at).getTime()
+  )
+
+  return NextResponse.json({ data: combinedData })
 }
 
 export async function POST(request: NextRequest) {
