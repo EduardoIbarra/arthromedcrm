@@ -121,6 +121,7 @@ export async function PUT(
       detallesLog = 'Solicitud de vacaciones cancelada'
     } else {
       // General update of fields
+      if (status) updateData.status = status
       if (fecha_solicitud) updateData.fecha_solicitud = new Date(fecha_solicitud)
       if (empleado_nombre) updateData.empleado_nombre = empleado_nombre
       if (empleado_cargo) updateData.empleado_cargo = empleado_cargo
@@ -131,6 +132,15 @@ export async function PUT(
       if (fecha_fin) updateData.fecha_fin = new Date(fecha_fin)
       if (fecha_regreso) updateData.fecha_regreso = new Date(fecha_regreso)
       if (observaciones !== undefined) updateData.observaciones = observaciones
+
+      if (autorizador_nombre !== undefined) updateData.autorizador_nombre = autorizador_nombre
+      if (autorizador_cargo !== undefined) updateData.autorizador_cargo = autorizador_cargo
+      if (autorizador_id !== undefined) updateData.autorizador_id = autorizador_id && autorizador_id !== 'otro' ? autorizador_id : null
+      if (fecha_autorizacion !== undefined) updateData.fecha_autorizacion = fecha_autorizacion ? new Date(fecha_autorizacion) : null
+      if (periodo_autorizado_inicio !== undefined) updateData.periodo_autorizado_inicio = periodo_autorizado_inicio ? new Date(periodo_autorizado_inicio) : null
+      if (periodo_autorizado_fin !== undefined) updateData.periodo_autorizado_fin = periodo_autorizado_fin ? new Date(periodo_autorizado_fin) : null
+      if (dias_autorizados !== undefined) updateData.dias_autorizados = dias_autorizados ? Number(dias_autorizados) : null
+      if (motivo_rechazo !== undefined) updateData.motivo_rechazo = motivo_rechazo
     }
 
     const updated = await prisma.$transaction(async (tx: any) => {

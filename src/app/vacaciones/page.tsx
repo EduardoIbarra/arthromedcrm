@@ -3,10 +3,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { 
   Palmtree, Plus, Search, Calendar, CheckCircle2, XCircle, Clock, 
-  Eye, Trash2, FileText, UserCheck, AlertCircle, RefreshCw 
+  Eye, Trash2, FileText, UserCheck, AlertCircle, RefreshCw, Pencil 
 } from 'lucide-react'
 import PermissionGuard from '@/components/PermissionGuard'
 import AppShell from '@/components/AppShell'
+import EditVacacionModal from '@/components/EditVacacionModal'
 
 interface Vacacion {
   id: string
@@ -30,6 +31,7 @@ export default function VacacionesPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('TODOS')
+  const [editingVacacion, setEditingVacacion] = useState<any | null>(null)
 
   const fetchVacaciones = async () => {
     setLoading(true)
@@ -285,30 +287,45 @@ export default function VacacionesPage() {
                           {getStatusBadge(v.status)}
                         </td>
                         <td className="px-4 py-3.5 text-right space-x-1">
-                          <Link
-                            href={`/vacaciones/${v.id}`}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors"
-                            title="Ver / Autorizar"
-                          >
-                            <Eye size={14} /> Detalle
-                          </Link>
-                          <button
-                            onClick={() => handleDelete(v.id, v.folio)}
-                            className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                        <Link
+                          href={`/vacaciones/${v.id}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors"
+                          title="Ver / Autorizar"
+                        >
+                          <Eye size={14} /> Detalle
+                        </Link>
+                        <button
+                          onClick={() => setEditingVacacion(v)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil size={14} /> Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(v.id, v.folio)}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </PermissionGuard>
+      </div>
+
+      {/* Edit Vacacion Modal */}
+      <EditVacacionModal
+        open={!!editingVacacion}
+        onClose={() => setEditingVacacion(null)}
+        vacacion={editingVacacion}
+        onSaved={fetchVacaciones}
+      />
+    </PermissionGuard>
     </AppShell>
   )
 }

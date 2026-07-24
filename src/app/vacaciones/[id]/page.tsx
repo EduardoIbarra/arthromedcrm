@@ -4,11 +4,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { 
   ArrowLeft, Palmtree, UserCheck, XCircle, Clock, CheckCircle2, 
-  Calendar, User, ShieldCheck, Printer, History, AlertCircle, FileText, Info 
+  Calendar, User, ShieldCheck, Printer, History, AlertCircle, FileText, Info, Pencil 
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import SearchableSelectWithOtro, { PersonOption } from '@/components/SearchableSelectWithOtro'
 import AppShell from '@/components/AppShell'
+import EditVacacionModal from '@/components/EditVacacionModal'
 
 interface VacacionDetail {
   id: string
@@ -89,6 +90,7 @@ export default function VacacionDetailPage({ params }: { params: Promise<{ id: s
   const [diasAutorizados, setDiasAutorizados] = useState<number | ''>('')
   const [motivoRechazo, setMotivoRechazo] = useState('')
   const [submittingAction, setSubmittingAction] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   const fetchVacacion = async () => {
     try {
@@ -239,6 +241,12 @@ export default function VacacionDetailPage({ params }: { params: Promise<{ id: s
             <ArrowLeft size={16} /> Volver a Solicitudes
           </Link>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors"
+            >
+              <Pencil size={16} /> Editar Solicitud
+            </button>
             <a
               href={`/api/vacaciones/${id}/pdf`}
               target="_blank"
@@ -535,6 +543,14 @@ export default function VacacionDetailPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
         )}
+
+        {/* Edit Vacacion Modal */}
+        <EditVacacionModal
+          open={isEditing}
+          onClose={() => setIsEditing(false)}
+          vacacion={vacacion}
+          onSaved={fetchVacacion}
+        />
       </div>
     </AppShell>
   )
