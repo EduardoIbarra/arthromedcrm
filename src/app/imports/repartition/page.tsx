@@ -10,7 +10,7 @@ import {
   Save, Brain, Info, CheckCircle2, Search, Loader2, Sparkles,
   AlertCircle, Package, ShoppingCart, ChevronDown, ChevronRight,
   RefreshCw, Download, FileText, User, Tag, History, ArrowRight,
-  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer, FileSpreadsheet, Receipt
+  Clock, Calendar, Warehouse, Plus, X, MessageSquare, Printer, FileSpreadsheet, Receipt, Pencil
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -20,6 +20,17 @@ import {
   toIsoDate,
 } from '@/lib/delivery-limit'
 import { normalizeProductName } from '@/lib/productFuzzyMatch'
+
+interface CatalogProductOption {
+  id: string
+  nombre: string
+  description?: string
+  consecutivo_alg?: string | null
+  order_code?: string | null
+  precio_unitario?: number | null
+  sale_price?: number | null
+}
+
 
 // ── Delivery limit (5 weeks from first payment; <60% = reference only) ──
 
@@ -78,6 +89,16 @@ function shippingInfoFromPaymentDate(paymentDate: string | null, isReference = f
   return shippingInfoFromLimit(delivery.limitDate, isReference || delivery.isReferenceOnly)
 }
 
+function getPendingQty(fp: any): number {
+  if (!fp) return 0
+  if (typeof fp.cantidad_pendiente === 'number' && !isNaN(fp.cantidad_pendiente)) {
+    return Math.max(0, fp.cantidad_pendiente)
+  }
+  const fact = Number(fp.cantidad_facturada ?? fp.cantidad ?? 0)
+  const ent = Number(fp.cantidad_entregada ?? 0)
+  return Math.max(0, fact - ent)
+}
+
 function buildAllocationFromInvoiceProduct(inv: any, fp: any, allocatedQty = 0): Allocation {
   const delivery = computeDeliveryLimit(inv)
   return {
@@ -85,8 +106,8 @@ function buildAllocationFromInvoiceProduct(inv: any, fp: any, allocatedQty = 0):
     folio: inv.numero_factura,
     customerName: inv.cliente_nombre,
     product: fp.producto_nombre || '',
-    facturadaQty: fp.cantidad_facturada || 0,
-    requestedQty: fp.cantidad_pendiente || 0,
+    facturadaQty: Number(fp.cantidad_facturada) || 0,
+    requestedQty: getPendingQty(fp),
     allocatedQty,
     paymentDate: delivery.firstPaymentDate
       ? toIsoDate(delivery.firstPaymentDate)
@@ -112,7 +133,7 @@ function mergeAllocationsWithSelectedInvoices(apiAllocations: Allocation[], sele
   const result = [...apiAllocations]
 
   for (const inv of selectedInvoices) {
-    const pendingProducts = (inv.factura_productos || []).filter((fp: any) => (fp.cantidad_pendiente || 0) > 0)
+    const pendingProducts = (inv.factura_productos || []).filter((fp: any) => getPendingQty(fp) > 0)
     for (const fp of pendingProducts) {
       if (!byId.has(fp.id)) {
         const alloc = buildAllocationFromInvoiceProduct(inv, fp, 0)
@@ -124,6 +145,7 @@ function mergeAllocationsWithSelectedInvoices(apiAllocations: Allocation[], sele
 
   return result
 }
+
 
 /** Map a cotización (with productos) into the invoice-like shape used by surtido selection. */
 function cotizacionToSurtidoItem(cot: any) {
@@ -272,6 +294,269 @@ export default function ImportRepartitionPage() {
   // ── Totals Drawer State ────────────────────────────────
   const [showTotalsDrawer, setShowTotalsDrawer] = useState(false)
   const [totalsSearchQuery, setTotalsSearchQuery] = useState('')
+  const [totalsDrawerTab, setTotalsDrawerTab] = useState<'article' | 'invoice'>('article')
+
+  // ── Invoice Product Editing / Addition (DB) ─────────────
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProductOption[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+
+  // Edit line item
+  const [editingInvoiceProduct, setEditingInvoiceProduct] = useState<{
+    invoiceId: string
+    invoiceFolio: string
+    product: any
+  } | null>(null)
+  const [editInvoiceProductForm, setEditInvoiceProductForm] = useState({
+    producto_id: '' as string | null,
+    producto_nombre: '',
+    producto_codigo: '',
+    cantidad_facturada: 1,
+    precio_unitario: 0,
+    note: '',
+  })
+  const [editProductSearch, setEditProductSearch] = useState('')
+  const [isSavingInvoiceProductEdit, setIsSavingInvoiceProductEdit] = useState(false)
+
+  // Add line item
+  const [addingInvoiceProductTarget, setAddingInvoiceProductTarget] = useState<{
+    invoiceId: string
+    invoiceFolio: string
+  } | null>(null)
+  const [addInvoiceProductForm, setAddInvoiceProductForm] = useState({
+    producto_id: '' as string | null,
+    producto_nombre: '',
+    producto_codigo: '',
+    cantidad_facturada: 1,
+    precio_unitario: 0,
+    note: '',
+  })
+  const [addProductSearch, setAddProductSearch] = useState('')
+  const [isSavingInvoiceProductAdd, setIsSavingInvoiceProductAdd] = useState(false)
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    if (showTotalsDrawer) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showTotalsDrawer])
+
+  const loadCatalogProducts = async () => {
+    if (catalogProducts.length > 0) return
+    try {
+      setCatalogLoading(true)
+      const res = await fetch('/api/products?limit=1000')
+      if (res.ok) {
+        const data = await res.json()
+        setCatalogProducts(data.data || data.products || [])
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
+
+  const openInvoiceProductEdit = (inv: any, fp: any) => {
+    setEditingInvoiceProduct({
+      invoiceId: inv.id,
+      invoiceFolio: inv.numero_factura,
+      product: fp,
+    })
+    setEditInvoiceProductForm({
+      producto_id: fp.producto_id || null,
+      producto_nombre: fp.producto_nombre || '',
+      producto_codigo: fp.producto_codigo || '',
+      cantidad_facturada: fp.cantidad_facturada || 1,
+      precio_unitario: Number(fp.precio_unitario || 0),
+      note: '',
+    })
+    setEditProductSearch('')
+    void loadCatalogProducts()
+  }
+
+  const handleSaveInvoiceProductEdit = async () => {
+    if (!editingInvoiceProduct) return
+    if (!editInvoiceProductForm.producto_nombre.trim()) {
+      alert('Debes indicar el nombre del producto.')
+      return
+    }
+    if (!editInvoiceProductForm.note.trim()) {
+      alert('Debes escribir una nota que justifique el cambio.')
+      return
+    }
+    if (editInvoiceProductForm.cantidad_facturada < 1) {
+      alert('La cantidad debe ser al menos 1.')
+      return
+    }
+
+    try {
+      setIsSavingInvoiceProductEdit(true)
+      const { invoiceId, product } = editingInvoiceProduct
+      const res = await fetch(`/api/invoices/${invoiceId}/products/${product.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          producto_id: editInvoiceProductForm.producto_id || null,
+          producto_nombre: editInvoiceProductForm.producto_nombre,
+          producto_codigo: editInvoiceProductForm.producto_codigo || null,
+          cantidad_facturada: editInvoiceProductForm.cantidad_facturada,
+          precio_unitario: editInvoiceProductForm.precio_unitario,
+          note: editInvoiceProductForm.note.trim(),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Error al guardar cambios')
+
+      const updatedProd = data.product || {}
+      const newQtyFacturada = Number(updatedProd.cantidad_facturada ?? editInvoiceProductForm.cantidad_facturada)
+      const entregada = Number(product.cantidad_entregada || 0)
+      const newQtyPendiente = Math.max(0, newQtyFacturada - entregada)
+
+      setSelectedInvoices(prev =>
+        prev.map(inv => {
+          if (inv.id !== invoiceId) return inv
+          const updatedProds = (inv.factura_productos || []).map((p: any) =>
+            p.id === product.id
+              ? {
+                  ...p,
+                  ...updatedProd,
+                  cantidad_facturada: newQtyFacturada,
+                  cantidad_pendiente: newQtyPendiente,
+                }
+              : p
+          )
+          return { ...inv, factura_productos: updatedProds }
+        })
+      )
+
+      setAllocations(prev =>
+        prev.map(alloc => {
+          if (alloc.id !== product.id) return alloc
+          const nextAllocated = Math.min(alloc.allocatedQty, newQtyPendiente)
+          return {
+            ...alloc,
+            product: updatedProd.producto_nombre || editInvoiceProductForm.producto_nombre,
+            facturadaQty: newQtyFacturada,
+            requestedQty: newQtyPendiente,
+            allocatedQty: nextAllocated,
+          }
+        })
+      )
+
+      setEditingInvoiceProduct(null)
+    } catch (e: any) {
+      console.error(e)
+      alert(e.message || 'Error al guardar el producto')
+    } finally {
+      setIsSavingInvoiceProductEdit(false)
+    }
+  }
+
+  const openInvoiceProductAdd = (inv: any) => {
+    setAddingInvoiceProductTarget({
+      invoiceId: inv.id,
+      invoiceFolio: inv.numero_factura,
+    })
+    setAddInvoiceProductForm({
+      producto_id: null,
+      producto_nombre: '',
+      producto_codigo: '',
+      cantidad_facturada: 1,
+      precio_unitario: 0,
+      note: '',
+    })
+    setAddProductSearch('')
+    void loadCatalogProducts()
+  }
+
+  const handleSaveInvoiceProductAdd = async () => {
+    if (!addingInvoiceProductTarget) return
+    if (!addInvoiceProductForm.producto_nombre.trim()) {
+      alert('Debes indicar el nombre del producto.')
+      return
+    }
+    if (!addInvoiceProductForm.note.trim()) {
+      alert('Debes escribir una nota que justifique el cambio.')
+      return
+    }
+    if (addInvoiceProductForm.cantidad_facturada < 1) {
+      alert('La cantidad debe ser al menos 1.')
+      return
+    }
+
+    try {
+      setIsSavingInvoiceProductAdd(true)
+      const { invoiceId, invoiceFolio } = addingInvoiceProductTarget
+      const res = await fetch(`/api/invoices/${invoiceId}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          producto_id: addInvoiceProductForm.producto_id || null,
+          producto_nombre: addInvoiceProductForm.producto_nombre,
+          producto_codigo: addInvoiceProductForm.producto_codigo || null,
+          cantidad_facturada: addInvoiceProductForm.cantidad_facturada,
+          precio_unitario: addInvoiceProductForm.precio_unitario,
+          note: addInvoiceProductForm.note.trim(),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Error al agregar producto')
+
+      const newProd = data.product
+      if (newProd) {
+        const qtyFacturada = Number(newProd.cantidad_facturada || addInvoiceProductForm.cantidad_facturada)
+        const qtyPendiente = qtyFacturada
+
+        const invObj = selectedInvoices.find(i => i.id === invoiceId)
+        const customerName = invObj?.cliente_nombre || ''
+
+        const newFp = {
+          ...newProd,
+          cantidad_facturada: qtyFacturada,
+          cantidad_entregada: 0,
+          cantidad_pendiente: qtyPendiente,
+        }
+
+        setSelectedInvoices(prev =>
+          prev.map(inv => {
+            if (inv.id !== invoiceId) return inv
+            return {
+              ...inv,
+              factura_productos: [...(inv.factura_productos || []), newFp],
+            }
+          })
+        )
+
+        const newAlloc: Allocation = {
+          id: newProd.id,
+          folio: invoiceFolio,
+          customerName,
+          product: newProd.producto_nombre || addInvoiceProductForm.producto_nombre,
+          facturadaQty: qtyFacturada,
+          requestedQty: qtyPendiente,
+          allocatedQty: 0,
+          paymentDate: invObj ? (computeDeliveryLimit(invObj).firstPaymentDate ? toIsoDate(computeDeliveryLimit(invObj).firstPaymentDate!) : invObj.fecha_pago ? new Date(invObj.fecha_pago).toISOString() : null) : null,
+          shippingLimit: invObj ? getInvoiceShippingLimit(invObj) : null,
+          deliveryIsReference: invObj ? computeDeliveryLimit(invObj).isReferenceOnly : false,
+        }
+
+        setAllocations(prev => [...prev, newAlloc])
+      }
+
+      setAddingInvoiceProductTarget(null)
+    } catch (e: any) {
+      console.error(e)
+      alert(e.message || 'Error al agregar el producto')
+    } finally {
+      setIsSavingInvoiceProductAdd(false)
+    }
+  }
+
 
   // ─────────────────────────────────────────────────────
   // Data fetchers
@@ -706,7 +991,7 @@ export default function ImportRepartitionPage() {
     selectedInvoices.forEach(inv => {
       (inv.factura_productos || []).forEach((fp: any) => {
         const name = fp.producto_nombre || 'Desconocido'
-        const qty = Number(fp.cantidad_pendiente) || 0
+        const qty = getPendingQty(fp)
         const norm = normName(name)
         pendingBeforeByProduct[norm] = (pendingBeforeByProduct[norm] || 0) + qty
         if (!displayNames[norm] || displayNames[norm] === 'Desconocido') {
@@ -714,6 +999,7 @@ export default function ImportRepartitionPage() {
         }
       })
     })
+
 
     const totalPendingBefore = Object.values(pendingBeforeByProduct).reduce((a, b) => a + b, 0)
 
@@ -1452,6 +1738,17 @@ export default function ImportRepartitionPage() {
   }
 
   const filteredStock = stockFisico.filter(s => !stockSearchQuery || s.nombre.toLowerCase().includes(stockSearchQuery.toLowerCase()))
+  const totalStockUnits = useMemo(() => stockFisico.reduce((acc, item) => acc + (Number(item.cantidad) || 0), 0), [stockFisico])
+  const totalSelectedPendingUnits = useMemo(() => {
+    return selectedInvoices.reduce((sum, inv) => {
+      const invPending = (inv.factura_productos || []).reduce(
+        (s: number, fp: any) => s + (Number(fp.cantidad_pendiente) || 0),
+        0
+      )
+      return sum + invPending
+    }, 0)
+  }, [selectedInvoices])
+
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
@@ -1565,11 +1862,35 @@ export default function ImportRepartitionPage() {
 
                 {/* ── Fuentes de inventario ──────────────── */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-4 border-b border-gray-100">
+                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Package className="w-4 h-4 text-indigo-600" />
                       <h2 className="text-base font-semibold text-gray-900">Fuentes de inventario</h2>
                     </div>
+                    {(() => {
+                      let totalUnits = 0
+                      // Ordenes de compra
+                      ordenes.forEach(o => {
+                        if (selectedOrderIds.has(o.id)) {
+                          totalUnits += useOrderedQtyOrderIds.has(o.id) ? (Number(o.total_ordenado) || 0) : (Number(o.total_recibido) || 0)
+                        }
+                      })
+                      // Facturas de compra
+                      purchaseInvoices.forEach(inv => {
+                        if (selectedPurchaseInvoiceIds.has(inv.id)) {
+                          totalUnits += (inv.items || []).reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0)
+                        }
+                      })
+                      // Stock físico
+                      if (useStockFisico) {
+                        totalUnits += totalStockUnits
+                      }
+                      return (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
+                          {totalUnits} uds. seleccionadas
+                        </span>
+                      )
+                    })()}
                   </div>
 
                   {/* Source 1: Órdenes de compra */}
@@ -1762,13 +2083,20 @@ export default function ImportRepartitionPage() {
                   {/* Source 3: Stock físico */}
                   <div>
                     <div className="px-5 py-3">
-                      <div className="flex items-center gap-2 cursor-pointer" onClick={toggleUseStockFisico}>
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${useStockFisico ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300'}`}>
-                          {useStockFisico && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      <div className="flex items-center justify-between cursor-pointer" onClick={toggleUseStockFisico}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${useStockFisico ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300'}`}>
+                            {useStockFisico && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          </div>
+                          <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
+                          <p className="text-sm font-semibold text-gray-800">Stock físico (almacén)</p>
+                          {loadingStock && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
                         </div>
-                        <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
-                        <p className="text-sm font-semibold text-gray-800">Stock físico (almacén)</p>
-                        {loadingStock && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+                        {stockFisico.length > 0 && (
+                          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
+                            {totalStockUnits} uds.
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1798,7 +2126,9 @@ export default function ImportRepartitionPage() {
                             </div>
                           ))}
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1.5">{stockFisico.length} productos en almacén</p>
+                        <p className="text-[10px] text-gray-400 mt-1.5">
+                          {stockFisico.length} productos ({totalStockUnits} unidades totales) en almacén
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1808,7 +2138,14 @@ export default function ImportRepartitionPage() {
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 360 }}>
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
-                      <h2 className="text-base font-semibold text-gray-900">Facturas a surtir</h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-semibold text-gray-900">Facturas a surtir</h2>
+                        {selectedInvoices.length > 0 && (
+                          <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-mono">
+                            {totalSelectedPendingUnits} uds. por surtir
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 mt-1">Las facturas no vencidas se cargarán desmarcadas por defecto.</p>
                     </div>
                     <button
@@ -1874,7 +2211,9 @@ export default function ImportRepartitionPage() {
                   </div>
 
                   <div className="pt-2 flex justify-between items-center text-xs">
-                    <span className="text-gray-500">Seleccionadas: <span className="font-bold text-indigo-600">{selectedInvoices.length}</span></span>
+                    <span className="text-gray-500">
+                      Seleccionadas: <span className="font-bold text-indigo-600">{selectedInvoices.length}</span> ({totalSelectedPendingUnits} unidades por surtir)
+                    </span>
                     <button
                       type="button"
                       onClick={() => setSelectedInvoices(displayedInvoices.filter((i: any) => !i.isCotizacion).concat(selectedInvoices.filter(i => i.isCotizacion)))}
@@ -2144,6 +2483,7 @@ export default function ImportRepartitionPage() {
                             group.paymentDate ? new Date(group.paymentDate).toISOString() : null,
                             !!(group as any).deliveryIsReference
                           )
+                          const targetInvoice = selectedInvoices.find((i: any) => i.numero_factura === group.folio)
                           return (
                             <div key={group.folio} className="p-5">
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
@@ -2161,8 +2501,20 @@ export default function ImportRepartitionPage() {
                                   </h4>
                                   <p className="text-xs text-gray-500 mt-0.5">{group.customerName}</p>
                                 </div>
-                                <div className="text-xs font-medium px-2.5 py-1 bg-green-50 text-green-700 rounded border border-green-200">
-                                  {totalAlloc}/{totalReq} ({pct}%)
+                                <div className="flex items-center gap-2">
+                                  {targetInvoice && !targetInvoice.isCotizacion && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openInvoiceProductAdd(targetInvoice)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors shadow-sm"
+                                      title="Agregar un nuevo concepto a esta factura (Base de datos)"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" /> Agregar concepto (DB)
+                                    </button>
+                                  )}
+                                  <div className="text-xs font-medium px-2.5 py-1 bg-green-50 text-green-700 rounded border border-green-200">
+                                    {totalAlloc}/{totalReq} ({pct}%)
+                                  </div>
                                 </div>
                               </div>
                               <div className="mb-3">
@@ -2214,12 +2566,29 @@ export default function ImportRepartitionPage() {
                                             </button>
                                           </div>
                                         ) : (
-                                          <>
-                                            {alloc.product}
-                                            {alloc.allocatedQty < alloc.requestedQty && (
-                                              <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
-                                            )}
-                                          </>
+                                          <div className="flex items-center justify-between gap-1">
+                                            <div>
+                                              {alloc.product}
+                                              {alloc.allocatedQty < alloc.requestedQty && (
+                                                <span className="ml-1.5 text-[11px] font-bold text-rose-600">({alloc.allocatedQty - alloc.requestedQty})</span>
+                                              )}
+                                            </div>
+                                            {(() => {
+                                              if (!targetInvoice || targetInvoice.isCotizacion) return null
+                                              const fp = targetInvoice.factura_productos?.find((p: any) => p.id === alloc.id)
+                                              if (!fp) return null
+                                              return (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openInvoiceProductEdit(targetInvoice, fp)}
+                                                  className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors shrink-0"
+                                                  title="Editar producto en factura (Base de Datos)"
+                                                >
+                                                  <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                              )
+                                            })()}
+                                          </div>
                                         )}
                                       </td>
                                       <td className="px-3 py-2 text-center text-gray-400 font-mono text-xs">{alloc.shippingLimit ? new Date(alloc.shippingLimit).toLocaleDateString() : '—'}</td>
@@ -2610,17 +2979,17 @@ export default function ImportRepartitionPage() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col h-screen"
+              className="fixed right-0 top-0 bottom-0 h-screen h-[100dvh] w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col overflow-hidden"
             >
               {/* Header */}
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <FileText className="w-5 h-5 text-indigo-600" />
                     Resumen de Totales
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    Totales globales y por artículo basados en selección actual y repartición
+                    Totales globales y por artículo o por factura a surtir
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2638,6 +3007,44 @@ export default function ImportRepartitionPage() {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
+              </div>
+
+              {/* Drawer Tabs Header */}
+              <div className="flex border-b border-gray-100 bg-gray-50/60 px-6 pt-3 gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTotalsDrawerTab('article')}
+                  className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
+                    totalsDrawerTab === 'article'
+                      ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg shadow-sm'
+                      : 'border-transparent text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  Por Artículo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTotalsDrawerTab('invoice')}
+                  className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
+                    totalsDrawerTab === 'invoice'
+                      ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg shadow-sm'
+                      : 'border-transparent text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  Pendientes por Factura ({
+                    selectedInvoices.filter(inv => {
+                      const totalMissing = (inv.factura_productos || []).reduce((sum: number, fp: any) => {
+                        const alloc = allocations.find(a => a.id === fp.id)
+                        const allocated = alloc ? (Number(alloc.allocatedQty) || 0) : 0
+                        const pending = getPendingQty(fp)
+                        return sum + Math.max(0, pending - allocated)
+                      }, 0)
+                      return totalMissing > 0
+                    }).length
+                  })
+                </button>
               </div>
 
               {/* Scrollable Content */}
@@ -2658,69 +3065,501 @@ export default function ImportRepartitionPage() {
                   </div>
                 </div>
 
-                {/* Filter and Table Section */}
-                <div className="space-y-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Filtrar por nombre de artículo..."
-                      value={totalsSearchQuery}
-                      onChange={e => setTotalsSearchQuery(e.target.value)}
-                      className="erp-input pl-10 w-full"
-                    />
-                  </div>
+                {/* Tab Content: Por Artículo */}
+                {totalsDrawerTab === 'article' && (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Filtrar por nombre de artículo..."
+                        value={totalsSearchQuery}
+                        onChange={e => setTotalsSearchQuery(e.target.value)}
+                        className="erp-input pl-10 w-full"
+                      />
+                    </div>
 
-                  <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600">
-                          <th className="p-4">Artículo</th>
-                          <th className="p-4 text-center">Disponible</th>
-                          <th className="p-4 text-center">Pendiente Antes</th>
-                          <th className="p-4 text-center">Pendiente Después</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50 text-xs">
-                        {filteredTotalsArticles.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="p-8 text-center text-gray-400">
-                              No hay artículos coincidentes o seleccionados
-                            </td>
+                    <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600">
+                            <th className="p-4">Artículo</th>
+                            <th className="p-4 text-center">Disponible</th>
+                            <th className="p-4 text-center">Pendiente Antes</th>
+                            <th className="p-4 text-center">Pendiente Después</th>
                           </tr>
-                        ) : (
-                          filteredTotalsArticles.map((art, idx) => (
-                            <tr key={`${art.name}-${idx}`} className="hover:bg-gray-50/50">
-                              <td className="p-4 font-medium text-gray-800 break-words max-w-[240px]">
-                                {art.name}
-                              </td>
-                              <td className="p-4 text-center font-mono font-semibold text-indigo-600">
-                                {art.available}
-                              </td>
-                              <td className="p-4 text-center font-mono font-semibold text-amber-600">
-                                {art.pendingBefore}
-                              </td>
-                              <td className="p-4 text-center font-mono font-semibold">
-                                <span className={`px-2 py-1 rounded-md ${
-                                  art.pendingAfter === 0
-                                    ? 'bg-green-50 text-green-700'
-                                    : 'bg-red-50 text-red-700'
-                                }`}>
-                                  {art.pendingAfter}
-                                </span>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 text-xs">
+                          {filteredTotalsArticles.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="p-8 text-center text-gray-400">
+                                No hay artículos coincidentes o seleccionados
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            filteredTotalsArticles.map((art, idx) => (
+                              <tr key={`${art.name}-${idx}`} className="hover:bg-gray-50/50">
+                                <td className="p-4 font-medium text-gray-800 break-words max-w-[240px]">
+                                  {art.name}
+                                </td>
+                                <td className="p-4 text-center font-mono font-semibold text-indigo-600">
+                                  {art.available}
+                                </td>
+                                <td className="p-4 text-center font-mono font-semibold text-amber-600">
+                                  {art.pendingBefore}
+                                </td>
+                                <td className="p-4 text-center font-mono font-semibold">
+                                  <span className={`px-2 py-1 rounded-md ${
+                                    art.pendingAfter === 0
+                                      ? 'bg-green-50 text-green-700'
+                                      : 'bg-red-50 text-red-700'
+                                  }`}>
+                                    {art.pendingAfter}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Tab Content: Pendientes por Factura */}
+                {totalsDrawerTab === 'invoice' && (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Filtrar facturas por folio o cliente..."
+                        value={totalsSearchQuery}
+                        onChange={e => setTotalsSearchQuery(e.target.value)}
+                        className="erp-input pl-10 w-full text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      {(() => {
+                        const invoicesWithMissing = selectedInvoices
+                          .map(inv => {
+                            const pendingProducts = (inv.factura_productos || [])
+                              .map((fp: any) => {
+                                const alloc = allocations.find(a => a.id === fp.id)
+                                const allocatedQty = alloc ? (Number(alloc.allocatedQty) || 0) : 0
+                                const pendingQty = getPendingQty(fp)
+                                const missingQty = Math.max(0, pendingQty - allocatedQty)
+                                return { ...fp, allocatedQty, pendingQty, missingQty }
+                              })
+                              .filter((fp: any) => fp.missingQty > 0)
+
+                            const totalMissing = pendingProducts.reduce((sum: number, fp: any) => sum + fp.missingQty, 0)
+                            return { inv, pendingProducts, totalMissing }
+                          })
+                          .filter(item => item.totalMissing > 0)
+                          .filter(item => {
+                            const q = totalsSearchQuery.toLowerCase().trim()
+                            if (!q) return true
+                            return (
+                              (item.inv.numero_factura && String(item.inv.numero_factura).toLowerCase().includes(q)) ||
+                              (item.inv.cliente_nombre && String(item.inv.cliente_nombre).toLowerCase().includes(q))
+                            )
+                          })
+                          .sort((a, b) => b.totalMissing - a.totalMissing)
+
+                        if (invoicesWithMissing.length === 0) {
+                          return (
+                            <div className="p-8 text-center text-gray-400 border border-gray-100 rounded-xl bg-gray-50/30">
+                              No hay facturas con piezas pendientes por surtir tras la repartición.
+                            </div>
+                          )
+                        }
+
+                        return invoicesWithMissing.map(({ inv, pendingProducts, totalMissing }) => (
+                          <div
+                            key={inv.id}
+                            className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleInvoice(inv)}
+                                  className="mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors bg-indigo-600 border-indigo-600 text-white"
+                                  title="Desmarcar esta factura de las facturas a surtir"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                </button>
+                                <div>
+                                  <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2 flex-wrap">
+                                    Folio: {inv.numero_factura}
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                                      Faltan {totalMissing} uds
+                                    </span>
+                                    {inv.isCotizacion ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-violet-50 text-violet-700 border-violet-200">
+                                        Cotización
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <ShippingLimitBadge invoice={inv} />
+                                        {surtidoBadge(inv.estado_surtido)}
+                                      </>
+                                    )}
+                                  </h4>
+                                  <p className="text-xs text-gray-500 mt-0.5">{inv.cliente_nombre}</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => toggleInvoice(inv)}
+                                className="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors"
+                              >
+                                Desmarcar
+                              </button>
+                            </div>
+
+                            <div className="border border-gray-100 rounded-lg overflow-hidden bg-gray-50/50">
+                              <table className="w-full text-left text-xs">
+                                <thead>
+                                  <tr className="bg-gray-100/70 text-[10px] text-gray-500 uppercase">
+                                    <th className="px-3 py-1.5">Producto Pendiente</th>
+                                    <th className="px-3 py-1.5 text-center w-16">Facturada</th>
+                                    <th className="px-3 py-1.5 text-center w-16">Pendiente</th>
+                                    <th className="px-3 py-1.5 text-center w-16">Asignado</th>
+                                    <th className="px-3 py-1.5 text-center w-16">Faltante</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {pendingProducts.map((fp: any) => (
+                                    <tr key={fp.id} className="hover:bg-white">
+                                      <td className="px-3 py-1.5 font-medium text-gray-800">
+                                        {fp.producto_nombre}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-center font-mono text-gray-500">
+                                        {fp.cantidad_facturada ?? fp.cantidad ?? '—'}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-center font-mono font-semibold text-amber-600">
+                                        {fp.pendingQty}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-center font-mono font-semibold text-indigo-600">
+                                        {fp.allocatedQty}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-center font-mono font-semibold text-rose-600 bg-rose-50/50">
+                                        {fp.missingQty}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        ))
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {/* Edit Invoice Product Modal (DB) */}
+      <Modal
+        open={!!editingInvoiceProduct}
+        onClose={() => !isSavingInvoiceProductEdit && setEditingInvoiceProduct(null)}
+        title={`Editar Producto de Factura (${editingInvoiceProduct?.invoiceFolio})`}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Edita el producto, la cantidad facturada o el precio. Este cambio se guardará en la base de datos local y <strong>no se enviará a Alegra</strong>.
+          </p>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1">Buscar en catálogo (opcional)</label>
+            <input
+              type="text"
+              placeholder="Filtrar catálogo..."
+              value={editProductSearch}
+              onChange={e => setEditProductSearch(e.target.value)}
+              className="erp-input w-full text-xs"
+            />
+            {catalogLoading ? (
+              <p className="text-xs text-gray-400 mt-1">Cargando catálogo...</p>
+            ) : editProductSearch.trim() ? (
+              <div className="mt-1 max-h-32 overflow-y-auto border border-gray-200 rounded divide-y divide-gray-100 bg-white">
+                {catalogProducts
+                  .filter(p =>
+                    p.nombre.toLowerCase().includes(editProductSearch.toLowerCase()) ||
+                    (p.consecutivo_alg && p.consecutivo_alg.toLowerCase().includes(editProductSearch.toLowerCase())) ||
+                    (p.order_code && p.order_code.toLowerCase().includes(editProductSearch.toLowerCase()))
+                  )
+                  .slice(0, 10)
+                  .map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setEditInvoiceProductForm(prev => ({
+                          ...prev,
+                          producto_id: p.id,
+                          producto_nombre: p.nombre,
+                          producto_codigo: p.consecutivo_alg || p.order_code || prev.producto_codigo,
+                          precio_unitario: Number(p.sale_price || p.precio_unitario || prev.precio_unitario),
+                        }))
+                        setEditProductSearch('')
+                      }}
+                      className="p-2 text-xs hover:bg-indigo-50 cursor-pointer flex justify-between items-center"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-800">{p.nombre}</div>
+                        {p.consecutivo_alg && <div className="text-[10px] text-gray-400">{p.consecutivo_alg}</div>}
+                      </div>
+                      {(p.sale_price || p.precio_unitario) != null && (
+                        <div className="text-xs font-mono text-gray-600">${Number(p.sale_price || p.precio_unitario).toFixed(2)}</div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1">Nombre del producto</label>
+            <input
+              type="text"
+              value={editInvoiceProductForm.producto_nombre}
+              onChange={e => setEditInvoiceProductForm(prev => ({ ...prev, producto_nombre: e.target.value }))}
+              className="erp-input w-full text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Código (opcional)</label>
+              <input
+                type="text"
+                value={editInvoiceProductForm.producto_codigo}
+                onChange={e => setEditInvoiceProductForm(prev => ({ ...prev, producto_codigo: e.target.value }))}
+                className="erp-input w-full text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Cantidad Facturada</label>
+              <input
+                type="number"
+                min={1}
+                value={editInvoiceProductForm.cantidad_facturada}
+                onChange={e => setEditInvoiceProductForm(prev => ({ ...prev, cantidad_facturada: Math.max(1, parseInt(e.target.value || '1', 10)) }))}
+                className="erp-input w-full text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Precio Unitario ($)</label>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={editInvoiceProductForm.precio_unitario}
+                onChange={e => setEditInvoiceProductForm(prev => ({ ...prev, precio_unitario: Math.max(0, parseFloat(e.target.value || '0')) }))}
+                className="erp-input w-full text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Importe Total ($)</label>
+              <div className="erp-input w-full text-xs bg-gray-50 flex items-center font-mono text-gray-700">
+                ${(editInvoiceProductForm.cantidad_facturada * editInvoiceProductForm.precio_unitario).toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1">
+              Nota / Justificación <span className="text-rose-600">*</span>
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Motivo de la modificación (requerido)..."
+              value={editInvoiceProductForm.note}
+              onChange={e => setEditInvoiceProductForm(prev => ({ ...prev, note: e.target.value }))}
+              className="erp-input w-full text-xs"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setEditingInvoiceProduct(null)}
+              disabled={isSavingInvoiceProductEdit}
+              className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveInvoiceProductEdit}
+              disabled={isSavingInvoiceProductEdit || !editInvoiceProductForm.note.trim() || !editInvoiceProductForm.producto_nombre.trim()}
+              className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {isSavingInvoiceProductEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {isSavingInvoiceProductEdit ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Invoice Product Modal (DB) */}
+      <Modal
+        open={!!addingInvoiceProductTarget}
+        onClose={() => !isSavingInvoiceProductAdd && setAddingInvoiceProductTarget(null)}
+        title={`Agregar Concepto a Factura (${addingInvoiceProductTarget?.invoiceFolio})`}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Agrega un nuevo producto a esta factura. Se guardará en la base de datos local y <strong>no se enviará a Alegra</strong>.
+          </p>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1">Buscar en catálogo</label>
+            <input
+              type="text"
+              placeholder="Buscar producto por nombre o código..."
+              value={addProductSearch}
+              onChange={e => setAddProductSearch(e.target.value)}
+              className="erp-input w-full text-xs"
+            />
+            {catalogLoading ? (
+              <p className="text-xs text-gray-400 mt-1">Cargando catálogo...</p>
+            ) : addProductSearch.trim() ? (
+              <div className="mt-1 max-h-32 overflow-y-auto border border-gray-200 rounded divide-y divide-gray-100 bg-white">
+                {catalogProducts
+                  .filter(p =>
+                    p.nombre.toLowerCase().includes(addProductSearch.toLowerCase()) ||
+                    (p.consecutivo_alg && p.consecutivo_alg.toLowerCase().includes(addProductSearch.toLowerCase())) ||
+                    (p.order_code && p.order_code.toLowerCase().includes(addProductSearch.toLowerCase()))
+                  )
+                  .slice(0, 10)
+                  .map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setAddInvoiceProductForm(prev => ({
+                          ...prev,
+                          producto_id: p.id,
+                          producto_nombre: p.nombre,
+                          producto_codigo: p.consecutivo_alg || p.order_code || '',
+                          precio_unitario: Number(p.sale_price || p.precio_unitario || 0),
+                        }))
+                        setAddProductSearch('')
+                      }}
+                      className="p-2 text-xs hover:bg-indigo-50 cursor-pointer flex justify-between items-center"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-800">{p.nombre}</div>
+                        {p.consecutivo_alg && <div className="text-[10px] text-gray-400">{p.consecutivo_alg}</div>}
+                      </div>
+                      {(p.sale_price || p.precio_unitario) != null && (
+                        <div className="text-xs font-mono text-gray-600">${Number(p.sale_price || p.precio_unitario).toFixed(2)}</div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1">
+              Nombre del producto <span className="text-rose-600">*</span>
+            </label>
+            <input
+              type="text"
+              value={addInvoiceProductForm.producto_nombre}
+              onChange={e => setAddInvoiceProductForm(prev => ({ ...prev, producto_nombre: e.target.value }))}
+              className="erp-input w-full text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Código (opcional)</label>
+              <input
+                type="text"
+                value={addInvoiceProductForm.producto_codigo}
+                onChange={e => setAddInvoiceProductForm(prev => ({ ...prev, producto_codigo: e.target.value }))}
+                className="erp-input w-full text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Cantidad Facturada</label>
+              <input
+                type="number"
+                min={1}
+                value={addInvoiceProductForm.cantidad_facturada}
+                onChange={e => setAddInvoiceProductForm(prev => ({ ...prev, cantidad_facturada: Math.max(1, parseInt(e.target.value || '1', 10)) }))}
+                className="erp-input w-full text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Precio Unitario ($)</label>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={addInvoiceProductForm.precio_unitario}
+                onChange={e => setAddInvoiceProductForm(prev => ({ ...prev, precio_unitario: Math.max(0, parseFloat(e.target.value || '0')) }))}
+                className="erp-input w-full text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Importe Total ($)</label>
+              <div className="erp-input w-full text-xs bg-gray-50 flex items-center font-mono text-gray-700">
+                ${(addInvoiceProductForm.cantidad_facturada * addInvoiceProductForm.precio_unitario).toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1">
+              Nota / Justificación <span className="text-rose-600">*</span>
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Motivo de la adición (requerido)..."
+              value={addInvoiceProductForm.note}
+              onChange={e => setAddInvoiceProductForm(prev => ({ ...prev, note: e.target.value }))}
+              className="erp-input w-full text-xs"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setAddingInvoiceProductTarget(null)}
+              disabled={isSavingInvoiceProductAdd}
+              className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveInvoiceProductAdd}
+              disabled={isSavingInvoiceProductAdd || !addInvoiceProductForm.note.trim() || !addInvoiceProductForm.producto_nombre.trim()}
+              className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {isSavingInvoiceProductAdd ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              {isSavingInvoiceProductAdd ? 'Guardando...' : 'Agregar concepto'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   )
 }
+

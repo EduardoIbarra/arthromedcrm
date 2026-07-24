@@ -23,17 +23,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Messages are required and must be an array' }, { status: 400 })
     }
 
-        const systemPrompt = `Eres un asistente de inteligencia artificial experto en el ERP de Arthromed (una empresa mexicana de equipo médico).
-Tu objetivo es ayudar a los usuarios a consultar, analizar, proyectar y comparar los datos de ventas, facturación y entregas/surtidos pendientes de la empresa con total flexibilidad.
+    const systemPrompt = `Eres un asistente de inteligencia artificial experto en el ERP de Arthromed (una empresa mexicana de equipo médico).
+Tu objetivo es ayudar a los usuarios a consultar, analizar, proyectar y comparar los datos de ventas, facturación, entregas/surtidos pendientes de la empresa y existencias de productos en inventario con total flexibilidad.
 
-Tienes acceso a herramientas para consultar las ventas mensuales, desgloses de productos a partir de las facturas de clientes, y el estado de surtido/artículos pendientes por entregar (de facturas pagadas o pendientes).
+Tienes acceso a herramientas para consultar las ventas mensuales, desgloses de productos a partir de las facturas de clientes, el estado de surtido/artículos pendientes por entregar, y las existencias/piezas disponibles de productos en el inventario.
 
 Reglas de razonamiento y uso de herramientas:
 1. IMPORTANTE: Ejecuta las herramientas inmediatamente cuando la pregunta del usuario requiera consultar, comparar o analizar datos. Nunca pidas confirmación ni permisos al usuario para usar las herramientas, ejecútalas directamente en el primer paso.
 2. Identifica cuál es la mejor herramienta para responder la consulta:
+   - Para EXISTENCIAS O PIEZAS DISPONIBLES EN INVENTARIO (ej. cuántas piezas hay/tenemos de X producto, stock actual de un producto, qué productos hay en inventario), usa SIEMPRE la herramienta "getInventoryStock".
    - Para VENTAS TOTALES de un periodo, mes, año, tendencias, o comparaciones generales de totales, usa SIEMPRE la herramienta "getSalesSummaryByPeriod". Esta herramienta calcula la suma total directamente en el servidor y te da el valor consolidado de forma 100% exacta sin inducir a errores de cálculo.
    - Para DESGLOSES DE CLIENTES, RANKINGS de clientes, o detalles por cliente, usa "getSalesData" pasando el año ("anio") y/o mes ("mes") si el usuario los especificó.
-   - Para CONSULTAS SOBRE PRODUCTOS (cuál se vende más, volúmenes de venta, precios, qué productos compra un cliente, productos vendidos en un periodo, etc.), usa SIEMPRE la herramienta "getProductSalesSummary".
+   - Para CONSULTAS SOBRE PRODUCTOS VENDIDOS (cuál se vende más, volúmenes de venta, precios, qué productos compra un cliente, productos vendidos en un periodo, etc.), usa SIEMPRE la herramienta "getProductSalesSummary".
    - Para CONSULTAS DETALLADAS O GRANULARES DE VENTAS DE UN PRODUCTO POR FACTURA, usa "getProductSalesByInvoice".
    - Para ARTÍCULOS O PRODUCTOS PENDIENTES POR ENTREGAR / FALTANTES DE SURTIDO (ej. artículos pendientes por entregar, de facturas ya pagadas o pendientes), usa SIEMPRE la herramienta "getPendingProductsToDeliver".
 3. CONSULTAS DE FACTURAS ESPECÍFICAS: Si el usuario te pregunta por facturas específicas (ej. F-240, F-238, o simplemente 240, 238), usa SIEMPRE la herramienta "getSpecificInvoices" pasando los números de factura.
@@ -41,7 +42,7 @@ Reglas de razonamiento y uso de herramientas:
 5. Responde siempre en español de manera profesional, analítica, clara y extremadamente concisa. Evita rodeos, saludos redundantes o explicaciones largas.
 6. Muestra siempre las cifras monetarias formateadas como pesos mexicanos (ej. $1,250,500.00 MXN).
 7. Presenta las respuestas de forma muy estructurada. Usa formato Markdown (tablas, negritas, viñetas) para que los rankings, desgloses y comparaciones sean visualmente impecables y fáciles de leer.
-8. Si te preguntan sobre datos del ERP de Arthromed (ventas, clientes, facturas, productos, entregas pendientes o surtidos), usa las herramientas correspondientes. Solo si preguntan sobre temas totalmente ajenos a la empresa, indica amablemente cuál es tu alcance.
+8. Si te preguntan sobre datos del ERP de Arthromed (ventas, clientes, facturas, productos, inventario, entregas pendientes o surtidos), usa las herramientas correspondientes. Solo si preguntan sobre temas totalmente ajenos a la empresa, indica amablemente cuál es tu alcance.
 9. Sé muy directo y breve en tus introducciones y explicaciones de texto (máximo 1 o 2 párrafos cortos antes de cualquier tabla) para que la lectura por voz sea fluida y rápida. No repitas en prosa o en texto los números o datos exactos que ya se detallan en la tabla.
 `
 
@@ -529,6 +530,84 @@ Reglas de razonamiento y uso de herramientas:
               }
             } catch (err: any) {
               console.error('Error in getPendingProductsToDeliver tool:', err)
+              return { error: err.message }
+            }
+          }
+        }),
+
+        getInventoryStock: tool({
+          description: 'Obtiene las existencias actuales de productos en el inventario (/inventario) para responder cuántas piezas de un producto hay disponibles.',
+          inputSchema: z.object({
+            productoNombre: z.string().optional().describe('Nombre o parte del nombre del producto a buscar en inventario (ej. tornillo, cannon, placa)'),
+            soloConStock: z.boolean().optional().describe('Si es true, muestra solo productos con stock > 0. Si es false o no especificado, muestra todo.'),
+          }),
+          execute: async ({ productoNombre, soloConStock }: { productoNombre?: string; soloConStock?: boolean }) => {
+            try {
+              const where: any = {}
+              if (productoNombre) {
+                const cleanSearch = productoNombre.replace(/\s+/g, '')
+                const cleanWithDash = productoNombre.replace(/\s+/g, '-')
+                where.OR = [
+                  { nombre: { contains: productoNombre, mode: 'insensitive' } },
+                  { nombre_lista: { contains: productoNombre, mode: 'insensitive' } },
+                  { nombre: { contains: cleanSearch, mode: 'insensitive' } },
+                  { nombre: { contains: cleanWithDash, mode: 'insensitive' } }
+                ]
+              }
+
+              const products = await prisma.productos.findMany({
+                where,
+                select: {
+                  id: true,
+                  nombre: true,
+                  nombre_lista: true,
+                  precio_unitario: true,
+                  categoria: true,
+                  tipo: true,
+                  stock_actual: true,
+                  activo: true
+                },
+                orderBy: { nombre: 'asc' }
+              })
+
+              const stockItems = (await prisma.$queryRawUnsafe(`
+                SELECT il.producto_id, CAST(COUNT(u.id) AS bigint) AS cantidad
+                FROM unidades_inventario u
+                JOIN inventario_lotes il ON il.id = u.lote_id
+                WHERE u.deleted_at IS NULL AND u.estado = 'disponible' AND il.deleted_at IS NULL
+                GROUP BY il.producto_id
+              `)) as { producto_id: string; cantidad: bigint | number | string }[]
+
+              const stockMap = new Map<string, number>()
+              for (const item of stockItems) {
+                if (item.producto_id) {
+                  stockMap.set(item.producto_id, parseInt(String(item.cantidad ?? '0'), 10))
+                }
+              }
+
+              let result = products.map((p: any) => {
+                const stockDisponible = stockMap.get(p.id) ?? (p.stock_actual || 0)
+                return {
+                  id: p.id,
+                  producto: p.nombre_lista || p.nombre,
+                  categoria: p.categoria || 'General',
+                  tipo: p.tipo || 'General',
+                  stock_disponible: stockDisponible,
+                  precio_unitario: p.precio_unitario ? Number(p.precio_unitario) : 0,
+                  activo: p.activo ?? true
+                }
+              })
+
+              if (soloConStock) {
+                result = result.filter((item: any) => item.stock_disponible > 0)
+              }
+
+              return {
+                totalProductosEncontrados: result.length,
+                productos: result.slice(0, 50)
+              }
+            } catch (err: any) {
+              console.error('Error in getInventoryStock tool:', err)
               return { error: err.message }
             }
           }
