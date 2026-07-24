@@ -26,6 +26,8 @@ const ROUTE_PERMISSIONS: Record<string, { section: Section, action: PermissionAc
   '/hospitals': { section: 'hospitals', action: 'view' },
   '/catalogos': { section: 'catalogos', action: 'view' },
   '/calendario': { section: 'calendario', action: 'view' },
+  '/vacaciones': { section: 'vacaciones', action: 'view' },
+  '/vacaciones/nueva': { section: 'vacaciones', action: 'create' },
   '/congresos': { section: 'congresos', action: 'view' },
   '/congresos/new': { section: 'congresos', action: 'create' },
   '/talleres': { section: 'talleres', action: 'view' },

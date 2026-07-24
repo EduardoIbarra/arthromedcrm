@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserPlus, Upload, Settings,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Menu, X, Package, Building, Calendar, Receipt,
   ShieldCheck, FileText, ClipboardList, CalendarDays, TrendingUp, Warehouse, Scissors, Wrench, GitPullRequest, Bot, Sparkles, Ticket, Stethoscope, BookOpen,
-  Globe, Send, Palette, Car, Bell, LayoutGrid, Box, Tag
+  Globe, Send, Palette, Car, Bell, LayoutGrid, Box, Tag, Palmtree
 } from 'lucide-react'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
@@ -70,6 +70,7 @@ export default function Sidebar() {
       title: t('operations' as any) || 'Operaciones',
       items: [
         { href: '/calendario', icon: CalendarDays, label: t('calendar'), section: 'calendario' },
+        { href: '/vacaciones', icon: Palmtree, label: 'Vacaciones', section: 'vacaciones' },
         { href: '/congresos', icon: Calendar, label: t('congresos'), section: 'congresos' },
         { href: '/talleres', icon: BookOpen, label: t('talleres'), section: 'talleres' },
         { href: '/cirugias', icon: Scissors, label: t('surgeries' as any) || 'Cirugías', section: 'cirugias' },
