@@ -63,11 +63,16 @@ export async function proxy(request: NextRequest) {
   )
 
   let user = null
-  try {
-    const { data } = await supabase.auth.getUser()
-    user = data?.user || null
-  } catch {
-    user = null
+  const hasAuthToken = request.cookies.getAll().some(c => c.name.includes('auth-token') || c.name.startsWith('sb-')) || 
+                       !!request.headers.get('authorization')
+
+  if (hasAuthToken) {
+    try {
+      const { data } = await supabase.auth.getUser()
+      user = data?.user || null
+    } catch {
+      user = null
+    }
   }
 
   // Fallback 1: Check Authorization header

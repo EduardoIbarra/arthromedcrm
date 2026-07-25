@@ -8,19 +8,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { useUser } from '@/contexts/UserContext'
+
 export default function Header() {
   const { t } = useI18n()
-  const [user, setUser] = useState<any>(null)
+  const { profile } = useUser()
   const supabase = createClient()
   const router = useRouter()
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-    }
-    getUser()
-  }, [supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -62,9 +56,9 @@ export default function Header() {
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
             style={{ background: '#0763a9' }}
-            title={user?.email}
+            title={profile?.email}
           >
-            {user?.email?.charAt(0).toUpperCase() || 'A'}
+            {profile?.email?.charAt(0).toUpperCase() || 'A'}
           </div>
           
           <button
