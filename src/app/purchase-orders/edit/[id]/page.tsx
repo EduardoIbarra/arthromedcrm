@@ -7,7 +7,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { Product } from '@/types/database'
 import {
   ArrowLeft, PlusCircle, Trash2, FileCheck, Loader2, AlertCircle,
-  FileText, Package, FileSpreadsheet, Check
+  FileText, Package, FileSpreadsheet, Check, Maximize2, Minimize2, X
 } from 'lucide-react'
 
 export default function EditPurchaseOrderPage() {
@@ -23,6 +23,7 @@ export default function EditPurchaseOrderPage() {
   const [status, setStatus] = useState<'PENDING' | 'COMPLETED' | 'CANCELLED' | 'PARTIAL'>('PENDING')
   const [items, setItems] = useState<{ product_id: string; quantity: number }[]>([])
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set())
+  const [isMaximized, setIsMaximized] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [products, setProducts] = useState<Product[]>([])
@@ -209,7 +210,7 @@ export default function EditPurchaseOrderPage() {
 
   return (
     <AppShell>
-      <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in space-y-6">
+      <div className={`p-6 md:p-8 ${isMaximized ? 'max-w-7xl' : 'max-w-5xl'} mx-auto animate-fade-in space-y-6`}>
 
         {/* Header */}
         <header className="flex items-center justify-between gap-4">
@@ -242,62 +243,64 @@ export default function EditPurchaseOrderPage() {
 
         <form onSubmit={handleSave} className="space-y-5">
           {/* Details card */}
-          <div className="bg-white border border-gray-150 rounded-2xl shadow-sm p-6 space-y-5">
-            <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
-              <FileText size={18} className="text-[#0763a9]" />
-              Detalles de la Orden
-            </h2>
+          {!isMaximized && (
+            <div className="bg-white border border-gray-150 rounded-2xl shadow-sm p-6 space-y-5">
+              <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                <FileText size={18} className="text-[#0763a9]" />
+                Detalles de la Orden
+              </h2>
 
-            {formError && (
-              <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-sm rounded-xl flex items-start gap-2">
-                <AlertCircle size={18} className="mt-0.5 shrink-0" />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Notas / Observaciones</label>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Instrucciones especiales, proveedor, etc."
-                  className="erp-input w-full"
-                />
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Estado de Orden</label>
-                  <select
-                    value={status}
-                    onChange={e => setStatus(e.target.value as any)}
-                    className="erp-input w-full py-2.5"
-                  >
-                    <option value="PENDING">Pendiente</option>
-                    <option value="COMPLETED">Surtida</option>
-                    <option value="PARTIAL">Parcial</option>
-                    <option value="CANCELLED">Cancelada</option>
-                  </select>
+              {formError && (
+                <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-sm rounded-xl flex items-start gap-2">
+                  <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                  <span>{formError}</span>
                 </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
-                  <select
-                    value={isPreOrder ? 'pre_order' : 'order'}
-                    onChange={e => setIsPreOrder(e.target.value === 'pre_order')}
-                    className="erp-input w-full py-2.5"
-                  >
-                    <option value="pre_order">Pre-Orden</option>
-                    <option value="order">Orden de Compra</option>
-                  </select>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Notas / Observaciones</label>
+                  <textarea
+                    rows={3}
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Instrucciones especiales, proveedor, etc."
+                    className="erp-input w-full"
+                  />
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Estado de Orden</label>
+                    <select
+                      value={status}
+                      onChange={e => setStatus(e.target.value as any)}
+                      className="erp-input w-full py-2.5"
+                    >
+                      <option value="PENDING">Pendiente</option>
+                      <option value="COMPLETED">Surtida</option>
+                      <option value="PARTIAL">Parcial</option>
+                      <option value="CANCELLED">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
+                    <select
+                      value={isPreOrder ? 'pre_order' : 'order'}
+                      onChange={e => setIsPreOrder(e.target.value === 'pre_order')}
+                      className="erp-input w-full py-2.5"
+                    >
+                      <option value="pre_order">Pre-Orden</option>
+                      <option value="order">Orden de Compra</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Products table */}
           <div className="bg-white border border-gray-150 rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-2">
               <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <Package size={16} className="text-gray-400" />
                 Productos Solicitados
@@ -307,13 +310,31 @@ export default function EditPurchaseOrderPage() {
                   </span>
                 )}
               </h3>
-              <button
-                type="button"
-                onClick={handleAddRow}
-                className="text-xs text-[#0763a9] hover:text-blue-700 font-semibold flex items-center gap-1"
-              >
-                <PlusCircle size={14} /> Agregar Producto
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMaximized(!isMaximized)}
+                  className="py-2 px-3 border border-gray-200 text-gray-700 hover:text-[#0763a9] rounded-lg text-xs font-medium hover:bg-gray-50 flex items-center gap-1.5 transition-colors"
+                  title={isMaximized ? 'Restaurar' : 'Maximizar'}
+                >
+                  {isMaximized ? (
+                    <>
+                      <Minimize2 size={14} /> Restaurar
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 size={14} /> Maximizar
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddRow}
+                  className="py-2 px-3 bg-blue-50 text-[#0763a9] hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-blue-100 transition-colors"
+                >
+                  <PlusCircle size={14} /> Agregar Producto
+                </button>
+              </div>
             </div>
 
             <div className="border border-gray-100 rounded-xl overflow-hidden divide-y divide-gray-100 bg-gray-50/30">
