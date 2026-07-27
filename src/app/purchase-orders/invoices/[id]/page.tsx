@@ -20,7 +20,9 @@ import {
   AlertCircle,
   Printer,
   FileSpreadsheet,
-  Download
+  Download,
+  Clock,
+  CheckSquare
 } from 'lucide-react'
 
 interface ProductOption {
@@ -209,6 +211,13 @@ export default function EditPurchaseInvoicePage() {
       next[originalIndex] = { ...next[originalIndex], cantidad_real: val }
       return next
     })
+  }
+
+  const handleFillAllCantidadReal = () => {
+    setItems(prev => prev.map(item => ({
+      ...item,
+      cantidad_real: item.quantity
+    })))
   }
 
   const handleRemoveItem = (originalIndex: number) => {
@@ -677,6 +686,32 @@ export default function EditPurchaseInvoicePage() {
         </div>
 
         {/* High Density Table & Product Filters */}
+        {(() => {
+          const totalUnfulfilled = items.reduce((sum, item) => sum + Math.max(0, item.quantity - (item.cantidad_real || 0)), 0)
+          if (totalUnfulfilled <= 0) return null
+          return (
+            <div className="card mb-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <Clock className="text-amber-600 shrink-0" size={18} />
+                <div>
+                  <span className="font-bold text-amber-900">Diferencia detectada en Cantidad Real:</span>{' '}
+                  <span className="text-amber-800 font-medium">
+                    Hay <strong>{totalUnfulfilled}</strong> {totalUnfulfilled === 1 ? 'pieza pagada sin surtir' : 'piezas pagadas sin surtir'}.
+                    La diferencia se registrará automáticamente en la sección <strong>Pendientes Fabricante</strong> al guardar.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push('/purchase-orders?tab=backorders')}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors shrink-0 shadow-xs"
+              >
+                Ver Pendientes
+              </button>
+            </div>
+          )
+        })()}
+
         <div className="card bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           {/* Table Header Controls */}
           <div className="p-3 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -705,6 +740,15 @@ export default function EditPurchaseInvoicePage() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleFillAllCantidadReal}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 border border-blue-200 text-[#0763a9] hover:bg-blue-100 transition-colors flex items-center gap-1.5 shadow-sm"
+                title="Copiar el valor de Cantidad a Cantidad Real para todos los productos de la lista"
+              >
+                <CheckSquare size={14} className="text-[#0763a9]" />
+                Llenar Cantidad Real
+              </button>
               <button
                 onClick={handlePrint}
                 className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center gap-1.5 shadow-sm"

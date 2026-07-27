@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,6 +80,10 @@ export async function PUT(
     const body = await request.json()
     const { nombre, observaciones, status, items } = body
 
+    // 0. Fetch logged in user
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
     // 1. Update purchase invoice main fields
     await prisma.facturas_compra.update({
       where: { id },
@@ -89,7 +94,12 @@ export async function PUT(
       }
     })
 
-    // 2. Replace items if provided
+    // 2. Fetch linked purchase orders
+    const linkedPo = await prisma.ordenes_compra.findFirst({
+      where: { factura_compra_id: id }
+    })
+
+    // 3. Replace items if provided
     if (items && Array.isArray(items)) {
       await prisma.factura_compra_items.deleteMany({
         where: { factura_compra_id: id }
@@ -107,12 +117,46 @@ export async function PUT(
           return {
             factura_compra_id: id,
             producto_id: item.product_id || null,
-            producto_nombre: prod ? prod.nombre : 'Producto',
+            producto_nombre: prod ? (prod.nombre_lista || prod.nombre) : 'Producto',
             cantidad: parseInt(item.quantity, 10) || 0,
             cantidad_real: item.cantidad_real !== undefined ? parseInt(item.cantidad_real, 10) || 0 : 0
           }
         })
       })
+
+      // 4. Update Piezas Pendientes del Fabricante (Backorders)
+      // Clear existing backorders for this invoice first
+      await prisma.piezas_pendientes_fabricante.deleteMany({
+        where: { factura_compra_id: id }
+      })
+
+      // Find items where cantidad_real < cantidad
+      const backorderItems = items.filter((item: any) => {
+        const qty = parseInt(item.quantity, 10) || 0
+        const realQty = item.cantidad_real !== undefined ? parseInt(item.cantidad_real, 10) || 0 : 0
+        return realQty < qty
+      })
+
+      if (backorderItems.length > 0) {
+        await prisma.piezas_pendientes_fabricante.createMany({
+          data: backorderItems.map((item: any) => {
+            const qty = parseInt(item.quantity, 10) || 0
+            const realQty = item.cantidad_real !== undefined ? parseInt(item.cantidad_real, 10) || 0 : 0
+            const prod = productMap.get(item.product_id)
+            return {
+              factura_compra_id: id,
+              orden_compra_id: linkedPo?.id || null,
+              producto_id: item.product_id || null,
+              producto_nombre: prod ? (prod.nombre_lista || prod.nombre) : (item.product_nombre || 'Producto'),
+              cantidad_ordenada: qty,
+              cantidad_recibida: realQty,
+              cantidad_pendiente: qty - realQty,
+              status: 'Pendiente',
+              created_by: user?.id || null
+            }
+          })
+        })
+      }
     }
 
     return GET(request, { params: Promise.resolve({ id }) })

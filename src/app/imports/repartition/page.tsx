@@ -300,8 +300,10 @@ export default function ImportRepartitionPage() {
   const [showTotalsDrawer, setShowTotalsDrawer] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [totalsSearchQuery, setTotalsSearchQuery] = useState('')
-  const [totalsDrawerTab, setTotalsDrawerTab] = useState<'article' | 'invoice'>('article')
+  const [totalsDrawerTab, setTotalsDrawerTab] = useState<'article' | 'invoice' | 'calendar'>('article')
   const [totalsDrawerInvoiceSort, setTotalsDrawerInvoiceSort] = useState<'missingPieces' | 'earliestPayment' | 'facturaNumber'>('missingPieces')
+  const [totalsCalendarCurrentMonth, setTotalsCalendarCurrentMonth] = useState<Date>(() => new Date())
+  const [totalsCalendarSelectedDateStr, setTotalsCalendarSelectedDateStr] = useState<string | null>(null)
 
   // ── Invoice Product Editing / Addition (DB) ─────────────
   const [catalogProducts, setCatalogProducts] = useState<CatalogProductOption[]>([])
@@ -3074,6 +3076,17 @@ export default function ImportRepartitionPage() {
                         }).length
                       })
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setTotalsDrawerTab('calendar')}
+                      className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${totalsDrawerTab === 'calendar'
+                        ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg shadow-sm'
+                        : 'border-transparent text-gray-500 hover:text-gray-900'
+                        }`}
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      Calendario de Límites
+                    </button>
                   </div>
 
                   {/* Scrollable Content */}
@@ -3315,6 +3328,269 @@ export default function ImportRepartitionPage() {
                             ))
                           })()}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Tab Content: Calendario de Límites */}
+                    {totalsDrawerTab === 'calendar' && (
+                      <div className="space-y-4">
+                        {(() => {
+                          // Build invoice limit map for selected invoices with unfulfilled / missing pieces
+                          const invoiceLimitMap: Record<string, Array<{ inv: any; missingQty: number; pendingProducts: any[] }>> = {}
+                          let totalInvoicesWithMissing = 0
+                          let totalMissingPiecesGlobal = 0
+
+                          selectedInvoices.forEach(inv => {
+                            const pendingProducts = (inv.factura_productos || [])
+                              .map((fp: any) => {
+                                const alloc = allocations.find(a => a.id === fp.id)
+                                const allocatedQty = alloc ? (Number(alloc.allocatedQty) || 0) : 0
+                                const pendingQty = getPendingQty(fp)
+                                const missingQty = Math.max(0, pendingQty - allocatedQty)
+                                return { ...fp, allocatedQty, pendingQty, missingQty }
+                              })
+                              .filter((fp: any) => fp.missingQty > 0)
+
+                            const missingQty = pendingProducts.reduce((sum: number, fp: any) => sum + fp.missingQty, 0)
+                            if (missingQty > 0) {
+                              totalInvoicesWithMissing++
+                              totalMissingPiecesGlobal += missingQty
+                              const limitDateIso = getInvoiceShippingLimit(inv)
+                              const key = limitDateIso || 'sin-fecha'
+                              if (!invoiceLimitMap[key]) {
+                                invoiceLimitMap[key] = []
+                              }
+                              invoiceLimitMap[key].push({ inv, missingQty, pendingProducts })
+                            }
+                          })
+
+                          // Navigation helpers
+                          const year = totalsCalendarCurrentMonth.getFullYear()
+                          const month = totalsCalendarCurrentMonth.getMonth()
+                          const firstDayOfMonth = new Date(year, month, 1)
+                          const startingDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7 // Monday = 0
+                          const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+                          const monthNames = [
+                            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                          ]
+
+                          const prevMonth = () => {
+                            setTotalsCalendarCurrentMonth(new Date(year, month - 1, 1))
+                          }
+                          const nextMonth = () => {
+                            setTotalsCalendarCurrentMonth(new Date(year, month + 1, 1))
+                          }
+                          const todayMonth = () => {
+                            setTotalsCalendarCurrentMonth(new Date())
+                          }
+
+                          const todayStr = toIsoDate(new Date())
+
+                          return (
+                            <div className="space-y-4">
+                              {/* Header controls & summary */}
+                              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/80 p-3 rounded-xl border border-gray-100">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={prevMonth}
+                                    className="p-1.5 hover:bg-white rounded-lg border border-gray-200 shadow-sm text-gray-600 transition-colors"
+                                  >
+                                    <ChevronRight className="w-4 h-4 rotate-180" />
+                                  </button>
+                                  <span className="text-sm font-bold text-gray-800 min-w-[140px] text-center">
+                                    {monthNames[month]} {year}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={nextMonth}
+                                    className="p-1.5 hover:bg-white rounded-lg border border-gray-200 shadow-sm text-gray-600 transition-colors"
+                                  >
+                                    <ChevronRight className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={todayMonth}
+                                    className="px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg border border-indigo-100 transition-colors"
+                                  >
+                                    Hoy
+                                  </button>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="px-2.5 py-1 bg-red-50 text-red-700 font-bold rounded-lg border border-red-100 flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                                    {totalMissingPiecesGlobal} piezas faltantes ({totalInvoicesWithMissing} facturas)
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Calendar Grid */}
+                              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                                {/* Weekdays header */}
+                                <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200 text-center text-[11px] font-bold text-gray-600 py-2">
+                                  <div>Lun</div>
+                                  <div>Mar</div>
+                                  <div>Mié</div>
+                                  <div>Jue</div>
+                                  <div>Vie</div>
+                                  <div>Sáb</div>
+                                  <div>Dom</div>
+                                </div>
+
+                                {/* Month Days */}
+                                <div className="grid grid-cols-7 divide-x divide-y divide-gray-100 text-xs">
+                                  {/* Empty slots before month start */}
+                                  {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                                    <div key={`empty-${i}`} className="min-h-[85px] bg-gray-50/40 p-1.5" />
+                                  ))}
+
+                                  {/* Days of the month */}
+                                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                                    const dayNum = i + 1
+                                    const dateObj = new Date(year, month, dayNum)
+                                    const isoStr = toIsoDate(dateObj)
+                                    const dayItems = invoiceLimitMap[isoStr] || []
+                                    const dayMissingPieces = dayItems.reduce((sum, item) => sum + item.missingQty, 0)
+                                    const isToday = isoStr === todayStr
+                                    const isSelected = totalsCalendarSelectedDateStr === isoStr
+
+                                    return (
+                                      <div
+                                        key={isoStr}
+                                        onClick={() => dayItems.length > 0 && setTotalsCalendarSelectedDateStr(isSelected ? null : isoStr)}
+                                        className={`min-h-[85px] p-1.5 flex flex-col justify-between transition-colors relative ${dayItems.length > 0 ? 'cursor-pointer hover:bg-indigo-50/30' : 'bg-white'
+                                          } ${isSelected ? 'ring-2 ring-indigo-500 bg-indigo-50/20' : ''}`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <span className={`text-[11px] font-bold rounded-full w-5 h-5 flex items-center justify-center ${isToday
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-gray-700'
+                                            }`}>
+                                            {dayNum}
+                                          </span>
+                                          {dayMissingPieces > 0 && (
+                                            <span
+                                              className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-600 text-white shadow-sm flex items-center gap-1 animate-pulse"
+                                              title={`${dayMissingPieces} piezas faltantes en ${dayItems.length} facturas con límite este día`}
+                                            >
+                                              -{dayMissingPieces} pcs
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Invoices list preview for day */}
+                                        <div className="mt-1 space-y-1 overflow-hidden">
+                                          {dayItems.slice(0, 2).map(({ inv, missingQty }) => (
+                                            <div
+                                              key={inv.id}
+                                              className="text-[9.5px] p-1 rounded bg-red-50 border border-red-100 text-red-900 font-medium truncate flex items-center justify-between"
+                                            >
+                                              <span className="truncate">#{inv.numero_factura}</span>
+                                              <span className="font-bold shrink-0 ml-1 text-red-600">-{missingQty}</span>
+                                            </div>
+                                          ))}
+                                          {dayItems.length > 2 && (
+                                            <div className="text-[9px] font-bold text-gray-500 text-right">
+                                              +{dayItems.length - 2} más...
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Unscheduled / Without Date limits alert section if any */}
+                              {invoiceLimitMap['sin-fecha'] && invoiceLimitMap['sin-fecha'].length > 0 && (
+                                <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-3.5 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                                      Sin Fecha Límite Calculada ({invoiceLimitMap['sin-fecha'].length} facturas)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">
+                                      {invoiceLimitMap['sin-fecha'].reduce((sum, item) => sum + item.missingQty, 0)} piezas faltantes
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {invoiceLimitMap['sin-fecha'].map(({ inv, missingQty }) => (
+                                      <div key={inv.id} className="bg-white border border-amber-200/80 rounded-lg p-2 text-xs flex justify-between items-center shadow-sm">
+                                        <div>
+                                          <span className="font-bold text-gray-900">#{inv.numero_factura}</span>
+                                          <p className="text-[10px] text-gray-500 truncate max-w-[180px]">{inv.cliente_nombre}</p>
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold text-[10px]">
+                                          Faltan {missingQty}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Selected Day Invoices Details */}
+                              {totalsCalendarSelectedDateStr && invoiceLimitMap[totalsCalendarSelectedDateStr] && (
+                                <div className="border-2 border-indigo-500 rounded-xl p-4 bg-indigo-50/30 space-y-3">
+                                  <div className="flex items-center justify-between pb-2 border-b border-indigo-100">
+                                    <h4 className="text-xs font-bold text-indigo-900 flex items-center gap-2">
+                                      <Calendar className="w-4 h-4 text-indigo-600" />
+                                      Facturas con fecha límite el {totalsCalendarSelectedDateStr}
+                                    </h4>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTotalsCalendarSelectedDateStr(null)}
+                                      className="text-xs font-semibold text-gray-500 hover:text-gray-800"
+                                    >
+                                      Cerrar detalle
+                                    </button>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    {invoiceLimitMap[totalsCalendarSelectedDateStr].map(({ inv, pendingProducts, missingQty }) => (
+                                      <div key={inv.id} className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm space-y-2">
+                                        <div className="flex items-start justify-between">
+                                          <div>
+                                            <span className="font-bold text-gray-900 text-sm">Folio: {inv.numero_factura}</span>
+                                            <p className="text-xs text-gray-600">{inv.cliente_nombre}</p>
+                                          </div>
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                                            Faltan {missingQty} uds
+                                          </span>
+                                        </div>
+
+                                        <div className="border border-gray-100 rounded-lg overflow-hidden bg-gray-50/50">
+                                          <table className="w-full text-left text-xs">
+                                            <thead>
+                                              <tr className="bg-gray-100/70 text-[10px] text-gray-500 uppercase">
+                                                <th className="px-3 py-1.5">Producto Pendiente</th>
+                                                <th className="px-3 py-1.5 text-center w-16">Pendiente</th>
+                                                <th className="px-3 py-1.5 text-center w-16">Asignado</th>
+                                                <th className="px-3 py-1.5 text-center w-16">Faltante</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                              {pendingProducts.map((fp: any) => (
+                                                <tr key={fp.id} className="hover:bg-white">
+                                                  <td className="px-3 py-1.5 font-medium text-gray-800">{fp.producto_nombre}</td>
+                                                  <td className="px-3 py-1.5 text-center font-mono font-semibold text-amber-600">{fp.pendingQty}</td>
+                                                  <td className="px-3 py-1.5 text-center font-mono font-semibold text-indigo-600">{fp.allocatedQty}</td>
+                                                  <td className="px-3 py-1.5 text-center font-mono font-semibold text-rose-600 bg-rose-50/50">{fp.missingQty}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>

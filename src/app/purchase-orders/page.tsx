@@ -18,7 +18,9 @@ import {
   Layers,
   Receipt,
   CheckSquare,
-  Square
+  Square,
+  Clock,
+  PackageCheck
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import PermissionGuard from '@/components/PermissionGuard'
@@ -38,24 +40,47 @@ interface MissingProductItem {
   missing: number
 }
 
+interface BackorderItem {
+  id: string
+  factura_compra_id: string
+  factura_numero: string
+  factura_nombre?: string | null
+  orden_compra_id?: string | null
+  orden_numero?: string | null
+  producto_id?: string | null
+  producto_nombre: string
+  model?: string | null
+  order_code?: string | null
+  line: string
+  cantidad_ordenada: number
+  cantidad_recibida: number
+  cantidad_pendiente: number
+  status: string
+  observaciones?: string | null
+  created_at: string
+  created_by_id?: string | null
+  created_by_name: string
+  created_by_email?: string | null
+}
+
 function PurchaseOrdersContent() {
   const { t } = useI18n()
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Tab State: 'orders' | 'pre_orders' | 'invoices'
-  const [activeTab, setActiveTab] = useState<'orders' | 'pre_orders' | 'invoices'>(
-    (searchParams.get('tab') as 'orders' | 'pre_orders' | 'invoices') || 'pre_orders'
+  // Tab State: 'orders' | 'pre_orders' | 'invoices' | 'backorders'
+  const [activeTab, setActiveTab] = useState<'orders' | 'pre_orders' | 'invoices' | 'backorders'>(
+    (searchParams.get('tab') as 'orders' | 'pre_orders' | 'invoices' | 'backorders') || 'pre_orders'
   )
 
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam === 'orders' || tabParam === 'pre_orders' || tabParam === 'invoices') {
+    if (tabParam === 'orders' || tabParam === 'pre_orders' || tabParam === 'invoices' || tabParam === 'backorders') {
       setActiveTab(tabParam)
     }
   }, [searchParams])
 
-  const handleTabChange = (newTab: 'orders' | 'pre_orders' | 'invoices') => {
+  const handleTabChange = (newTab: 'orders' | 'pre_orders' | 'invoices' | 'backorders') => {
     setActiveTab(newTab)
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', newTab)
@@ -66,6 +91,7 @@ function PurchaseOrdersContent() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [preOrders, setPreOrders] = useState<PurchaseOrder[]>([])
   const [invoices, setInvoices] = useState<PurchaseInvoiceData[]>([])
+  const [backorders, setBackorders] = useState<BackorderItem[]>([])
   const [products, setProducts] = useState<Product[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
@@ -106,23 +132,26 @@ function PurchaseOrdersContent() {
   const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true)
-      const [resOrders, resPreOrders, resInvoices] = await Promise.all([
+      const [resOrders, resPreOrders, resInvoices, resBackorders] = await Promise.all([
         fetch('/api/purchase-orders?pre_order=false'),
         fetch('/api/purchase-orders?pre_order=true'),
-        fetch('/api/purchase-invoices')
+        fetch('/api/purchase-invoices'),
+        fetch('/api/purchase-orders/backorders')
       ])
 
-      if (!resOrders.ok || !resPreOrders.ok || !resInvoices.ok) {
+      if (!resOrders.ok || !resPreOrders.ok || !resInvoices.ok || !resBackorders.ok) {
         throw new Error('Error al cargar datos')
       }
 
       const jsonOrders = await resOrders.json()
       const jsonPreOrders = await resPreOrders.json()
       const jsonInvoices = await resInvoices.json()
+      const jsonBackorders = await resBackorders.json()
 
       setOrders(jsonOrders.data || [])
       setPreOrders(jsonPreOrders.data || [])
       setInvoices(jsonInvoices.data || [])
+      setBackorders(jsonBackorders.data || [])
     } catch (err: any) {
       console.error(err)
       setError(err.message)
@@ -200,6 +229,22 @@ function PurchaseOrdersContent() {
     })
   }, [invoices, searchTerm])
 
+  const filteredBackorders = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim()
+    if (!term) return backorders
+
+    return backorders.filter(item => {
+      const hasProdMatch = item.producto_nombre.toLowerCase().includes(term)
+      const hasModelMatch = (item.model || '').toLowerCase().includes(term)
+      const hasCodeMatch = (item.order_code || '').toLowerCase().includes(term)
+      const hasFacturaMatch = item.factura_numero.toLowerCase().includes(term)
+      const hasPoMatch = (item.orden_numero || '').toLowerCase().includes(term)
+      const hasUserMatch = item.created_by_name.toLowerCase().includes(term)
+      const hasLineMatch = item.line.toLowerCase().includes(term)
+      return hasProdMatch || hasModelMatch || hasCodeMatch || hasFacturaMatch || hasPoMatch || hasUserMatch || hasLineMatch
+    })
+  }, [backorders, searchTerm])
+
   // Paginated active list
   const paginatedOrders = useMemo(() => {
     const start = (currentPage - 1) * perPage
@@ -211,10 +256,19 @@ function PurchaseOrdersContent() {
     return filteredInvoices.slice(start, start + perPage)
   }, [filteredInvoices, currentPage, perPage])
 
+  const paginatedBackorders = useMemo(() => {
+    const start = (currentPage - 1) * perPage
+    return filteredBackorders.slice(start, start + perPage)
+  }, [filteredBackorders, currentPage, perPage])
+
   const totalPages = useMemo(() => {
-    const totalCount = activeTab === 'invoices' ? filteredInvoices.length : filteredOrders.length
+    const totalCount = activeTab === 'invoices' 
+      ? filteredInvoices.length 
+      : activeTab === 'backorders' 
+      ? filteredBackorders.length 
+      : filteredOrders.length
     return Math.ceil(totalCount / perPage) || 1
-  }, [activeTab, filteredOrders, filteredInvoices, perPage])
+  }, [activeTab, filteredOrders, filteredInvoices, filteredBackorders, perPage])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -587,6 +641,25 @@ function PurchaseOrdersContent() {
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => handleTabChange('backorders')}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold rounded-xl transition-all ${
+              activeTab === 'backorders'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <Clock size={18} />
+            <span>Pendientes Fabricante</span>
+            {backorders.length > 0 && (
+              <span className={`px-2 py-0.5 text-xs rounded-full font-semibold ${
+                activeTab === 'backorders' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+              }`}>
+                {backorders.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Filters */}
@@ -595,7 +668,13 @@ function PurchaseOrdersContent() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder={activeTab === 'invoices' ? "Buscar factura por número, nombre o pre-orden..." : "Buscar por notas, ID de orden o producto..."}
+              placeholder={
+                activeTab === 'invoices' 
+                  ? "Buscar factura por número, nombre o pre-orden..." 
+                  : activeTab === 'backorders'
+                  ? "Buscar por producto, modelo, código, factura, orden o usuario..."
+                  : "Buscar por notas, ID de orden o producto..."
+              }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="erp-input w-full pl-10"
@@ -619,6 +698,141 @@ function PurchaseOrdersContent() {
         ) : error ? (
           <div className="card p-8 text-center text-red-500 bg-red-50 border border-red-100 rounded-2xl">
             {error}
+          </div>
+        ) : activeTab === 'backorders' ? (
+          /* Pendientes Fabricante Table */
+          <div className="card overflow-hidden bg-white border border-amber-200 rounded-2xl shadow-sm">
+            <div className="bg-amber-50/60 p-4 border-b border-amber-200/60 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="text-amber-600" size={20} />
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">Piezas Pendientes del Fabricante</h3>
+                  <p className="text-xs text-gray-500">Piezas pagadas que el fabricante no pudo surtir en la entrega inicial y enviará posteriormente.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-semibold">
+                <span className="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg border border-amber-200">
+                  Total Pendientes: {filteredBackorders.reduce((sum, item) => sum + item.cantidad_pendiente, 0)} piezas
+                </span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/70 border-b border-gray-100">
+                    <th className="p-3 text-xs font-bold text-gray-600 uppercase">Producto</th>
+                    <th className="p-3 text-xs font-bold text-gray-600 uppercase">Modelo / Código</th>
+                    <th className="p-3 text-xs font-bold text-gray-600 uppercase">Factura de Compra</th>
+                    <th className="p-3 text-xs font-bold text-gray-600 uppercase">Orden de Compra</th>
+                    <th className="p-3 text-xs font-bold text-gray-[#0763a9] uppercase text-center">Cant. Ordenada</th>
+                    <th className="p-3 text-xs font-bold text-gray-[#0763a9] uppercase text-center">Cant. Real</th>
+                    <th className="p-3 text-xs font-bold text-rose-600 uppercase text-center">Cant. Pendiente</th>
+                    <th className="p-3 text-xs font-bold text-gray-600 uppercase">Generado Por</th>
+                    <th className="p-3 text-xs font-bold text-gray-600 uppercase">Fecha / Hora</th>
+                    <th className="p-3 text-xs font-bold text-gray-600 uppercase text-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-xs">
+                  {paginatedBackorders.map(item => (
+                    <tr key={item.id} className="hover:bg-amber-50/30 transition-colors">
+                      <td className="p-3">
+                        <div className="font-bold text-gray-900">{item.producto_nombre}</div>
+                        {item.line && (
+                          <span className="text-[10px] uppercase font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 inline-block mt-0.5">
+                            {item.line}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 font-mono text-[11px] text-gray-600">
+                        {item.model || item.order_code ? (
+                          <span>{item.model || ''} {item.order_code ? `(${item.order_code})` : ''}</span>
+                        ) : (
+                          <span className="text-gray-400 italic">-</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => router.push(`/purchase-orders/invoices/${item.factura_compra_id}`)}
+                          className="font-bold text-blue-600 hover:underline hover:text-blue-800"
+                        >
+                          {item.factura_numero}
+                        </button>
+                        {item.factura_nombre && (
+                          <div className="text-[11px] text-gray-500">{item.factura_nombre}</div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {item.orden_numero ? (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-mono border border-blue-100 font-medium">
+                            {item.orden_numero}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 italic text-[11px]">N/A</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-center font-bold text-gray-700">
+                        {item.cantidad_ordenada}
+                      </td>
+                      <td className="p-3 text-center font-bold text-emerald-700">
+                        {item.cantidad_recibida}
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                          {item.cantidad_pendiente}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-semibold text-gray-800">{item.created_by_name}</div>
+                        {item.created_by_email && (
+                          <div className="text-[10px] text-gray-400">{item.created_by_email}</div>
+                        )}
+                      </td>
+                      <td className="p-3 text-gray-500 whitespace-nowrap">
+                        <div>{new Date(item.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                        <div className="text-[10px] text-gray-400">{new Date(item.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</div>
+                      </td>
+                      <td className="p-3 text-center">
+                        <select
+                          value={item.status}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value
+                            setBackorders(prev => prev.map(b => b.id === item.id ? { ...b, status: newStatus } : b))
+                            try {
+                              await fetch('/api/purchase-orders/backorders', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: item.id, status: newStatus })
+                              })
+                            } catch (err) {
+                              console.error('Error updating backorder status:', err)
+                            }
+                          }}
+                          className={`text-xs font-bold px-2 py-1 rounded-full border cursor-pointer focus:outline-none transition-all ${
+                            item.status === 'Recibido'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : item.status === 'Cancelado'
+                              ? 'bg-gray-100 text-gray-600 border-gray-200'
+                              : 'bg-amber-50 text-amber-800 border-amber-300'
+                          }`}
+                        >
+                          <option value="Pendiente">Pendiente</option>
+                          <option value="Recibido">Recibido</option>
+                          <option value="Cancelado">Cancelado</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredBackorders.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="p-12 text-center text-gray-400 italic">
+                        {searchTerm ? 'No se encontraron piezas pendientes coincidentes.' : 'No hay piezas pendientes del fabricante.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : activeTab === 'invoices' ? (
           /* Facturas de Compra Table */
