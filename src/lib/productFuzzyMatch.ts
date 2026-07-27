@@ -35,6 +35,29 @@ const STRIP_PREFIXES = [
 // Exclude dimensions/sizes ending in MM, CM, IN, °, or º
 const PRODUCT_CODE_RE = /\b(?![\w\-\.()°º]*(?:MM|CM|IN|°|º)\b)[A-Z]{1,4}[\d][A-Z0-9\-\.()]{3,}\b/g
 
+/**
+ * Checks if a line item / product name is a service or non-physical item concept
+ * (e.g., Renta de Equipo, Anticipo, Servicio Integral, Asistencia Técnica)
+ * which should be excluded from repartition.
+ */
+export function isExcludedServiceConcept(name: string | null | undefined): boolean {
+  if (!name) return false
+  const s = name.trim().toLowerCase()
+  return (
+    s.includes('renta de equipo') ||
+    s.includes('renta equipo') ||
+    s.includes('anticipo de bien') ||
+    s.includes('anticipo bien') ||
+    s.includes('anticipo') ||
+    s.includes('servicio integral de renta') ||
+    s.includes('servicio integral') ||
+    s.includes('asistencia técnica en taller') ||
+    s.includes('asistencia tecnica en taller') ||
+    s.includes('asistencia técnica') ||
+    s.includes('asistencia tecnica')
+  )
+}
+
 /** Normalize degree symbols: º → °, and remove (R) annotations */
 function normalizeDegrees(s: string): string {
   return s

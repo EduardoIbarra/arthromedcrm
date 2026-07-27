@@ -21,7 +21,14 @@ import {
   DELIVERY_REFERENCE_TOOLTIP,
   toIsoDate,
 } from '@/lib/delivery-limit'
-import { normalizeProductName } from '@/lib/productFuzzyMatch'
+import { normalizeProductName, isExcludedServiceConcept } from '@/lib/productFuzzyMatch'
+
+/** Returns true if all line items in an invoice are service or non-physical concepts. */
+function isOnlyServiceFactura(inv: any): boolean {
+  const prods = inv.factura_productos || inv.productos || []
+  if (prods.length === 0) return false
+  return prods.every((p: any) => isExcludedServiceConcept(p.producto_nombre || p.nombre || p.productos?.nombre_lista))
+}
 
 interface CatalogProductOption {
   id: string
@@ -135,7 +142,7 @@ function mergeAllocationsWithSelectedInvoices(apiAllocations: Allocation[], sele
   const result = [...apiAllocations]
 
   for (const inv of selectedInvoices) {
-    const pendingProducts = (inv.factura_productos || []).filter((fp: any) => getPendingQty(fp) > 0)
+    const pendingProducts = (inv.factura_productos || []).filter((fp: any) => getPendingQty(fp) > 0 && !isExcludedServiceConcept(fp.producto_nombre))
     for (const fp of pendingProducts) {
       if (!byId.has(fp.id)) {
         const alloc = buildAllocationFromInvoiceProduct(inv, fp, 0)
@@ -653,6 +660,7 @@ export default function ImportRepartitionPage() {
         const seen = new Set<string>()
         for (const inv of [...(d1.data || []), ...(d2.data || []), ...(d3.data || []), ...(d4.data || [])]) {
           if (isExcludedPrefixedFactura(inv)) continue
+          if (isOnlyServiceFactura(inv)) continue
           if (!seen.has(inv.id)) {
             seen.add(inv.id)
             merged.push(inv)
@@ -687,7 +695,7 @@ export default function ImportRepartitionPage() {
     if (mainTab === 'historial' && history.length === 0) fetchHistory()
   }, [mainTab])
 
-  // Invoice search (exclude F* / N* folios)
+  // Invoice search (exclude F* / N* folios & service-only facturas)
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (invoiceSearch.length < 2) { setInvoiceResults([]); return }
@@ -695,7 +703,8 @@ export default function ImportRepartitionPage() {
       try {
         const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=50`)
         const data = await res.json()
-        setInvoiceResults(data.data || [])
+        const filtered = (data.data || []).filter((inv: any) => !isExcludedPrefixedFactura(inv) && !isOnlyServiceFactura(inv))
+        setInvoiceResults(filtered)
       } catch (err) { console.error(err) }
       finally { setIsSearchingInvoices(false) }
     }, 300)
@@ -1008,6 +1017,7 @@ export default function ImportRepartitionPage() {
     selectedInvoices.forEach(inv => {
       (inv.factura_productos || []).forEach((fp: any) => {
         const name = fp.producto_nombre || 'Desconocido'
+        if (isExcludedServiceConcept(name)) return
         const norm = normName(name)
         const pendingQty = getPendingQty(fp)
         const allocatedQty = allocMap.get(fp.id) || 0

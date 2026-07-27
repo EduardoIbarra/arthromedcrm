@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { computeDeliveryLimit, toIsoDate } from '@/lib/delivery-limit';
+import { isExcludedServiceConcept } from '@/lib/productFuzzyMatch';
 
 type OrderLine = {
   id: string;
@@ -705,29 +706,31 @@ export async function POST(req: Request) {
           ? toIsoDate(new Date(f.fecha_pago))
           : null
 
-      return f.factura_productos.map((fp: any) => {
-        const meta = fp.producto_id ? demandProductMeta.get(fp.producto_id) : undefined
-        const displayName =
-          meta?.preferred || fp.producto_nombre || 'Producto'
-        return {
-          id: fp.id,
-          folio: f.numero_factura,
-          customerName: f.cliente_nombre,
-          paymentDate,
-          shippingLimit,
-          deliveryIsReference: delivery.isReferenceOnly,
-          product: displayName,
-          productId: fp.producto_id || null,
-          productAliases: [
-            ...(meta?.names || []),
-            fp.producto_nombre,
-            displayName,
-          ].filter(Boolean),
-          facturadaQty: fp.cantidad_facturada || 0,
-          requestedQty: fp.cantidad_pendiente || 0,
-          sourceType: 'factura' as const,
-        }
-      })
+      return f.factura_productos
+        .filter((fp: any) => !isExcludedServiceConcept(fp.producto_nombre))
+        .map((fp: any) => {
+          const meta = fp.producto_id ? demandProductMeta.get(fp.producto_id) : undefined
+          const displayName =
+            meta?.preferred || fp.producto_nombre || 'Producto'
+          return {
+            id: fp.id,
+            folio: f.numero_factura,
+            customerName: f.cliente_nombre,
+            paymentDate,
+            shippingLimit,
+            deliveryIsReference: delivery.isReferenceOnly,
+            product: displayName,
+            productId: fp.producto_id || null,
+            productAliases: [
+              ...(meta?.names || []),
+              fp.producto_nombre,
+              displayName,
+            ].filter(Boolean),
+            facturadaQty: fp.cantidad_facturada || 0,
+            requestedQty: fp.cantidad_pendiente || 0,
+            sourceType: 'factura' as const,
+          }
+        })
     })
 
     const ordersFromCotizaciones = pendingCotizaciones.flatMap((c: any) => {
@@ -742,7 +745,7 @@ export async function POST(req: Request) {
         : null
 
       return (c.productos || [])
-        .filter((p: any) => (Number(p.cantidad) || 0) > 0)
+        .filter((p: any) => (Number(p.cantidad) || 0) > 0 && !isExcludedServiceConcept(p.producto_nombre || p.productos?.nombre_lista))
         .map((p: any) => {
           const meta = p.producto_id ? demandProductMeta.get(p.producto_id) : undefined
           const displayName =

@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Fetch all invoices that are not cancelled
+    // 1. Fetch all invoices that are not cancelled and have a payment date
     const invoices = await prisma.facturas_cliente.findMany({
       where: {
-        estado: { notIn: ['anulado', 'cancelada'] }
+        estado: { notIn: ['anulado', 'cancelada'] },
+        fecha_pago: { not: null }
       },
       include: {
         factura_productos: {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
         }
       },
       orderBy: {
-        fecha_expedicion: 'desc'
+        fecha_pago: 'desc'
       }
     })
 
@@ -132,14 +133,14 @@ export async function GET(request: NextRequest) {
     const prevRangeEnd = new Date(rangeEnd)
     prevRangeEnd.setFullYear(rangeEnd.getFullYear() - 1)
 
-    // Filter matched invoices for current and previous periods
+    // Filter matched invoices for current and previous periods by payment date
     const periodInvoices = matchedInvoices.filter((inv: any) => {
-      const invDate = new Date(inv.fecha_expedicion)
+      const invDate = new Date(inv.fecha_pago)
       return invDate >= rangeStart && invDate <= rangeEnd
     })
 
     const prevPeriodInvoices = matchedInvoices.filter((inv: any) => {
-      const invDate = new Date(inv.fecha_expedicion)
+      const invDate = new Date(inv.fecha_pago)
       return invDate >= prevRangeStart && invDate <= prevRangeEnd
     })
 
@@ -150,7 +151,7 @@ export async function GET(request: NextRequest) {
     let salesToday = 0
     const todayTarget = (today >= rangeStart && today <= rangeEnd) ? today : rangeEnd
     matchedInvoices.forEach((inv: any) => {
-      const invDate = new Date(inv.fecha_expedicion)
+      const invDate = new Date(inv.fecha_pago)
       if (invDate.toDateString() === todayTarget.toDateString()) {
         salesToday += inv.totalNum
       }
@@ -191,7 +192,7 @@ export async function GET(request: NextRequest) {
         const dayLabel = current.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
 
         const daySales = matchedInvoices
-          .filter((inv: any) => new Date(inv.fecha_expedicion).toDateString() === dateStr)
+          .filter((inv: any) => new Date(inv.fecha_pago).toDateString() === dateStr)
           .reduce((sum: number, inv: any) => sum + inv.totalNum, 0)
 
         // Sum previous period equivalent day sales
@@ -199,7 +200,7 @@ export async function GET(request: NextRequest) {
         const prevDayDate = new Date(prevRangeStart.getTime() + offsetTime)
         const prevDayDateStr = prevDayDate.toDateString()
         const prevDaySales = matchedInvoices
-          .filter((inv: any) => new Date(inv.fecha_expedicion).toDateString() === prevDayDateStr)
+          .filter((inv: any) => new Date(inv.fecha_pago).toDateString() === prevDayDateStr)
           .reduce((sum: number, inv: any) => sum + inv.totalNum, 0)
 
         trendData.push({
@@ -225,14 +226,14 @@ export async function GET(request: NextRequest) {
 
         const currentSales = matchedInvoices
           .filter((inv: any) => {
-            const d = new Date(inv.fecha_expedicion)
+            const d = new Date(inv.fecha_pago)
             return d.getFullYear() === year && d.getMonth() === month && d >= rangeStart && d <= rangeEnd
           })
           .reduce((sum: number, inv: any) => sum + inv.totalNum, 0)
 
         const prevYearSales = matchedInvoices
           .filter((inv: any) => {
-            const d = new Date(inv.fecha_expedicion)
+            const d = new Date(inv.fecha_pago)
             if (d.getFullYear() !== (year - 1) || d.getMonth() !== month) return false
             // If this month/year is the current (partial) month, cap at equivalent day-of-month
             const isCurrentPartialMonth = year === today.getFullYear() && month === today.getMonth()
@@ -271,7 +272,7 @@ export async function GET(request: NextRequest) {
       if (!inv.cliente_nombre) return
       const clientKey = inv.cliente_nombre.toLowerCase().trim()
       const prevDate = clientPurchaseDates.get(clientKey)
-      const invDate = new Date(inv.fecha_expedicion)
+      const invDate = new Date(inv.fecha_pago)
       if (!prevDate || invDate < prevDate) {
         clientPurchaseDates.set(clientKey, invDate)
       }
@@ -303,7 +304,7 @@ export async function GET(request: NextRequest) {
     // Comparing getFullYear() on the local Date is always correct.
     const prevCalYear = prevRangeStart.getFullYear()
     const fullPrevYearInvoices = matchedInvoices.filter((inv: any) => {
-      return new Date(inv.fecha_expedicion).getFullYear() === prevCalYear
+      return new Date(inv.fecha_pago).getFullYear() === prevCalYear
     })
 
     // Helper: resolve product line according to new rules for the 4 line charts
@@ -428,7 +429,7 @@ export async function GET(request: NextRequest) {
     // Compute units sold by year and line for all available years (grouped bar chart)
     const unitsByYearAndLineMap = new Map<number, Record<string, number>>()
     matchedInvoices.forEach((inv: any) => {
-      const year = new Date(inv.fecha_expedicion).getFullYear()
+      const year = new Date(inv.fecha_pago).getFullYear()
       if (!unitsByYearAndLineMap.has(year)) {
         unitsByYearAndLineMap.set(year, {})
       }
@@ -603,7 +604,7 @@ export async function GET(request: NextRequest) {
     
     const currentMonthSales = matchedInvoices
       .filter((inv: any) => {
-        const d = new Date(inv.fecha_expedicion)
+        const d = new Date(inv.fecha_pago)
         return d.getFullYear() === currentYear && d.getMonth() === currentMonth && d <= today
       })
       .reduce((sum: number, inv: any) => sum + inv.totalNum, 0)
@@ -629,7 +630,7 @@ export async function GET(request: NextRequest) {
 
     // Recent Orders in selection range
     const recentOrders = periodInvoices.slice(0, 15).map((inv: any) => ({
-      date: inv.fecha_expedicion,
+      date: inv.fecha_pago,
       customer: inv.cliente_nombre,
       amount: Number(inv.total) || 0,
       crmClientId: inv.crmClientId
