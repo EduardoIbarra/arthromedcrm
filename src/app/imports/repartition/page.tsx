@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
@@ -294,6 +295,8 @@ export default function ImportRepartitionPage() {
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   // ── Totals Drawer State ────────────────────────────────
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
   const [showTotalsDrawer, setShowTotalsDrawer] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [totalsSearchQuery, setTotalsSearchQuery] = useState('')
@@ -427,11 +430,11 @@ export default function ImportRepartitionPage() {
           const updatedProds = (inv.factura_productos || []).map((p: any) =>
             p.id === product.id
               ? {
-                  ...p,
-                  ...updatedProd,
-                  cantidad_facturada: newQtyFacturada,
-                  cantidad_pendiente: newQtyPendiente,
-                }
+                ...p,
+                ...updatedProd,
+                cantidad_facturada: newQtyFacturada,
+                cantidad_pendiente: newQtyPendiente,
+              }
               : p
           )
           return { ...inv, factura_productos: updatedProds }
@@ -844,10 +847,10 @@ export default function ImportRepartitionPage() {
 
       const selectedStockFisico = useStockFisico
         ? stockItems.map(s => ({
-            producto_id: s.producto_id,
-            nombre: s.nombre,
-            cantidad: s.cantidad,
-          }))
+          producto_id: s.producto_id,
+          nombre: s.nombre,
+          cantidad: s.cantidad,
+        }))
         : []
 
       const res = await fetch('/api/imports/repartition', {
@@ -1318,7 +1321,7 @@ export default function ImportRepartitionPage() {
         'Peso Producto (kg)',
         'Dimensiones Estimatizadas'
       ]
-      
+
       const rows: any[] = []
       packedBoxes.forEach((box, idx) => {
         box.items.forEach((item: any) => {
@@ -1549,7 +1552,7 @@ export default function ImportRepartitionPage() {
         if (!b.shippingLimit) return -1
         return new Date(a.shippingLimit).getTime() - new Date(b.shippingLimit).getTime()
       })
-      
+
       sorted.forEach((a) => {
         if (a.allocatedQty <= 0) return
         html += `
@@ -1607,7 +1610,7 @@ export default function ImportRepartitionPage() {
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = url; link.download = `reparticion_${new Date().toISOString().slice(0,10)}.csv`
+    link.href = url; link.download = `reparticion_${new Date().toISOString().slice(0, 10)}.csv`
     document.body.appendChild(link); link.click(); document.body.removeChild(link)
   }
 
@@ -1865,379 +1868,377 @@ export default function ImportRepartitionPage() {
               {!isMaximized && (
                 <div className="lg:col-span-1 space-y-5">
 
-                {/* ── Fuentes de inventario ──────────────── */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="w-4 h-4 text-indigo-600" />
-                      <h2 className="text-base font-semibold text-gray-900">Fuentes de inventario</h2>
-                    </div>
-                    {(() => {
-                      let totalUnits = 0
-                      // Ordenes de compra
-                      ordenes.forEach(o => {
-                        if (selectedOrderIds.has(o.id)) {
-                          totalUnits += useOrderedQtyOrderIds.has(o.id) ? (Number(o.total_ordenado) || 0) : (Number(o.total_recibido) || 0)
-                        }
-                      })
-                      // Facturas de compra
-                      purchaseInvoices.forEach(inv => {
-                        if (selectedPurchaseInvoiceIds.has(inv.id)) {
-                          totalUnits += (inv.items || []).reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0)
-                        }
-                      })
-                      // Stock físico
-                      if (useStockFisico) {
-                        totalUnits += totalStockUnits
-                      }
-                      return (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
-                          {totalUnits} uds. seleccionadas
-                        </span>
-                      )
-                    })()}
-                  </div>
-
-                  {/* Source 1: Órdenes de compra */}
-                  <div className="border-b border-gray-100">
-                    <div className="px-5 pt-3 pb-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <ShoppingCart className="w-3.5 h-3.5 text-indigo-500" />
-                          <p className="text-sm font-semibold text-gray-800">Órdenes de compra</p>
-                          {selectedOrderIds.size > 0 && (
-                            <span className="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full font-medium">
-                              {totalSelRecibido}/{totalSelOrdenado} uds.
-                            </span>
-                          )}
-                        </div>
-                        <button onClick={fetchOrdenes} className="p-1 rounded hover:bg-gray-100 text-gray-400">
-                          <RefreshCw className="w-3 h-3" />
-                        </button>
+                  {/* ── Fuentes de inventario ──────────────── */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-indigo-600" />
+                        <h2 className="text-base font-semibold text-gray-900">Fuentes de inventario</h2>
                       </div>
+                      {(() => {
+                        let totalUnits = 0
+                        // Ordenes de compra
+                        ordenes.forEach(o => {
+                          if (selectedOrderIds.has(o.id)) {
+                            totalUnits += useOrderedQtyOrderIds.has(o.id) ? (Number(o.total_ordenado) || 0) : (Number(o.total_recibido) || 0)
+                          }
+                        })
+                        // Facturas de compra
+                        purchaseInvoices.forEach(inv => {
+                          if (selectedPurchaseInvoiceIds.has(inv.id)) {
+                            totalUnits += (inv.items || []).reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0)
+                          }
+                        })
+                        // Stock físico
+                        if (useStockFisico) {
+                          totalUnits += totalStockUnits
+                        }
+                        return (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
+                            {totalUnits} para surtir
+                          </span>
+                        )
+                      })()}
                     </div>
 
-                    <div className="max-h-52 overflow-y-auto divide-y divide-gray-50 mx-2 mb-2 border border-gray-100 rounded-xl">
-                      {loadingOrdenes ? (
-                        <div className="flex items-center justify-center py-6 gap-2 text-gray-400">
-                          <Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Cargando...</span>
+                    {/* Source 1: Órdenes de compra */}
+                    <div className="border-b border-gray-100">
+                      <div className="px-5 pt-3 pb-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <ShoppingCart className="w-3.5 h-3.5 text-indigo-500" />
+                            <p className="text-sm font-semibold text-gray-800">Órdenes de compra</p>
+                            {selectedOrderIds.size > 0 && (
+                              <span className="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full font-medium">
+                                {totalSelRecibido}/{totalSelOrdenado}
+                              </span>
+                            )}
+                          </div>
+                          <button onClick={fetchOrdenes} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                            <RefreshCw className="w-3 h-3" />
+                          </button>
                         </div>
-                      ) : ordenes.length === 0 ? (
-                        <div className="py-6 text-center text-gray-400 text-sm">No hay órdenes pendientes</div>
-                      ) : ordenes.map(orden => {
-                        const isSelected = selectedOrderIds.has(orden.id)
-                        const isExpanded = expandedOrders.has(orden.id)
-                        const useOrdered = useOrderedQtyOrderIds.has(orden.id)
-                        const displayRecibido = useOrdered ? orden.total_ordenado : orden.total_recibido
-                        const incomplete = orden.total_recibido < orden.total_ordenado
-                        return (
-                          <div key={orden.id} className={isSelected ? 'bg-indigo-50/30' : 'bg-white'}>
-                            <div className="px-3 py-2.5 flex items-start gap-2 cursor-pointer hover:bg-indigo-50/50" onClick={() => toggleOrder(orden.id)}>
-                              <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300'}`}>
-                                {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-semibold text-gray-900 text-xs">{orden.numero_orden}</span>
-                                  {estadoBadge(orden.estado)}
-                                  <span className={`text-[10px] font-mono px-1 py-0.5 rounded border ${
-                                    useOrdered
+                      </div>
+
+                      <div className="max-h-52 overflow-y-auto divide-y divide-gray-50 mx-2 mb-2 border border-gray-100 rounded-xl">
+                        {loadingOrdenes ? (
+                          <div className="flex items-center justify-center py-6 gap-2 text-gray-400">
+                            <Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Cargando...</span>
+                          </div>
+                        ) : ordenes.length === 0 ? (
+                          <div className="py-6 text-center text-gray-400 text-sm">No hay órdenes pendientes</div>
+                        ) : ordenes.map(orden => {
+                          const isSelected = selectedOrderIds.has(orden.id)
+                          const isExpanded = expandedOrders.has(orden.id)
+                          const useOrdered = useOrderedQtyOrderIds.has(orden.id)
+                          const displayRecibido = useOrdered ? orden.total_ordenado : orden.total_recibido
+                          const incomplete = orden.total_recibido < orden.total_ordenado
+                          return (
+                            <div key={orden.id} className={isSelected ? 'bg-indigo-50/30' : 'bg-white'}>
+                              <div className="px-3 py-2.5 flex items-start gap-2 cursor-pointer hover:bg-indigo-50/50" onClick={() => toggleOrder(orden.id)}>
+                                <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300'}`}>
+                                  {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-semibold text-gray-900 text-xs">{orden.numero_orden}</span>
+                                    {estadoBadge(orden.estado)}
+                                    <span className={`text-[10px] font-mono px-1 py-0.5 rounded border ${useOrdered
                                       ? 'text-violet-700 bg-violet-50 border-violet-200'
                                       : incomplete
                                         ? 'text-amber-700 bg-amber-50 border-amber-200'
                                         : 'text-green-700 bg-green-50 border-green-200'
-                                  }`}>
-                                    ({displayRecibido}/{orden.total_ordenado})
-                                    {useOrdered && incomplete ? ' *' : ''}
-                                  </span>
+                                      }`}>
+                                      ({displayRecibido}/{orden.total_ordenado})
+                                      {useOrdered && incomplete ? ' *' : ''}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-gray-500 truncate">{orden.proveedor || '—'}</p>
+                                  {incomplete && (
+                                    <label
+                                      className="mt-1.5 flex items-center gap-1.5 text-[10px] text-violet-700 cursor-pointer select-none w-fit"
+                                      onClick={e => toggleUseOrderedQty(orden.id, e)}
+                                    >
+                                      <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${useOrdered ? 'bg-violet-600 border-violet-600 text-white' : 'border-violet-300 bg-white'}`}>
+                                        {useOrdered && <CheckCircle2 className="w-2.5 h-2.5" />}
+                                      </div>
+                                      Usar cantidad ordenada ({orden.total_ordenado}/{orden.total_ordenado})
+                                    </label>
+                                  )}
                                 </div>
-                                <p className="text-[10px] text-gray-500 truncate">{orden.proveedor || '—'}</p>
-                                {incomplete && (
-                                  <label
-                                    className="mt-1.5 flex items-center gap-1.5 text-[10px] text-violet-700 cursor-pointer select-none w-fit"
-                                    onClick={e => toggleUseOrderedQty(orden.id, e)}
-                                  >
-                                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${useOrdered ? 'bg-violet-600 border-violet-600 text-white' : 'border-violet-300 bg-white'}`}>
-                                      {useOrdered && <CheckCircle2 className="w-2.5 h-2.5" />}
-                                    </div>
-                                    Usar cantidad ordenada ({orden.total_ordenado}/{orden.total_ordenado})
-                                  </label>
-                                )}
+                                <button onClick={e => { e.stopPropagation(); toggleExpandOrder(orden.id) }} className="text-gray-400 p-0.5">
+                                  {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                </button>
                               </div>
-                              <button onClick={e => { e.stopPropagation(); toggleExpandOrder(orden.id) }} className="text-gray-400 p-0.5">
-                                {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                              </button>
-                            </div>
-                            {isExpanded && (
-                              <div className="px-3 pb-2 bg-gray-50/50 border-t border-gray-100">
-                                {orden.productos.map(p => {
-                                  const rec = useOrdered ? p.cantidad_ordenada : (p.cantidad_recibida || 0)
-                                  return (
-                                    <div key={p.id} className="flex justify-between text-[10px] gap-2 py-0.5">
-                                      <span className="text-gray-600 truncate">{p.producto_nombre}</span>
-                                      <span className={`font-mono shrink-0 ${
-                                        useOrdered
+                              {isExpanded && (
+                                <div className="px-3 pb-2 bg-gray-50/50 border-t border-gray-100">
+                                  {orden.productos.map(p => {
+                                    const rec = useOrdered ? p.cantidad_ordenada : (p.cantidad_recibida || 0)
+                                    return (
+                                      <div key={p.id} className="flex justify-between text-[10px] gap-2 py-0.5">
+                                        <span className="text-gray-600 truncate">{p.producto_nombre}</span>
+                                        <span className={`font-mono shrink-0 ${useOrdered
                                           ? 'text-violet-700'
                                           : rec < p.cantidad_ordenada
                                             ? 'text-amber-700'
                                             : 'text-green-700'
-                                      }`}>
-                                        ({rec}/{p.cantidad_ordenada})
-                                      </span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                                          }`}>
+                                          ({rec}/{p.cantidad_ordenada})
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <div className="px-4 pb-3 flex justify-between items-center">
+                        <span className="text-[10px] text-gray-500">
+                          {selectedOrderIds.size}/{ordenes.length} seleccionadas
+                          {useOrderedQtyOrderIds.size > 0 && (
+                            <span className="text-violet-600"> · {useOrderedQtyOrderIds.size} con qty ordenada</span>
+                          )}
+                        </span>
+                        <div className="flex gap-2">
+                          <button onClick={() => setSelectedOrderIds(new Set(ordenes.map(o => o.id)))} className="text-[10px] text-indigo-600 font-medium">Todas</button>
+                          <span className="text-gray-300">|</span>
+                          <button onClick={() => { setSelectedOrderIds(new Set()); setUseOrderedQtyOrderIds(new Set()) }} className="text-[10px] text-gray-500 font-medium">Ninguna</button>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="px-4 pb-3 flex justify-between items-center">
-                      <span className="text-[10px] text-gray-500">
-                        {selectedOrderIds.size}/{ordenes.length} seleccionadas
-                        {useOrderedQtyOrderIds.size > 0 && (
-                          <span className="text-violet-600"> · {useOrderedQtyOrderIds.size} con qty ordenada</span>
-                        )}
-                      </span>
-                      <div className="flex gap-2">
-                        <button onClick={() => setSelectedOrderIds(new Set(ordenes.map(o => o.id)))} className="text-[10px] text-indigo-600 font-medium">Todas</button>
-                        <span className="text-gray-300">|</span>
-                        <button onClick={() => { setSelectedOrderIds(new Set()); setUseOrderedQtyOrderIds(new Set()) }} className="text-[10px] text-gray-500 font-medium">Ninguna</button>
+                    {/* Source 2: Facturas de Compra */}
+                    <div className="border-t border-gray-100">
+                      <div className="px-5 py-3 flex justify-between items-center bg-gray-50/50">
+                        <div className="flex items-center gap-2">
+                          <Receipt className="w-3.5 h-3.5 text-blue-600" />
+                          <p className="text-sm font-semibold text-gray-800">Facturas de Compra</p>
+                          {selectedPurchaseInvoiceIds.size > 0 && (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full font-medium">
+                              {selectedPurchaseInvoiceIds.size} selec.
+                            </span>
+                          )}
+                        </div>
+                        <button onClick={fetchPurchaseInvoices} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                          <RefreshCw className="w-3 h-3" />
+                        </button>
                       </div>
+
+                      <div className="max-h-52 overflow-y-auto divide-y divide-gray-50 mx-2 mb-2 border border-gray-100 rounded-xl">
+                        {loadingPurchaseInvoices ? (
+                          <div className="flex items-center justify-center py-6 gap-2 text-gray-400">
+                            <Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Cargando...</span>
+                          </div>
+                        ) : purchaseInvoices.length === 0 ? (
+                          <div className="py-6 text-center text-gray-400 text-sm">No hay facturas de compra registradas</div>
+                        ) : purchaseInvoices.map(inv => {
+                          const isSelected = selectedPurchaseInvoiceIds.has(inv.id)
+                          const isExpanded = expandedPurchaseInvoices.has(inv.id)
+                          const itemsCount = (inv.items || []).reduce((s: number, i: any) => s + (i.quantity || 0), 0)
+                          return (
+                            <div key={inv.id} className={isSelected ? 'bg-blue-50/30' : 'bg-white'}>
+                              <div className="px-3 py-2.5 flex items-start gap-2 cursor-pointer hover:bg-blue-50/50" onClick={() => togglePurchaseInvoice(inv.id)}>
+                                <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
+                                  {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-semibold text-gray-900 text-xs">{inv.numero_factura}</span>
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                                      {itemsCount} uds
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-gray-500 truncate">{inv.nombre || 'Sin nombre'}</p>
+                                </div>
+                                <button onClick={e => { e.stopPropagation(); toggleExpandPurchaseInvoice(inv.id) }} className="text-gray-400 p-0.5">
+                                  {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                </button>
+                              </div>
+                              {isExpanded && (
+                                <div className="px-3 pb-2 bg-gray-50/50 border-t border-gray-100">
+                                  {(inv.items || []).map((p: any) => (
+                                    <div key={p.id} className="flex justify-between text-[10px] gap-2 py-0.5">
+                                      <span className="text-gray-600 truncate">{p.productos?.nombre_lista || p.productos?.nombre || p.product_nombre}</span>
+                                      <span className="font-mono text-blue-700 shrink-0">
+                                        {p.quantity} uds
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <div className="px-4 pb-3 flex justify-between items-center">
+                        <span className="text-[10px] text-gray-500">
+                          {selectedPurchaseInvoiceIds.size}/{purchaseInvoices.length} seleccionadas
+                        </span>
+                        <div className="flex gap-2">
+                          <button onClick={() => setSelectedPurchaseInvoiceIds(new Set(purchaseInvoices.map(i => i.id)))} className="text-[10px] text-blue-600 font-medium">Todas</button>
+                          <span className="text-gray-300">|</span>
+                          <button onClick={() => setSelectedPurchaseInvoiceIds(new Set())} className="text-[10px] text-gray-500 font-medium">Ninguna</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Source 3: Stock físico */}
+                    <div>
+                      <div className="px-5 py-3">
+                        <div className="flex items-center justify-between cursor-pointer" onClick={toggleUseStockFisico}>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${useStockFisico ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300'}`}>
+                              {useStockFisico && <CheckCircle2 className="w-3.5 h-3.5" />}
+                            </div>
+                            <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
+                            <p className="text-sm font-semibold text-gray-800">Stock físico (almacén)</p>
+                            {loadingStock && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+                          </div>
+                          {stockFisico.length > 0 && (
+                            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
+                              {totalStockUnits}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {useStockFisico && (
+                        <div className="px-3 pb-3">
+                          <div className="relative mb-2">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={stockSearchQuery}
+                              onChange={e => setStockSearchQuery(e.target.value)}
+                              placeholder="Filtrar productos..."
+                              className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
+                            />
+                          </div>
+                          <div className="border border-gray-100 rounded-xl max-h-40 overflow-y-auto divide-y divide-gray-50">
+                            {filteredStock.length === 0 ? (
+                              <div className="py-4 text-center text-gray-400 text-xs">
+                                {loadingStock ? 'Cargando...' : 'Sin productos'}
+                              </div>
+                            ) : filteredStock.map((item, idx) => (
+                              <div key={`${item.producto_id}-${idx}`} className="flex justify-between items-center px-3 py-2 text-xs">
+                                <span className="text-gray-700 truncate flex-1 mr-2">{item.nombre}</span>
+                                <span className="font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
+                                  {item.cantidad}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1.5">
+                            {stockFisico.length} productos ({totalStockUnits} unidades totales) en almacén
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Source 2: Facturas de Compra */}
-                  <div className="border-t border-gray-100">
-                    <div className="px-5 py-3 flex justify-between items-center bg-gray-50/50">
-                      <div className="flex items-center gap-2">
-                        <Receipt className="w-3.5 h-3.5 text-blue-600" />
-                        <p className="text-sm font-semibold text-gray-800">Facturas de Compra</p>
-                        {selectedPurchaseInvoiceIds.size > 0 && (
-                          <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full font-medium">
-                            {selectedPurchaseInvoiceIds.size} selec.
-                          </span>
-                        )}
+                  {/* ── Facturas a Surtir ───────────────────── */}
+                  <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 360 }}>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-semibold text-gray-900">Facturas a surtir</h2>
+                          {selectedInvoices.length > 0 && (
+                            <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-mono">
+                              {totalSelectedPendingUnits} por surtir
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Las facturas no vencidas se cargarán desmarcadas por defecto.</p>
                       </div>
-                      <button onClick={fetchPurchaseInvoices} className="p-1 rounded hover:bg-gray-100 text-gray-400">
-                        <RefreshCw className="w-3 h-3" />
+                      <button
+                        type="button"
+                        onClick={openCotizacionModal}
+                        className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 text-xs font-semibold hover:bg-violet-100 transition-colors"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        Cotización
                       </button>
                     </div>
 
-                    <div className="max-h-52 overflow-y-auto divide-y divide-gray-50 mx-2 mb-2 border border-gray-100 rounded-xl">
-                      {loadingPurchaseInvoices ? (
-                        <div className="flex items-center justify-center py-6 gap-2 text-gray-400">
-                          <Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Cargando...</span>
-                        </div>
-                      ) : purchaseInvoices.length === 0 ? (
-                        <div className="py-6 text-center text-gray-400 text-sm">No hay facturas de compra registradas</div>
-                      ) : purchaseInvoices.map(inv => {
-                        const isSelected = selectedPurchaseInvoiceIds.has(inv.id)
-                        const isExpanded = expandedPurchaseInvoices.has(inv.id)
-                        const itemsCount = (inv.items || []).reduce((s: number, i: any) => s + (i.quantity || 0), 0)
+                    <div className="relative mb-3">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por folio, cliente..."
+                        value={invoiceSearch}
+                        onChange={e => setInvoiceSearch(e.target.value)}
+                        className="erp-input pl-10 w-full"
+                      />
+                      {isSearchingInvoices && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 bg-gray-50/30" style={{ maxHeight: 260 }}>
+                      {displayedInvoices.length > 0 ? displayedInvoices.map(inv => {
+                        const isSelected = !!selectedInvoices.find(i => i.id === inv.id)
                         return (
-                          <div key={inv.id} className={isSelected ? 'bg-blue-50/30' : 'bg-white'}>
-                            <div className="px-3 py-2.5 flex items-start gap-2 cursor-pointer hover:bg-blue-50/50" onClick={() => togglePurchaseInvoice(inv.id)}>
-                              <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
-                                {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-semibold text-gray-900 text-xs">{inv.numero_factura}</span>
-                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
-                                    {itemsCount} uds
-                                  </span>
-                                </div>
-                                <p className="text-[10px] text-gray-500 truncate">{inv.nombre || 'Sin nombre'}</p>
-                              </div>
-                              <button onClick={e => { e.stopPropagation(); toggleExpandPurchaseInvoice(inv.id) }} className="text-gray-400 p-0.5">
-                                {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                              </button>
+                          <div
+                            key={inv.id}
+                            onClick={() => toggleInvoice(inv)}
+                            className={`p-3 cursor-pointer flex items-start gap-3 hover:bg-indigo-50/30 transition-colors ${isSelected ? 'bg-indigo-50/20' : 'bg-white'}`}
+                          >
+                            <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300'}`}>
+                              {isSelected && <CheckCircle2 className="w-3 h-3" />}
                             </div>
-                            {isExpanded && (
-                              <div className="px-3 pb-2 bg-gray-50/50 border-t border-gray-100">
-                                {(inv.items || []).map((p: any) => (
-                                  <div key={p.id} className="flex justify-between text-[10px] gap-2 py-0.5">
-                                    <span className="text-gray-600 truncate">{p.productos?.nombre_lista || p.productos?.nombre || p.product_nombre}</span>
-                                    <span className="font-mono text-blue-700 shrink-0">
-                                      {p.quantity} uds
-                                    </span>
-                                  </div>
-                                ))}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-gray-900 text-sm flex items-center gap-1.5 flex-wrap">
+                                {inv.numero_factura}
+                                {inv.isCotizacion ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-violet-50 text-violet-700 border-violet-200">
+                                    Cotización
+                                  </span>
+                                ) : (
+                                  <>
+                                    <ShippingLimitBadge invoice={inv} />
+                                    {surtidoBadge(inv.estado_surtido)}
+                                  </>
+                                )}
                               </div>
-                            )}
+                              <p className="text-xs text-gray-500 truncate mt-0.5">{inv.cliente_nombre}</p>
+                            </div>
                           </div>
                         )
-                      })}
+                      }) : (
+                        <div className="py-8 text-center text-gray-400">
+                          <Search className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No hay facturas</p>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="px-4 pb-3 flex justify-between items-center">
-                      <span className="text-[10px] text-gray-500">
-                        {selectedPurchaseInvoiceIds.size}/{purchaseInvoices.length} seleccionadas
+                    <div className="pt-2 flex justify-between items-center text-xs">
+                      <span className="text-gray-500">
+                        Seleccionadas: <span className="font-bold text-indigo-600">{selectedInvoices.length}</span> ({totalSelectedPendingUnits} por surtir)
                       </span>
-                      <div className="flex gap-2">
-                        <button onClick={() => setSelectedPurchaseInvoiceIds(new Set(purchaseInvoices.map(i => i.id)))} className="text-[10px] text-blue-600 font-medium">Todas</button>
-                        <span className="text-gray-300">|</span>
-                        <button onClick={() => setSelectedPurchaseInvoiceIds(new Set())} className="text-[10px] text-gray-500 font-medium">Ninguna</button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedInvoices(displayedInvoices.filter((i: any) => !i.isCotizacion).concat(selectedInvoices.filter(i => i.isCotizacion)))}
+                        className="text-indigo-600 font-medium"
+                      >
+                        Seleccionar visibles
+                      </button>
                     </div>
                   </div>
 
-                  {/* Source 3: Stock físico */}
-                  <div>
-                    <div className="px-5 py-3">
-                      <div className="flex items-center justify-between cursor-pointer" onClick={toggleUseStockFisico}>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${useStockFisico ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300'}`}>
-                            {useStockFisico && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          </div>
-                          <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
-                          <p className="text-sm font-semibold text-gray-800">Stock físico (almacén)</p>
-                          {loadingStock && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
-                        </div>
-                        {stockFisico.length > 0 && (
-                          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
-                            {totalStockUnits} uds.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {useStockFisico && (
-                      <div className="px-3 pb-3">
-                        <div className="relative mb-2">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                          <input
-                            type="text"
-                            value={stockSearchQuery}
-                            onChange={e => setStockSearchQuery(e.target.value)}
-                            placeholder="Filtrar productos..."
-                            className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
-                          />
-                        </div>
-                        <div className="border border-gray-100 rounded-xl max-h-40 overflow-y-auto divide-y divide-gray-50">
-                          {filteredStock.length === 0 ? (
-                            <div className="py-4 text-center text-gray-400 text-xs">
-                              {loadingStock ? 'Cargando...' : 'Sin productos'}
-                            </div>
-                          ) : filteredStock.map((item, idx) => (
-                            <div key={`${item.producto_id}-${idx}`} className="flex justify-between items-center px-3 py-2 text-xs">
-                              <span className="text-gray-700 truncate flex-1 mr-2">{item.nombre}</span>
-                              <span className="font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
-                                {item.cantidad} uds.
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1.5">
-                          {stockFisico.length} productos ({totalStockUnits} unidades totales) en almacén
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    onClick={handleProcess}
+                    disabled={loading || (selectedOrderIds.size === 0 && selectedPurchaseInvoiceIds.size === 0 && !useStockFisico) || selectedInvoices.length === 0}
+                    className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                    Analizar y Repartir
+                  </button>
                 </div>
-
-                {/* ── Facturas a Surtir ───────────────────── */}
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 360 }}>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-base font-semibold text-gray-900">Facturas a surtir</h2>
-                        {selectedInvoices.length > 0 && (
-                          <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-mono">
-                            {totalSelectedPendingUnits} uds. por surtir
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Las facturas no vencidas se cargarán desmarcadas por defecto.</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={openCotizacionModal}
-                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 text-xs font-semibold hover:bg-violet-100 transition-colors"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                      Cotización
-                    </button>
-                  </div>
-
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Buscar por folio, cliente..."
-                      value={invoiceSearch}
-                      onChange={e => setInvoiceSearch(e.target.value)}
-                      className="erp-input pl-10 w-full"
-                    />
-                    {isSearchingInvoices && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 border border-gray-100 rounded-xl overflow-y-auto divide-y divide-gray-50 bg-gray-50/30" style={{ maxHeight: 260 }}>
-                    {displayedInvoices.length > 0 ? displayedInvoices.map(inv => {
-                      const isSelected = !!selectedInvoices.find(i => i.id === inv.id)
-                      return (
-                        <div
-                          key={inv.id}
-                          onClick={() => toggleInvoice(inv)}
-                          className={`p-3 cursor-pointer flex items-start gap-3 hover:bg-indigo-50/30 transition-colors ${isSelected ? 'bg-indigo-50/20' : 'bg-white'}`}
-                        >
-                          <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300'}`}>
-                            {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-gray-900 text-sm flex items-center gap-1.5 flex-wrap">
-                              {inv.numero_factura}
-                              {inv.isCotizacion ? (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-violet-50 text-violet-700 border-violet-200">
-                                  Cotización
-                                </span>
-                              ) : (
-                                <>
-                                  <ShippingLimitBadge invoice={inv} />
-                                  {surtidoBadge(inv.estado_surtido)}
-                                </>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 truncate mt-0.5">{inv.cliente_nombre}</p>
-                          </div>
-                        </div>
-                      )
-                    }) : (
-                      <div className="py-8 text-center text-gray-400">
-                        <Search className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">No hay facturas</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2 flex justify-between items-center text-xs">
-                    <span className="text-gray-500">
-                      Seleccionadas: <span className="font-bold text-indigo-600">{selectedInvoices.length}</span> ({totalSelectedPendingUnits} unidades por surtir)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedInvoices(displayedInvoices.filter((i: any) => !i.isCotizacion).concat(selectedInvoices.filter(i => i.isCotizacion)))}
-                      className="text-indigo-600 font-medium"
-                    >
-                      Seleccionar visibles
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleProcess}
-                  disabled={loading || (selectedOrderIds.size === 0 && selectedPurchaseInvoiceIds.size === 0 && !useStockFisico) || selectedInvoices.length === 0}
-                  className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                  Analizar y Repartir
-                </button>
-              </div>
               )}
 
               {/* ── Right Column: Results ─────────────────── */}
@@ -2380,7 +2381,7 @@ export default function ImportRepartitionPage() {
                               </span>
                             )}
                           </div>
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {packedBoxes.map((box, idx) => {
                               const missingDimsCount = box.items.filter((i: any) => i.missingDimensions).length
@@ -2934,11 +2935,10 @@ export default function ImportRepartitionPage() {
                     type="button"
                     disabled={already || isAddingCotizacion}
                     onClick={() => handleSelectCotizacion(cot)}
-                    className={`w-full text-left p-3 flex items-start gap-3 transition-colors ${
-                      already
-                        ? 'bg-violet-50/60 opacity-70 cursor-default'
-                        : 'bg-white hover:bg-violet-50/40'
-                    }`}
+                    className={`w-full text-left p-3 flex items-start gap-3 transition-colors ${already
+                      ? 'bg-violet-50/60 opacity-70 cursor-default'
+                      : 'bg-white hover:bg-violet-50/40'
+                      }`}
                   >
                     <div className="mt-0.5 w-8 h-8 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
                       <FileSpreadsheet className="w-4 h-4" />
@@ -2980,350 +2980,351 @@ export default function ImportRepartitionPage() {
         </div>
       </Modal>
 
-      {/* Floating Button for totals */}
-      <button
-        onClick={() => setShowTotalsDrawer(true)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-indigo-600 hover:bg-indigo-700 text-white rounded-l-2xl py-4 px-2.5 shadow-2xl flex flex-col items-center gap-2 cursor-pointer transition-all hover:pr-4 group"
-        title="Ver Resumen de Totales"
-      >
-        <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        <span className="text-[10px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">Totales</span>
-      </button>
+      {/* Floating Button for totals & Totals Drawer (Portaled to document.body to avoid parent transform scrolling clipping) */}
+      {mounted && createPortal(
+        <>
+          <button
+            onClick={() => setShowTotalsDrawer(true)}
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-indigo-600 hover:bg-indigo-700 text-white rounded-l-2xl py-4 px-2.5 shadow-2xl flex flex-col items-center gap-2 cursor-pointer transition-all hover:pr-4 group"
+            title="Ver Resumen de Totales"
+          >
+            <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="text-[10px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] select-none">Totales</span>
+          </button>
 
-      {/* Totals Drawer */}
-      <AnimatePresence>
-        {showTotalsDrawer && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowTotalsDrawer(false)}
-              className="fixed inset-0 bg-black z-50 cursor-pointer"
-            />
+          <AnimatePresence>
+            {showTotalsDrawer && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.5 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowTotalsDrawer(false)}
+                  className="fixed inset-0 bg-black z-50 cursor-pointer"
+                />
 
-            {/* Content Drawer Panel */}
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 h-screen h-[100dvh] w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col overflow-hidden"
-            >
-              {/* Header */}
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between pb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-indigo-600" />
-                    Resumen de Totales
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Totales globales y por artículo o por factura a surtir
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleExportTotalsCSV}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-100 transition-colors shadow-sm"
-                  >
-                    <Download className="w-4 h-4" />
-                    Exportar CSV
-                  </button>
-                  <button
-                    onClick={() => setShowTotalsDrawer(false)}
-                    className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Drawer Tabs Header */}
-              <div className="flex border-b border-gray-100 bg-gray-50/60 px-6 pt-3 gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setTotalsDrawerTab('article')}
-                  className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
-                    totalsDrawerTab === 'article'
-                      ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg shadow-sm'
-                      : 'border-transparent text-gray-500 hover:text-gray-900'
-                  }`}
+                {/* Content Drawer Panel */}
+                <motion.div
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                  className="fixed right-0 top-0 bottom-0 h-screen h-[100dvh] w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col overflow-hidden"
                 >
-                  <Package className="w-3.5 h-3.5" />
-                  Por Artículo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTotalsDrawerTab('invoice')}
-                  className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
-                    totalsDrawerTab === 'invoice'
-                      ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg shadow-sm'
-                      : 'border-transparent text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  Pendientes por Factura ({
-                    selectedInvoices.filter(inv => {
-                      const totalMissing = (inv.factura_productos || []).reduce((sum: number, fp: any) => {
-                        const alloc = allocations.find(a => a.id === fp.id)
-                        const allocated = alloc ? (Number(alloc.allocatedQty) || 0) : 0
-                        const pending = getPendingQty(fp)
-                        return sum + Math.max(0, pending - allocated)
-                      }, 0)
-                      return totalMissing > 0
-                    }).length
-                  })
-                </button>
-              </div>
+                  {/* Header */}
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between pb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-indigo-600" />
+                        Resumen de Totales
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Totales globales y por artículo o por factura a surtir
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleExportTotalsCSV}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-100 transition-colors shadow-sm"
+                      >
+                        <Download className="w-4 h-4" />
+                        Exportar CSV
+                      </button>
+                      <button
+                        onClick={() => setShowTotalsDrawer(false)}
+                        className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Global Stat Cards */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Disponibles en Fuentes</span>
-                    <span className="text-2xl font-extrabold text-indigo-900 mt-1">{totalsInfo.totalAvailable}</span>
+                  {/* Drawer Tabs Header */}
+                  <div className="flex border-b border-gray-100 bg-gray-50/60 px-6 pt-3 gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setTotalsDrawerTab('article')}
+                      className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${totalsDrawerTab === 'article'
+                        ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg shadow-sm'
+                        : 'border-transparent text-gray-500 hover:text-gray-900'
+                        }`}
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      Por Artículo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTotalsDrawerTab('invoice')}
+                      className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${totalsDrawerTab === 'invoice'
+                        ? 'border-indigo-600 text-indigo-600 bg-white rounded-t-lg shadow-sm'
+                        : 'border-transparent text-gray-500 hover:text-gray-900'
+                        }`}
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      Pendientes por Factura ({
+                        selectedInvoices.filter(inv => {
+                          const totalMissing = (inv.factura_productos || []).reduce((sum: number, fp: any) => {
+                            const alloc = allocations.find(a => a.id === fp.id)
+                            const allocated = alloc ? (Number(alloc.allocatedQty) || 0) : 0
+                            const pending = getPendingQty(fp)
+                            return sum + Math.max(0, pending - allocated)
+                          }, 0)
+                          return totalMissing > 0
+                        }).length
+                      })
+                    </button>
                   </div>
-                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Pendiente Antes</span>
-                    <span className="text-2xl font-extrabold text-amber-900 mt-1">{totalsInfo.totalPendingBefore}</span>
-                  </div>
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Pendiente Después</span>
-                    <span className="text-2xl font-extrabold text-emerald-900 mt-1">{totalsInfo.totalPendingAfter}</span>
-                  </div>
-                </div>
 
-                {/* Tab Content: Por Artículo */}
-                {totalsDrawerTab === 'article' && (
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="Filtrar por nombre de artículo..."
-                        value={totalsSearchQuery}
-                        onChange={e => setTotalsSearchQuery(e.target.value)}
-                        className="erp-input pl-10 w-full"
-                      />
+                  {/* Scrollable Content */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Global Stat Cards */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Disponibles en Fuentes</span>
+                        <span className="text-2xl font-extrabold text-indigo-900 mt-1">{totalsInfo.totalAvailable}</span>
+                      </div>
+                      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Pendiente Antes</span>
+                        <span className="text-2xl font-extrabold text-amber-900 mt-1">{totalsInfo.totalPendingBefore}</span>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col justify-between shadow-sm">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Pendiente Después</span>
+                        <span className="text-2xl font-extrabold text-emerald-900 mt-1">{totalsInfo.totalPendingAfter}</span>
+                      </div>
                     </div>
 
-                    <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600">
-                            <th className="p-4">Artículo</th>
-                            <th className="p-4 text-center">Disponible</th>
-                            <th className="p-4 text-center">Pendiente Antes</th>
-                            <th className="p-4 text-center">Pendiente Después</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 text-xs">
-                          {filteredTotalsArticles.length === 0 ? (
-                            <tr>
-                              <td colSpan={4} className="p-8 text-center text-gray-400">
-                                No hay artículos coincidentes o seleccionados
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredTotalsArticles.map((art, idx) => (
-                              <tr key={`${art.name}-${idx}`} className="hover:bg-gray-50/50">
-                                <td className="p-4 font-medium text-gray-800 break-words max-w-[240px]">
-                                  {art.name}
-                                </td>
-                                <td className="p-4 text-center font-mono font-semibold text-indigo-600">
-                                  {art.available}
-                                </td>
-                                <td className="p-4 text-center font-mono font-semibold text-amber-600">
-                                  {art.pendingBefore}
-                                </td>
-                                <td className="p-4 text-center font-mono font-semibold">
-                                  <span className={`px-2 py-1 rounded-md ${
-                                    art.pendingAfter === 0
-                                      ? 'bg-green-50 text-green-700'
-                                      : 'bg-red-50 text-red-700'
-                                  }`}>
-                                    {art.pendingAfter}
-                                  </span>
-                                </td>
+                    {/* Tab Content: Por Artículo */}
+                    {totalsDrawerTab === 'article' && (
+                      <div className="space-y-4">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Filtrar por nombre de artículo..."
+                            value={totalsSearchQuery}
+                            onChange={e => setTotalsSearchQuery(e.target.value)}
+                            className="erp-input pl-10 w-full"
+                          />
+                        </div>
+
+                        <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600">
+                                <th className="p-4">Artículo</th>
+                                <th className="p-4 text-center">Disponible</th>
+                                <th className="p-4 text-center">Pendiente Antes</th>
+                                <th className="p-4 text-center">Pendiente Después</th>
                               </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab Content: Pendientes por Factura */}
-                {totalsDrawerTab === 'invoice' && (
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Filtrar facturas por folio o cliente..."
-                          value={totalsSearchQuery}
-                          onChange={e => setTotalsSearchQuery(e.target.value)}
-                          className="erp-input pl-10 w-full text-xs"
-                        />
+                            </thead>
+                            <tbody className="divide-y divide-gray-50 text-xs">
+                              {filteredTotalsArticles.length === 0 ? (
+                                <tr>
+                                  <td colSpan={4} className="p-8 text-center text-gray-400">
+                                    No hay artículos coincidentes o seleccionados
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredTotalsArticles.map((art, idx) => (
+                                  <tr key={`${art.name}-${idx}`} className="hover:bg-gray-50/50">
+                                    <td className="p-4 font-medium text-gray-800 break-words max-w-[240px]">
+                                      {art.name}
+                                    </td>
+                                    <td className="p-4 text-center font-mono font-semibold text-indigo-600">
+                                      {art.available}
+                                    </td>
+                                    <td className="p-4 text-center font-mono font-semibold text-amber-600">
+                                      {art.pendingBefore}
+                                    </td>
+                                    <td className="p-4 text-center font-mono font-semibold">
+                                      <span className={`px-2 py-1 rounded-md ${art.pendingAfter === 0
+                                        ? 'bg-green-50 text-green-700'
+                                        : 'bg-red-50 text-red-700'
+                                        }`}>
+                                        {art.pendingAfter}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 whitespace-nowrap">Ordenar por:</span>
-                        <select
-                          value={totalsDrawerInvoiceSort}
-                          onChange={e => setTotalsDrawerInvoiceSort(e.target.value as any)}
-                          className="erp-input text-xs py-1.5 px-3 pr-8 focus:ring-indigo-500 bg-white"
-                        >
-                          <option value="missingPieces">Más piezas faltantes</option>
-                          <option value="earliestPayment">Fecha de pago más antigua</option>
-                          <option value="facturaNumber">Número de factura</option>
-                        </select>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="space-y-3">
-                      {(() => {
-                        const invoicesWithMissing = selectedInvoices
-                          .map(inv => {
-                            const pendingProducts = (inv.factura_productos || [])
-                              .map((fp: any) => {
-                                const alloc = allocations.find(a => a.id === fp.id)
-                                const allocatedQty = alloc ? (Number(alloc.allocatedQty) || 0) : 0
-                                const pendingQty = getPendingQty(fp)
-                                const missingQty = Math.max(0, pendingQty - allocatedQty)
-                                return { ...fp, allocatedQty, pendingQty, missingQty }
+                    {/* Tab Content: Pendientes por Factura */}
+                    {totalsDrawerTab === 'invoice' && (
+                      <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Filtrar facturas por folio o cliente..."
+                              value={totalsSearchQuery}
+                              onChange={e => setTotalsSearchQuery(e.target.value)}
+                              className="erp-input pl-10 w-full text-xs"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 whitespace-nowrap">Ordenar por:</span>
+                            <select
+                              value={totalsDrawerInvoiceSort}
+                              onChange={e => setTotalsDrawerInvoiceSort(e.target.value as any)}
+                              className="erp-input text-xs py-1.5 px-3 pr-8 focus:ring-indigo-500 bg-white"
+                            >
+                              <option value="missingPieces">Más piezas faltantes</option>
+                              <option value="earliestPayment">Fecha de pago más antigua</option>
+                              <option value="facturaNumber">Número de factura</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {(() => {
+                            const invoicesWithMissing = selectedInvoices
+                              .map(inv => {
+                                const pendingProducts = (inv.factura_productos || [])
+                                  .map((fp: any) => {
+                                    const alloc = allocations.find(a => a.id === fp.id)
+                                    const allocatedQty = alloc ? (Number(alloc.allocatedQty) || 0) : 0
+                                    const pendingQty = getPendingQty(fp)
+                                    const missingQty = Math.max(0, pendingQty - allocatedQty)
+                                    return { ...fp, allocatedQty, pendingQty, missingQty }
+                                  })
+                                  .filter((fp: any) => fp.missingQty > 0)
+
+                                const totalMissing = pendingProducts.reduce((sum: number, fp: any) => sum + fp.missingQty, 0)
+                                return { inv, pendingProducts, totalMissing }
                               })
-                              .filter((fp: any) => fp.missingQty > 0)
+                              .filter(item => item.totalMissing > 0)
+                              .filter(item => {
+                                const q = totalsSearchQuery.toLowerCase().trim()
+                                if (!q) return true
+                                return (
+                                  (item.inv.numero_factura && String(item.inv.numero_factura).toLowerCase().includes(q)) ||
+                                  (item.inv.cliente_nombre && String(item.inv.cliente_nombre).toLowerCase().includes(q))
+                                )
+                              })
+                              .sort((a, b) => {
+                                if (totalsDrawerInvoiceSort === 'missingPieces') {
+                                  return b.totalMissing - a.totalMissing
+                                }
+                                if (totalsDrawerInvoiceSort === 'earliestPayment') {
+                                  const dateA = a.inv.fecha_pago ? new Date(a.inv.fecha_pago).getTime() : Infinity
+                                  const dateB = b.inv.fecha_pago ? new Date(b.inv.fecha_pago).getTime() : Infinity
+                                  return dateA - dateB
+                                }
+                                if (totalsDrawerInvoiceSort === 'facturaNumber') {
+                                  const numA = String(a.inv.numero_factura || '')
+                                  const numB = String(b.inv.numero_factura || '')
+                                  return numA.localeCompare(numB, undefined, { numeric: true, sensitivity: 'base' })
+                                }
+                                return 0
+                              })
 
-                            const totalMissing = pendingProducts.reduce((sum: number, fp: any) => sum + fp.missingQty, 0)
-                            return { inv, pendingProducts, totalMissing }
-                          })
-                          .filter(item => item.totalMissing > 0)
-                          .filter(item => {
-                            const q = totalsSearchQuery.toLowerCase().trim()
-                            if (!q) return true
-                            return (
-                              (item.inv.numero_factura && String(item.inv.numero_factura).toLowerCase().includes(q)) ||
-                              (item.inv.cliente_nombre && String(item.inv.cliente_nombre).toLowerCase().includes(q))
-                            )
-                          })
-                          .sort((a, b) => {
-                            if (totalsDrawerInvoiceSort === 'missingPieces') {
-                              return b.totalMissing - a.totalMissing
+                            if (invoicesWithMissing.length === 0) {
+                              return (
+                                <div className="p-8 text-center text-gray-400 border border-gray-100 rounded-xl bg-gray-50/30">
+                                  No hay facturas con piezas pendientes por surtir tras la repartición.
+                                </div>
+                              )
                             }
-                            if (totalsDrawerInvoiceSort === 'earliestPayment') {
-                              const dateA = a.inv.fecha_pago ? new Date(a.inv.fecha_pago).getTime() : Infinity
-                              const dateB = b.inv.fecha_pago ? new Date(b.inv.fecha_pago).getTime() : Infinity
-                              return dateA - dateB
-                            }
-                            if (totalsDrawerInvoiceSort === 'facturaNumber') {
-                              const numA = String(a.inv.numero_factura || '')
-                              const numB = String(b.inv.numero_factura || '')
-                              return numA.localeCompare(numB, undefined, { numeric: true, sensitivity: 'base' })
-                            }
-                            return 0
-                          })
 
-                        if (invoicesWithMissing.length === 0) {
-                          return (
-                            <div className="p-8 text-center text-gray-400 border border-gray-100 rounded-xl bg-gray-50/30">
-                              No hay facturas con piezas pendientes por surtir tras la repartición.
-                            </div>
-                          )
-                        }
-
-                        return invoicesWithMissing.map(({ inv, pendingProducts, totalMissing }) => (
-                          <div
-                            key={inv.id}
-                            className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm space-y-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-start gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleInvoice(inv)}
-                                  className="mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors bg-indigo-600 border-indigo-600 text-white"
-                                  title="Desmarcar esta factura de las facturas a surtir"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                </button>
-                                <div>
-                                  <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2 flex-wrap">
-                                    Folio: {inv.numero_factura}
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
-                                      Faltan {totalMissing} uds
-                                    </span>
-                                    {inv.isCotizacion ? (
-                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-violet-50 text-violet-700 border-violet-200">
-                                        Cotización
-                                      </span>
-                                    ) : (
-                                      <>
-                                        <ShippingLimitBadge invoice={inv} />
-                                        {surtidoBadge(inv.estado_surtido)}
-                                      </>
-                                    )}
-                                  </h4>
-                                  <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                    <p className="text-xs text-gray-600 font-medium">{inv.cliente_nombre}</p>
-                                    {inv.fecha_pago && (
-                                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200 font-mono">
-                                        Pago: {new Date(inv.fecha_pago).toLocaleDateString()}
-                                      </span>
-                                    )}
+                            return invoicesWithMissing.map(({ inv, pendingProducts, totalMissing }) => (
+                              <div
+                                key={inv.id}
+                                className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm space-y-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-start gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleInvoice(inv)}
+                                      className="mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors bg-indigo-600 border-indigo-600 text-white"
+                                      title="Desmarcar esta factura de las facturas a surtir"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <div>
+                                      <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2 flex-wrap">
+                                        Folio: {inv.numero_factura}
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                                          Faltan {totalMissing} uds
+                                        </span>
+                                        {inv.isCotizacion ? (
+                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border bg-violet-50 text-violet-700 border-violet-200">
+                                            Cotización
+                                          </span>
+                                        ) : (
+                                          <>
+                                            <ShippingLimitBadge invoice={inv} />
+                                            {surtidoBadge(inv.estado_surtido)}
+                                          </>
+                                        )}
+                                      </h4>
+                                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                        <p className="text-xs text-gray-600 font-medium">{inv.cliente_nombre}</p>
+                                        {inv.fecha_pago && (
+                                          <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200 font-mono">
+                                            Pago: {new Date(inv.fecha_pago).toLocaleDateString()}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </div>
 
-                            <div className="border border-gray-100 rounded-lg overflow-hidden bg-gray-50/50">
-                              <table className="w-full text-left text-xs">
-                                <thead>
-                                  <tr className="bg-gray-100/70 text-[10px] text-gray-500 uppercase">
-                                    <th className="px-3 py-1.5">Producto Pendiente</th>
-                                    <th className="px-3 py-1.5 text-center w-16">Facturada</th>
-                                    <th className="px-3 py-1.5 text-center w-16">Pendiente</th>
-                                    <th className="px-3 py-1.5 text-center w-16">Asignado</th>
-                                    <th className="px-3 py-1.5 text-center w-16">Faltante</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                  {pendingProducts.map((fp: any) => (
-                                    <tr key={fp.id} className="hover:bg-white">
-                                      <td className="px-3 py-1.5 font-medium text-gray-800">
-                                        {fp.producto_nombre}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-center font-mono text-gray-500">
-                                        {fp.cantidad_facturada ?? fp.cantidad ?? '—'}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-center font-mono font-semibold text-amber-600">
-                                        {fp.pendingQty}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-center font-mono font-semibold text-indigo-600">
-                                        {fp.allocatedQty}
-                                      </td>
-                                      <td className="px-3 py-1.5 text-center font-mono font-semibold text-rose-600 bg-rose-50/50">
-                                        {fp.missingQty}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        ))
-                      })()}
-                    </div>
+                                <div className="border border-gray-100 rounded-lg overflow-hidden bg-gray-50/50">
+                                  <table className="w-full text-left text-xs">
+                                    <thead>
+                                      <tr className="bg-gray-100/70 text-[10px] text-gray-500 uppercase">
+                                        <th className="px-3 py-1.5">Producto Pendiente</th>
+                                        <th className="px-3 py-1.5 text-center w-16">Facturada</th>
+                                        <th className="px-3 py-1.5 text-center w-16">Pendiente</th>
+                                        <th className="px-3 py-1.5 text-center w-16">Asignado</th>
+                                        <th className="px-3 py-1.5 text-center w-16">Faltante</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {pendingProducts.map((fp: any) => (
+                                        <tr key={fp.id} className="hover:bg-white">
+                                          <td className="px-3 py-1.5 font-medium text-gray-800">
+                                            {fp.producto_nombre}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-center font-mono text-gray-500">
+                                            {fp.cantidad_facturada ?? fp.cantidad ?? '—'}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-center font-mono font-semibold text-amber-600">
+                                            {fp.pendingQty}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-center font-mono font-semibold text-indigo-600">
+                                            {fp.allocatedQty}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-center font-mono font-semibold text-rose-600 bg-rose-50/50">
+                                            {fp.missingQty}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ))
+                          })()}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </>,
+        document.body
+      )}
 
       {/* Edit Invoice Product Modal (DB) */}
       <Modal

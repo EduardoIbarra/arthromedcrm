@@ -7,7 +7,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { Product } from '@/types/database'
 import {
   ArrowLeft, PlusCircle, Trash2, FileCheck, Loader2, AlertCircle,
-  FileText, Package, FileSpreadsheet
+  FileText, Package, FileSpreadsheet, Check
 } from 'lucide-react'
 
 export default function EditPurchaseOrderPage() {
@@ -22,6 +22,7 @@ export default function EditPurchaseOrderPage() {
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<'PENDING' | 'COMPLETED' | 'CANCELLED' | 'PARTIAL'>('PENDING')
   const [items, setItems] = useState<{ product_id: string; quantity: number }[]>([])
+  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set())
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [products, setProducts] = useState<Product[]>([])
@@ -76,7 +77,26 @@ export default function EditPurchaseOrderPage() {
   }, [products])
 
   const handleAddRow = () => setItems(prev => [...prev, { product_id: '', quantity: 1 }])
-  const handleRemoveRow = (index: number) => setItems(prev => prev.filter((_, i) => i !== index))
+  const handleRemoveRow = (index: number) => {
+    setItems(prev => prev.filter((_, i) => i !== index))
+    setCheckedItems(prev => {
+      const next = new Set<number>()
+      Array.from(prev).forEach(i => {
+        if (i < index) next.add(i)
+        else if (i > index) next.add(i - 1)
+      })
+      return next
+    })
+  }
+
+  const toggleCheckItem = (index: number) => {
+    setCheckedItems(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
   const handleItemChange = (index: number, key: 'product_id' | 'quantity', value: any) => {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item
@@ -126,6 +146,31 @@ export default function EditPurchaseOrderPage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const productMap = useMemo(() => {
+    const map = new Map<string, Product>()
+    products.forEach(p => map.set(p.id, p))
+    return map
+  }, [products])
+
+  const getProductLineColor = (product?: Product | null): string | null => {
+    if (!product) return null
+    if (product.line_color) return product.line_color
+    const LINE_COLORS: Record<string, string> = {
+      'SPORTS MEDICINE': '#F8CBAD',
+      'UBE': '#33CCCC',
+      'SPINE': '#C6E0B4',
+      'ENT': '#BDD7EE',
+      'URO & GYN': '#FFE699',
+      'SYSTEMS': '#38BDF8',
+      'VISION': '#E2D5F8',
+    }
+    if (product.line) {
+      const key = product.line.trim().toUpperCase()
+      if (LINE_COLORS[key]) return LINE_COLORS[key]
+    }
+    return null
   }
 
   const totalUnits = items.reduce((s, i) => s + (i.quantity || 0), 0)
@@ -271,37 +316,90 @@ export default function EditPurchaseOrderPage() {
               </button>
             </div>
 
-            <div className="border border-gray-100 rounded-xl overflow-hidden divide-y divide-gray-100 max-h-[500px] overflow-y-auto bg-gray-50/30">
-              {items.map((item, idx) => (
-                <div key={idx} className="p-3 flex items-center gap-3">
-                  <span className="text-xs font-semibold text-gray-400 w-6 shrink-0">#{idx + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <SearchableSelect
-                      options={productOptions}
-                      value={item.product_id}
-                      onChange={val => handleItemChange(idx, 'product_id', val)}
-                      placeholder="Buscar producto..."
-                    />
-                  </div>
-                  <div className="w-28 shrink-0">
-                    <input
-                      type="number"
-                      min={1}
-                      value={item.quantity}
-                      onChange={e => handleItemChange(idx, 'quantity', e.target.value)}
-                      className="erp-input w-full py-2 text-center"
-                      placeholder="Cant."
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveRow(idx)}
-                    className="p-1.5 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+            <div className="border border-gray-100 rounded-xl overflow-hidden divide-y divide-gray-100 bg-gray-50/30">
+              {items.map((item, idx) => {
+                const product = item.product_id ? productMap.get(item.product_id) : null
+                const lineColor = getProductLineColor(product)
+                const lineName = product?.line
+                const isChecked = checkedItems.has(idx)
+
+                // Background color based on line color, plus darker overlay when checked as visual clue
+                let bgHex = lineColor ? (lineColor.startsWith('#') ? `${lineColor}28` : lineColor) : undefined
+                if (isChecked) {
+                  bgHex = lineColor ? (lineColor.startsWith('#') ? `${lineColor}70` : lineColor) : '#CBD5E1'
+                }
+
+                const rowStyle: React.CSSProperties = {
+                  backgroundColor: bgHex,
+                  borderLeft: lineColor
+                    ? `5px solid ${lineColor}`
+                    : isChecked
+                    ? '5px solid #334155'
+                    : '5px solid transparent',
+                }
+
+                return (
+                  <div
+                    key={idx}
+                    style={rowStyle}
+                    className={`p-3 flex items-center gap-3 transition-all ${isChecked ? 'shadow-inner' : ''}`}
                   >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      onClick={() => toggleCheckItem(idx)}
+                      title={isChecked ? 'Marcar como pendiente' : 'Marcar como revisado'}
+                      className={`text-xs font-bold px-2 py-1 rounded-md shrink-0 flex items-center gap-1 transition-all select-none cursor-pointer ${
+                        isChecked
+                          ? 'bg-slate-800 text-white shadow-xs scale-105'
+                          : 'text-gray-500 hover:bg-gray-200/80 hover:text-gray-800 bg-white/60 border border-gray-200'
+                      }`}
+                    >
+                      <span>#{idx + 1}</span>
+                      {isChecked && <Check size={12} className="stroke-[3]" />}
+                    </button>
+
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <SearchableSelect
+                          options={productOptions}
+                          value={item.product_id}
+                          onChange={val => handleItemChange(idx, 'product_id', val)}
+                          placeholder="Buscar producto..."
+                        />
+                      </div>
+                      {lineName && (
+                        <span
+                          className="px-2.5 py-1 rounded-md text-xs font-bold shrink-0 shadow-xs"
+                          style={{
+                            backgroundColor: lineColor ? `${lineColor}45` : '#E5E7EB',
+                            color: '#1E293B',
+                            border: lineColor ? `1px solid ${lineColor}` : undefined
+                          }}
+                        >
+                          {lineName}
+                        </span>
+                      )}
+                    </div>
+                    <div className="w-28 shrink-0">
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={e => handleItemChange(idx, 'quantity', e.target.value)}
+                        className="erp-input w-full py-2 text-center bg-white/90"
+                        placeholder="Cant."
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRow(idx)}
+                      className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
