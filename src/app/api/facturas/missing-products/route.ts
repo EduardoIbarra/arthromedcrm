@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { isExcludedServiceConcept } from '@/lib/productFuzzyMatch'
 
 export const dynamic = 'force-dynamic'
 
@@ -155,6 +156,8 @@ export async function GET() {
 
     for (const invoice of filteredInvoices) {
       for (const prod of invoice.factura_productos) {
+        if (isExcludedServiceConcept(prod.producto_nombre)) continue
+
         // Resolve product ID — use direct ID or fallback matching for null
         const resolvedId = prod.producto_id ?? resolveProductId(prod.producto_nombre, prod.producto_codigo)
         if (!resolvedId) continue  // truly unresolvable (e.g. shipping/service lines)
@@ -210,6 +213,8 @@ export async function GET() {
       const invoiceItems: Array<{ product_id: string; name: string; code: string; missing: number }> = []
 
       for (const prod of invoice.factura_productos) {
+        if (isExcludedServiceConcept(prod.producto_nombre)) continue
+
         const resolvedId = prod.producto_id ?? resolveProductId(prod.producto_nombre, prod.producto_codigo)
         if (!resolvedId) continue
         const qtyFacturada = prod.cantidad_facturada || 0
