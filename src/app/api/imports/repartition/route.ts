@@ -679,7 +679,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         allocations: [],
         remainingInventory: inventoryMap,
-        aiReasoning: 'No hay facturas ni cotizaciones pendientes o válidas seleccionadas (folios F* y N* se ignoran).',
+        aiReasoning: 'No hay facturas ni cotizaciones pendientes o válidas seleccionadas.',
         invoiceIdFromChina
       });
     }

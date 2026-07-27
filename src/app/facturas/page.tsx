@@ -1142,7 +1142,7 @@ export default function FacturasPage() {
                               )
                             case 'cliente':
                               return (
-                                <td key={col.id} className="p-4 font-medium text-gray-900 max-w-[200px] truncate">
+                                <td key={col.id} className="p-4 font-medium text-gray-900 max-w-[200px] truncate" title={invoice.cliente_nombre}>
                                   {invoice.cliente_nombre}
                                 </td>
                               )

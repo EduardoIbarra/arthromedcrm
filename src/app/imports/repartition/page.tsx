@@ -695,7 +695,7 @@ export default function ImportRepartitionPage() {
     if (mainTab === 'historial' && history.length === 0) fetchHistory()
   }, [mainTab])
 
-  // Invoice search (exclude F* / N* folios & service-only facturas)
+  // Invoice search (allow explicitly searched folios like N-2610, excluding service-only facturas)
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (invoiceSearch.length < 2) { setInvoiceResults([]); return }
@@ -703,7 +703,7 @@ export default function ImportRepartitionPage() {
       try {
         const res = await fetch(`/api/invoices?search=${encodeURIComponent(invoiceSearch)}&pageSize=50`)
         const data = await res.json()
-        const filtered = (data.data || []).filter((inv: any) => !isExcludedPrefixedFactura(inv) && !isOnlyServiceFactura(inv))
+        const filtered = (data.data || []).filter((inv: any) => !isOnlyServiceFactura(inv))
         setInvoiceResults(filtered)
       } catch (err) { console.error(err) }
       finally { setIsSearchingInvoices(false) }
