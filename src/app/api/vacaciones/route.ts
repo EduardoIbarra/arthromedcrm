@@ -71,7 +71,9 @@ export async function POST(request: NextRequest) {
       fecha_fin,
       fecha_regreso,
       observaciones,
-      log_usuario
+      log_usuario,
+      tipo,
+      con_goce_sueldo
     } = body
 
     if (
@@ -105,6 +107,9 @@ export async function POST(request: NextRequest) {
     const nextNum = String(count + 1).padStart(3, '0')
     const folio = `VAC-${datePrefix}-${nextNum}`
 
+    const tipoValue = tipo === 'PERMISO' ? 'PERMISO' : 'VACACIONES'
+    const conGoceValue = typeof con_goce_sueldo === 'boolean' ? con_goce_sueldo : true
+
     const result = await prisma.$transaction(async (tx: any) => {
       const nuevaVacacion = await tx.vacaciones.create({
         data: {
@@ -119,6 +124,8 @@ export async function POST(request: NextRequest) {
           fecha_fin: new Date(fecha_fin),
           fecha_regreso: new Date(fecha_regreso),
           observaciones: observaciones || null,
+          tipo: tipoValue,
+          con_goce_sueldo: conGoceValue,
           status: 'PENDIENTE',
           created_by: user.id
         }
@@ -130,7 +137,7 @@ export async function POST(request: NextRequest) {
           vacacion_id: nuevaVacacion.id,
           usuario: log_usuario || user.email || 'Sistema',
           accion: 'SOLICITANTE_CREO',
-          detalles: `Solicitud de vacaciones de ${dias_solicitados} días creada con folio ${folio}`
+          detalles: `Solicitud de ${tipoValue.toLowerCase()} (${conGoceValue ? 'Con goce' : 'Sin goce'}) de ${dias_solicitados} días creada con folio ${folio}`
         }
       })
 

@@ -15,6 +15,8 @@ interface Vacacion {
   fecha_solicitud: string
   empleado_nombre: string
   empleado_cargo: string
+  tipo?: string
+  con_goce_sueldo?: boolean
   dias_solicitados: number
   periodo_correspondiente: string
   fecha_inicio: string
@@ -262,6 +264,14 @@ export default function VacacionesPage() {
                           <Link href={`/vacaciones/${v.id}`} className="hover:text-teal-600 hover:underline flex flex-col">
                             <span className="font-semibold text-teal-700">{v.folio}</span>
                             <span className="text-xs text-gray-400 font-normal">{formatDate(v.fecha_solicitud)}</span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${v.tipo === 'PERMISO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {v.tipo === 'PERMISO' ? 'Permiso' : 'Vacaciones'}
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${v.con_goce_sueldo === false ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                {v.con_goce_sueldo === false ? 'Sin goce' : 'Con goce'}
+                              </span>
+                            </div>
                           </Link>
                         </td>
                         <td className="px-4 py-3.5">

@@ -175,16 +175,22 @@ export async function GET(
       page1.drawText(value || '—', { x: gx + 115, y: gy, size: 8.5, font: regular, color: GRAY })
     }
 
+    const tipoText = (vacacion as any).tipo === 'PERMISO' ? 'PERMISO' : 'VACACIONES'
+    const goceText = (vacacion as any).con_goce_sueldo === false ? 'SIN GOCE DE SUELDO' : 'CON GOCE DE SUELDO'
+
     drawField1('No. de Folio:', vacacion.folio, colLeft1, y)
     drawField1('Fecha de Solicitud:', formatDate(vacacion.fecha_solicitud), colLeft2, y)
-    y -= 16
+    y -= 15
     drawField1('Nombre Empleado:', vacacion.empleado_nombre, colLeft1, y)
     drawField1('Cargo que Desempeña:', vacacion.empleado_cargo, colLeft2, y)
-    y -= 16
+    y -= 15
+    drawField1('Tipo de Solicitud:', tipoText, colLeft1, y)
+    drawField1('Goce de Sueldo:', goceText, colLeft2, y)
+    y -= 15
     drawField1('Días Solicitados:', `${vacacion.dias_solicitados} días`, colLeft1, y)
     drawField1('Año / Ejercicio:', vacacion.periodo_correspondiente, colLeft2, y)
 
-    y -= 35
+    y -= 30
 
     // Legal Statement Box
     page1.drawRectangle({
@@ -197,7 +203,8 @@ export async function GET(
       borderWidth: 0.5,
     })
 
-    const legalText = `Por medio del presente y de conformidad con los artículos 76, 77, y 78 de la Ley Federal del Trabajo, solicito la autorización de ${vacacion.dias_solicitados} días del total de vacaciones correspondientes del ${vacacion.periodo_correspondiente}, las cuales deseo gozar en el siguiente periodo:`
+    const conceptoStr = tipoText === 'PERMISO' ? 'permiso de ausencia' : 'vacaciones'
+    const legalText = `Por medio del presente y de conformidad con los artículos 76, 77, y 78 de la Ley Federal del Trabajo, solicito la autorización de ${vacacion.dias_solicitados} días por concepto de ${conceptoStr} (${goceText.toLowerCase()}) correspondientes del ${vacacion.periodo_correspondiente}, las cuales deseo gozar en el siguiente periodo:`
     const legalLines = wrapText(legalText, regular, 8, CONTENT_W - 20)
 
     let ly = y - 18
@@ -338,14 +345,17 @@ export async function GET(
 
     drawField2('No. de Folio:', vacacion.folio, colLeft1, y)
     drawField2('Estatus de la Solicitud:', vacacion.status, colLeft2, y, true)
-    y -= 16
+    y -= 15
+    drawField2('Tipo de Solicitud:', tipoText, colLeft1, y)
+    drawField2('Goce de Sueldo:', goceText, colLeft2, y)
+    y -= 15
     drawField2('Fecha de Autorización:', formatDate(vacacion.fecha_autorizacion), colLeft1, y)
     drawField2('Días Autorizados:', vacacion.dias_autorizados ? `${vacacion.dias_autorizados} días` : `${vacacion.dias_solicitados} días`, colLeft2, y)
-    y -= 16
+    y -= 15
     drawField2('Nombre Autorizador:', vacacion.autorizador_nombre || '—', colLeft1, y)
     drawField2('Cargo que Desempeña:', vacacion.autorizador_cargo || '—', colLeft2, y)
 
-    y -= 35
+    y -= 30
 
     // Authorized Period Header Bar
     page2.drawRectangle({

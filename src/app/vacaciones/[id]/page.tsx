@@ -18,6 +18,8 @@ interface VacacionDetail {
   empleado_id?: string
   empleado_nombre: string
   empleado_cargo: string
+  tipo?: string
+  con_goce_sueldo?: boolean
   dias_solicitados: number
   periodo_correspondiente: string
   fecha_inicio: string
@@ -304,6 +306,18 @@ export default function VacacionDetailPage({ params }: { params: Promise<{ id: s
                 <div>
                   <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Cargo que Desempeña</span>
                   <span className="text-base font-medium text-gray-800 mt-0.5 block">{vacacion.empleado_cargo}</span>
+                </div>
+                <div className="pt-2 border-t border-gray-200/60">
+                  <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipo de Solicitud</span>
+                  <span className="inline-block mt-1 px-2.5 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800 uppercase">
+                    {vacacion.tipo === 'PERMISO' ? 'Permiso' : 'Vacaciones'}
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-gray-200/60">
+                  <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Goce de Sueldo</span>
+                  <span className={`inline-block mt-1 px-2.5 py-0.5 rounded text-xs font-bold uppercase ${vacacion.con_goce_sueldo === false ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {vacacion.con_goce_sueldo === false ? 'Sin goce de sueldo' : 'Con goce de sueldo'}
+                  </span>
                 </div>
               </div>
 

@@ -49,6 +49,8 @@ export default function NuevaVacacionPage() {
   const [empleadoId, setEmpleadoId] = useState('')
   const [empleadoNombre, setEmpleadoNombre] = useState('')
   const [empleadoCargo, setEmpleadoCargo] = useState('')
+  const [tipo, setTipo] = useState<'VACACIONES' | 'PERMISO'>('VACACIONES')
+  const [conGoceSueldo, setConGoceSueldo] = useState<boolean>(true)
   const [diasSolicitados, setDiasSolicitados] = useState<number | ''>(1)
   const [periodoCorrespondiente, setPeriodoCorrespondiente] = useState(new Date().getFullYear().toString())
   const [fechaInicio, setFechaInicio] = useState('')
@@ -121,6 +123,8 @@ export default function NuevaVacacionPage() {
           empleado_id: empleadoId,
           empleado_nombre: empleadoNombre,
           empleado_cargo: empleadoCargo,
+          tipo,
+          con_goce_sueldo: conGoceSueldo,
           dias_solicitados: Number(diasSolicitados),
           periodo_correspondiente: periodoCorrespondiente,
           fecha_inicio: fechaInicio,
@@ -220,6 +224,58 @@ export default function NuevaVacacionPage() {
                   onChange={e => setEmpleadoCargo(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 shadow-xs"
                 />
+              </div>
+            </div>
+
+            {/* Tipo y Goce de sueldo */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-3 border-t border-gray-100">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                  Tipo de Solicitud
+                </label>
+                <div className="flex items-center gap-4">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tipo_solicitud"
+                      value="VACACIONES"
+                      checked={tipo === 'VACACIONES'}
+                      onChange={() => setTipo('VACACIONES')}
+                      className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                    />
+                    Vacaciones
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tipo_solicitud"
+                      value="PERMISO"
+                      checked={tipo === 'PERMISO'}
+                      onChange={() => setTipo('PERMISO')}
+                      className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                    />
+                    Permiso
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                  Goce de Sueldo
+                </label>
+                <div className="flex items-center gap-4">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={conGoceSueldo}
+                      onChange={e => setConGoceSueldo(e.target.checked)}
+                      className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                    />
+                    <span className={conGoceSueldo ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                      {conGoceSueldo ? 'Con goce de sueldo' : 'Sin goce de sueldo'}
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>

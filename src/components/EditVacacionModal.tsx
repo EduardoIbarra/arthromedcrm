@@ -11,6 +11,8 @@ interface Vacacion {
   empleado_id?: string
   empleado_nombre: string
   empleado_cargo: string
+  tipo?: string
+  con_goce_sueldo?: boolean
   dias_solicitados: number
   periodo_correspondiente: string
   fecha_inicio: string
@@ -80,6 +82,8 @@ export default function EditVacacionModal({
   const [empleadoId, setEmpleadoId] = useState('')
   const [empleadoNombre, setEmpleadoNombre] = useState('')
   const [empleadoCargo, setEmpleadoCargo] = useState('')
+  const [tipo, setTipo] = useState<'VACACIONES' | 'PERMISO'>('VACACIONES')
+  const [conGoceSueldo, setConGoceSueldo] = useState<boolean>(true)
   const [diasSolicitados, setDiasSolicitados] = useState<number | ''>(1)
   const [periodoCorrespondiente, setPeriodoCorrespondiente] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
@@ -127,6 +131,8 @@ export default function EditVacacionModal({
       setEmpleadoId(vacacion.empleado_id || '')
       setEmpleadoNombre(vacacion.empleado_nombre || '')
       setEmpleadoCargo(vacacion.empleado_cargo || '')
+      setTipo(vacacion.tipo === 'PERMISO' ? 'PERMISO' : 'VACACIONES')
+      setConGoceSueldo(vacacion.con_goce_sueldo !== undefined && vacacion.con_goce_sueldo !== null ? vacacion.con_goce_sueldo : true)
       setDiasSolicitados(vacacion.dias_solicitados || 1)
       setPeriodoCorrespondiente(vacacion.periodo_correspondiente || '')
       setFechaInicio(vacacion.fecha_inicio ? vacacion.fecha_inicio.split('T')[0] : '')
@@ -178,6 +184,8 @@ export default function EditVacacionModal({
           empleado_id: empleadoId,
           empleado_nombre: empleadoNombre,
           empleado_cargo: empleadoCargo,
+          tipo,
+          con_goce_sueldo: conGoceSueldo,
           dias_solicitados: Number(diasSolicitados),
           periodo_correspondiente: periodoCorrespondiente,
           fecha_inicio: fechaInicio,
@@ -261,6 +269,57 @@ export default function EditVacacionModal({
                 onChange={e => setEmpleadoCargo(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                Tipo de Solicitud
+              </label>
+              <div className="flex items-center gap-4 pt-1">
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="edit_tipo_solicitud"
+                    value="VACACIONES"
+                    checked={tipo === 'VACACIONES'}
+                    onChange={() => setTipo('VACACIONES')}
+                    className="w-3.5 h-3.5 text-teal-600 focus:ring-teal-500"
+                  />
+                  Vacaciones
+                </label>
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="edit_tipo_solicitud"
+                    value="PERMISO"
+                    checked={tipo === 'PERMISO'}
+                    onChange={() => setTipo('PERMISO')}
+                    className="w-3.5 h-3.5 text-teal-600 focus:ring-teal-500"
+                  />
+                  Permiso
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                Goce de Sueldo
+              </label>
+              <div className="flex items-center gap-4 pt-1">
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={conGoceSueldo}
+                    onChange={e => setConGoceSueldo(e.target.checked)}
+                    className="w-3.5 h-3.5 text-teal-600 rounded focus:ring-teal-500"
+                  />
+                  <span className={conGoceSueldo ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                    {conGoceSueldo ? 'Con goce de sueldo' : 'Sin goce de sueldo'}
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
 

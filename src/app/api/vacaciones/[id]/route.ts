@@ -70,6 +70,8 @@ export async function PUT(
       fecha_fin,
       fecha_regreso,
       observaciones,
+      tipo,
+      con_goce_sueldo,
 
       // Autorización actions
       action, // 'AUTHORIZE' | 'REJECT' | 'UPDATE' | 'CANCEL'
@@ -89,6 +91,9 @@ export async function PUT(
     const updateData: any = {
       updated_at: new Date()
     }
+
+    if (tipo !== undefined) updateData.tipo = tipo === 'PERMISO' ? 'PERMISO' : 'VACACIONES'
+    if (con_goce_sueldo !== undefined) updateData.con_goce_sueldo = Boolean(con_goce_sueldo)
 
     let accionLog = 'ACTUALIZADO'
     let detallesLog = 'Solicitud actualizada'
