@@ -292,6 +292,40 @@ export interface CarFleet {
   notes: string | null
   assigned_to_id: string | null
   assigned_to?: UserProfile | null
+  maintenance_logs?: CarFleetMaintenance[]
+  incident_logs?: CarFleetIncident[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CarFleetMaintenance {
+  id: string
+  car_id: string
+  title: string
+  type: 'preventive' | 'corrective' | 'service' | 'inspection' | 'tuning' | 'oil_change' | 'tire_change' | 'other' | string
+  description: string | null
+  cost: number | null
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | string
+  date: string
+  next_due_date: string | null
+  performed_by: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CarFleetIncident {
+  id: string
+  car_id: string
+  title: string
+  severity: 'minor' | 'moderate' | 'severe' | string
+  description: string
+  date: string
+  cost: number | null
+  status: 'open' | 'under_review' | 'resolved' | 'closed' | string
+  reported_by_id: string | null
+  reported_by?: UserProfile | null
+  notes: string | null
   created_at: string
   updated_at: string
 }

@@ -1,6 +1,8 @@
-import { PrismaClient } from '@/generated/prisma'
+import { PrismaClient, Prisma } from '@/generated/prisma'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
+import fs from 'fs'
+import path from 'path'
 
 const prismaClientSingleton = () => {
   const connectionString = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.DIRECT_URL
@@ -371,7 +373,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 24
+const TRIGGER_VERSION = 26
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>
@@ -382,6 +384,7 @@ const hasUpdates = globalThis.prisma &&
   ('ticket_updates' in globalThis.prisma) && 
   ('landing_pages' in globalThis.prisma) &&
   ('car_fleet' in globalThis.prisma) &&
+  ('car_fleet_maintenance' in globalThis.prisma) &&
   ('directorio_categorias' in globalThis.prisma) &&
   ('purchase_orders' in globalThis.prisma) &&
   ('vacaciones' in globalThis.prisma) &&
@@ -401,31 +404,80 @@ function cloneQueryArgs(args: any): any {
   return copy;
 }
 
-function isListRelation(modelName: string, relationKey: string): boolean {
-  const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[modelName]?.fields;
-  if (!modelFields) return true;
+// Prisma's runtime DMMF in this project strips `isList` / `relationFromFields`.
+// Parse schema.prisma once so soft-delete only injects `where` on list relations
+// (to-one relations reject `where` with "Unknown argument `where`").
+type RelationMeta = { isList: boolean; type: string }
 
-  const hasForeignKey = modelFields.some((f: any) => {
-    if (!f.name || typeof f.name !== 'string' || !f.name.endsWith('_id')) return false;
-    const fkPrefix = f.name.replace(/_id$/, '').toLowerCase();
-    const keyLower = relationKey.toLowerCase();
-    return (
-      keyLower === fkPrefix ||
-      keyLower.startsWith(fkPrefix) ||
-      fkPrefix.startsWith(keyLower)
-    );
-  });
+const SCALAR_TYPES = new Set([
+  'String', 'Int', 'Float', 'Boolean', 'DateTime', 'Json', 'Decimal', 'Bytes', 'BigInt'
+])
 
-  return !hasForeignKey;
+function loadRelationMeta(): Map<string, RelationMeta> {
+  const map = new Map<string, RelationMeta>()
+  const candidates = [
+    path.join(process.cwd(), 'src/generated/prisma/schema.prisma'),
+    path.join(process.cwd(), 'prisma/schema.prisma'),
+  ]
+
+  let schema = ''
+  for (const candidate of candidates) {
+    try {
+      schema = fs.readFileSync(candidate, 'utf8')
+      break
+    } catch {
+      // try next path
+    }
+  }
+  if (!schema) {
+    console.warn('[prisma soft-delete] Could not load schema.prisma; nested soft-delete filters may be skipped')
+    return map
+  }
+
+  const modelRegex = /model\s+(\w+)\s*\{([^}]+)\}/g
+  let match: RegExpExecArray | null
+  while ((match = modelRegex.exec(schema))) {
+    const modelName = match[1]
+    for (const line of match[2].split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('@@')) continue
+      const fieldMatch = trimmed.match(/^(\w+)\s+(\w+)(\[\])?(\?)?/)
+      if (!fieldMatch) continue
+      const [, fieldName, fieldType, isArray] = fieldMatch
+      if (SCALAR_TYPES.has(fieldType)) continue
+      if (!isArray && !/@relation/.test(trimmed)) continue
+      map.set(`${modelName}.${fieldName}`, { isList: Boolean(isArray), type: fieldType })
+    }
+  }
+  return map
 }
 
-function applySoftDeleteFilters(modelName: string, args: any, isRoot = true) {
+const relationMeta = loadRelationMeta()
+
+const deletedAtModels = new Set(
+  Prisma.dmmf.datamodel.models
+    .filter((model) => model.fields.some((field) => field.name === 'deleted_at'))
+    .map((model) => model.name)
+)
+
+function getRelationMeta(modelName: string, relationKey: string): RelationMeta | null {
+  return relationMeta.get(`${modelName}.${relationKey}`) || null
+}
+
+function isListRelation(modelName: string, relationKey: string): boolean {
+  const meta = getRelationMeta(modelName, relationKey)
+  // Safe default: do NOT inject `where` when metadata is missing (to-one rejects it)
+  if (!meta) return false
+  return meta.isList
+}
+
+function applySoftDeleteFilters(modelName: string, args: any, allowWhere = true) {
   if (!args) return;
 
-  const modelFields = (basePrisma as any)?._runtimeDataModel?.models?.[modelName]?.fields;
-  const hasDeletedAtField = modelFields && modelFields.some((f: any) => f.name === 'deleted_at');
+  const hasDeletedAtField = deletedAtModels.has(modelName);
 
-  if (hasDeletedAtField && !args.includeDeleted && isRoot) {
+  // Only root queries and list relations support `where`
+  if (hasDeletedAtField && !args.includeDeleted && allowWhere) {
     if (!args.where) {
       args.where = { deleted_at: null };
     } else if (args.where.deleted_at === undefined) {
@@ -440,28 +492,28 @@ function applySoftDeleteFilters(modelName: string, args: any, isRoot = true) {
       const relationConfig = relations[key];
       if (!relationConfig) continue;
 
-      const relationInfo = modelFields?.find((f: any) => f.name === key);
-      const targetModel = relationInfo?.type;
+      const meta = getRelationMeta(modelName, key);
+      if (!meta) continue;
 
-      if (targetModel) {
-        const targetFields = (basePrisma as any)?._runtimeDataModel?.models?.[targetModel]?.fields;
-        const targetHasDeletedAt = targetFields && targetFields.some((f: any) => f.name === 'deleted_at');
-        const isList = isListRelation(modelName, key);
+      const targetModel = meta.type;
+      const targetHasDeletedAt = deletedAtModels.has(targetModel);
+      const isList = meta.isList;
 
-        if (relationConfig === true) {
-          if (targetHasDeletedAt && isList) {
-            relations[key] = { where: { deleted_at: null } };
-          }
-        } else if (typeof relationConfig === 'object') {
-          if (targetHasDeletedAt && isList) {
-            if (!relationConfig.where) {
-              relationConfig.where = { deleted_at: null };
-            } else if (relationConfig.where.deleted_at === undefined) {
-              relationConfig.where.deleted_at = null;
-            }
-          }
-          applySoftDeleteFilters(targetModel, relationConfig, isList);
+      if (relationConfig === true) {
+        // Only list relations accept `{ where: ... }` as a relation filter
+        if (targetHasDeletedAt && isList) {
+          relations[key] = { where: { deleted_at: null } };
         }
+      } else if (typeof relationConfig === 'object') {
+        if (targetHasDeletedAt && isList) {
+          if (!relationConfig.where) {
+            relationConfig.where = { deleted_at: null };
+          } else if (relationConfig.where.deleted_at === undefined) {
+            relationConfig.where.deleted_at = null;
+          }
+        }
+        // Recurse: nested `where` only allowed for list relations
+        applySoftDeleteFilters(targetModel, relationConfig, isList);
       }
     }
   }
@@ -484,7 +536,6 @@ const extendedPrisma = basePrisma.$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }: any) {
-        console.log('[DEBUG $allOperations] model:', model, 'operation:', operation, 'args:', JSON.stringify(args));
         // 1. Intercept delete operation -> convert into logical update setting deleted_at = now()
         if (operation === 'delete') {
           const updateFn = (this as any)[model]?.update

@@ -2166,6 +2166,7 @@ model user_profiles {
   position                                                                    String?                      @db.VarChar(255)
   client_id                                                                   String?                      @db.Uuid
   car_fleet                                                                   car_fleet[]
+  reported_incidents                                                          car_fleet_incidents[]
   congreso_hotel_occupants                                                    congreso_hotel_occupants[]
   congreso_itinerary_members                                                  congreso_itinerary_members[]
   congreso_members                                                            congreso_members[]
@@ -2273,7 +2274,53 @@ model car_fleet {
   congress_workshop_members congress_workshop_members[]
   workshop_temp_staff       workshop_temp_staff[]
   cirugia_equipo            cirugia_equipo[]
+  maintenance_logs          car_fleet_maintenance[]
+  incident_logs             car_fleet_incidents[]
 
+  @@schema("public")
+}
+
+model car_fleet_maintenance {
+  deleted_at    DateTime? @db.Timestamptz(6)
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  car_id        String    @db.Uuid
+  title         String
+  type          String    @default("preventive") // preventive, corrective, service, inspection, tuning, oil_change, tire_change, other
+  description   String?
+  cost          Decimal?  @db.Decimal(12, 2)
+  status        String    @default("scheduled") // scheduled, in_progress, completed, cancelled
+  date          DateTime  @db.Date
+  next_due_date DateTime? @db.Date
+  performed_by  String?
+  notes         String?
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+
+  car_fleet car_fleet @relation(fields: [car_id], references: [id], onDelete: Cascade)
+
+  @@index([car_id])
+  @@schema("public")
+}
+
+model car_fleet_incidents {
+  deleted_at     DateTime? @db.Timestamptz(6)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  car_id         String    @db.Uuid
+  title          String
+  severity       String    @default("minor") // minor, moderate, severe
+  description    String
+  date           DateTime  @db.Date
+  cost           Decimal?  @db.Decimal(12, 2)
+  status         String    @default("open") // open, under_review, resolved, closed
+  reported_by_id String?   @db.Uuid
+  notes          String?
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  car_fleet   car_fleet      @relation(fields: [car_id], references: [id], onDelete: Cascade)
+  reported_by user_profiles? @relation(fields: [reported_by_id], references: [id])
+
+  @@index([car_id])
   @@schema("public")
 }
 

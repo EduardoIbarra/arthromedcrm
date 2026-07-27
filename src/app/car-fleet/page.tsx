@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Loader2, Car, Search, LayoutGrid, List, X, User } from 'lucide-react'
+import { Plus, Edit, Trash2, Loader2, Car, Search, LayoutGrid, List, X, User, Eye } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
 import { useI18n } from '@/contexts/I18nContext'
@@ -240,13 +240,16 @@ export default function CarFleetPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(car)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"><Edit size={16} /></button>
-                      <button onClick={() => handleDelete(car.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                      <a href={`/car-fleet/${car.id}`} className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors" title="Ver Detalle"><Eye size={16} /></a>
+                      <button onClick={() => openEdit(car)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Edit size={16} /></button>
+                      <button onClick={() => handleDelete(car.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar"><Trash2 size={16} /></button>
                     </div>
                   </div>
 
-                  <h3 className="font-bold text-lg text-[#0763a9] leading-tight">
-                    {car.alias || `${car.make} ${car.model}`}
+                  <h3 className="font-bold text-lg text-[#0763a9] leading-tight flex items-center justify-between">
+                    <a href={`/car-fleet/${car.id}`} className="hover:underline">
+                      {car.alias || `${car.make} ${car.model}`}
+                    </a>
                   </h3>
                   {car.alias && (
                     <p className="text-xs text-gray-400 font-semibold">{car.make} {car.model}</p>
@@ -340,8 +343,9 @@ export default function CarFleetPage() {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEdit(car)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"><Edit size={16} /></button>
-                          <button onClick={() => handleDelete(car.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                          <a href={`/car-fleet/${car.id}`} className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors" title="Ver Detalle"><Eye size={16} /></a>
+                          <button onClick={() => openEdit(car)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Edit size={16} /></button>
+                          <button onClick={() => handleDelete(car.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
