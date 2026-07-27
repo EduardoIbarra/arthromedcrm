@@ -995,47 +995,34 @@ export default function ImportRepartitionPage() {
 
     const totalAvailable = Object.values(availableByProduct).reduce((a, b) => a + b, 0)
 
-    // D. Pending to assign before repartition (selectedInvoices)
+    // Build allocation map by item ID (a.id === fp.id)
+    const allocMap = new Map<string, number>()
+    allocations.forEach(a => {
+      allocMap.set(a.id, Number(a.allocatedQty) || 0)
+    })
+
+    // D. Pending to assign before and after repartition (selectedInvoices)
     const pendingBeforeByProduct: Record<string, number> = {}
+    const pendingAfterByProduct: Record<string, number> = {}
+
     selectedInvoices.forEach(inv => {
       (inv.factura_productos || []).forEach((fp: any) => {
         const name = fp.producto_nombre || 'Desconocido'
-        const qty = getPendingQty(fp)
         const norm = normName(name)
-        pendingBeforeByProduct[norm] = (pendingBeforeByProduct[norm] || 0) + qty
+        const pendingQty = getPendingQty(fp)
+        const allocatedQty = allocMap.get(fp.id) || 0
+        const missingQty = Math.max(0, pendingQty - allocatedQty)
+
+        pendingBeforeByProduct[norm] = (pendingBeforeByProduct[norm] || 0) + pendingQty
+        pendingAfterByProduct[norm] = (pendingAfterByProduct[norm] || 0) + missingQty
+
         if (!displayNames[norm] || displayNames[norm] === 'Desconocido') {
           displayNames[norm] = name
         }
       })
     })
 
-
     const totalPendingBefore = Object.values(pendingBeforeByProduct).reduce((a, b) => a + b, 0)
-
-    // E. Pending to assign after repartition (allocations)
-    const allocatedByProduct: Record<string, number> = {}
-    allocations.forEach(a => {
-      const name = a.product || 'Desconocido'
-      const qty = Number(a.allocatedQty) || 0
-      const norm = normName(name)
-      allocatedByProduct[norm] = (allocatedByProduct[norm] || 0) + qty
-      if (!displayNames[norm] || displayNames[norm] === 'Desconocido') {
-        displayNames[norm] = name
-      }
-    })
-
-    const pendingAfterByProduct: Record<string, number> = {}
-    const allProducts = new Set([
-      ...Object.keys(pendingBeforeByProduct),
-      ...Object.keys(allocatedByProduct)
-    ])
-
-    allProducts.forEach(norm => {
-      const before = pendingBeforeByProduct[norm] || 0
-      const allocated = allocatedByProduct[norm] || 0
-      pendingAfterByProduct[norm] = Math.max(0, before - allocated)
-    })
-
     const totalPendingAfter = Object.values(pendingAfterByProduct).reduce((a, b) => a + b, 0)
 
     // Group all unique products to display in the table
