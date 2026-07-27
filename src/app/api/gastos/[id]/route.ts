@@ -16,10 +16,49 @@ export async function GET(
       gasto_attachments(*)
     `)
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 404 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!data) {
+    // Check if it's a caja chica transaction
+    try {
+      const prisma = (await import('@/lib/prisma')).default
+      const tx = await prisma.caja_chica_transactions.findUnique({
+        where: { id },
+        include: {
+          catalog_spending_categories: { select: { id: true, name: true } }
+        }
+      })
+
+      if (tx) {
+        const ccData = {
+          id: tx.id,
+          name: tx.note || tx.receiver || 'Retiro Caja Chica',
+          description: `Caja Chica (Entregó: ${tx.giver} | Recibió: ${tx.receiver})`,
+          amount: tx.amount,
+          iva_percent: 0,
+          iva: 0,
+          total: tx.amount,
+          comments: tx.note || '',
+          card: 'Caja Chica',
+          expense_date: tx.date.toISOString(),
+          category_id: tx.category_id,
+          category: tx.catalog_spending_categories || (tx.category_custom ? { name: tx.category_custom } : null),
+          is_billable: tx.is_billed,
+          is_billed: tx.is_billed,
+          is_caja_chica: true,
+          created_at: tx.created_at?.toISOString() || tx.date.toISOString()
+        }
+        return NextResponse.json({ data: ccData })
+      }
+    } catch (err: any) {
+      console.error('Error fetching caja chica item in /api/gastos/[id]:', err)
+    }
+
+    return NextResponse.json({ error: 'Gasto not found' }, { status: 404 })
   }
 
   return NextResponse.json({ data })

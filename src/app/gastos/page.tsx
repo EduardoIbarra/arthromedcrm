@@ -161,6 +161,7 @@ export default function GastosPage() {
       Nombre: g.name,
       Categoría: g.category?.name || 'Sin Categoría',
       Congreso: g.congreso?.name || '-',
+      'Tarjeta / Método': g.card || '-',
       Monto: g.amount,
       IVA: g.iva,
       Total: g.total,

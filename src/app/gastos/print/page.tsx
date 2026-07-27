@@ -492,6 +492,7 @@ function GastoPrintContent() {
                   <th className="p-3">Nombre</th>
                   <th className="p-3">Categoría</th>
                   <th className="p-3">Congreso</th>
+                  <th className="p-3">Tarjeta / Método</th>
                   <th className="p-3">Facturable</th>
                   <th className="p-3 text-right">Monto</th>
                   <th className="p-3 text-right">Total</th>
@@ -507,6 +508,7 @@ function GastoPrintContent() {
                     <td className="p-3 text-gray-600 max-w-[150px] truncate">{g.name}</td>
                     <td className="p-3 text-gray-600 font-medium">{g.category?.name || 'Sin Categoría'}</td>
                     <td className="p-3 text-gray-500 max-w-[150px] truncate">{g.congreso?.name || '-'}</td>
+                    <td className="p-3 text-gray-500 max-w-[120px] truncate">{g.card || '-'}</td>
                     <td className="p-3 whitespace-nowrap">
                       {g.is_billable ? (
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${g.is_billed ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-yellow-50 text-yellow-750 border border-yellow-250'}`}>
