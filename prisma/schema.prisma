@@ -3104,3 +3104,83 @@ model vacaciones_logs {
   @@index([vacacion_id], map: "idx_vacaciones_logs_vacacion_id")
   @@schema("public")
 }
+
+model mantenimiento_registros {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folio               String                  @unique
+  fecha_reporte       DateTime                @default(now()) @db.Timestamptz(6)
+  producto            String
+  numero_serie_lote   String
+  tipo_falla          String
+  descripcion_detalle String
+  frecuencia          Int                     @default(1)
+  observaciones       String?
+  fabricante          String?                 @default("BONSS")
+  periodo_evaluado    String?
+  evidencias          Json?
+  status              String                  @default("REGISTRADO")
+  reporte_id          String?                 @db.Uuid
+  reporte             mantenimiento_reportes? @relation(fields: [reporte_id], references: [id], onDelete: SetNull)
+  created_at          DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime                @default(now()) @db.Timestamptz(6)
+  deleted_at          DateTime?               @db.Timestamptz(6)
+
+  @@index([fabricante])
+  @@index([status])
+  @@schema("public")
+}
+
+model mantenimiento_reportes {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folio            String                    @unique
+  titulo           String                    @default("PRODUCT FAILURE REPORTING")
+  fabricante       String
+  periodo_evaluado String
+  elaborado_por    String
+  empresa          String                    @default("Arthromed")
+  fecha_reporte    DateTime                  @default(now()) @db.Timestamptz(6)
+  causas_posibles  String?
+  acciones_tomadas String?
+  idioma           String                    @default("en")
+  registros        mantenimiento_registros[]
+  created_at       DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                  @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?                 @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model mantenimiento_preventivo {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folio            String    @unique
+  cliente          String
+  cliente_id       String?   @db.Uuid
+  producto         String
+  numero_serie     String
+  fecha_servicio   DateTime  @db.Timestamptz(6)
+  elaborado_por    String    @default("Ing. Fernando Castro")
+  revisado_por     String    @default("Ing. Ricardo Puente Aranda")
+  observaciones    String?
+  tareas           Json      @default("[]")
+  status           String    @default("BORRADOR")
+  idioma           String    @default("es")
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime? @db.Timestamptz(6)
+
+  @@index([cliente_id])
+  @@index([status])
+  @@schema("public")
+}
+
+model mantenimiento_tareas_preset {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tarea               String
+  descripcion_ot      String
+  descripcion_reporte String
+  orden               Int      @default(0)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}

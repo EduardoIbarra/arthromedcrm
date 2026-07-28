@@ -75,6 +75,7 @@ export default function Sidebar() {
         { href: '/talleres', icon: BookOpen, label: t('talleres'), section: 'talleres' },
         { href: '/cirugias', icon: Scissors, label: t('surgeries' as any) || 'Cirugías', section: 'cirugias' },
         { href: '/garantias', icon: Wrench, label: t('warranties' as any) || 'Garantías', section: 'warranties' },
+        { href: '/mantenimiento', icon: Wrench, label: 'Mantenimiento', section: 'garantias' as any },
         { href: '/tickets', icon: Ticket, label: t('ticketsSidebar' as any) || 'Tickets', section: 'tickets' },
         { href: '/landing-pages', icon: Globe, label: t('landingPages' as any) || 'Landing Pages', section: 'landing_pages' },
         { href: '/communication', icon: Send, label: t('communication' as any) || 'Comunicaciones', section: 'communication' },
