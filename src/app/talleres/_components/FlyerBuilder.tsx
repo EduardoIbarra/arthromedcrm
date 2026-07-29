@@ -16,6 +16,7 @@ interface FlyerBuilderProps {
   workshopDate: string
   workshopEndDate?: string
   workshopCost: string
+  workshopLocation?: string
   congressName: string
   selectedDoctors: Doctor[]
   onSave: (flyerUrl: string) => void
@@ -46,6 +47,7 @@ export default function FlyerBuilder({
   workshopDate,
   workshopEndDate,
   workshopCost,
+  workshopLocation,
   congressName,
   selectedDoctors,
   onSave
@@ -57,7 +59,7 @@ export default function FlyerBuilder({
   const [title, setTitle] = useState(workshopName)
   const [subtitle, setSubtitle] = useState('TALLER DE ALTA ESPECIALIDAD')
   const [dateText, setDateText] = useState('')
-  const [locationText, setLocationText] = useState(congressName || 'Sede por confirmar')
+  const [locationText, setLocationText] = useState(workshopLocation || congressName || 'Sede por confirmar')
   const [costText, setCostText] = useState('')
   const [features, setFeatures] = useState<string[]>([
     'Práctica hands-on en modelos anatómicos avanzados',
@@ -76,7 +78,7 @@ export default function FlyerBuilder({
   // Pre-fill fields on open/props update
   useEffect(() => {
     setTitle(workshopName)
-    setLocationText(congressName || 'Sede por confirmar')
+    setLocationText(workshopLocation || congressName || 'Sede por confirmar')
     
     // Format date beautifully
     if (workshopDate) {

@@ -33,6 +33,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             { time: 'asc' }
           ]
         },
+        workshop_gastos_estimados: {
+          include: { catalog_spending_categories: true },
+          orderBy: { created_at: 'asc' }
+        },
         congress_workshop_enrollments: {
           include: {
             clients: {
@@ -58,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await req.json()
-    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, itinerary, flyer, description, diploma_template } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, itinerary, flyer, description, diploma_template, location, gastos } = body
 
     const result = await prisma.$transaction(async (tx: any) => {
       if (doctorIds && Array.isArray(doctorIds)) {
@@ -94,6 +98,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         await tx.workshop_itinerarios.deleteMany({ where: { workshop_id: id } })
       }
 
+      if (gastos && Array.isArray(gastos)) {
+        await tx.workshop_gastos_estimados.deleteMany({ where: { workshop_id: id } })
+      }
+
       const updated = await tx.congress_workshops.update({
         where: { id },
         data: {
@@ -110,6 +118,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           ...(professor && { professor }),
           ...(flyer !== undefined && { flyer }),
           ...(description !== undefined && { description }),
+          ...(location !== undefined && { location: location || null }),
           ...(diploma_template !== undefined && { diploma_template }),
           ...(doctorIds && Array.isArray(doctorIds) && {
             congress_workshop_doctors: {
@@ -163,6 +172,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             }
           })
         }
+      }
+
+      if (gastos && Array.isArray(gastos) && gastos.length > 0) {
+        await tx.workshop_gastos_estimados.createMany({
+          data: gastos.filter((g: any) => g.category_id && (g.amount || g.description)).map((g: any) => ({
+            workshop_id: id,
+            category_id: g.category_id,
+            description: g.description || null,
+            amount: g.amount ? parseFloat(g.amount) : 0
+          }))
+        })
       }
 
       return updated

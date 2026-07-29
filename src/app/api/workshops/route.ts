@@ -24,7 +24,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, flyer, description } = body
+    const { name, congress_id, date_time, end_date_time, max_people, cost, professor, doctorIds, memberIds, members, tempStaff, flyer, description, location, gastos } = body
 
     if (!name || !date_time || !max_people) {
       return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
         professor: professor || 'N/A', // Legacy field
         flyer: flyer || null,
         description: description || null,
+        location: location || null,
         ...(congress_id ? {
           congresos: {
             connect: { id: congress_id }
@@ -75,12 +76,22 @@ export async function POST(req: NextRequest) {
             phone: ts.phone || null,
             car_id: ts.carId || null
           }))
-        }
+        },
+        ...(gastos && Array.isArray(gastos) && gastos.length > 0 && {
+          workshop_gastos_estimados: {
+            create: gastos.filter((g: any) => g.category_id && (g.amount || g.description)).map((g: any) => ({
+              category_id: g.category_id,
+              description: g.description || null,
+              amount: g.amount ? parseFloat(g.amount) : 0
+            }))
+          }
+        })
       },
       include: {
         congress_workshop_doctors: { include: { doctors: true } },
         congress_workshop_members: { include: { user_profiles: true, car_fleet: true } },
         workshop_temp_staff: { include: { car_fleet: true } },
+        workshop_gastos_estimados: { include: { catalog_spending_categories: true } },
         congresos: true
       }
     })

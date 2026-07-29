@@ -12,6 +12,7 @@ interface WorkshopData {
   max_people: number
   cost: number | null
   congress_id: string | null
+  location?: string | null
   congresos?: { id: string; name: string; location: string } | null
   congress_workshop_doctors?: { doctors: { id: string; name: string; specialty_ids: string[]; avatar_url: string | null } }[]
   _count: { congress_workshop_enrollments: number }
@@ -30,6 +31,7 @@ export default function WorkshopLandingClient({ initialWorkshop }: { initialWork
   const docNames = workshop.congress_workshop_doctors?.map(d => d.doctors.name).join(', ') || 'Docente de Especialidad'
   const spacesLeft = Math.max(0, workshop.max_people - workshop._count.congress_workshop_enrollments)
   const isFull = spacesLeft <= 0
+  const wLocation = workshop.location || workshop.congresos?.location || 'Por confirmar'
 
   useEffect(() => {
     const registered = localStorage.getItem(`arthromed_workshop_registered_${workshop.id}`) === 'true'
@@ -357,7 +359,7 @@ export default function WorkshopLandingClient({ initialWorkshop }: { initialWork
                           return `${startDayStr} a las ${startTimeStr} hrs`
                         })()}
                       </span></p>
-                      <p className="text-gray-600 font-medium">📍 Ubicación: <span className="text-gray-900">{workshop.congresos?.location || 'Por confirmar'}</span></p>
+                      <p className="text-gray-600 font-medium">📍 Ubicación: <span className="text-gray-900">{wLocation}</span></p>
                     </div>
 
                     {(() => {
@@ -366,7 +368,7 @@ export default function WorkshopLandingClient({ initialWorkshop }: { initialWork
                       const endDateStr = endDate.toISOString().replace(/-|:|\.\d\d\d/g, "")
                       return (
                         <a
-                          href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(workshop.name)}&dates=${startDateStr}/${endDateStr}&details=${encodeURIComponent(workshop.description || '')}&location=${encodeURIComponent(workshop.congresos?.location || '')}`}
+                          href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(workshop.name)}&dates=${startDateStr}/${endDateStr}&details=${encodeURIComponent(workshop.description || '')}&location=${encodeURIComponent(wLocation)}`}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition-colors border border-blue-100"

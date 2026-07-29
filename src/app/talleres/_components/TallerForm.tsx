@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit, Car, ChevronDown, ChevronUp, Hotel, Users, BedDouble, Boxes, Wrench } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, BookOpen, Upload, FileText, X, Sparkles, User, Calendar, Clock, Plus, Trash2, Edit, Car, ChevronDown, ChevronUp, Hotel, Users, BedDouble, Boxes, Wrench, Receipt, DollarSign } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import DoctorSelector from '@/components/DoctorSelector'
 import { createClient } from '@/lib/supabase/client'
@@ -23,7 +23,7 @@ interface ItineraryItem {
   involvedMemberIds: string[]
 }
 
-type TabType = 'general' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones'
+type TabType = 'general' | 'staff' | 'itinerary' | 'resumen' | 'hotel' | 'estaciones' | 'gastos'
 
 interface HotelOccupant {
   id?: string
@@ -78,7 +78,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
 
   useEffect(() => {
     const tabParam = searchParams.get('tab') as TabType
-    if (['general', 'staff', 'itinerary', 'resumen', 'hotel', 'estaciones'].includes(tabParam)) {
+    if (['general', 'staff', 'itinerary', 'resumen', 'hotel', 'estaciones', 'gastos'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -117,10 +117,15 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
   const [editingStationNameId, setEditingStationNameId] = useState<string | null>(null)
   const [tempStationName, setTempStationName] = useState('')
 
+  // Gastos state
+  const [spendingCategories, setSpendingCategories] = useState<{ id: string; name: string }[]>([])
+  const [expenses, setExpenses] = useState<{ id?: string; category_id: string; description: string; amount: string }[]>([])
+
   const [formData, setFormData] = useState({
     name: '',
     date_time: '',
     end_date_time: '',
+    location: '',
     max_people: 20,
     cost: '',
     congress_id: '',
@@ -192,6 +197,11 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
       .then(r => r.json())
       .then(({ data }) => setCatalogProducts(data || []))
 
+    // Fetch spending categories (same categories as in /gastos)
+    fetch('/api/gastos/categories')
+      .then(r => r.json())
+      .then(({ data }) => setSpendingCategories(data || []))
+
     if (!isNew && tallerId) {
       fetch(`/api/workshops/${tallerId}`)
         .then(r => r.json())
@@ -209,6 +219,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               name: data.name || '',
               date_time: d.toISOString().slice(0, 16),
               end_date_time: end_date_time_val,
+              location: data.location || '',
               max_people: data.max_people || 20,
               cost: data.cost !== null ? String(data.cost) : '',
               congress_id: data.congress_id || '',
@@ -244,6 +255,14 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                 description: it.description,
                 notes: it.notes || '',
                 involvedMemberIds: it.involved_members.map((im: any) => im.user_id || im.temp_member_id)
+              })))
+            }
+            if (data.workshop_gastos_estimados) {
+              setExpenses(data.workshop_gastos_estimados.map((g: any) => ({
+                id: g.id,
+                category_id: g.category_id,
+                description: g.description || '',
+                amount: g.amount !== null ? String(g.amount) : ''
               })))
             }
           }
@@ -569,7 +588,8 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
           phone: tm.phone || null,
           carId: tm.carId || null
         })),
-        itinerary
+        itinerary,
+        gastos: expenses.filter(e => e.category_id && (e.amount || e.description))
       }
 
       const res = await fetch(url, {
@@ -1240,6 +1260,19 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
               Estaciones ({stations.length})
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => handleTabChange('gastos')}
+            className={`py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2
+              ${activeTab === 'gastos'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+              }
+            `}
+          >
+            <Receipt size={14} />
+            Gastos ({expenses.length})
+          </button>
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
@@ -1293,6 +1326,11 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Sede / Lugar (Venue)</label>
+                  <input type="text" className="erp-input w-full" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} placeholder="Ej. Hotel Camino Real - Salón Magistral, Monterrey, N.L." />
+                </div>
+
+                <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Volante / Flyer (Opcional)</label>
                   <div className="space-y-2">
                     {formData.flyer && (
@@ -1335,6 +1373,143 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
                   {doctorIds.length === 0 && <p className="text-xs text-orange-500 mt-1">Debes seleccionar al menos un doctor.</p>}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB: GASTOS */}
+          {activeTab === 'gastos' && (
+            <div className="card p-6 space-y-6 bg-white shadow-sm border border-gray-150 rounded-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Receipt size={20} className="text-emerald-600" />
+                    Gastos del Taller
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Registra y categoriza los gastos de este taller utilizando las mismas categorías del módulo de Gastos.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpenses(prev => [...prev, { category_id: spendingCategories[0]?.id || '', description: '', amount: '' }])}
+                  className="btn-primary text-xs py-2.5 px-4 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white self-start sm:self-auto rounded-xl font-bold shadow-sm"
+                >
+                  <Plus size={16} />
+                  Agregar Gasto
+                </button>
+              </div>
+
+              {expenses.length === 0 ? (
+                <div className="text-center py-12 px-4 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50 space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                    <Receipt size={24} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">Sin gastos registrados</p>
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1">
+                      Presiona el botón para agregar un nuevo concepto de gasto y seleccionar su categoría correspondiente.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpenses(prev => [...prev, { category_id: spendingCategories[0]?.id || '', description: '', amount: '' }])}
+                    className="btn-secondary text-xs py-2 px-4 inline-flex items-center gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-xl"
+                  >
+                    <Plus size={14} />
+                    Agregar Primer Gasto
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 rounded-xl">
+                    <div className="col-span-5">Concepto / Descripción</div>
+                    <div className="col-span-4">Categoría de Gasto</div>
+                    <div className="col-span-2 text-right">Monto ($)</div>
+                    <div className="col-span-1 text-center">Acciones</div>
+                  </div>
+
+                  {expenses.map((expense, idx) => (
+                    <div key={expense.id || idx} className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 bg-gray-50/80 rounded-2xl border border-gray-150 items-center hover:bg-white hover:shadow-sm transition-all">
+                      <div className="col-span-1 sm:col-span-5">
+                        <label className="block sm:hidden text-xs font-bold text-gray-500 mb-1">Concepto / Descripción</label>
+                        <input
+                          type="text"
+                          placeholder="Ej. Honorarios ponente, Coffee break, Renta de modelo..."
+                          className="erp-input w-full text-sm bg-white"
+                          value={expense.description}
+                          onChange={e => {
+                            const val = e.target.value
+                            setExpenses(prev => prev.map((item, i) => i === idx ? { ...item, description: val } : item))
+                          }}
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-4">
+                        <label className="block sm:hidden text-xs font-bold text-gray-500 mb-1">Categoría</label>
+                        <select
+                          className="erp-input w-full text-sm bg-white font-medium"
+                          value={expense.category_id}
+                          onChange={e => {
+                            const val = e.target.value
+                            setExpenses(prev => prev.map((item, i) => i === idx ? { ...item, category_id: val } : item))
+                          }}
+                        >
+                          <option value="">-- Seleccionar Categoría --</option>
+                          {spendingCategories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="block sm:hidden text-xs font-bold text-gray-500 mb-1">Monto ($)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            className="erp-input w-full text-sm pl-7 text-right bg-white font-bold"
+                            value={expense.amount}
+                            onChange={e => {
+                              const val = e.target.value
+                              setExpenses(prev => prev.map((item, i) => i === idx ? { ...item, amount: val } : item))
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-1 flex justify-center pt-2 sm:pt-0">
+                        <button
+                          type="button"
+                          onClick={() => setExpenses(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors"
+                          title="Eliminar gasto"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Subtotal Summary Card */}
+                  <div className="mt-6 p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-extrabold text-lg">
+                        $
+                      </div>
+                      <div>
+                        <span className="text-xs font-extrabold uppercase text-emerald-800 tracking-wide block">Total de Gastos</span>
+                        <span className="text-xs text-emerald-600 font-medium">{expenses.length} concepto(s) registrados</span>
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black text-emerald-900">
+                      ${expenses.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2407,6 +2582,7 @@ export default function TallerForm({ tallerId }: TallerFormProps) {
         workshopDate={formData.date_time}
         workshopEndDate={formData.end_date_time}
         workshopCost={formData.cost}
+        workshopLocation={formData.location}
         congressName={congresos.find(c => c.id === formData.congress_id)?.name || ''}
         selectedDoctors={allDoctors.filter(d => doctorIds.includes(d.id))}
         onSave={(url) => setFormData(p => ({ ...p, flyer: url }))}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check, Award, MoreVertical, Contact, User } from 'lucide-react'
+import { Plus, Search, Calendar, Users, DollarSign, BookOpen, Trash2, Edit, QrCode, ExternalLink, X, Loader2, Mail, Phone, Check, Award, MoreVertical, Contact, User, MapPin } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import { useI18n } from '@/contexts/I18nContext'
 import Modal from '@/components/Modal'
@@ -17,10 +17,11 @@ interface Workshop {
   name: string
   date_time: string
   end_date_time?: string | null
+  location?: string | null
   max_people: number
   cost: number | null
   congress_id: string | null
-  congresos?: { name: string }
+  congresos?: { name: string; location?: string }
   _count?: { congress_workshop_enrollments: number }
   congress_workshop_doctors?: { doctors: { name: string } }[]
   flyer?: string | null
@@ -441,6 +442,12 @@ export default function TalleresPage() {
                           })()}
                         </span>
                       </div>
+                      {(w.location || w.congresos?.location) && (
+                        <div className="flex items-center gap-2">
+                          <MapPin size={14} className="text-red-500 flex-shrink-0" />
+                          <span className="truncate">Sede: <span className="font-medium text-gray-900">{w.location || w.congresos?.location}</span></span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <Users size={14} className="text-blue-500" />
                         <span className="truncate">Docente: <span className="font-medium text-gray-900">{docNames}</span></span>

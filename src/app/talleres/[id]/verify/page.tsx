@@ -64,7 +64,7 @@ export default async function VerifyPage({ params, searchParams }: Props) {
 
   const template = workshop.diploma_template as any || {}
   const hours = template.hours || '8'
-  const location = template.location || workshop.congresos?.location || 'Monterrey, Nuevo León'
+  const location = template.location || workshop.location || workshop.congresos?.location || 'Monterrey, Nuevo León'
 
   return (
     <div className="min-h-screen bg-[#f0f5fa] text-gray-800 flex flex-col justify-between relative font-sans py-12 px-4">
