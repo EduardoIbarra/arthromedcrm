@@ -75,6 +75,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const registro = await prisma.mantenimiento_registros.findUnique({
       where: { id },
       select: { folio: true }
