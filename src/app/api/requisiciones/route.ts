@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
       solicitante_telefono,
       observaciones,
       status,
+      aprobacion_nombre,
+      autorizacion_nombre,
       items,
       log_usuario // Who performed the action (for logs)
     } = body
@@ -81,7 +83,11 @@ export async function POST(request: NextRequest) {
           solicitante_nombre,
           solicitante_telefono: solicitante_telefono || null,
           observaciones: observaciones || null,
-          status: status || 'PENDIENTE'
+          status: status || 'PENDIENTE',
+          aprobacion_nombre: aprobacion_nombre || null,
+          aprobacion_fecha: aprobacion_nombre ? new Date() : null,
+          autorizacion_nombre: autorizacion_nombre || null,
+          autorizacion_fecha: autorizacion_nombre ? new Date() : null
         }
       })
 
