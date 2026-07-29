@@ -365,3 +365,39 @@ export async function DELETE(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    if (!id) {
+      return NextResponse.json({ error: 'ID is required' }, { status: 400 })
+    }
+
+    const body = await request.json()
+    const { tipo_factura, prioridad, observaciones } = body
+
+    const updateData: any = { updated_at: new Date() }
+    if (tipo_factura !== undefined) {
+      if (!['venta', 'renta', 'servicio'].includes(tipo_factura)) {
+        return NextResponse.json({ error: 'Tipo de factura inválido' }, { status: 400 })
+      }
+      updateData.tipo_factura = tipo_factura
+    }
+    if (prioridad !== undefined) updateData.prioridad = prioridad
+    if (observaciones !== undefined) updateData.observaciones = observaciones
+
+    const updated = await prisma.facturas_cliente.update({
+      where: { id },
+      data: updateData
+    })
+
+    return NextResponse.json({ success: true, data: updated })
+  } catch (error: any) {
+    console.error('Error updating invoice:', error)
+    return NextResponse.json({ error: error.message || 'Error al actualizar factura' }, { status: 500 })
+  }
+}
+
+

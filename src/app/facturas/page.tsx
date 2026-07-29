@@ -26,6 +26,13 @@ interface FacturaProducto {
   cantidad_pendiente: number
   precio_unitario: number
   importe: number
+  alegra_id?: string | null
+  id_alegra?: string | null
+  productos?: {
+    id?: string
+    alegra_id?: string | null
+    id_alegra?: string | null
+  } | null
 }
 
 interface Factura {
@@ -42,6 +49,7 @@ interface Factura {
   total: number
   observaciones: string | null
   alegra_id: string | null
+  tipo_factura?: string | null
   factura_productos: FacturaProducto[]
   fecha_pago: string | null
   metodo_pago: string | null
@@ -82,6 +90,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'numero_factura', label: 'Folio / Número', visible: true },
   { id: 'cliente', label: 'Cliente', visible: true },
   { id: 'rfc', label: 'RFC', visible: false },
+  { id: 'tipo_factura', label: 'Tipo', visible: true },
   { id: 'fecha_expedicion', label: 'Fecha Expedición', visible: true },
   { id: 'fecha_vencimiento', label: 'Vencimiento', visible: false },
   { id: 'fecha_pago', label: 'Fecha Pago', visible: true },
@@ -201,8 +210,21 @@ export default function FacturasPage() {
   // Filters state
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [tipoFacturaFilter, setTipoFacturaFilter] = useState('')
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false)
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [isTipoDropdownOpen, setIsTipoDropdownOpen] = useState(false)
+  const [selectedTipos, setSelectedTipos] = useState<string[]>([])
+
+  const handleToggleTipo = (tipoVal: string) => {
+    setSelectedTipos(prev => {
+      const next = prev.includes(tipoVal)
+        ? prev.filter(t => t !== tipoVal)
+        : [...prev, tipoVal]
+      setTipoFacturaFilter(next.join(','))
+      return next
+    })
+  }
 
   const handleToggleStatus = (statusVal: string) => {
     setSelectedStatuses(prev => {
@@ -232,6 +254,7 @@ export default function FacturasPage() {
         pageSize: pageSize.toString(),
         search: searchTerm,
         status: statusFilter,
+        tipo_factura: tipoFacturaFilter,
         start_date: startDate,
         end_date: endDate
       })
@@ -289,6 +312,7 @@ export default function FacturasPage() {
       const params = new URLSearchParams({
         search: searchTerm,
         status: statusFilter,
+        tipo_factura: tipoFacturaFilter,
         start_date: startDate,
         end_date: endDate,
         all: 'true'
@@ -319,6 +343,7 @@ export default function FacturasPage() {
           'fecha de pago',
           'PRODUCTO - NOMBRE',
           'PRODUCT',
+          'alegra id',
           'cantidad',
           'precio unitario'
         ]
@@ -350,10 +375,12 @@ export default function FacturasPage() {
               escapeCSV(''),
               escapeCSV(''),
               escapeCSV(''),
+              escapeCSV(''),
               escapeCSV('')
             ].join(','))
           } else {
             invoice.factura_productos.forEach(product => {
+              const alegraId = product.alegra_id || product.id_alegra || product.productos?.alegra_id || product.productos?.id_alegra || ''
               rows.push([
                 escapeCSV(formatCsvDate(invoice.fecha_expedicion)),
                 escapeCSV(invoice.numero_factura),
@@ -363,6 +390,7 @@ export default function FacturasPage() {
                 escapeCSV(paymentDateStr),
                 escapeCSV(product.producto_nombre),
                 escapeCSV(product.producto_codigo || ''),
+                escapeCSV(alegraId),
                 product.cantidad_facturada,
                 product.precio_unitario !== null && product.precio_unitario !== undefined
                   ? Number(product.precio_unitario).toFixed(2)
@@ -622,7 +650,7 @@ export default function FacturasPage() {
     }, 300)
 
     return () => clearTimeout(delayDebounce)
-  }, [searchTerm, statusFilter, startDate, endDate])
+  }, [searchTerm, statusFilter, tipoFacturaFilter, startDate, endDate])
 
   // Fetch on page change
   useEffect(() => {
@@ -1004,6 +1032,61 @@ export default function FacturasPage() {
             )}
           </div>
 
+          {/* Tipo de Factura select (Multi-select dropdown popover) */}
+          <div className="w-full md:w-44 relative">
+            <button
+              type="button"
+              onClick={() => setIsTipoDropdownOpen(!isTipoDropdownOpen)}
+              className="erp-input w-full !py-2 text-sm text-left flex justify-between items-center bg-white cursor-pointer select-none"
+            >
+              <span className="truncate text-gray-700 font-medium">
+                {selectedTipos.length === 0
+                  ? 'Todos los tipos'
+                  : selectedTipos.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
+                }
+              </span>
+              <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 ml-1" />
+            </button>
+            
+            {isTipoDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsTipoDropdownOpen(false)} />
+                <div className="absolute left-0 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-2.5 space-y-2">
+                  {[
+                    { value: 'venta', label: 'Venta' },
+                    { value: 'renta', label: 'Renta' },
+                    { value: 'servicio', label: 'Servicio' },
+                  ].map(opt => {
+                    const isChecked = selectedTipos.includes(opt.value)
+                    return (
+                      <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleTipo(opt.value)}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-[#0763a9] focus:ring-blue-100"
+                        />
+                        {opt.label}
+                      </label>
+                    )
+                  })}
+                  {selectedTipos.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTipos([])
+                        setTipoFacturaFilter('')
+                      }}
+                      className="w-full text-center text-[10px] font-semibold text-red-500 pt-1.5 border-t border-gray-100 hover:text-red-700 transition"
+                    >
+                      Limpiar selección
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Date Pickers */}
           <div className="flex items-center gap-2 w-full md:w-auto">
             <div className="relative w-full md:w-36">
@@ -1028,12 +1111,14 @@ export default function FacturasPage() {
           </div>
 
           {/* Reset button */}
-          {(searchTerm || statusFilter || startDate || endDate) && (
+          {(searchTerm || statusFilter || tipoFacturaFilter || startDate || endDate) && (
             <button
               onClick={() => {
                 setSearchTerm('')
                 setSelectedStatuses([])
                 setStatusFilter('')
+                setSelectedTipos([])
+                setTipoFacturaFilter('')
                 setStartDate('')
                 setEndDate('')
               }}
@@ -1150,6 +1235,22 @@ export default function FacturasPage() {
                               return (
                                 <td key={col.id} className="p-4 text-gray-600 font-mono text-xs">
                                   {invoice.cliente_rfc || '-'}
+                                </td>
+                              )
+                            case 'tipo_factura':
+                              const tf = (invoice.tipo_factura || 'venta').toLowerCase()
+                              const tfBadge =
+                                tf === 'renta'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : tf === 'servicio'
+                                  ? 'bg-teal-50 text-teal-700 border-teal-200'
+                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                              const tfLabel = tf.charAt(0).toUpperCase() + tf.slice(1)
+                              return (
+                                <td key={col.id} className="p-4 text-center">
+                                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${tfBadge}`}>
+                                    {tfLabel}
+                                  </span>
                                 </td>
                               )
                             case 'fecha_expedicion':

@@ -131,6 +131,7 @@ interface Factura {
   total_pagado?: number | string | null
   observaciones: string | null
   alegra_id: string | null
+  tipo_factura?: string | null
   xml_original: string | null
   factura_productos: FacturaProducto[]
   remisiones?: Remision[]
@@ -1232,6 +1233,30 @@ export default function FacturaDetailPage() {
                   RFC: {invoice.cliente_rfc}
                 </p>
               )}
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tipo Factura:</span>
+                <select
+                  value={invoice.tipo_factura || 'venta'}
+                  onChange={async (e) => {
+                    const newTipo = e.target.value
+                    setInvoice((prev) => prev ? { ...prev, tipo_factura: newTipo } : prev)
+                    try {
+                      await fetch(`/api/invoices/${invoice.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tipo_factura: newTipo })
+                      })
+                    } catch (err) {
+                      console.error('Error updating tipo_factura:', err)
+                    }
+                  }}
+                  className="text-xs font-bold px-3 py-1 rounded-full border bg-white text-gray-800 border-gray-300 cursor-pointer focus:ring-2 focus:ring-[#0763a9]"
+                >
+                  <option value="venta">Venta</option>
+                  <option value="renta">Renta</option>
+                  <option value="servicio">Servicio</option>
+                </select>
+              </div>
             </div>
             
             <div className="text-right flex flex-col items-end gap-3">

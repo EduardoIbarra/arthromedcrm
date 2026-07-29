@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
     const status = searchParams.get('status') || ''
     const estado_surtido = searchParams.get('estado_surtido') || ''
+    const tipo_factura = searchParams.get('tipo_factura') || ''
     const clienteId = searchParams.get('cliente_id') || ''
     const startDate = searchParams.get('start_date') || ''
     const endDate = searchParams.get('end_date') || ''
@@ -29,6 +30,14 @@ export async function GET(request: NextRequest) {
     }
     if (estado_surtido) {
       where.estado_surtido = estado_surtido
+    }
+    if (tipo_factura) {
+      const tipoList = tipo_factura.split(',').map(t => t.trim()).filter(Boolean)
+      if (tipoList.length > 1) {
+        where.tipo_factura = { in: tipoList }
+      } else if (tipoList.length === 1) {
+        where.tipo_factura = tipoList[0]
+      }
     }
     if (clienteId) {
       where.cliente_id = clienteId
@@ -72,7 +81,17 @@ export async function GET(request: NextRequest) {
     const queryOptions: any = {
       where,
       include: {
-        factura_productos: true,
+        factura_productos: {
+          include: {
+            productos: {
+              select: {
+                id: true,
+                alegra_id: true,
+                id_alegra: true,
+              },
+            },
+          },
+        },
         planes_pago: {
           include: {
             parcialidades: {

@@ -1275,6 +1275,7 @@ model facturas_cliente {
   fecha_pago               DateTime?                  @db.Date
   metodo_pago              String?                    @db.VarChar(100)
   estado_surtido           String                     @default("no_surtida")
+  tipo_factura             String?                    @default("venta")
   oculta                   Boolean?
   /// First payment date (plan installment #1 or earliest Alegra complemento)
   primer_pago_fecha        DateTime?                  @db.Date

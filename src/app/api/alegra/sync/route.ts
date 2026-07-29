@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { fetchAlegraInvoice } from '@/lib/alegra'
 import { recomputeEntregadaFromRemisiones } from '@/lib/fulfillment-status'
+import { calculateTipoFactura } from '@/lib/invoiceType'
 
 export const dynamic = 'force-dynamic'
 
@@ -342,6 +343,16 @@ export async function GET(_request: NextRequest) {
 
             // Source of truth for deliveries: remisiones linked to this invoice
             await recomputeEntregadaFromRemisiones(prisma as any, facturaId)
+
+            const syncedItems = await prisma.factura_productos.findMany({
+              where: { factura_id: facturaId },
+              include: { productos: { select: { tipo: true, categoria: true } } }
+            })
+            const computedTipo = calculateTipoFactura(syncedItems)
+            await prisma.facturas_cliente.update({
+              where: { id: facturaId },
+              data: { tipo_factura: computedTipo }
+            })
           }
 
           return action
