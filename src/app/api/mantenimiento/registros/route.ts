@@ -76,10 +76,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Auto-generate Folio
+    // Auto-generate Folio safely by fetching highest existing folio number for current year
     const year = new Date().getFullYear()
-    const count = await prisma.mantenimiento_registros.count()
-    const folio = `FAIL-${year}-${String(count + 1).padStart(4, '0')}`
+    const prefix = `FAIL-${year}-`
+    const lastRecord = await prisma.mantenimiento_registros.findFirst({
+      where: { folio: { startsWith: prefix } },
+      orderBy: { folio: 'desc' },
+      select: { folio: true }
+    })
+
+    let nextNum = 1
+    if (lastRecord?.folio) {
+      const parts = lastRecord.folio.split('-')
+      const numPart = parseInt(parts[parts.length - 1], 10)
+      if (!isNaN(numPart)) {
+        nextNum = numPart + 1
+      }
+    }
+
+    const folio = `${prefix}${String(nextNum).padStart(4, '0')}`
 
     const nuevoRegistro = await prisma.mantenimiento_registros.create({
       data: {
