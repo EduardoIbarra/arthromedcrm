@@ -45,10 +45,13 @@ export async function DELETE(
       return NextResponse.json({ error: 'Reporte no encontrado' }, { status: 404 })
     }
 
-    // Soft delete report
+    // Soft delete report and append deleted marker to folio so unique constraint is freed up
     await prisma.mantenimiento_reportes.update({
       where: { id },
-      data: { deleted_at: new Date() },
+      data: {
+        deleted_at: new Date(),
+        folio: `${reporte.folio}-DEL-${Date.now()}`
+      },
     })
 
     // Unlink records and set status back to REGISTRADO
