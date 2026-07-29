@@ -51,22 +51,22 @@ export async function POST(request: NextRequest) {
 
     const year = new Date().getFullYear()
     const prefix = `REP-FAIL-${year}-`
-    const lastReport = await prisma.mantenimiento_reportes.findFirst({
+    const reports = await prisma.mantenimiento_reportes.findMany({
       where: { folio: { startsWith: prefix } },
-      orderBy: { folio: 'desc' },
       select: { folio: true }
     })
 
-    let nextNum = 1
-    if (lastReport?.folio) {
-      const parts = lastReport.folio.split('-')
-      const numPart = parseInt(parts[parts.length - 1], 10)
-      if (!isNaN(numPart)) {
-        nextNum = numPart + 1
+    let maxNum = 0
+    const folioRegex = new RegExp(`^REP-FAIL-${year}-(\\d+)$`)
+    for (const r of reports) {
+      const match = r.folio.match(folioRegex)
+      if (match) {
+        const num = parseInt(match[1], 10)
+        if (num > maxNum) maxNum = num
       }
     }
 
-    const folio = `${prefix}${String(nextNum).padStart(4, '0')}`
+    const folio = `${prefix}${String(maxNum + 1).padStart(4, '0')}`
 
     // Create report and link records in transaction
     const reporte = await prisma.mantenimiento_reportes.create({
