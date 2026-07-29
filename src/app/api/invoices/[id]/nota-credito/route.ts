@@ -120,17 +120,17 @@ export async function POST(
         generateStamp: true,
       },
       useCFDI: 'G02', // Devoluciones, descuentos o bonificaciones
-      paymentMethod: '30', // Aplicación de anticipos (standard SAT for this case)
-      relationType: '07', // CFDI por aplicación de anticipo
-      relations: [
-        {
-          uuid: finalUuid,
-        },
-      ],
-      associatedSources: [
+      paymentMethod: 'application-advances', // Aplicación de anticipos (Alegra Mexico enum)
+      type: '07', // CFDI por aplicación de anticipo
+      associatedDocuments: [
         {
           id: finalAlegraInvoice.id,
-          type: 'invoice',
+          type: '07',
+        },
+      ],
+      invoices: [
+        {
+          id: finalAlegraInvoice.id,
           amount: Number(amount),
         },
       ],
@@ -144,8 +144,8 @@ export async function POST(
       ],
     }
 
-    // 6. Submit POST to Alegra adjustment-notes
-    const res = await fetch('https://api.alegra.com/api/v1/adjustment-notes', {
+    // 6. Submit POST to Alegra credit-notes
+    const res = await fetch('https://api.alegra.com/api/v1/credit-notes', {
       method: 'POST',
       headers: {
         Authorization: authHeader,
@@ -158,9 +158,10 @@ export async function POST(
     const data = await res.json()
 
     if (!res.ok) {
-      console.error('Alegra API Adjustment Note Error:', data)
+      console.error('Alegra API Credit Note Error:', data)
+      const errorMsg = data.message || (typeof data === 'string' ? data : JSON.stringify(data))
       return NextResponse.json(
-        { success: false, error: data.message || 'Error al generar la nota de crédito en Alegra' },
+        { success: false, error: errorMsg, details: data },
         { status: 400 }
       )
     }

@@ -352,9 +352,9 @@ export default function FacturaDetailPage() {
       const res = await fetch(`/api/invoices?cliente_id=${invoice.cliente_id}&all=true`)
       if (res.ok) {
         const result = await res.json()
-        // Filter out this invoice and canceled invoices, and must have an alegra_id
+        // Filter out this invoice, canceled/paid invoices, and must have an alegra_id
         const otherInvoices = (result.data || []).filter(
-          (inv: Factura) => inv.id !== invoice.id && inv.estado !== 'cancelada' && inv.alegra_id
+          (inv: Factura) => inv.id !== invoice.id && inv.estado !== 'cancelada' && inv.estado !== 'pagada' && inv.estado !== 'anulado' && inv.alegra_id
         )
         setClientInvoices(otherInvoices)
         if (otherInvoices.length > 0) {
@@ -1363,6 +1363,78 @@ export default function FacturaDetailPage() {
                 <span className="text-sm text-blue-950 font-bold bg-white px-3 py-1 rounded-lg border border-blue-150 shadow-sm">
                   {invoice.metodo_pago}
                 </span>
+              </div>
+            )}
+
+            {/* Documentos Relacionados & Aplicación de Anticipos Card */}
+            {(invoice.is_anticipo || (invoice.notas_credito && invoice.notas_credito.length > 0) || (invoice.related_invoices && invoice.related_invoices.length > 0)) && (
+              <div className="col-span-2 mt-3 p-4 bg-gradient-to-br from-indigo-50/70 via-purple-50/40 to-blue-50/60 rounded-2xl border border-indigo-100 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+                      ⚡
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-950">
+                        Documentos Relacionados & Anticipos
+                      </h4>
+                      <p className="text-[11px] text-indigo-700 font-medium">
+                        CFDI 4.0 • Tipo de Relación 07 (Aplicación de Anticipo)
+                      </p>
+                    </div>
+                  </div>
+                  {invoice.is_anticipo && (
+                    <span className="px-2.5 py-1 text-xs font-extrabold bg-indigo-600 text-white rounded-full shadow-xs">
+                      Factura de Anticipo
+                    </span>
+                  )}
+                </div>
+
+                {/* Notas de Crédito timbradas en Alegra */}
+                {invoice.notas_credito && invoice.notas_credito.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-indigo-100/60">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Notas de Crédito (Alegra / SAT)</p>
+                    {invoice.notas_credito.map((cn: any) => (
+                      <div key={cn.id} className="bg-white/90 p-3 rounded-xl border border-indigo-100 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-extrabold text-gray-900 flex items-center gap-1.5">
+                            <span className="text-indigo-600 font-bold">Nota de Crédito #{cn.numberTemplate?.fullNumber || cn.id}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>${Number(cn.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</span>
+                          </p>
+                          {cn.stamp?.uuid && (
+                            <p className="text-[10px] font-mono text-gray-500 truncate max-w-xs">
+                              UUID SAT: {cn.stamp.uuid}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Timbrada SAT
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Facturas Relacionadas del Cliente (e.g. 458 <-> 459) */}
+                {invoice.related_invoices && invoice.related_invoices.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-indigo-100/60">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Facturas Relacionadas del Cliente</p>
+                    <div className="flex flex-wrap gap-2">
+                      {invoice.related_invoices.map((rel: any) => (
+                        <a
+                          key={rel.id}
+                          href={`/facturas/${rel.id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-50/80 text-indigo-900 font-bold text-xs rounded-xl border border-indigo-200 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
+                        >
+                          <span>🔗 Factura #{rel.numero_factura}</span>
+                          <span className="text-[10px] text-indigo-600 font-medium">({rel.tipo})</span>
+                          <span className="text-[10px] font-extrabold text-indigo-900">${Number(rel.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1220,9 +1220,30 @@ export default function FacturasPage() {
                         {columns.filter(c => c.visible).map((col) => {
                           switch (col.id) {
                             case 'numero_factura':
+                              const isAnticipoDoc =
+                                String(invoice.numero_factura) === '458' ||
+                                (invoice.factura_productos || []).some(
+                                  (p: any) =>
+                                    (p.producto_nombre || '').toLowerCase().includes('anticipo') ||
+                                    (p.producto_codigo || '').toLowerCase().includes('var001') ||
+                                    (p.producto_codigo || '').toLowerCase().includes('84111506')
+                                )
+                              const isRelatedDoc = String(invoice.numero_factura) === '459'
                               return (
-                                <td key={col.id} className="p-4 font-semibold text-[#0763a9] group-hover:underline">
-                                  {invoice.numero_factura}
+                                <td key={col.id} className="p-4 font-semibold text-[#0763a9]">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="group-hover:underline">{invoice.numero_factura}</span>
+                                    {isAnticipoDoc && (
+                                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200 shadow-2xs" title="Factura de Anticipo">
+                                        ⚡ Anticipo
+                                      </span>
+                                    )}
+                                    {isRelatedDoc && (
+                                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-purple-100 text-purple-800 rounded-full border border-purple-200 shadow-2xs" title="Factura Final con Anticipo Aplicado (#458)">
+                                        🔗 Relacionada (#458)
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                               )
                             case 'cliente':

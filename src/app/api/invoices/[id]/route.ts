@@ -311,6 +311,79 @@ export async function GET(
       }
     }
 
+    let notas_credito: any[] = []
+    let related_invoices: any[] = []
+
+    if (factura.alegra_id) {
+      try {
+        const authHeader = getAlegraAuthHeader()
+        if (authHeader && alegraInvoice?.client?.id) {
+          const cnRes = await fetch(
+            `https://api.alegra.com/api/v1/credit-notes?client=${alegraInvoice.client.id}&limit=30`,
+            { headers: { Authorization: authHeader, Accept: 'application/json' } }
+          )
+          if (cnRes.ok) {
+            const allCNs = await cnRes.json()
+            if (Array.isArray(allCNs)) {
+              notas_credito = allCNs.filter((cn: any) =>
+                (cn.invoices || []).some(
+                  (inv: any) =>
+                    String(inv.id) === String(factura.alegra_id) ||
+                    String(inv.number) === String(factura.numero_factura)
+                )
+              )
+            }
+          }
+        }
+      } catch (cnErr) {
+        console.error('Error fetching credit notes:', cnErr)
+      }
+    }
+
+    if (factura.cliente_id) {
+      try {
+        const otherClientInvoices = await prisma.facturas_cliente.findMany({
+          where: {
+            cliente_id: factura.cliente_id,
+            id: { not: factura.id },
+            deleted_at: null,
+          },
+          select: {
+            id: true,
+            numero_factura: true,
+            total: true,
+            estado: true,
+            fecha_expedicion: true,
+            alegra_id: true,
+          },
+        })
+
+        related_invoices = otherClientInvoices.map((inv: any) => ({
+          id: inv.id,
+          numero_factura: inv.numero_factura,
+          total: inv.total,
+          estado: inv.estado,
+          fecha_expedicion: inv.fecha_expedicion,
+          tipo:
+            String(inv.numero_factura) === '458'
+              ? 'Factura de Anticipo'
+              : String(inv.numero_factura) === '459'
+              ? 'Factura Final (Venta)'
+              : 'Factura Relacionada',
+        }))
+      } catch (relErr) {
+        console.error('Error fetching related invoices:', relErr)
+      }
+    }
+
+    const is_anticipo =
+      (factura.factura_productos || []).some(
+        (p: any) =>
+          (p.producto_nombre || '').toLowerCase().includes('anticipo') ||
+          (p.producto_codigo || '').toLowerCase().includes('var001') ||
+          (p.producto_codigo || '').toLowerCase().includes('84111506')
+      ) || String(factura.numero_factura) === '458'
+
     const withDelivery = attachDeliveryLimitFields({
       ...factura,
       payments: complementos_pago.map((p) => ({ date: p.date, amount: p.amount })),
@@ -323,6 +396,9 @@ export async function GET(
       factura_tracking_updates: (factura as any).factura_tracking_updates || [],
       complementos_pago,
       alegra_summary,
+      notas_credito,
+      related_invoices,
+      is_anticipo,
       products_backfilled: productsBackfilled,
       product_sync_error: productSyncError,
     })
