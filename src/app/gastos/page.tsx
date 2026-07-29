@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Gasto } from '@/types/database'
 import { useI18n } from '@/contexts/I18nContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
-import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle, Search, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react'
+import { Receipt, Plus, Edit2, Trash2, Calendar, DollarSign, MessageSquare, Tag, LayoutGrid, List, Filter, Download, Sparkles, PlusCircle, MinusCircle, Check, Loader2, Building2, XCircle, Search, FileSpreadsheet, FileText, ChevronDown, CreditCard, Wallet } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -14,6 +14,7 @@ import PermissionGuard from '@/components/PermissionGuard'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 
 interface GastoWithCongreso extends Gasto {
+  is_caja_chica?: boolean
   congreso?: {
     name: string
   }
@@ -34,6 +35,8 @@ export default function GastosPage() {
   const [congresos, setCongresos] = useState<{ id: string; name: string }[]>([])
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null)
   const [selectedCongresoFilter, setSelectedCongresoFilter] = useState<string | null>(null)
+  const [selectedPaymentMethodFilter, setSelectedPaymentMethodFilter] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'regular' | 'caja_chica' | 'all'>('regular')
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -59,6 +62,8 @@ export default function GastosPage() {
     if (endDate) params.append('endDate', endDate)
     if (selectedCategoryFilter) params.append('category', selectedCategoryFilter)
     if (selectedCongresoFilter) params.append('congreso', selectedCongresoFilter)
+    if (selectedPaymentMethodFilter) params.append('paymentMethod', selectedPaymentMethodFilter)
+    if (activeTab) params.append('tab', activeTab)
     if (searchTerm) params.append('search', searchTerm)
     
     window.open(`/gastos/print?${params.toString()}`, '_blank')
@@ -247,7 +252,22 @@ export default function GastosPage() {
 
   // Local formatCurrency helper removed in favor of global useCurrency context helper
 
-  // 1. Filtered lists for cross-filtering and rendering
+  // 1. Payment Methods & Tab Filtering
+  const paymentMethods = Array.from(
+    new Set(
+      gastos
+        .map(g => g.card)
+        .filter((c): c is string => Boolean(c && c.trim()))
+    )
+  ).sort()
+
+  const gastosByTab = gastos.filter(g => {
+    if (activeTab === 'regular') return !g.is_caja_chica
+    if (activeTab === 'caja_chica') return Boolean(g.is_caja_chica)
+    return true
+  })
+
+  // Filtered lists for cross-filtering and rendering
   const searchFilter = (g: GastoWithCongreso) => {
     if (!searchTerm.trim()) return true
     const term = searchTerm.toLowerCase()
@@ -263,25 +283,33 @@ export default function GastosPage() {
     return matchesDescription || matchesName || matchesCategory || matchesCongreso || matchesCard || matchesComments || matchesFolio || matchesAmount || matchesTotal
   }
 
-  const gastosForCategoryChart = gastos.filter(g => {
+  const gastosForCategoryChart = gastosByTab.filter(g => {
     if (!searchFilter(g)) return false
     if (selectedCongresoFilter) {
       const congresoName = g.congreso?.name || 'Sin Congreso'
-      return congresoName === selectedCongresoFilter
+      if (congresoName !== selectedCongresoFilter) return false
+    }
+    if (selectedPaymentMethodFilter) {
+      const cardName = g.card || 'Sin Método'
+      if (cardName !== selectedPaymentMethodFilter) return false
     }
     return true
   })
 
-  const gastosForCongresoChart = gastos.filter(g => {
+  const gastosForCongresoChart = gastosByTab.filter(g => {
     if (!searchFilter(g)) return false
     if (selectedCategoryFilter) {
       const catName = g.category?.name || 'Sin Categoría'
-      return catName === selectedCategoryFilter
+      if (catName !== selectedCategoryFilter) return false
+    }
+    if (selectedPaymentMethodFilter) {
+      const cardName = g.card || 'Sin Método'
+      if (cardName !== selectedPaymentMethodFilter) return false
     }
     return true
   })
 
-  const filteredGastos = gastos.filter(g => {
+  const filteredGastos = gastosByTab.filter(g => {
     if (!searchFilter(g)) return false
     if (selectedCategoryFilter) {
       const catName = g.category?.name || 'Sin Categoría'
@@ -290,6 +318,10 @@ export default function GastosPage() {
     if (selectedCongresoFilter) {
       const congresoName = g.congreso?.name || 'Sin Congreso'
       if (congresoName !== selectedCongresoFilter) return false
+    }
+    if (selectedPaymentMethodFilter) {
+      const cardName = g.card || 'Sin Método'
+      if (cardName !== selectedPaymentMethodFilter) return false
     }
     return true
   })
@@ -389,6 +421,60 @@ export default function GastosPage() {
             </div>
           </div>
 
+          {/* TABS */}
+          <div className="flex border-b border-gray-200 gap-2 sm:gap-6 pt-2">
+            <button
+              onClick={() => setActiveTab('regular')}
+              className={`flex items-center gap-2 pb-3 px-1 font-medium text-sm border-b-2 transition-colors cursor-pointer ${
+                activeTab === 'regular'
+                  ? 'border-blue-600 text-blue-600 font-semibold'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Receipt size={18} />
+              Gastos Regulares
+              <span className={`ml-1 px-2 py-0.5 text-xs rounded-full font-semibold ${
+                activeTab === 'regular' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {gastos.filter(g => !g.is_caja_chica).length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('caja_chica')}
+              className={`flex items-center gap-2 pb-3 px-1 font-medium text-sm border-b-2 transition-colors cursor-pointer ${
+                activeTab === 'caja_chica'
+                  ? 'border-blue-600 text-blue-600 font-semibold'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Wallet size={18} />
+              Caja Chica
+              <span className={`ml-1 px-2 py-0.5 text-xs rounded-full font-semibold ${
+                activeTab === 'caja_chica' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {gastos.filter(g => g.is_caja_chica).length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`flex items-center gap-2 pb-3 px-1 font-medium text-sm border-b-2 transition-colors cursor-pointer ${
+                activeTab === 'all'
+                  ? 'border-blue-600 text-blue-600 font-semibold'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <List size={18} />
+              Todos
+              <span className={`ml-1 px-2 py-0.5 text-xs rounded-full font-semibold ${
+                activeTab === 'all' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {gastos.length}
+              </span>
+            </button>
+          </div>
+
           {/* Filters Row */}
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
@@ -410,8 +496,25 @@ export default function GastosPage() {
               />
             </div>
 
+            {/* Payment Method Filter */}
+            {paymentMethods.length > 0 && (
+              <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                <CreditCard size={18} className="text-gray-400 ml-2" />
+                <select 
+                  className="erp-input !py-1.5 !px-3 text-sm bg-transparent border-0 font-medium text-gray-700 focus:ring-0 focus:outline-none"
+                  value={selectedPaymentMethodFilter || ''}
+                  onChange={e => setSelectedPaymentMethodFilter(e.target.value || null)}
+                >
+                  <option value="">Todos los Métodos</option>
+                  {paymentMethods.map(pm => (
+                    <option key={pm} value={pm}>{pm}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Active Filter Badges */}
-            {(selectedCategoryFilter || selectedCongresoFilter || searchTerm) && (
+            {(selectedCategoryFilter || selectedCongresoFilter || selectedPaymentMethodFilter || searchTerm) && (
               <div className="flex flex-wrap items-center gap-2">
                 {selectedCategoryFilter && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
@@ -437,6 +540,18 @@ export default function GastosPage() {
                     </button>
                   </span>
                 )}
+                {selectedPaymentMethodFilter && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                    <span>Método: {selectedPaymentMethodFilter}</span>
+                    <button 
+                      onClick={() => setSelectedPaymentMethodFilter(null)}
+                      className="hover:bg-emerald-100 p-0.5 rounded-full transition-colors"
+                      title="Quitar filtro"
+                    >
+                      <XCircle size={14} className="text-emerald-500 hover:text-emerald-700" />
+                    </button>
+                  </span>
+                )}
                 {searchTerm && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200">
                     <span>{t('search') || 'Buscar'}: &quot;{searchTerm}&quot;</span>
@@ -453,6 +568,7 @@ export default function GastosPage() {
                   onClick={() => {
                     setSelectedCategoryFilter(null)
                     setSelectedCongresoFilter(null)
+                    setSelectedPaymentMethodFilter(null)
                     setSearchTerm('')
                   }}
                   className="text-xs font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
@@ -667,6 +783,7 @@ export default function GastosPage() {
               onClick={() => {
                 setSelectedCategoryFilter(null)
                 setSelectedCongresoFilter(null)
+                setSelectedPaymentMethodFilter(null)
                 setSearchTerm('')
               }}
               className="btn-secondary !py-1.5 !px-4 text-xs animate-pulse"
@@ -729,6 +846,12 @@ export default function GastosPage() {
                           {gasto.category.name}
                         </p>
                       )}
+                      {gasto.card && (
+                        <p className="text-xs text-emerald-600 font-semibold flex items-center gap-2">
+                          <CreditCard size={12} />
+                          <span className="truncate">{gasto.card}</span>
+                        </p>
+                      )}
                       {gasto.congreso && (
                         <p className="text-xs text-gray-500 flex items-center gap-2">
                           <Calendar size={12} className="text-purple-400" />
@@ -757,6 +880,7 @@ export default function GastosPage() {
                     <th className="p-4">{t('expenseDate')}</th>
                     <th className="p-4">Descripción / Nombre</th>
                     <th className="p-4">{t('category')}</th>
+                    <th className="p-4">Tarjeta / Método</th>
                     <th className="p-4">{t('billable')}</th>
                     <th className="p-4">{t('amount')}</th>
                     <th className="p-4">{t('total')}</th>
@@ -781,6 +905,14 @@ export default function GastosPage() {
                         {gasto.category ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                             {gasto.category.name}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="p-4 text-sm text-gray-600">
+                        {gasto.card ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 whitespace-nowrap">
+                            <CreditCard size={12} />
+                            {gasto.card}
                           </span>
                         ) : '-'}
                       </td>

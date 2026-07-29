@@ -20,6 +20,7 @@ interface GastoWithCongreso {
   folio_fiscal?: string
   created_at: string
   expense_date?: string
+  is_caja_chica?: boolean
   congreso?: {
     name: string
   }
@@ -39,6 +40,8 @@ function GastoPrintContent() {
   const endDate = searchParams.get('endDate') || ''
   const categoryFilter = searchParams.get('category') || ''
   const congresoFilter = searchParams.get('congreso') || ''
+  const paymentMethodFilter = searchParams.get('paymentMethod') || ''
+  const tab = searchParams.get('tab') || ''
   const searchTerm = searchParams.get('search') || ''
 
   const [gastos, setGastos] = useState<GastoWithCongreso[]>([])
@@ -88,6 +91,8 @@ function GastoPrintContent() {
   }
 
   const filteredGastos = gastos.filter((g: GastoWithCongreso) => {
+    if (tab === 'regular' && g.is_caja_chica) return false
+    if (tab === 'caja_chica' && !g.is_caja_chica) return false
     if (!searchFilter(g)) return false
     if (categoryFilter) {
       const catName = g.category?.name || 'Sin Categoría'
@@ -96,6 +101,10 @@ function GastoPrintContent() {
     if (congresoFilter) {
       const congresoName = g.congreso?.name || 'Sin Congreso'
       if (congresoName !== congresoFilter) return false
+    }
+    if (paymentMethodFilter) {
+      const cardName = g.card || 'Sin Método'
+      if (cardName !== paymentMethodFilter) return false
     }
     return true
   })
