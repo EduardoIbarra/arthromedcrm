@@ -373,7 +373,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
   return result
 }
 
-const TRIGGER_VERSION = 26
+const TRIGGER_VERSION = 27
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>

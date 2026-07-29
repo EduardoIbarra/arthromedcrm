@@ -6,7 +6,7 @@ import { useUser } from '@/contexts/UserContext'
 import {
   Receipt, Plus, Minus, Search, Loader2, Download, Scale,
   Trash2, AlertTriangle, CheckCircle, Calendar, RefreshCw,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Eye, RotateCcw, ArrowDownLeft, ArrowUpRight
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
@@ -20,6 +20,17 @@ interface Transaction {
   id: string
   type: 'INPUT' | 'OUTPUT'
   amount: number
+  original_amount?: number | null
+  returned_amount?: number | null
+  return_logs?: Array<{
+    id: string
+    amount: number
+    note: string
+    date: string
+    created_at: string
+    created_by: string
+    created_by_name: string
+  }> | null
   giver: string
   receiver: string
   date: string
@@ -97,6 +108,47 @@ export default function CajaChicaPage() {
   const [isTxModalOpen, setIsTxModalOpen] = useState(false)
   const [txModalType, setTxModalType] = useState<'INPUT' | 'OUTPUT'>('INPUT')
   const [isConteoModalOpen, setIsConteoModalOpen] = useState(false)
+
+  // Detail Modal & Money Return Modal
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedTxForDetail, setSelectedTxForDetail] = useState<Transaction | null>(null)
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
+  const [returnFormData, setReturnFormData] = useState({
+    amount: '',
+    note: '',
+    date: getLocalDatetimeString()
+  })
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false)
+
+  const handleOpenDetailModal = (tx: Transaction) => {
+    setSelectedTxForDetail(tx)
+    setIsDetailModalOpen(true)
+  }
+
+  const handleSaveReturn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedTxForDetail) return
+    try {
+      setIsSubmittingReturn(true)
+      const res = await fetch(`/api/caja-chica/${selectedTxForDetail.id}/return`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(returnFormData)
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Error al registrar devolución')
+
+      setSelectedTxForDetail(result.data)
+      setIsReturnModalOpen(false)
+      setReturnFormData({ amount: '', note: '', date: getLocalDatetimeString() })
+      await fetchData()
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Error al guardar devolución')
+    } finally {
+      setIsSubmittingReturn(false)
+    }
+  }
 
   // Form States
   const [systemUsers, setSystemUsers] = useState<any[]>([])
@@ -666,7 +718,11 @@ export default function CajaChicaPage() {
                       </thead>
                       <tbody>
                         {paginatedTransactions.map((tx) => (
-                          <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                          <tr 
+                            key={tx.id} 
+                            onClick={() => handleOpenDetailModal(tx)}
+                            className="border-b border-gray-100 hover:bg-blue-50/40 transition cursor-pointer"
+                          >
                             <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
                               {formatDateString(tx.date)}
                             </td>
@@ -709,7 +765,14 @@ export default function CajaChicaPage() {
                               )}
                             </td>
                             <td className="px-6 py-4 font-semibold text-gray-900">
-                              {tx.type === 'INPUT' ? '+' : '-'}{formatCurrencyMXN(tx.amount)}
+                              <div>
+                                <span>{tx.type === 'INPUT' ? '+' : '-'}{formatCurrencyMXN(tx.amount)}</span>
+                                {Boolean(tx.returned_amount && tx.returned_amount > 0) && (
+                                  <div className="text-[10px] font-normal text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-1 inline-block">
+                                    Devuelto: {formatCurrencyMXN(tx.returned_amount || 0)} (Orig: {formatCurrencyMXN(tx.original_amount || (tx.amount + (tx.returned_amount || 0)))})
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 text-gray-700">{tx.giver}</td>
                             <td className="px-6 py-4 text-gray-700">{tx.receiver}</td>
@@ -719,15 +782,25 @@ export default function CajaChicaPage() {
                             <td className="px-6 py-4 text-xs text-gray-500">
                               {tx.users ? `${tx.users.first_name || ''} ${tx.users.last_name || ''}`.trim() : 'Sistema'}
                             </td>
-                            <td className="px-6 py-4 text-center">
-                              <PermissionGuard section="caja_chica" action="delete">
+                            <td className="px-6 py-4 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1">
                                 <button
-                                  onClick={() => handleDeleteTransaction(tx.id)}
-                                  className="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 transition"
+                                  onClick={(e) => { e.stopPropagation(); handleOpenDetailModal(tx); }}
+                                  className="text-blue-600 hover:text-blue-800 p-1.5 rounded-md hover:bg-blue-50 transition"
+                                  title="Ver detalle del registro"
                                 >
-                                  <Trash2 size={16} />
+                                  <Eye size={16} />
                                 </button>
-                              </PermissionGuard>
+                                <PermissionGuard section="caja_chica" action="delete">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(tx.id); }}
+                                    className="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 transition"
+                                    title="Eliminar registro"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </PermissionGuard>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1153,6 +1226,246 @@ export default function CajaChicaPage() {
               </button>
             </div>
           </form>
+        </Modal>
+
+        {/* Detail Modal */}
+        <Modal
+          open={isDetailModalOpen}
+          onClose={() => setIsDetailModalOpen(false)}
+          title="Detalle de Movimiento de Caja Chica"
+          maxWidth="650px"
+        >
+          {selectedTxForDetail && (
+            <div className="space-y-6">
+              {/* Status Header */}
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                <div>
+                  <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Tipo de Movimiento</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    {selectedTxForDetail.type === 'INPUT' ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                        <ArrowDownLeft size={14} /> Ingreso
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800">
+                        <ArrowUpRight size={14} /> Egreso (Retiro)
+                      </span>
+                    )}
+                    {selectedTxForDetail.is_billed && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <CheckCircle size={12} /> Facturado
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Monto Actual (Neto)</span>
+                  <div className="text-2xl font-black text-gray-900 mt-0.5">
+                    {selectedTxForDetail.type === 'INPUT' ? '+' : '-'}{formatCurrencyMXN(selectedTxForDetail.amount)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Withdrawal Return Financial Cards */}
+              {selectedTxForDetail.type === 'OUTPUT' && (
+                <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">Monto Inicial</span>
+                    <div className="text-base font-extrabold text-gray-900 mt-0.5">
+                      {formatCurrencyMXN(selectedTxForDetail.original_amount ?? selectedTxForDetail.amount)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-tight">Dinero Devuelto</span>
+                    <div className="text-base font-extrabold text-amber-700 mt-0.5">
+                      {formatCurrencyMXN(selectedTxForDetail.returned_amount ?? 0)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#0763a9] uppercase tracking-tight">Retiro Neto</span>
+                    <div className="text-base font-extrabold text-[#0763a9] mt-0.5">
+                      {formatCurrencyMXN(selectedTxForDetail.amount)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Key Info Grid */}
+              <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
+                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
+                  <span className="text-[11px] font-bold text-gray-400 block mb-0.5">Entregó:</span>
+                  <span className="font-bold text-gray-800">{selectedTxForDetail.giver || '-'}</span>
+                </div>
+                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
+                  <span className="text-[11px] font-bold text-gray-400 block mb-0.5">Recibió:</span>
+                  <span className="font-bold text-gray-800">{selectedTxForDetail.receiver || '-'}</span>
+                </div>
+                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
+                  <span className="text-[11px] font-bold text-gray-400 block mb-0.5">Fecha y Hora:</span>
+                  <span className="font-bold text-gray-800">{formatDateString(selectedTxForDetail.date)}</span>
+                </div>
+                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
+                  <span className="text-[11px] font-bold text-gray-400 block mb-0.5">Categoría:</span>
+                  <span className="font-bold text-gray-800">
+                    {selectedTxForDetail.catalog_spending_categories?.name || selectedTxForDetail.category_custom || 'Sin categoría'}
+                  </span>
+                </div>
+                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100 col-span-2">
+                  <span className="text-[11px] font-bold text-gray-400 block mb-0.5">Registrado en Sistema Por:</span>
+                  <span className="font-bold text-gray-800">
+                    {selectedTxForDetail.users ? `${selectedTxForDetail.users.first_name || ''} ${selectedTxForDetail.users.last_name || ''}`.trim() : 'Sistema'}
+                  </span>
+                </div>
+                {selectedTxForDetail.note && (
+                  <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100 col-span-2">
+                    <span className="text-[11px] font-bold text-gray-400 block mb-0.5">Nota / Motivo original:</span>
+                    <p className="text-gray-700 whitespace-pre-wrap font-medium">{selectedTxForDetail.note}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Return Action & History */}
+              {selectedTxForDetail.type === 'OUTPUT' && (
+                <div className="space-y-4 pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
+                      <RotateCcw size={16} className="text-amber-600" />
+                      Historial de Devoluciones de Dinero
+                    </h4>
+                    {((selectedTxForDetail.original_amount ?? selectedTxForDetail.amount) - (selectedTxForDetail.returned_amount ?? 0)) > 0 && (
+                      <button
+                        onClick={() => {
+                          setReturnFormData({
+                            amount: '',
+                            note: '',
+                            date: getLocalDatetimeString()
+                          })
+                          setIsReturnModalOpen(true)
+                        }}
+                        className="btn-primary text-xs !py-1.5 !px-3 bg-amber-600 hover:bg-amber-700 border-amber-600 text-white font-semibold flex items-center gap-1.5 rounded-lg shadow-sm"
+                      >
+                        <RotateCcw size={14} /> Registrar Devolución
+                      </button>
+                    )}
+                  </div>
+
+                  {Array.isArray(selectedTxForDetail.return_logs) && selectedTxForDetail.return_logs.length > 0 ? (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {selectedTxForDetail.return_logs.map((log: any, idx: number) => (
+                        <div key={log.id || idx} className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-100 flex items-start justify-between gap-3 text-xs">
+                          <div>
+                            <div className="font-bold text-amber-900 flex items-center gap-2 text-sm">
+                              <span>Devolución: {formatCurrencyMXN(log.amount)}</span>
+                              <span className="text-gray-400 font-normal text-xs">• {formatDateString(log.date)}</span>
+                            </div>
+                            {log.note && <p className="text-gray-700 mt-1 italic text-xs">&quot;{log.note}&quot;</p>}
+                            <span className="text-[10px] text-gray-400 mt-1 block font-medium">Registrado por: {log.created_by_name || 'Usuario'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic bg-gray-50/80 p-3.5 rounded-xl border border-gray-100 text-center">
+                      No se han registrado devoluciones de dinero para este retiro.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => setIsDetailModalOpen(false)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* Money Return Sub-Modal */}
+        <Modal
+          open={isReturnModalOpen}
+          onClose={() => !isSubmittingReturn && setIsReturnModalOpen(false)}
+          title="Registrar Devolución de Dinero"
+          maxWidth="500px"
+        >
+          {selectedTxForDetail && (
+            <form onSubmit={handleSaveReturn} className="space-y-4">
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                <span className="text-[11px] text-amber-800 uppercase font-bold tracking-wider">Saldo Pendiente de Devolución</span>
+                <div className="text-2xl font-black text-amber-950 mt-0.5">
+                  {formatCurrencyMXN((selectedTxForDetail.original_amount ?? selectedTxForDetail.amount) - (selectedTxForDetail.returned_amount ?? 0))}
+                </div>
+                <p className="text-xs text-amber-800 mt-1 font-medium">
+                  Original: {formatCurrencyMXN(selectedTxForDetail.original_amount ?? selectedTxForDetail.amount)} | Devuelto antes: {formatCurrencyMXN(selectedTxForDetail.returned_amount ?? 0)}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                  Monto Devuelto ($) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="0.01"
+                  max={(selectedTxForDetail.original_amount ?? selectedTxForDetail.amount) - (selectedTxForDetail.returned_amount ?? 0)}
+                  placeholder="Ej. 30.00"
+                  value={returnFormData.amount}
+                  onChange={(e) => setReturnFormData({ ...returnFormData, amount: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-600 outline-none font-bold text-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                  Fecha y Hora de Devolución *
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={returnFormData.date}
+                  onChange={(e) => setReturnFormData({ ...returnFormData, date: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-600 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                  Motivo / Notas de la Devolución
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej. Cambio devuelto de compra de papelería..."
+                  value={returnFormData.note}
+                  onChange={(e) => setReturnFormData({ ...returnFormData, note: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-600 outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled={isSubmittingReturn}
+                  onClick={() => setIsReturnModalOpen(false)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReturn}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isSubmittingReturn && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Guardar Devolución
+                </button>
+              </div>
+            </form>
+          )}
         </Modal>
       </div>
     </AppShell>
