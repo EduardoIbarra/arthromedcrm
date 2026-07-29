@@ -18,6 +18,13 @@ export async function POST(
 
     const { id } = await params
 
+    let body: any = {}
+    try {
+      body = await request.json()
+    } catch {
+      body = {}
+    }
+
     const email = process.env.ALEGRA_API_EMAIL
     const token = process.env.ALEGRA_API_TOKEN
 
@@ -75,10 +82,35 @@ export async function POST(
       }
     }
 
+    // Fallback 2: Create contact in Alegra if not found and we have a name
+    if (!alegraContactId && clienteNombre) {
+      try {
+        const createContactRes = await fetch('https://api.alegra.com/api/v1/contacts', {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            name: clienteNombre,
+            identification: clienteRfc || undefined,
+          }),
+        })
+        if (createContactRes.ok) {
+          const newContact = await createContactRes.json()
+          if (newContact?.id) {
+            alegraContactId = newContact.id
+          }
+        }
+      } catch (e) {
+        console.warn('Could not auto-create contact in Alegra:', e)
+      }
+    }
+
     type DetallePrevioItem = typeof previo.detalle_previo[number]
 
     // ── Resolve Alegra item IDs for each line ────────────────────────────────
-    // Build a map: consecutivo_alg → alegra item id
     const productIds = previo.detalle_previo
       .filter((d: DetallePrevioItem) => d.producto_id)
       .map((d: DetallePrevioItem) => d.producto_id!)
@@ -99,19 +131,31 @@ export async function POST(
 
     const productMap = new Map<string, LocalProduct>(localProducts.map((p) => [p.id, p]))
 
-    // ── Build Alegra estimate payload ────────────────────────────────────────
-    const today = new Date().toISOString().slice(0, 10)
+    // ── Calculate dates ─────────────────────────────────────────────────────
+    const now = new Date()
+    const today = now.toISOString().slice(0, 10)
 
+    let dueDateStr = body.dueDate || body.fecha_vencimiento
+    if (!dueDateStr) {
+      const days = Number(body.dias_vencimiento) || 30
+      const dueDateObj = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+      dueDateStr = dueDateObj.toISOString().slice(0, 10)
+    }
+
+    // ── Build Alegra estimate payload ────────────────────────────────────────
     const alegraItems = previo.detalle_previo.map((item: DetallePrevioItem) => {
       const prod = item.producto_id ? productMap.get(item.producto_id) : null
       const itemPayload: any = {
-        quantity: Number(item.cantidad),
-        price:    Number(item.precio_unitario),
+        quantity: Math.max(1, Math.round(Number(item.cantidad) || 1)),
+        price:    Number(item.precio_unitario) || 0,
         description: item.descripcion || prod?.nombre || 'Producto',
       }
 
       if (prod?.alegra_id) {
         itemPayload.id = parseInt(prod.alegra_id, 10) || prod.alegra_id
+      } else {
+        // Fallback to generic item ID '2' (ANTICIPO DE BIEN O SERVICIO / VARIOS) in Alegra when no specific product link exists
+        itemPayload.id = 2
       }
       if (prod?.consecutivo_alg) {
         itemPayload.reference = prod.consecutivo_alg
@@ -125,8 +169,9 @@ export async function POST(
 
     const estimatePayload: any = {
       date: today,
+      dueDate: dueDateStr,
       items: alegraItems,
-      observations: `Generado desde Previo ${previo.folio}`,
+      observations: body.observaciones || `Generado desde Previo ${previo.folio}`,
     }
 
     if (alegraContactId) {
@@ -149,7 +194,7 @@ export async function POST(
     if (!alegraRes.ok) {
       console.error('Alegra estimates error:', alegraData)
       return NextResponse.json(
-        { error: alegraData?.message || alegraData?.error || 'Error al crear cotización en Alegra' },
+        { error: alegraData?.message || alegraData?.error || (Array.isArray(alegraData) ? alegraData.map((e: any) => e.message || e).join(', ') : 'Error al crear cotización en Alegra') },
         { status: alegraRes.status }
       )
     }
@@ -160,8 +205,8 @@ export async function POST(
       || alegraData.number
       || `COT-${alegraId}`
 
-    const subtotal = Number(alegraData.subtotal || previo.total_sin_descuento)
-    const total    = Number(alegraData.total    || previo.total_con_descuento)
+    const subtotal = Number(alegraData.subtotal || previo.total_sin_descuento || 0)
+    const total    = Number(alegraData.total    || previo.total_con_descuento || 0)
     const iva      = total - subtotal
 
     // ── Persist the cotización locally ───────────────────────────────────────
@@ -169,15 +214,19 @@ export async function POST(
       data: {
         alegra_id:         alegraId,
         numero_cotizacion: numeroCot,
-        cliente_id:        previo.cliente_id || null,
+        cliente_id:        body.cliente_id || previo.cliente_id || null,
         cliente_nombre:    previo.clientes?.nombre || previo.cliente_nombre || 'Sin nombre',
         cliente_rfc:       previo.clientes?.rfc || null,
         fecha_expedicion:  new Date(today),
+        fecha_vencimiento: new Date(dueDateStr),
         estado:            'pendiente',
         subtotal,
         iva,
         total,
-        observaciones:     `Generado desde Previo ${previo.folio}`,
+        observaciones:     body.observaciones || `Generado desde Previo ${previo.folio}`,
+        cfdi_id:           body.cfdi_id || previo.cfdi_id || null,
+        metodo_pago_id:    body.metodo_pago_id || previo.metodo_pago_id || null,
+        forma_pago_id:     body.forma_pago_id || previo.forma_pago_id || null,
         productos: {
           createMany: {
             data: previo.detalle_previo.map((item: DetallePrevioItem) => {
@@ -207,3 +256,4 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+

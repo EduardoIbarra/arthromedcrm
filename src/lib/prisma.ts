@@ -122,7 +122,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
           if (currentArgs.select && Object.keys(currentArgs.select).length === 0) delete currentArgs.select
 
           if (currentArgs.select) {
-            if (currentModel === 'facturas_cliente') {
+            if (currentModel === 'facturas_cliente' || currentModel === 'cotizaciones') {
               if (key === 'clientes') currentArgs.select.cliente_id = true
               else currentArgs.select.id = true
             } else if (currentModel === 'factura_productos') {
@@ -203,7 +203,7 @@ async function processQueryArgsAndResolve(model: string, operation: string, args
       }
     }
 
-    if (inst.parentModel === 'facturas_cliente') {
+    if (inst.parentModel === 'facturas_cliente' || inst.parentModel === 'cotizaciones') {
       if (inst.relationKey === 'clientes') {
         const ids = parentObjects.map((p: any) => p.cliente_id).filter(Boolean)
         if (ids.length > 0) {

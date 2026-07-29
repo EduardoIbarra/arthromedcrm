@@ -626,11 +626,12 @@ model cajas {
 }
 
 model cfdi {
-  deleted_at  DateTime?     @db.Timestamptz(6)
-  id          String        @id
-  descripcion String
-  planes_pago planes_pago[]
-  previos     previos[]
+  deleted_at   DateTime?      @db.Timestamptz(6)
+  id           String         @id
+  descripcion  String
+  planes_pago  planes_pago[]
+  previos      previos[]
+  cotizaciones cotizaciones[]
 
   @@schema("public")
 }
@@ -772,6 +773,7 @@ model clientes {
   remisiones                     remisiones[]
   salidas_inventario             salidas_inventario[]
   solicitudes_carta_distribucion solicitudes_carta_distribucion[]
+  cotizaciones                   cotizaciones[]
 
   @@schema("public")
 }
@@ -1314,10 +1316,11 @@ model facturas_entrada {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model forma_pago {
-  deleted_at  DateTime? @db.Timestamptz(6)
-  id          String    @id
-  descripcion String
-  previos     previos[]
+  deleted_at   DateTime?      @db.Timestamptz(6)
+  id           String         @id
+  descripcion  String
+  previos      previos[]
+  cotizaciones cotizaciones[]
 
   @@schema("public")
 }
@@ -1607,11 +1610,12 @@ model leads {
 }
 
 model metodo_pago {
-  deleted_at  DateTime?     @db.Timestamptz(6)
-  id          String        @id
-  descripcion String
-  planes_pago planes_pago[]
-  previos     previos[]
+  deleted_at   DateTime?      @db.Timestamptz(6)
+  id           String         @id
+  descripcion  String
+  planes_pago  planes_pago[]
+  previos      previos[]
+  cotizaciones cotizaciones[]
 
   @@schema("public")
 }
@@ -1822,6 +1826,7 @@ model planes_pago {
   clientes             clientes?           @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   facturas_cliente     facturas_cliente?   @relation(fields: [factura_id], references: [id], onDelete: Cascade)
   metodo_pago          metodo_pago?        @relation(fields: [metodo_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cotizaciones         cotizaciones?       @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([usuario_id], map: "idx_planes_pago_usuario")
   @@schema("public")
@@ -2765,28 +2770,37 @@ model cotizaciones {
   metodo_pago_id    String?
   forma_pago_id     String?
   productos         cotizacion_productos[]
+  clientes          clientes?              @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cfdi              cfdi?                  @relation(fields: [cfdi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  metodo_pago       metodo_pago?           @relation(fields: [metodo_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  forma_pago        forma_pago?            @relation(fields: [forma_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  comentarios       cotizacion_comentarios[]
+  documentos        cotizacion_documentos[]
+  planes_pago       planes_pago[]
 
   @@index([alegra_id], map: "idx_cotizaciones_alegra_id")
   @@schema("public")
 }
 
 model cotizacion_comentarios {
-  deleted_at    DateTime? @db.Timestamptz(6)
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cotizacion_id String    @db.Uuid
+  deleted_at    DateTime?    @db.Timestamptz(6)
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cotizacion_id String       @db.Uuid
   comentario    String
-  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  created_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  cotizaciones  cotizaciones @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }
 
 model cotizacion_documentos {
-  deleted_at    DateTime? @db.Timestamptz(6)
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cotizacion_id String    @db.Uuid
+  deleted_at    DateTime?    @db.Timestamptz(6)
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cotizacion_id String       @db.Uuid
   nombre        String
   url           String
-  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  created_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  cotizaciones  cotizaciones @relation(fields: [cotizacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@schema("public")
 }

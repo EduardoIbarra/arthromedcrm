@@ -833,32 +833,38 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
         </div>
 
         {/* Right Preview Panel (desktop only): 7 cols */}
-        <div className="hidden lg:col-span-7 lg:flex flex-col items-center justify-center h-full bg-gray-50/60 border border-gray-150 rounded-3xl p-6 relative overflow-hidden">
-          <span className="text-[10px] font-black text-gray-450 uppercase tracking-widest absolute top-4 left-6">
-            Vista Previa (Diseño a 1000 x 773px)
-          </span>
+        <div className="hidden lg:col-span-7 lg:flex flex-col items-center justify-between h-full bg-gray-50/60 border border-gray-150 rounded-3xl p-6 overflow-hidden">
+          <div className="w-full flex items-center justify-between pb-3 border-b border-gray-200/80 shrink-0">
+            <span className="text-xs font-bold text-gray-700 flex items-center gap-2">
+              <Award size={16} className="text-blue-600" />
+              Vista Previa del Diploma
+            </span>
+            <span className="text-[10px] font-bold text-gray-500 bg-gray-200/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
+              1000 x 773 px
+            </span>
+          </div>
 
           <div 
             ref={containerRef}
-            className="w-full flex justify-center items-start overflow-hidden bg-transparent"
-            style={{ minHeight: '400px' }}
+            className="w-full flex-1 flex items-center justify-center overflow-hidden bg-transparent my-auto py-2"
+            style={{ height: `${Math.max(250, scale * 773)}px` }}
           >
             <div 
               style={{ 
                 transform: `scale(${scale})`, 
-                transformOrigin: 'top center',
+                transformOrigin: 'center center',
                 width: '1000px',
                 height: '773px',
                 flexShrink: 0
               }}
-              className="transition-transform duration-200"
+              className="transition-transform duration-200 shadow-xl rounded-sm"
             >
               <DiplomaPreviewRender studentName={sampleStudentName} />
             </div>
           </div>
 
-          <div className="text-[11px] text-gray-450 text-center max-w-sm mt-4 leading-normal">
-            Presiona <strong>Guardar Plantilla</strong> en la izquierda para aplicar los cambios del diploma a este taller.
+          <div className="text-[11px] text-gray-450 text-center max-w-sm pt-3 border-t border-gray-200/80 w-full shrink-0 leading-normal">
+            Presiona <strong className="text-gray-700">Guardar Plantilla</strong> en el panel izquierdo para aplicar los cambios.
           </div>
         </div>
       </div>

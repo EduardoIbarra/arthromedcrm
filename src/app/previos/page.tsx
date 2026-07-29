@@ -663,19 +663,43 @@ function PreviosContent() {
                           </a>
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            id={`btn-convert-${previo.id}`}
-                            disabled={convertingId === previo.id}
-                            onClick={() => convertToCotizacion(previo)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition disabled:opacity-50"
-                            style={{ background: '#edf4fb', color: '#0763a9' }}
-                            title="Convertir a Cotización en Alegra"
-                          >
-                            {convertingId === previo.id
-                              ? <Loader2 size={13} className="animate-spin" />
-                              : <ArrowRight size={13} />}
-                            Cotización
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              id={`btn-convert-${previo.id}`}
+                              disabled={convertingId === previo.id}
+                              onClick={() => convertToCotizacion(previo)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition disabled:opacity-50"
+                              style={{ background: '#edf4fb', color: '#0763a9' }}
+                              title="Convertir a Cotización en Alegra"
+                            >
+                              {convertingId === previo.id
+                                ? <Loader2 size={13} className="animate-spin" />
+                                : <ArrowRight size={13} />}
+                              Cotización
+                            </button>
+
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (!confirm(`¿Eliminar el previo ${previo.folio}?`)) return
+                                try {
+                                  const res = await fetch(`/api/previos/${previo.id}`, { method: 'DELETE' })
+                                  if (res.ok) {
+                                    fetchPrevios()
+                                  } else {
+                                    const json = await res.json()
+                                    alert(json.error || 'Error al eliminar')
+                                  }
+                                } catch (err: any) {
+                                  alert(err.message || 'Error de red')
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="Eliminar previo"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <Link href={`/previos/${previo.id}`} className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100">

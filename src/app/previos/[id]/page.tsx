@@ -222,6 +222,37 @@ export default function PrevioDetailPage() {
             </div>
             
             <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  alert('Para modificar productos o datos del previo, puedes reordenar o actualizar partidas desde la tabla de abajo, o eliminar el previo si deseas regenerarlo.')
+                }}
+                className="btn-secondary flex items-center gap-1.5"
+                title="Información de edición"
+              >
+                <FileText size={16} /> Editar
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (!confirm(`¿Estás seguro de que deseas eliminar el previo ${previo.folio}? Esta acción no se puede deshacer.`)) return
+                  try {
+                    const res = await fetch(`/api/previos/${previo.id}`, { method: 'DELETE' })
+                    if (res.ok) {
+                      router.push('/previos')
+                    } else {
+                      const json = await res.json()
+                      alert(json.error || 'Error al eliminar el previo')
+                    }
+                  } catch (e: any) {
+                    alert(e.message || 'Error de red')
+                  }
+                }}
+                className="px-3 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 transition flex items-center gap-1.5"
+                title="Eliminar este previo"
+              >
+                <Trash2 size={16} /> Eliminar
+              </button>
+
               <a 
                 href={`/api/previos/${previo.id}/pdf`}
                 target="_blank" 

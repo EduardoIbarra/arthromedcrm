@@ -32,12 +32,8 @@ export default function GenerarReporteModal({
   const [periodoEvaluado, setPeriodoEvaluado] = useState('2024 - 2025')
   const [elaboradoPor, setElaboradoPor] = useState('Ing. Fernando Castro')
   const [empresa, setEmpresa] = useState('Arthromed')
-  const [causasPosibles, setCausasPosibles] = useState(
-    'Algunos de los problemas son generados por el empaque debido a que no es lo suficientemente rígido y los equipos médicos están en movimiento constante. Al realizar mantenimiento, algunas piezas no se pueden reparar por lo que se requieren refacciones.'
-  )
-  const [accionesTomadas, setAccionesTomadas] = useState(
-    'Se fabricaron estuches y maletines especiales para la protección de los equipos. Se procede al reemplazo de piezas y componentes dañados.'
-  )
+  const [causasPosibles, setCausasPosibles] = useState('')
+  const [accionesTomadas, setAccionesTomadas] = useState('')
 
   if (!isOpen) return null
 
