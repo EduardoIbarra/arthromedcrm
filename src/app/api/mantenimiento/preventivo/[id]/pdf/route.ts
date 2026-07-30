@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma'
 import fs from 'fs'
 import path from 'path'
 import QRCode from 'qrcode'
+import sharp from 'sharp'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,6 +92,52 @@ function dt(
 ) {
   if (!text) return
   try { page.drawText(text, { x, y, size, font, color }) } catch { /* skip missing glyphs */ }
+}
+
+async function embedImage(pdf: PDFDocument, imgInput: string | Buffer | Uint8Array) {
+  try {
+    let imgBuffer: Buffer | null = null
+    if (typeof imgInput === 'string') {
+      if (imgInput.startsWith('data:image/')) {
+        const base64Data = imgInput.split(',')[1]
+        if (base64Data) {
+          imgBuffer = Buffer.from(base64Data, 'base64')
+        }
+      } else if (imgInput.startsWith('http://') || imgInput.startsWith('https://')) {
+        const imgRes = await fetch(imgInput)
+        if (imgRes.ok) {
+          imgBuffer = Buffer.from(await imgRes.arrayBuffer())
+        }
+      }
+    } else if (imgInput) {
+      imgBuffer = Buffer.from(imgInput)
+    }
+
+    if (!imgBuffer || imgBuffer.length === 0) return null
+
+    const isPng = imgBuffer.length >= 4 && imgBuffer[0] === 0x89 && imgBuffer[1] === 0x50 && imgBuffer[2] === 0x4E && imgBuffer[3] === 0x47
+    const isJpg = imgBuffer.length >= 3 && imgBuffer[0] === 0xFF && imgBuffer[1] === 0xD8 && imgBuffer[2] === 0xFF
+
+    if (isPng) {
+      try {
+        return await pdf.embedPng(imgBuffer)
+      } catch (e) {
+        // Fallback to sharp
+      }
+    } else if (isJpg) {
+      try {
+        return await pdf.embedJpg(imgBuffer)
+      } catch (e) {
+        // Fallback to sharp
+      }
+    }
+
+    const convertedJpeg = await sharp(imgBuffer).jpeg({ quality: 85 }).toBuffer()
+    return await pdf.embedJpg(convertedJpeg)
+  } catch (err) {
+    console.error('embedImage error:', err)
+    return null
+  }
 }
 
 // ─── MAIN HANDLER ─────────────────────────────────────────────────────────────
@@ -431,18 +478,7 @@ export async function GET(
       for (let j = 0; j < Math.min(evidencias.length, 3); j++) {
         const ev = evidencias[j]
         try {
-          let img: any = null
-          if (ev.url?.startsWith('data:image/')) {
-            const b64 = ev.url.split(',')[1]
-            const buf = Buffer.from(b64, 'base64')
-            img = ev.url.includes('image/png') ? await pdf.embedPng(buf) : await pdf.embedJpg(buf)
-          } else if (ev.url?.startsWith('http')) {
-            const res = await fetch(ev.url)
-            if (res.ok) {
-              const buf = new Uint8Array(await res.arrayBuffer())
-              img = ev.url.toLowerCase().endsWith('.png') ? await pdf.embedPng(buf) : await pdf.embedJpg(buf)
-            }
-          }
+          const img = ev.url ? await embedImage(pdf, ev.url) : null
           if (img) {
             const scale = Math.min(EVID_IMG_W / img.width, MAX_EVID_IMG_H / img.height)
             const iw = img.width * scale, ih = img.height * scale
