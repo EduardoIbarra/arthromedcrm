@@ -1,33 +1,45 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { toBlob } from 'html-to-image'
+import { toPng } from 'html-to-image'
+import { PDFDocument } from 'pdf-lib'
 import { Plus, Trash2, Upload, Loader2, Award, Shield, FileText, Check, Download, Printer, Settings, Edit3 } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { QRCodeSVG } from 'qrcode.react'
 
-interface DiplomaTemplate {
+export interface SignatureItem {
+  id: string
+  name: string
+  title: string
+  image: string
+}
+
+export interface DiplomaTemplate {
   title: string
   presentation: string
   bodyText: string
   subText: string
   hours: string
   location: string
-  theme: 'navy-gold' | 'emerald-gold' | 'charcoal-silver' | 'minimalist'
+  theme: 'navy-gold' | 'emerald-gold' | 'charcoal-silver' | 'minimalist' | 'bonss-diagonal'
   fontFamily: 'serif' | 'sans'
-  logo1: string // dataUrl or url
-  logo2: string // dataUrl or url
-  sig1_name: string
-  sig1_title: string
-  sig1_image: string // dataUrl or url
-  sig2_name: string
-  sig2_title: string
-  sig2_image: string // dataUrl or url
+  logo1: string // Upper left logo
+  logo2: string // Upper right logo
+  logo3: string // Lower right logo
+  signatures: SignatureItem[]
+  // Legacy fields for backward compatibility
+  sig1_name?: string
+  sig1_title?: string
+  sig1_image?: string
+  sig2_name?: string
+  sig2_title?: string
+  sig2_image?: string
 }
 
 interface DiplomaBuilderProps {
   isOpen: boolean
   onClose: () => void
+  isFullPage?: boolean
   taller: {
     id: string
     name: string
@@ -38,87 +50,109 @@ interface DiplomaBuilderProps {
   onSave: (template: DiplomaTemplate) => void
 }
 
+const DEFAULT_SIGNATURES = (professor: string): SignatureItem[] => [
+  {
+    id: 'sig-1',
+    name: `Dr. ${professor || 'Ricardo Reyes Reyes'}`,
+    title: 'Director General de Arthromed',
+    image: ''
+  },
+  {
+    id: 'sig-2',
+    name: 'Eric Ai',
+    title: 'Gerente de Bonss Medical LATAM',
+    image: ''
+  }
+]
+
 const DEFAULT_TEMPLATE = (workshopName: string, professor: string): DiplomaTemplate => ({
-  title: 'CONSTANCIA',
-  presentation: 'Se otorga la presente a:',
-  bodyText: 'Por haber completado satisfactoriamente el taller práctico de especialidad médica:',
-  subText: `Impartido en las instalaciones de Arthromed Academy el día {{date}}, con una duración total de {{hours}} horas de valor curricular.`,
+  title: 'CERTIFICADO',
+  presentation: 'Bonss Medical otorga el reconocimiento a:',
+  bodyText: 'Por su participación en el',
+  subText: `Impartido en {{location}} el día {{date}}, con una duración total de {{hours}} horas de valor curricular.`,
   hours: '8',
-  location: 'Monterrey, Nuevo León',
-  theme: 'navy-gold',
+  location: 'Monterrey, Nuevo León, México',
+  theme: 'bonss-diagonal',
   fontFamily: 'serif',
-  logo1: '/logo.png',
+  logo1: '',
   logo2: '',
-  sig1_name: `Dr. ${professor || 'Instructor Principal'}`,
-  sig1_title: 'Profesor Titular',
-  sig1_image: '',
-  sig2_name: 'Comité Organizador',
-  sig2_title: 'Arthromed Academy',
-  sig2_image: '',
+  logo3: '',
+  signatures: DEFAULT_SIGNATURES(professor)
 })
 
-export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: DiplomaBuilderProps) {
-  const [template, setTemplate] = useState<DiplomaTemplate>(() => {
-    if (taller.diploma_template && typeof taller.diploma_template === 'object') {
-      return {
-        ...DEFAULT_TEMPLATE(taller.name, taller.professor),
-        ...taller.diploma_template
-      }
-    }
-    return DEFAULT_TEMPLATE(taller.name, taller.professor)
-  })
+const normalizeTemplate = (rawTmpl: any, workshopName: string, professor: string): DiplomaTemplate => {
+  const base = DEFAULT_TEMPLATE(workshopName, professor)
+  if (!rawTmpl || typeof rawTmpl !== 'object') return base
 
-  const [activeTab, setActiveTab] = useState<'text' | 'design' | 'logos' | 'preview'>('text')
+  // Normalize signatures
+  let sigs: SignatureItem[] = []
+  if (Array.isArray(rawTmpl.signatures) && rawTmpl.signatures.length > 0) {
+    sigs = rawTmpl.signatures
+  } else {
+    // Migration from legacy sig1/sig2 fields
+    if (rawTmpl.sig1_name || rawTmpl.sig1_title || rawTmpl.sig1_image) {
+      sigs.push({
+        id: 'sig-1',
+        name: rawTmpl.sig1_name || `Dr. ${professor || 'Instructor Principal'}`,
+        title: rawTmpl.sig1_title || 'Profesor Titular',
+        image: rawTmpl.sig1_image || ''
+      })
+    }
+    if (rawTmpl.sig2_name || rawTmpl.sig2_title || rawTmpl.sig2_image) {
+      sigs.push({
+        id: 'sig-2',
+        name: rawTmpl.sig2_name || 'Comité Organizador',
+        title: rawTmpl.sig2_title || 'Arthromed Academy',
+        image: rawTmpl.sig2_image || ''
+      })
+    }
+    if (sigs.length === 0) {
+      sigs = DEFAULT_SIGNATURES(professor)
+    }
+  }
+
+  return {
+    ...base,
+    ...rawTmpl,
+    signatures: sigs,
+    logo3: rawTmpl.logo3 || ''
+  }
+}
+
+export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, taller, onSave }: DiplomaBuilderProps) {
+  const [template, setTemplate] = useState<DiplomaTemplate>(() => 
+    normalizeTemplate(taller.diploma_template, taller.name, taller.professor)
+  )
+
+  const [activeTab, setActiveTab] = useState<'text' | 'design' | 'logos' | 'signatures' | 'preview'>('text')
   const [isSaving, setIsSaving] = useState(false)
-  const [sampleStudentName, setSampleStudentName] = useState('Dr. Alejandro L. Ramírez Gutiérrez')
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [sampleStudentName, setSampleStudentName] = useState('Dr. Alfonso De Jesús Núñez Salazar')
   
   const containerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
+  const [scale, setScale] = useState(0.8)
   
   const fileInputLogo1Ref = useRef<HTMLInputElement>(null)
   const fileInputLogo2Ref = useRef<HTMLInputElement>(null)
-  const fileInputSig1Ref = useRef<HTMLInputElement>(null)
-  const fileInputSig2Ref = useRef<HTMLInputElement>(null)
+  const fileInputLogo3Ref = useRef<HTMLInputElement>(null)
 
-  // Pre-resolve relative assets (like default /logo.png) to base64 on mount to avoid WebKit canvas bugs
-  useEffect(() => {
-    const convertDefaultLogo = async () => {
-      if (template.logo1 && template.logo1.startsWith('/')) {
-        try {
-          const res = await fetch(template.logo1)
-          if (res.ok) {
-            const blob = await res.blob()
-            const reader = new FileReader()
-            reader.onloadend = () => {
-              setTemplate(prev => ({
-                ...prev,
-                logo1: reader.result as string
-              }))
-            }
-            reader.readAsDataURL(blob)
-          }
-        } catch (e) {
-          console.warn('Failed to convert default logo to base64 on builder mount:', e)
-        }
-      }
-    }
-    convertDefaultLogo()
-  }, [])
-
-  // Listen to container resizing to scale preview
+  // Listen to container resizing to scale preview dynamically
   useEffect(() => {
     if (!containerRef.current) return
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
         const width = entry.contentRect.width
-        setScale(Math.min(1, width / 1000))
+        const height = entry.contentRect.height
+        const scaleX = width / 1000
+        const scaleY = height / 773
+        setScale(Math.min(1, Math.min(scaleX, scaleY)))
       }
     })
     resizeObserver.observe(containerRef.current)
     return () => resizeObserver.disconnect()
   }, [containerRef.current, activeTab])
 
-  // Save changes to database
+  // Save template configuration to database
   const handleSave = async () => {
     setIsSaving(true)
     try {
@@ -144,8 +178,44 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
     }
   }
 
-  // Handle image upload and convert to base64 for offline portability
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logo1' | 'logo2' | 'sig1_image' | 'sig2_image') => {
+  // Generate PDF download
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true)
+    try {
+      const targetEl = document.getElementById('diploma-preview-target')
+      if (!targetEl) throw new Error('No se encontró el lienzo de vista previa.')
+
+      const pngDataUrl = await toPng(targetEl, { quality: 0.98, pixelRatio: 2 })
+      const pdfDoc = await PDFDocument.create()
+      const page = pdfDoc.addPage([1000, 773])
+      const pngImage = await pdfDoc.embedPng(pngDataUrl)
+      
+      page.drawImage(pngImage, {
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 773,
+      })
+
+      const pdfBytes = await pdfDoc.save()
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
+      const downloadUrl = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = `Diploma_${(taller.name || 'Taller').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      link.click()
+      URL.revokeObjectURL(downloadUrl)
+    } catch (err) {
+      console.error('Error generating PDF:', err)
+      alert('Ocurrió un error al generar el PDF del diploma.')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
+  }
+
+  // Handle generic image upload to state
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logo1' | 'logo2' | 'logo3') => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
       const reader = new FileReader()
@@ -159,6 +229,50 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
     }
   }
 
+  // Handle signature image upload
+  const handleSignatureImageUpload = (e: React.ChangeEvent<HTMLInputElement>, sigId: string) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      const reader = new FileReader()
+      reader.onload = () => {
+        setTemplate(prev => ({
+          ...prev,
+          signatures: prev.signatures.map(s => s.id === sigId ? { ...s, image: reader.result as string } : s)
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleAddSignature = () => {
+    setTemplate(prev => ({
+      ...prev,
+      signatures: [
+        ...prev.signatures,
+        {
+          id: `sig-${Date.now()}`,
+          name: 'Nuevo Firmante',
+          title: 'Cargo / Título',
+          image: ''
+        }
+      ]
+    }))
+  }
+
+  const handleRemoveSignature = (sigId: string) => {
+    setTemplate(prev => ({
+      ...prev,
+      signatures: prev.signatures.filter(s => s.id !== sigId)
+    }))
+  }
+
+  const handleUpdateSignature = (sigId: string, field: 'name' | 'title', value: string) => {
+    setTemplate(prev => ({
+      ...prev,
+      signatures: prev.signatures.map(s => s.id === sigId ? { ...s, [field]: value } : s)
+    }))
+  }
+
   // Format date text dynamically
   const getFormattedDate = () => {
     if (!taller.date_time) return 'Fecha por confirmar'
@@ -170,7 +284,7 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
     }
   }
 
-  // Generate body text with placeholders replaced
+  // Generate text with placeholders replaced
   const replacePlaceholders = (text: string, studentName: string) => {
     return text
       .replace(/{{name}}/g, studentName)
@@ -181,219 +295,612 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
       .replace(/{{professor}}/g, taller.professor || 'Profesor Titular')
   }
 
-  // Generate verification URL for QR code
+  // Verification URL for QR code
   const getVerificationUrl = (nameToUse: string) => {
     if (typeof window === 'undefined') return `/talleres/${taller.id}/verify?student=${encodeURIComponent(nameToUse)}`
     return `${window.location.origin}/talleres/${taller.id}/verify?student=${encodeURIComponent(nameToUse)}`
   }
 
-  // CSS Styles for different themes
-  const getThemeStyles = () => {
-    switch (template.theme) {
-      case 'emerald-gold':
-        return {
-          bg: 'bg-white',
-          border: 'border-[16px] border-[#064e3b]',
-          innerBorder: 'border-[2px] border-[#B89047] m-1',
-          cornerColor: 'text-[#B89047]',
-          accentText: 'text-[#B89047]',
-          primaryText: 'text-[#064e3b]',
-          accentLine: 'bg-[#B89047]',
-          crestBg: 'bg-[#064e3b]/5 text-[#B89047]',
-        }
-      case 'charcoal-silver':
-        return {
-          bg: 'bg-[#fafafa]',
-          border: 'border-[16px] border-[#1e293b]',
-          innerBorder: 'border-[2px] border-[#94a3b8] m-1',
-          cornerColor: 'text-[#94a3b8]',
-          accentText: 'text-[#475569]',
-          primaryText: 'text-[#0f172a]',
-          accentLine: 'bg-[#94a3b8]',
-          crestBg: 'bg-[#1e293b]/5 text-[#475569]',
-        }
-      case 'minimalist':
-        return {
-          bg: 'bg-white',
-          border: 'border-[4px] border-gray-200',
-          innerBorder: 'border-[1px] border-gray-150 m-4',
-          cornerColor: 'text-gray-400',
-          accentText: 'text-[#0763a9]',
-          primaryText: 'text-gray-900',
-          accentLine: 'bg-gray-300',
-          crestBg: 'bg-gray-55/5 text-gray-500',
-        }
-      case 'navy-gold':
-      default:
-        return {
-          bg: 'bg-white',
-          border: 'border-[16px] border-[#081e3f]',
-          innerBorder: 'border-[2px] border-[#C5A059] m-1',
-          cornerColor: 'text-[#C5A059]',
-          accentText: 'text-[#C5A059]',
-          primaryText: 'text-[#081e3f]',
-          accentLine: 'bg-[#C5A059]',
-          crestBg: 'bg-[#081e3f]/5 text-[#C5A059]',
-        }
-    }
-  }
-
-  const styles = getThemeStyles()
   const fontClass = template.fontFamily === 'serif' ? 'font-serif' : 'font-sans'
 
-  // Component to render the actual diploma page content
+  // Component rendering the actual diploma document canvas
   const DiplomaPreviewRender = ({ studentName }: { studentName: string }) => {
+    const isBonssTheme = template.theme === 'bonss-diagonal'
+
     return (
       <div 
         id="diploma-preview-target"
-        className={`w-[1000px] h-[773px] relative flex flex-col justify-between p-12 select-none overflow-hidden shadow-2xl transition-all ${styles.bg} ${styles.border} ${fontClass}`}
-        style={{
-          boxSizing: 'border-box',
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(254,254,250,1) 100%)'
-        }}
+        className={`w-[1000px] h-[773px] relative flex flex-col justify-between select-none overflow-hidden shadow-2xl transition-all bg-white ${fontClass}`}
+        style={{ boxSizing: 'border-box' }}
       >
-        {/* Inner Border */}
-        <div className={`absolute inset-3 border-2 ${template.theme === 'minimalist' ? 'border-gray-200' : 'border-[#C5A059]'} pointer-events-none opacity-80 z-10`} style={{ borderColor: styles.innerBorder.split(' ')[2] }} />
-
-        {/* Decorative corner brackets (except for minimalist) */}
-        {template.theme !== 'minimalist' && (
+        {/* Theme Accents */}
+        {isBonssTheme ? (
           <>
-            <div className={`absolute top-5 left-5 w-8 h-8 border-t-4 border-l-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
-            <div className={`absolute top-5 right-5 w-8 h-8 border-t-4 border-r-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
-            <div className={`absolute bottom-5 left-5 w-8 h-8 border-b-4 border-l-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
-            <div className={`absolute bottom-5 right-5 w-8 h-8 border-b-4 border-r-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
+            {/* Top-Left Blue Diagonal Accent */}
+            <div 
+              className="absolute top-0 left-0 w-[420px] h-[260px] pointer-events-none z-0"
+              style={{
+                background: 'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%)',
+                clipPath: 'polygon(0 0, 100% 0, 0 100%)'
+              }}
+            />
+            {/* Thin silver/grey separator line along diagonal */}
+            <div 
+              className="absolute top-0 left-0 w-[430px] h-[268px] pointer-events-none z-0 opacity-40"
+              style={{
+                background: '#94a3b8',
+                clipPath: 'polygon(0 0, 100% 0, 0 100%)',
+                transform: 'scale(1.02)'
+              }}
+            />
+
+            {/* Bottom-Right Dark Navy Diagonal Accent */}
+            <div 
+              className="absolute bottom-0 right-0 w-[360px] h-[260px] pointer-events-none z-0"
+              style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
+              }}
+            />
           </>
+        ) : (
+          /* Standard borders for other themes */
+          <div className={`absolute inset-3 border-2 ${template.theme === 'minimalist' ? 'border-gray-200' : 'border-[#C5A059]'} pointer-events-none opacity-80 z-10`} />
         )}
 
-        {/* Watermark in background */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] z-0">
-          <svg width="400" height="400" viewBox="0 0 24 24" fill="currentColor" className={styles.primaryText}>
-            {/* Caduceus / Medical Cross style vector */}
-            <path d="M19 10.5h-5.5V5c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v5.5H5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5h5.5V19c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-5.5H19c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5z"/>
+        {/* Central Spine Watermark for Bonss theme */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08] z-0">
+          <svg width="460" height="650" viewBox="0 0 100 200" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-900">
+            {/* Spine column artwork illustration */}
+            <path d="M50 10 C45 20, 55 30, 50 40 C45 50, 55 60, 50 70 C45 80, 55 90, 50 100 C45 110, 55 120, 50 130 C45 140, 55 150, 50 160 C45 170, 55 180, 50 190" />
+            <circle cx="50" cy="20" r="8" opacity="0.6" />
+            <circle cx="50" cy="40" r="9" opacity="0.6" />
+            <circle cx="50" cy="60" r="10" opacity="0.6" />
+            <circle cx="50" cy="80" r="11" opacity="0.6" />
+            <circle cx="50" cy="100" r="12" opacity="0.6" />
+            <circle cx="50" cy="120" r="12" opacity="0.6" />
+            <circle cx="50" cy="140" r="13" opacity="0.6" />
+            <circle cx="50" cy="160" r="13" opacity="0.6" />
+            <circle cx="50" cy="180" r="14" opacity="0.6" />
           </svg>
         </div>
 
-        {/* Top Header Logos */}
-        <div className="flex justify-between items-center z-10 w-full px-6">
-          {/* Logo 1 */}
-          <div className="h-16 w-44 flex items-center justify-start">
+        {/* TOP HEADER LOGOS */}
+        <div className="flex justify-between items-start z-10 w-full p-8">
+          {/* Upper Left Corner Logo (Logo 1) */}
+          <div className="h-20 w-52 flex items-center justify-start">
             {template.logo1 ? (
-              <img src={template.logo1} alt="Logo Principal" className="max-h-16 max-w-full object-contain" />
+              <img src={template.logo1} alt="Logo 1 (Superior Izquierdo)" className="max-h-20 max-w-full object-contain filter drop-shadow-md" />
             ) : (
-              <div className="text-xs text-gray-350 italic border border-dashed border-gray-300 p-2 rounded">Sin Logo Principal</div>
+              <div className={`text-xs p-2 rounded border border-dashed ${isBonssTheme ? 'text-white border-white/50 bg-white/10' : 'text-gray-400 border-gray-300'}`}>
+                + Logo Superior Izquierdo
+              </div>
             )}
           </div>
 
-          {/* Academic Crest Emblem in center */}
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center border shadow-xs z-10 ${styles.crestBg}`} style={{ borderColor: 'currentColor' }}>
-            <Award size={28} />
-          </div>
-
-          {/* Logo 2 */}
-          <div className="h-16 w-44 flex items-center justify-end">
+          {/* Upper Right Corner Logo (Logo 2) */}
+          <div className="h-20 w-52 flex items-center justify-end">
             {template.logo2 ? (
-              <img src={template.logo2} alt="Logo Secundario" className="max-h-16 max-w-full object-contain" />
+              <img src={template.logo2} alt="Logo 2 (Superior Derecho)" className="max-h-20 max-w-full object-contain" />
             ) : (
-              <div className="text-xs text-gray-300 italic border border-dashed border-gray-200 p-2 rounded">Cargar co-patrocinio</div>
+              <div className="text-xs text-gray-400 italic border border-dashed border-gray-300 p-2 rounded">
+                + Logo Superior Derecho
+              </div>
             )}
           </div>
         </div>
 
-        {/* Main Certificate Title and Body */}
-        <div className="flex flex-col items-center text-center z-10 w-full px-8 mt-4 space-y-4">
-          <span className={`text-[11px] font-bold uppercase tracking-[0.3em] ${styles.accentText}`}>
-            Arthromed Academy
-          </span>
-
-          <h2 className={`text-4xl md:text-5xl font-black uppercase tracking-wide leading-tight ${styles.primaryText} ${template.fontFamily === 'serif' ? 'font-serif' : 'font-sans'}`}>
-            {template.title}
+        {/* MAIN BODY CONTENT */}
+        <div className="flex flex-col items-center text-center z-10 w-full px-12 space-y-3 -mt-4">
+          {/* Certificate Main Header */}
+          <h2 className="text-5xl font-serif font-black uppercase tracking-wider text-gray-900 leading-tight">
+            {template.title || 'CERTIFICADO'}
           </h2>
 
-          <div className={`w-32 h-[3px] my-1 ${styles.accentLine}`} />
-
-          <p className="text-xs italic text-gray-500 font-medium my-1">
-            {template.presentation}
-          </p>
-
-          <h3 className={`text-2xl md:text-3xl font-bold tracking-tight text-gray-900 border-b-2 border-gray-100 pb-2 px-12 ${fontClass}`}>
-            {studentName}
+          <h3 className="text-xl font-serif font-bold uppercase tracking-widest text-gray-800 -mt-1">
+            DE RECONOCIMIENTO
           </h3>
 
-          <div className="max-w-2xl space-y-2 mt-2">
-            <p className="text-sm leading-relaxed text-gray-650 font-medium">
-              {replacePlaceholders(template.bodyText, studentName)}
-            </p>
-            
-            <p className="text-[15.5px] font-bold text-gray-800 tracking-wide uppercase">
-              "{taller.name}"
-            </p>
+          <p className="text-sm italic text-gray-600 font-serif my-2">
+            {template.presentation || 'Bonss Medical otorga el reconocimiento a:'}
+          </p>
 
-            <p className="text-xs leading-relaxed text-gray-500 font-medium max-w-xl mx-auto">
-              {replacePlaceholders(template.subText, studentName)}
+          {/* Recipient Name */}
+          <div className="w-full flex flex-col items-center py-1">
+            <h3 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-gray-950 border-b-2 border-gray-900 pb-1.5 px-8 inline-block max-w-3xl">
+              {studentName}
+            </h3>
+          </div>
+
+          {/* Body description */}
+          <div className="max-w-3xl space-y-1.5 mt-2">
+            <p className="text-sm leading-relaxed text-gray-800 font-serif font-normal">
+              {replacePlaceholders(template.bodyText, studentName)} <span className="font-bold text-gray-950">"{taller.name}"</span>.
             </p>
           </div>
         </div>
 
-        {/* Signatures & Footer section */}
-        <div className="grid grid-cols-2 gap-20 items-end px-16 z-10 w-full mt-6">
-          {/* Signature 1 */}
-          <div className="flex flex-col items-center text-center min-w-0">
-            <div className="h-14 flex items-end justify-center mb-1">
-              {template.sig1_image && (
-                <img src={template.sig1_image} alt="Firma 1" className="max-h-14 max-w-[150px] object-contain" />
-              )}
-            </div>
-            <div className="w-full border-t border-gray-300 my-1" />
-            <p className="text-xs font-bold text-gray-850 truncate w-full">{template.sig1_name}</p>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider truncate w-full">{template.sig1_title}</p>
-          </div>
-
-          {/* Signature 2 */}
-          <div className="flex flex-col items-center text-center min-w-0">
-            <div className="h-14 flex items-end justify-center mb-1">
-              {template.sig2_image && (
-                <img src={template.sig2_image} alt="Firma 2" className="max-h-14 max-w-[150px] object-contain" />
-              )}
-            </div>
-            <div className="w-full border-t border-gray-300 my-1" />
-            <p className="text-xs font-bold text-gray-850 truncate w-full">{template.sig2_name}</p>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider truncate w-full">{template.sig2_title}</p>
+        {/* SIGNATURES SECTION */}
+        <div className="z-10 w-full px-16 my-2">
+          <div className={`grid gap-12 items-end justify-center ${template.signatures.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : template.signatures.length === 2 ? 'grid-cols-2 max-w-2xl mx-auto' : 'grid-cols-3 max-w-3xl mx-auto'}`}>
+            {template.signatures.map((sig) => (
+              <div key={sig.id} className="flex flex-col items-center text-center min-w-0">
+                <div className="h-16 flex items-end justify-center mb-1">
+                  {sig.image ? (
+                    <img src={sig.image} alt={sig.name} className="max-h-16 max-w-[170px] object-contain" />
+                  ) : (
+                    <div className="h-12" />
+                  )}
+                </div>
+                <div className="w-full border-t border-gray-800 my-1" />
+                <p className="text-xs font-serif font-bold text-gray-900 truncate w-full">{sig.name}</p>
+                <p className="text-[10px] text-gray-600 font-sans uppercase tracking-wider truncate w-full">{sig.title}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Footer credentials or verification */}
-        <div className="flex justify-between items-end text-[9px] text-gray-400 px-6 z-10 mt-4 border-t border-gray-100 pt-2 w-full font-sans">
-          <div className="flex flex-col gap-0.5">
-            <span>ID de Certificación: AR-{taller.id.slice(0, 8).toUpperCase()}-{"{{id_code}}"}</span>
-            <span>{template.location}, México</span>
-            <span>arthromed.com.mx</span>
-          </div>
-          
-          {/* Verification QR Code */}
-          <div className="flex items-center gap-2.5 bg-white p-1.5 border border-gray-200 rounded-lg shadow-xs">
+        {/* FOOTER SECTION */}
+        <div className="flex justify-between items-end px-10 pb-6 z-10 w-full font-sans">
+          {/* Lower Left Corner: QR CODE */}
+          <div className="flex items-center gap-3 bg-white/90 p-2 border border-gray-200 rounded-xl shadow-xs">
             <QRCodeSVG 
               value={getVerificationUrl(studentName)} 
               size={64}
               level="M"
               includeMargin={false}
             />
-            <div className="text-[7.5px] text-gray-400 font-mono leading-tight flex flex-col justify-center text-left max-w-[65px]">
-              <span className="font-bold text-gray-600">CONSTANCIA</span>
+            <div className="text-[8px] text-gray-500 font-mono leading-tight flex flex-col justify-center text-left">
+              <span className="font-bold text-gray-800">CONSTANCIA</span>
               <span className="font-bold text-emerald-600">VERIFICADA</span>
-              <span className="mt-1 text-[6px] text-gray-400 leading-none">ESCANEAR CÓDIGO</span>
+              <span className="mt-1 text-[7px] text-gray-400">ESCANEAR QR</span>
             </div>
+          </div>
+
+          {/* Center Bottom: Date & Location */}
+          <div className="text-xs text-gray-600 font-serif italic text-center pb-2">
+            {getFormattedDate()}, {template.location}
+          </div>
+
+          {/* Lower Right Corner: Logo 3 */}
+          <div className="h-20 w-44 flex items-center justify-end">
+            {template.logo3 ? (
+              <img src={template.logo3} alt="Logo 3 (Inferior Derecho)" className="max-h-20 max-w-full object-contain filter drop-shadow-md" />
+            ) : (
+              <div className="text-[10px] text-white/70 italic border border-dashed border-white/40 p-1.5 rounded">
+                + Logo Inferior Derecho
+              </div>
+            )}
           </div>
         </div>
       </div>
     )
   }
 
-  // Replacement values for ID Code and details
-  const renderCompiledHTML = (studentName: string, idCode: string = '001') => {
-    const rawHtml = document.getElementById('diploma-preview-target')?.outerHTML || ''
-    // replace dynamic markers
-    return rawHtml
-      .replace(/{{id_code}}/g, idCode)
+  const mainWorkspaceContent = (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start h-full overflow-hidden">
+      {/* Left Form Editor Controls: 5 cols */}
+      <div className="lg:col-span-5 flex flex-col h-full overflow-y-auto pr-1 space-y-4 pb-4">
+        
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-gray-200 bg-gray-50/50 p-1 rounded-2xl">
+          <button 
+            onClick={() => setActiveTab('text')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl text-center transition-all ${activeTab === 'text' ? 'bg-white shadow-xs text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <span className="flex items-center justify-center gap-1"><FileText size={13} /> Textos</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('design')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl text-center transition-all ${activeTab === 'design' ? 'bg-white shadow-xs text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <span className="flex items-center justify-center gap-1"><Settings size={13} /> Diseño</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('logos')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl text-center transition-all ${activeTab === 'logos' ? 'bg-white shadow-xs text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <span className="flex items-center justify-center gap-1"><Shield size={13} /> Logos</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('signatures')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl text-center transition-all ${activeTab === 'signatures' ? 'bg-white shadow-xs text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <span className="flex items-center justify-center gap-1"><Edit3 size={13} /> Firmas</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('preview')}
+            className={`lg:hidden flex-1 py-2 text-xs font-bold rounded-xl text-center transition-all ${activeTab === 'preview' ? 'bg-white shadow-xs text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <span className="flex items-center justify-center gap-1"><Award size={13} /> Vista</span>
+          </button>
+        </div>
+
+        {/* Tab Contents */}
+        <div className="flex-1 space-y-4 pt-1">
+          {activeTab === 'text' && (
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Título Principal</label>
+                <input 
+                  type="text" 
+                  className="erp-input w-full" 
+                  value={template.title} 
+                  onChange={e => setTemplate(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="CERTIFICADO"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Texto de Presentación</label>
+                <input 
+                  type="text" 
+                  className="erp-input w-full" 
+                  value={template.presentation} 
+                  onChange={e => setTemplate(prev => ({ ...prev, presentation: e.target.value }))}
+                  placeholder="Bonss Medical otorga el reconocimiento a:"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Descripción / Motivo</label>
+                <textarea 
+                  rows={3}
+                  className="erp-input w-full text-xs" 
+                  value={template.bodyText} 
+                  onChange={e => setTemplate(prev => ({ ...prev, bodyText: e.target.value }))}
+                  placeholder="Por su participación en el Taller Práctico..."
+                />
+                <span className="text-[10px] text-gray-400">El nombre del taller y del alumno se agregan automáticamente.</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Horas Curriculares</label>
+                  <input 
+                    type="text" 
+                    className="erp-input w-full" 
+                    value={template.hours} 
+                    onChange={e => setTemplate(prev => ({ ...prev, hours: e.target.value }))}
+                    placeholder="8"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Lugar de Emisión</label>
+                  <input 
+                    type="text" 
+                    className="erp-input w-full" 
+                    value={template.location} 
+                    onChange={e => setTemplate(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="Monterrey, Nuevo León, México"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'design' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Plantilla y Estilo</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setTemplate(prev => ({ ...prev, theme: 'bonss-diagonal' }))}
+                    className={`flex flex-col items-center p-3 border rounded-xl text-center transition-all ${template.theme === 'bonss-diagonal' ? 'border-blue-600 bg-blue-50/50 shadow-xs' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <div className="w-12 h-7 bg-white border border-gray-300 rounded-sm mb-1.5 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-5 h-5 bg-blue-600 clip-path-triangle" style={{ clipPath: 'polygon(0 0, 100% 0, 0 100%)' }} />
+                      <div className="absolute bottom-0 right-0 w-5 h-5 bg-slate-900 clip-path-triangle" style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }} />
+                    </div>
+                    <span className="text-xs font-bold text-gray-900">Médico Diagonal (Bonss)</span>
+                    <span className="text-[9px] text-gray-400 uppercase mt-0.5">Estilo Arthromed / Bonss</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => setTemplate(prev => ({ ...prev, theme: 'navy-gold' }))}
+                    className={`flex flex-col items-center p-3 border rounded-xl text-center transition-all ${template.theme === 'navy-gold' ? 'border-blue-600 bg-blue-50/50 shadow-xs' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <div className="w-12 h-7 border-4 border-[#081e3f] bg-white rounded-sm mb-1.5 relative">
+                      <div className="absolute inset-0.5 border border-[#C5A059]" />
+                    </div>
+                    <span className="text-xs font-bold text-gray-900">Azul Marino y Oro</span>
+                    <span className="text-[9px] text-gray-400 uppercase mt-0.5">Borde Marco Clásico</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Tipografía</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setTemplate(prev => ({ ...prev, fontFamily: 'serif' }))}
+                    className={`p-3 border rounded-xl text-center transition-all ${template.fontFamily === 'serif' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <span className="text-lg font-serif font-bold block mb-0.5">Abc</span>
+                    <span className="text-xs font-semibold text-gray-800">Serif (Elegante)</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => setTemplate(prev => ({ ...prev, fontFamily: 'sans' }))}
+                    className={`p-3 border rounded-xl text-center transition-all ${template.fontFamily === 'sans' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <span className="text-lg font-sans font-bold block mb-0.5">Abc</span>
+                    <span className="text-xs font-semibold text-gray-800">Sans (Moderna)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-50/40 p-3.5 border border-blue-100 rounded-2xl">
+                <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider block mb-1">Nombre de Prueba en Vista Previa</span>
+                <input 
+                  type="text" 
+                  className="erp-input w-full bg-white text-xs py-1.5" 
+                  value={sampleStudentName} 
+                  onChange={e => setSampleStudentName(e.target.value)}
+                  placeholder="Dr. Nombre de Prueba"
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'logos' && (
+            <div className="space-y-3.5">
+              <h4 className="text-xs font-bold text-gray-900">Ubicación de Logotipos (Hasta 3 logos)</h4>
+
+              {/* Logo 1 (Upper Left) */}
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider block">Logo 1 (Esquina Superior Izquierda)</span>
+                    <span className="text-xs font-semibold text-gray-800">Marca Principal (Ej. BONSS)</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputLogo1Ref.current?.click()}
+                      className="btn-secondary text-xs py-1 px-2.5"
+                    >
+                      <Upload size={13} /> Subir
+                    </button>
+                    {template.logo1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => setTemplate(prev => ({ ...prev, logo1: '' }))}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input type="file" ref={fileInputLogo1Ref} className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'logo1')} />
+              </div>
+
+              {/* Logo 2 (Upper Right) */}
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider block">Logo 2 (Esquina Superior Derecha)</span>
+                    <span className="text-xs font-semibold text-gray-800">Empresa / Co-patrocinador (Ej. ARTHROMED)</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputLogo2Ref.current?.click()}
+                      className="btn-secondary text-xs py-1 px-2.5"
+                    >
+                      <Upload size={13} /> Subir
+                    </button>
+                    {template.logo2 && (
+                      <button 
+                        type="button" 
+                        onClick={() => setTemplate(prev => ({ ...prev, logo2: '' }))}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input type="file" ref={fileInputLogo2Ref} className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'logo2')} />
+              </div>
+
+              {/* Logo 3 (Lower Right) */}
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider block">Logo 3 (Esquina Inferior Derecha)</span>
+                    <span className="text-xs font-semibold text-gray-800">Sociedad / Sello (Ej. ISUBE)</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputLogo3Ref.current?.click()}
+                      className="btn-secondary text-xs py-1 px-2.5"
+                    >
+                      <Upload size={13} /> Subir
+                    </button>
+                    {template.logo3 && (
+                      <button 
+                        type="button" 
+                        onClick={() => setTemplate(prev => ({ ...prev, logo3: '' }))}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input type="file" ref={fileInputLogo3Ref} className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'logo3')} />
+              </div>
+
+              <p className="text-[11px] text-gray-500 italic bg-amber-50 p-2.5 border border-amber-200 rounded-xl">
+                Nota: La esquina inferior izquierda está reservada exclusivamente para el código QR de verificación de validez oficial.
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'signatures' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-gray-900">Firmas Digitales y Nombres</h4>
+                <button 
+                  type="button" 
+                  onClick={handleAddSignature}
+                  className="btn-secondary text-xs py-1 px-2.5 gap-1"
+                >
+                  <Plus size={13} /> Agregar Firma
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {template.signatures.map((sig, idx) => (
+                  <div key={sig.id} className="p-3 bg-gray-50 border border-gray-200 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Firma #{idx + 1}</span>
+                      {template.signatures.length > 1 && (
+                        <button 
+                          type="button"
+                          onClick={() => handleRemoveSignature(sig.id)}
+                          className="text-red-500 hover:text-red-700 text-xs font-semibold flex items-center gap-1"
+                        >
+                          <Trash2 size={13} /> Eliminar
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <input 
+                        type="text" 
+                        className="erp-input text-xs bg-white py-1.5" 
+                        value={sig.name} 
+                        onChange={e => handleUpdateSignature(sig.id, 'name', e.target.value)}
+                        placeholder="Nombre completo"
+                      />
+                      <input 
+                        type="text" 
+                        className="erp-input text-xs bg-white py-1.5" 
+                        value={sig.title} 
+                        onChange={e => handleUpdateSignature(sig.id, 'title', e.target.value)}
+                        placeholder="Cargo / Título"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between bg-white p-2 border border-gray-200 rounded-xl">
+                      <span className="text-xs text-gray-600">
+                        {sig.image ? '✓ Imagen de firma cargada' : 'Sin imagen (Línea de firma)'}
+                      </span>
+                      <label className="btn-secondary text-xs py-1 px-2.5 cursor-pointer">
+                        <Upload size={12} /> Cargar Imagen
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept="image/*"
+                          onChange={e => handleSignatureImageUpload(e, sig.id)} 
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'preview' && (
+            <div className="flex flex-col items-center justify-center p-2 border border-dashed border-gray-200 rounded-2xl bg-gray-50">
+              <div 
+                className="origin-top-left overflow-hidden bg-white shadow-lg border border-gray-200"
+                style={{ 
+                  width: '100%', 
+                  height: `${scale * 773}px`, 
+                  maxWidth: '100%' 
+                }}
+              >
+                <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                  <DiplomaPreviewRender studentName={sampleStudentName} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="border-t border-gray-200 pt-3 flex flex-col gap-2 shrink-0">
+          <div className="flex gap-2">
+            <button 
+              disabled={isDownloadingPdf}
+              onClick={handleDownloadPdf} 
+              className="btn-secondary flex-1 justify-center py-2.5 gap-1.5 font-bold border-gray-300 hover:bg-gray-100"
+            >
+              {isDownloadingPdf ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              Descargar PDF
+            </button>
+
+            <button 
+              disabled={isSaving}
+              onClick={handleSave} 
+              className="btn-primary flex-1 justify-center py-2.5 gap-1.5 font-bold"
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+              Guardar Plantilla
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Live Canvas Workspace: 7 cols */}
+      <div className="hidden lg:col-span-7 lg:flex flex-col items-center justify-between h-full bg-gray-50/70 border border-gray-200 rounded-3xl p-5 overflow-hidden">
+        <div className="w-full flex items-center justify-between pb-3 border-b border-gray-200 shrink-0">
+          <span className="text-xs font-bold text-gray-800 flex items-center gap-2">
+            <Award size={16} className="text-blue-600" />
+            Lienzo de Vista Previa del Diploma
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="btn-secondary py-1 px-2.5 text-xs font-bold gap-1"
+            >
+              {isDownloadingPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              Exportar PDF
+            </button>
+            <span className="text-[10px] font-bold text-gray-500 bg-gray-200/80 px-2.5 py-1 rounded-full">
+              1000 x 773 px
+            </span>
+          </div>
+        </div>
+
+        <div 
+          ref={containerRef}
+          className="w-full flex-1 flex items-center justify-center overflow-hidden bg-transparent my-auto py-2"
+        >
+          <div 
+            style={{ 
+              transform: `scale(${scale})`, 
+              transformOrigin: 'center center',
+              width: '1000px',
+              height: '773px',
+              flexShrink: 0
+            }}
+            className="transition-transform duration-200 shadow-2xl rounded-sm"
+          >
+            <DiplomaPreviewRender studentName={sampleStudentName} />
+          </div>
+        </div>
+
+        <div className="text-[11px] text-gray-500 text-center max-w-md pt-2 border-t border-gray-200 w-full shrink-0">
+          Haz clic en <strong className="text-gray-800">Descargar PDF</strong> para previsualizar el documento impreso o <strong className="text-gray-800">Guardar Plantilla</strong> para conservar la configuración.
+        </div>
+      </div>
+    </div>
+  )
+
+  if (isFullPage) {
+    return mainWorkspaceContent
   }
 
   if (!isOpen) return null
@@ -403,470 +910,10 @@ export default function DiplomaBuilder({ isOpen, onClose, taller, onSave }: Dipl
       open={isOpen} 
       onClose={onClose} 
       title={`Diseño de Diploma - ${taller.name}`}
-      maxWidth="1100px"
+      maxWidth="1200px"
     >
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start h-[calc(100vh-180px)] overflow-hidden">
-        {/* Left Form Editor: 5 cols */}
-        <div className="lg:col-span-5 flex flex-col h-full overflow-y-auto pr-1 space-y-4 pb-4">
-          
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200">
-            <button 
-              onClick={() => setActiveTab('text')}
-              className={`flex-1 pb-2.5 text-xs font-bold border-b-2 text-center transition-colors ${activeTab === 'text' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-450 hover:text-gray-700'}`}
-            >
-              <span className="flex items-center justify-center gap-1"><FileText size={14} /> Textos</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('design')}
-              className={`flex-1 pb-2.5 text-xs font-bold border-b-2 text-center transition-colors ${activeTab === 'design' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-450 hover:text-gray-700'}`}
-            >
-              <span className="flex items-center justify-center gap-1"><Settings size={14} /> Diseño</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('logos')}
-              className={`flex-1 pb-2.5 text-xs font-bold border-b-2 text-center transition-colors ${activeTab === 'logos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-450 hover:text-gray-700'}`}
-            >
-              <span className="flex items-center justify-center gap-1"><Shield size={14} /> Logos / Firmas</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('preview')}
-              className={`lg:hidden flex-1 pb-2.5 text-xs font-bold border-b-2 text-center transition-colors ${activeTab === 'preview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-450 hover:text-gray-700'}`}
-            >
-              <span className="flex items-center justify-center gap-1"><Award size={14} /> Vista Previa</span>
-            </button>
-          </div>
-
-          {/* Form Content */}
-          <div className="flex-1 space-y-4 pt-2">
-            {activeTab === 'text' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Título del Diploma</label>
-                  <input 
-                    type="text" 
-                    className="erp-input w-full" 
-                    value={template.title} 
-                    onChange={e => setTemplate(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="CONSTANCIA"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Texto de Presentación</label>
-                  <input 
-                    type="text" 
-                    className="erp-input w-full" 
-                    value={template.presentation} 
-                    onChange={e => setTemplate(prev => ({ ...prev, presentation: e.target.value }))}
-                    placeholder="Se otorga la presente a:"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Texto Principal (Cuerpo)</label>
-                  <textarea 
-                    rows={3}
-                    className="erp-input w-full text-xs" 
-                    value={template.bodyText} 
-                    onChange={e => setTemplate(prev => ({ ...prev, bodyText: e.target.value }))}
-                    placeholder="Cuerpo de texto del diploma..."
-                  />
-                  <span className="text-[10px] text-gray-400">Reemplazos: <code className="bg-gray-100 px-1 rounded">{"{{name}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{workshop}}"}</code></span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Texto Secundario (Fecha, Lugar, Horas)</label>
-                  <textarea 
-                    rows={3}
-                    className="erp-input w-full text-xs" 
-                    value={template.subText} 
-                    onChange={e => setTemplate(prev => ({ ...prev, subText: e.target.value }))}
-                    placeholder="Impartido el día {{date}} con duración de {{hours}}..."
-                  />
-                  <span className="text-[10px] text-gray-400">Reemplazos: <code className="bg-gray-100 px-1 rounded">{"{{date}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{hours}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{location}}"}</code></span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Horas Curriculares</label>
-                    <input 
-                      type="text" 
-                      className="erp-input w-full" 
-                      value={template.hours} 
-                      onChange={e => setTemplate(prev => ({ ...prev, hours: e.target.value }))}
-                      placeholder="8"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Lugar de Emisión</label>
-                    <input 
-                      type="text" 
-                      className="erp-input w-full" 
-                      value={template.location} 
-                      onChange={e => setTemplate(prev => ({ ...prev, location: e.target.value }))}
-                      placeholder="Monterrey, Nuevo León"
-                    />
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-100 pt-3 space-y-3">
-                  <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5"><Edit3 size={13} /> Firmas</h4>
-                  
-                  <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2">
-                    <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider block">Firma Izquierda (Profesor)</span>
-                    <input 
-                      type="text" 
-                      className="erp-input w-full text-xs py-2 bg-white" 
-                      value={template.sig1_name} 
-                      onChange={e => setTemplate(prev => ({ ...prev, sig1_name: e.target.value }))}
-                      placeholder="Nombre del Firmante"
-                    />
-                    <input 
-                      type="text" 
-                      className="erp-input w-full text-xs py-1.5 bg-white" 
-                      value={template.sig1_title} 
-                      onChange={e => setTemplate(prev => ({ ...prev, sig1_title: e.target.value }))}
-                      placeholder="Cargo/Título"
-                    />
-                  </div>
-
-                  <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2">
-                    <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider block">Firma Derecha (Organizador)</span>
-                    <input 
-                      type="text" 
-                      className="erp-input w-full text-xs py-2 bg-white" 
-                      value={template.sig2_name} 
-                      onChange={e => setTemplate(prev => ({ ...prev, sig2_name: e.target.value }))}
-                      placeholder="Nombre del Firmante"
-                    />
-                    <input 
-                      type="text" 
-                      className="erp-input w-full text-xs py-1.5 bg-white" 
-                      value={template.sig2_title} 
-                      onChange={e => setTemplate(prev => ({ ...prev, sig2_title: e.target.value }))}
-                      placeholder="Cargo/Título"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'design' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-2">Tema y Estilo de Bordes</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button 
-                      type="button"
-                      onClick={() => setTemplate(prev => ({ ...prev, theme: 'navy-gold' }))}
-                      className={`flex flex-col items-center p-3 border rounded-xl text-center transition-all ${template.theme === 'navy-gold' ? 'border-blue-600 bg-blue-50/50 shadow-xs' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      <div className="w-12 h-6 border-4 border-[#081e3f] bg-white rounded-sm mb-1.5 relative">
-                        <div className="absolute inset-0.5 border border-[#C5A059]" />
-                      </div>
-                      <span className="text-xs font-semibold text-gray-800">Azul Marino y Oro</span>
-                      <span className="text-[9px] text-gray-400 uppercase tracking-wider mt-0.5">Soberano / Médico</span>
-                    </button>
-
-                    <button 
-                      type="button"
-                      onClick={() => setTemplate(prev => ({ ...prev, theme: 'emerald-gold' }))}
-                      className={`flex flex-col items-center p-3 border rounded-xl text-center transition-all ${template.theme === 'emerald-gold' ? 'border-blue-600 bg-blue-50/50 shadow-xs' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      <div className="w-12 h-6 border-4 border-[#064e3b] bg-white rounded-sm mb-1.5 relative">
-                        <div className="absolute inset-0.5 border border-[#B89047]" />
-                      </div>
-                      <span className="text-xs font-semibold text-gray-800">Verde Esmeralda</span>
-                      <span className="text-[9px] text-gray-400 uppercase tracking-wider mt-0.5">Clásico Académico</span>
-                    </button>
-
-                    <button 
-                      type="button"
-                      onClick={() => setTemplate(prev => ({ ...prev, theme: 'charcoal-silver' }))}
-                      className={`flex flex-col items-center p-3 border rounded-xl text-center transition-all ${template.theme === 'charcoal-silver' ? 'border-blue-600 bg-blue-50/50 shadow-xs' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      <div className="w-12 h-6 border-4 border-[#1e293b] bg-white rounded-sm mb-1.5 relative">
-                        <div className="absolute inset-0.5 border border-[#94a3b8]" />
-                      </div>
-                      <span className="text-xs font-semibold text-gray-800">Gris Grafito</span>
-                      <span className="text-[9px] text-gray-400 uppercase tracking-wider mt-0.5">Moderno y Sobrio</span>
-                    </button>
-
-                    <button 
-                      type="button"
-                      onClick={() => setTemplate(prev => ({ ...prev, theme: 'minimalist' }))}
-                      className={`flex flex-col items-center p-3 border rounded-xl text-center transition-all ${template.theme === 'minimalist' ? 'border-blue-600 bg-blue-50/50 shadow-xs' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      <div className="w-12 h-6 border border-gray-300 bg-white rounded-sm mb-1.5 relative">
-                        <div className="absolute inset-1 border border-gray-150" />
-                      </div>
-                      <span className="text-xs font-semibold text-gray-800">Minimalista</span>
-                      <span className="text-[9px] text-gray-400 uppercase tracking-wider mt-0.5">Simple Sin Excesos</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-2">Tipografía (Letra)</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button 
-                      type="button"
-                      onClick={() => setTemplate(prev => ({ ...prev, fontFamily: 'serif' }))}
-                      className={`p-3 border rounded-xl text-center transition-all ${template.fontFamily === 'serif' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      <span className="text-lg font-serif font-bold block mb-0.5">Abc</span>
-                      <span className="text-xs font-semibold text-gray-800">Serif (Clásica)</span>
-                    </button>
-
-                    <button 
-                      type="button"
-                      onClick={() => setTemplate(prev => ({ ...prev, fontFamily: 'sans' }))}
-                      className={`p-3 border rounded-xl text-center transition-all ${template.fontFamily === 'sans' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      <span className="text-lg font-sans font-bold block mb-0.5">Abc</span>
-                      <span className="text-xs font-semibold text-gray-800">Sans (Limpia)</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50/40 p-4 border border-blue-100 rounded-2xl">
-                  <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider block mb-1">Nombre de Prueba en Preview</span>
-                  <input 
-                    type="text" 
-                    className="erp-input w-full bg-white text-xs py-2" 
-                    value={sampleStudentName} 
-                    onChange={e => setSampleStudentName(e.target.value)}
-                    placeholder="Dr. Nombre de Prueba"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">Este nombre se usa sólo para previsualizar el diploma en pantalla.</p>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'logos' && (
-              <div className="space-y-4">
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-gray-900">Logotipos Superiores</h4>
-                  
-                  {/* Logo 1 */}
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Logo 1 (Izquierdo)</span>
-                      <span className="text-xs font-semibold text-gray-800 truncate block mt-0.5">Arthromed o Principal</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        type="button" 
-                        onClick={() => fileInputLogo1Ref.current?.click()}
-                        className="p-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-55"
-                        title="Subir nuevo logo"
-                      >
-                        <Upload size={14} />
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => setTemplate(prev => ({ ...prev, logo1: '/logo.png' }))}
-                        className="p-1.5 bg-white border border-gray-200 text-blue-600 rounded-lg hover:bg-gray-55"
-                        title="Restaurar default"
-                      >
-                        <Check size={14} />
-                      </button>
-                      <input 
-                        type="file" 
-                        ref={fileInputLogo1Ref} 
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={e => handleImageUpload(e, 'logo1')}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Logo 2 */}
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Logo 2 (Derecho)</span>
-                      <span className="text-xs font-semibold text-gray-800 truncate block mt-0.5">Universidad o Co-patrocinio</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        type="button" 
-                        onClick={() => fileInputLogo2Ref.current?.click()}
-                        className="p-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-55"
-                        title="Subir logo"
-                      >
-                        <Upload size={14} />
-                      </button>
-                      {template.logo2 && (
-                        <button 
-                          type="button" 
-                          onClick={() => setTemplate(prev => ({ ...prev, logo2: '' }))}
-                          className="p-1.5 bg-white border border-gray-200 text-red-650 rounded-lg hover:bg-gray-55"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                      <input 
-                        type="file" 
-                        ref={fileInputLogo2Ref} 
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={e => handleImageUpload(e, 'logo2')}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 border-t border-gray-150 pt-3">
-                  <h4 className="text-xs font-bold text-gray-900">Firmas Digitales (Imagen)</h4>
-                  
-                  {/* Signature 1 image */}
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Firma 1 (Izquierda)</span>
-                      <span className="text-xs font-semibold text-gray-800 truncate block mt-0.5">
-                        {template.sig1_image ? '✓ Imagen Cargada' : 'Firma en blanco / manuscrita'}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        type="button" 
-                        onClick={() => fileInputSig1Ref.current?.click()}
-                        className="p-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-55"
-                      >
-                        <Upload size={14} />
-                      </button>
-                      {template.sig1_image && (
-                        <button 
-                          type="button" 
-                          onClick={() => setTemplate(prev => ({ ...prev, sig1_image: '' }))}
-                          className="p-1.5 bg-white border border-gray-200 text-red-650 rounded-lg hover:bg-gray-55"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                      <input 
-                        type="file" 
-                        ref={fileInputSig1Ref} 
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={e => handleImageUpload(e, 'sig1_image')}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Signature 2 image */}
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Firma 2 (Derecha)</span>
-                      <span className="text-xs font-semibold text-gray-800 truncate block mt-0.5">
-                        {template.sig2_image ? '✓ Imagen Cargada' : 'Firma en blanco / manuscrita'}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        type="button" 
-                        onClick={() => fileInputSig2Ref.current?.click()}
-                        className="p-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-55"
-                      >
-                        <Upload size={14} />
-                      </button>
-                      {template.sig2_image && (
-                        <button 
-                          type="button" 
-                          onClick={() => setTemplate(prev => ({ ...prev, sig2_image: '' }))}
-                          className="p-1.5 bg-white border border-gray-200 text-red-650 rounded-lg hover:bg-gray-55"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                      <input 
-                        type="file" 
-                        ref={fileInputSig2Ref} 
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={e => handleImageUpload(e, 'sig2_image')}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'preview' && (
-              <div className="flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
-                <p className="text-xs text-gray-400 italic text-center mb-4">Vista previa en pantalla</p>
-                <div 
-                  className="origin-top-left overflow-hidden bg-white shadow-lg border border-gray-200"
-                  style={{ 
-                    width: '100%', 
-                    height: `${scale * 773}px`, 
-                    maxWidth: '100%' 
-                  }}
-                >
-                  <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                    <DiplomaPreviewRender studentName={sampleStudentName} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="border-t border-gray-200 pt-3 flex gap-2">
-            <button 
-              onClick={onClose} 
-              className="btn-secondary flex-1 justify-center py-2"
-            >
-              Cancelar
-            </button>
-            <button 
-              disabled={isSaving}
-              onClick={handleSave} 
-              className="btn-primary flex-1 justify-center py-2 gap-1.5 font-bold"
-            >
-              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-              Guardar Plantilla
-            </button>
-          </div>
-        </div>
-
-        {/* Right Preview Panel (desktop only): 7 cols */}
-        <div className="hidden lg:col-span-7 lg:flex flex-col items-center justify-between h-full bg-gray-50/60 border border-gray-150 rounded-3xl p-6 overflow-hidden">
-          <div className="w-full flex items-center justify-between pb-3 border-b border-gray-200/80 shrink-0">
-            <span className="text-xs font-bold text-gray-700 flex items-center gap-2">
-              <Award size={16} className="text-blue-600" />
-              Vista Previa del Diploma
-            </span>
-            <span className="text-[10px] font-bold text-gray-500 bg-gray-200/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
-              1000 x 773 px
-            </span>
-          </div>
-
-          <div 
-            ref={containerRef}
-            className="w-full flex-1 flex items-center justify-center overflow-hidden bg-transparent my-auto py-2"
-            style={{ height: `${Math.max(250, scale * 773)}px` }}
-          >
-            <div 
-              style={{ 
-                transform: `scale(${scale})`, 
-                transformOrigin: 'center center',
-                width: '1000px',
-                height: '773px',
-                flexShrink: 0
-              }}
-              className="transition-transform duration-200 shadow-xl rounded-sm"
-            >
-              <DiplomaPreviewRender studentName={sampleStudentName} />
-            </div>
-          </div>
-
-          <div className="text-[11px] text-gray-450 text-center max-w-sm pt-3 border-t border-gray-200/80 w-full shrink-0 leading-normal">
-            Presiona <strong className="text-gray-700">Guardar Plantilla</strong> en el panel izquierdo para aplicar los cambios.
-          </div>
-        </div>
+      <div className="h-[calc(100vh-180px)] overflow-hidden">
+        {mainWorkspaceContent}
       </div>
     </Modal>
   )

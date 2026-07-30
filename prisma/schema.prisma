@@ -2644,23 +2644,25 @@ model whatsapp_reminder_logs {
 }
 
 model directorio_categorias {
-  deleted_at DateTime? @db.Timestamptz(6)
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String    @unique
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at           DateTime?              @db.Timestamptz(6)
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String                 @unique
+  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  directorio_contactos directorio_contactos[]
 
   @@schema("public")
 }
 
 model directorio_contactos {
-  deleted_at  DateTime? @db.Timestamptz(6)
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  category_id String    @db.Uuid
-  name        String
-  phone       String?
-  email       String?
-  notes       String?
-  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at            DateTime?             @db.Timestamptz(6)
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id           String                @db.Uuid
+  name                  String
+  phone                 String?
+  email                 String?
+  notes                 String?
+  created_at            DateTime?             @default(now()) @db.Timestamptz(6)
+  category              directorio_categorias @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([category_id])
   @@schema("public")

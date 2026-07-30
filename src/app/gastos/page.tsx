@@ -157,11 +157,23 @@ export default function GastosPage() {
   }
 
 
+const formatExpenseDate = (dateStr?: string | null) => {
+  if (!dateStr) return '-'
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) {
+    const [, y, m, d] = match
+    return `${parseInt(d, 10)}/${parseInt(m, 10)}/${y}`
+  }
+  const parsed = new Date(dateStr)
+  if (isNaN(parsed.getTime())) return dateStr
+  return parsed.toLocaleDateString('es-MX', { timeZone: 'UTC' })
+}
+
   const handleExportExcel = () => {
     setIsExportDropdownOpen(false)
     if (filteredGastos.length === 0) return
     const dataToExport = filteredGastos.map(g => ({
-      Fecha: g.expense_date ? new Date(g.expense_date).toLocaleDateString() : new Date(g.created_at).toLocaleDateString(),
+      Fecha: formatExpenseDate(g.expense_date || g.created_at),
       Descripción: g.description,
       Nombre: g.name,
       Categoría: g.category?.name || 'Sin Categoría',
@@ -838,7 +850,7 @@ export default function GastosPage() {
                     <div className="pt-2 space-y-1.5 border-t border-gray-50">
                       <p className="text-xs text-gray-500 flex items-center gap-2">
                         <Calendar size={12} className="text-blue-400" />
-                        {gasto.expense_date ? new Date(gasto.expense_date).toLocaleDateString() : new Date(gasto.created_at).toLocaleDateString()}
+                        {formatExpenseDate(gasto.expense_date || gasto.created_at)}
                       </p>
                       {gasto.category && (
                         <p className="text-xs text-blue-600 font-semibold flex items-center gap-2">
@@ -895,7 +907,7 @@ export default function GastosPage() {
                       onClick={() => router.push(`/gastos/${gasto.id}`)}
                     >
                       <td className="p-4 text-sm text-gray-500 whitespace-nowrap">
-                        {gasto.expense_date ? new Date(gasto.expense_date).toLocaleDateString() : new Date(gasto.created_at).toLocaleDateString()}
+                        {formatExpenseDate(gasto.expense_date || gasto.created_at)}
                       </td>
                       <td className="p-4">
                         <div className="font-medium text-gray-900 truncate max-w-xs">{gasto.description || gasto.name}</div>

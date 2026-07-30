@@ -1,11 +1,19 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { toBlob } from 'html-to-image'
+import { toPng, toBlob } from 'html-to-image'
+import { PDFDocument } from 'pdf-lib'
 import { X, Loader2, Download, Printer, Award, FileText, Check } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { QRCodeSVG } from 'qrcode.react'
 import { createPortal } from 'react-dom'
+
+interface SignatureItem {
+  id: string
+  name: string
+  title: string
+  image: string
+}
 
 interface DiplomaTemplate {
   title: string
@@ -14,16 +22,18 @@ interface DiplomaTemplate {
   subText: string
   hours: string
   location: string
-  theme: 'navy-gold' | 'emerald-gold' | 'charcoal-silver' | 'minimalist'
+  theme: 'navy-gold' | 'emerald-gold' | 'charcoal-silver' | 'minimalist' | 'bonss-diagonal'
   fontFamily: 'serif' | 'sans'
   logo1: string
   logo2: string
-  sig1_name: string
-  sig1_title: string
-  sig1_image: string
-  sig2_name: string
-  sig2_title: string
-  sig2_image: string
+  logo3: string
+  signatures?: SignatureItem[]
+  sig1_name?: string
+  sig1_title?: string
+  sig1_image?: string
+  sig2_name?: string
+  sig2_title?: string
+  sig2_image?: string
 }
 
 interface DiplomaGeneratorModalProps {
@@ -39,36 +49,69 @@ interface DiplomaGeneratorModalProps {
   }
 }
 
+const DEFAULT_SIGNATURES = (professor: string): SignatureItem[] => [
+  {
+    id: 'sig-1',
+    name: `Dr. ${professor || 'Ricardo Reyes Reyes'}`,
+    title: 'Director General de Arthromed',
+    image: ''
+  },
+  {
+    id: 'sig-2',
+    name: 'Eric Ai',
+    title: 'Gerente de Bonss Medical LATAM',
+    image: ''
+  }
+]
+
 const DEFAULT_TEMPLATE = (workshopName: string, professor: string): DiplomaTemplate => ({
-  title: 'CONSTANCIA',
-  presentation: 'Se otorga la presente a:',
-  bodyText: 'Por haber completado satisfactoriamente el taller práctico de especialidad médica:',
-  subText: `Impartido en las instalaciones de Arthromed Academy el día {{date}}, con una duración total de {{hours}} horas de valor curricular.`,
+  title: 'CERTIFICADO',
+  presentation: 'Bonss Medical otorga el reconocimiento a:',
+  bodyText: 'Por su participación en el',
+  subText: `Impartido en {{location}} el día {{date}}, con una duración total de {{hours}} horas de valor curricular.`,
   hours: '8',
-  location: 'Monterrey, Nuevo León',
-  theme: 'navy-gold',
+  location: 'Monterrey, Nuevo León, México',
+  theme: 'bonss-diagonal',
   fontFamily: 'serif',
-  logo1: '/logo.png',
+  logo1: '',
   logo2: '',
-  sig1_name: `Dr. ${professor || 'Instructor Principal'}`,
-  sig1_title: 'Profesor Titular',
-  sig1_image: '',
-  sig2_name: 'Comité Organizador',
-  sig2_title: 'Arthromed Academy',
-  sig2_image: '',
+  logo3: '',
+  signatures: DEFAULT_SIGNATURES(professor)
 })
 
 export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, taller }: DiplomaGeneratorModalProps) {
   const [editableName, setEditableName] = useState(studentName)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [resolvedTemplate, setResolvedTemplate] = useState<DiplomaTemplate | null>(null)
   
   const baseTemplate: DiplomaTemplate = (() => {
     if (taller.diploma_template && typeof taller.diploma_template === 'object') {
-      return {
+      const tmpl = {
         ...DEFAULT_TEMPLATE(taller.name, taller.professor),
         ...taller.diploma_template
       }
+      if (!Array.isArray(tmpl.signatures) || tmpl.signatures.length === 0) {
+        const sigs: SignatureItem[] = []
+        if (tmpl.sig1_name || tmpl.sig1_title || tmpl.sig1_image) {
+          sigs.push({
+            id: 'sig-1',
+            name: tmpl.sig1_name || `Dr. ${taller.professor || 'Instructor Principal'}`,
+            title: tmpl.sig1_title || 'Profesor Titular',
+            image: tmpl.sig1_image || ''
+          })
+        }
+        if (tmpl.sig2_name || tmpl.sig2_title || tmpl.sig2_image) {
+          sigs.push({
+            id: 'sig-2',
+            name: tmpl.sig2_name || 'Comité Organizador',
+            title: tmpl.sig2_title || 'Arthromed Academy',
+            image: tmpl.sig2_image || ''
+          })
+        }
+        tmpl.signatures = sigs.length > 0 ? sigs : DEFAULT_SIGNATURES(taller.professor)
+      }
+      return tmpl
     }
     return DEFAULT_TEMPLATE(taller.name, taller.professor)
   })()
@@ -95,7 +138,7 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
     }
   }
 
-  // Pre-resolve all template images to base64 Data URLs
+  // Pre-resolve template images
   useEffect(() => {
     if (!isOpen) {
       setResolvedTemplate(null)
@@ -111,11 +154,16 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
         if (resolved.logo2 && !resolved.logo2.startsWith('data:')) {
           resolved.logo2 = await convertUrlToBase64(resolved.logo2)
         }
-        if (resolved.sig1_image && !resolved.sig1_image.startsWith('data:')) {
-          resolved.sig1_image = await convertUrlToBase64(resolved.sig1_image)
+        if (resolved.logo3 && !resolved.logo3.startsWith('data:')) {
+          resolved.logo3 = await convertUrlToBase64(resolved.logo3)
         }
-        if (resolved.sig2_image && !resolved.sig2_image.startsWith('data:')) {
-          resolved.sig2_image = await convertUrlToBase64(resolved.sig2_image)
+        if (Array.isArray(resolved.signatures)) {
+          resolved.signatures = await Promise.all(
+            resolved.signatures.map(async (s) => ({
+              ...s,
+              image: s.image && !s.image.startsWith('data:') ? await convertUrlToBase64(s.image) : s.image
+            }))
+          )
         }
       } catch (e) {
         console.error('Error pre-resolving template images:', e)
@@ -126,7 +174,6 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
     resolveImages()
   }, [isOpen, taller.id])
 
-  // Update editable name when prop changes
   useEffect(() => {
     setEditableName(studentName)
   }, [studentName, isOpen])
@@ -151,163 +198,56 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       .replace(/{{professor}}/g, taller.professor || 'Profesor Titular')
   }
 
-  // Generate verification URL for QR code
   const getVerificationUrl = (nameToUse: string) => {
     if (typeof window === 'undefined') return `/talleres/${taller.id}/verify?student=${encodeURIComponent(nameToUse)}`
     return `${window.location.origin}/talleres/${taller.id}/verify?student=${encodeURIComponent(nameToUse)}`
   }
 
-  const getThemeStyles = () => {
-    switch (template.theme) {
-      case 'emerald-gold':
-        return {
-          bg: 'bg-white',
-          border: 'border-[16px] border-[#064e3b]',
-          innerBorder: 'border-[2px] border-[#B89047]',
-          cornerColor: 'text-[#B89047]',
-          accentText: 'text-[#B89047]',
-          primaryText: 'text-[#064e3b]',
-          accentLine: 'bg-[#B89047]',
-          crestBg: 'bg-[#064e3b]/5 text-[#B89047]',
-        }
-      case 'charcoal-silver':
-        return {
-          bg: 'bg-[#fafafa]',
-          border: 'border-[16px] border-[#1e293b]',
-          innerBorder: 'border-[2px] border-[#94a3b8]',
-          cornerColor: 'text-[#94a3b8]',
-          accentText: 'text-[#475569]',
-          primaryText: 'text-[#0f172a]',
-          accentLine: 'bg-[#94a3b8]',
-          crestBg: 'bg-[#1e293b]/5 text-[#475569]',
-        }
-      case 'minimalist':
-        return {
-          bg: 'bg-white',
-          border: 'border-[4px] border-gray-200',
-          innerBorder: 'border-[1px] border-gray-150',
-          cornerColor: 'text-gray-400',
-          accentText: 'text-[#0763a9]',
-          primaryText: 'text-gray-900',
-          accentLine: 'bg-gray-300',
-          crestBg: 'bg-gray-55/5 text-gray-500',
-        }
-      case 'navy-gold':
-      default:
-        return {
-          bg: 'bg-white',
-          border: 'border-[16px] border-[#081e3f]',
-          innerBorder: 'border-[2px] border-[#C5A059]',
-          cornerColor: 'text-[#C5A059]',
-          accentText: 'text-[#C5A059]',
-          primaryText: 'text-[#081e3f]',
-          accentLine: 'bg-[#C5A059]',
-          crestBg: 'bg-[#081e3f]/5 text-[#C5A059]',
-        }
-    }
-  }
-
-  const styles = getThemeStyles()
   const fontClass = template.fontFamily === 'serif' ? 'font-serif' : 'font-sans'
 
-  // Helper to ensure all images inside a node are fully loaded and decoded before capture
-  const waitForImagesToDecode = async (element: HTMLElement) => {
-    const images = Array.from(element.getElementsByTagName('img'))
-    await Promise.all(
-      images.map((img) => {
-        if (img.complete) return img.decode().catch(() => {})
-        return new Promise((resolve) => {
-          img.onload = () => img.decode().then(resolve).catch(resolve)
-          img.onerror = resolve
-        })
+  // PDF download handler
+  const handleDownloadPdf = async () => {
+    const node = document.getElementById('diploma-generator-render-node')
+    if (!node) return
+    setIsGeneratingPdf(true)
+    try {
+      const pngDataUrl = await toPng(node, { quality: 0.98, pixelRatio: 2 })
+      const pdfDoc = await PDFDocument.create()
+      const page = pdfDoc.addPage([1000, 773])
+      const pngImage = await pdfDoc.embedPng(pngDataUrl)
+
+      page.drawImage(pngImage, {
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 773,
       })
-    )
-  }
 
-  // Print function: toggles display styles using a temporary class on document.body
-  const handlePrint = async () => {
-    // Wait for images inside the print layout to be fully decoded in the DOM
-    const printNode = document.getElementById('print-diploma-root')
-    if (printNode) {
-      await waitForImagesToDecode(printNode)
+      const pdfBytes = await pdfDoc.save()
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
+      const dataUrl = URL.createObjectURL(blob)
+
+      const link = document.createElement('a')
+      link.download = `Diploma_${editableName.trim().replace(/\s+/g, '_')}.pdf`
+      link.href = dataUrl
+      link.click()
+
+      setTimeout(() => URL.revokeObjectURL(dataUrl), 1000)
+    } catch (err) {
+      console.error('Error generating PDF diploma:', err)
+      alert('Error al generar el PDF del diploma.')
+    } finally {
+      setIsGeneratingPdf(false)
     }
-
-    // Add print style sheet dynamically
-    const styleEl = document.createElement('style')
-    styleEl.id = 'diploma-print-style'
-    styleEl.innerHTML = `
-      @media print {
-        body.printing-diploma > *:not(#print-diploma-root) {
-          display: none !important;
-          visibility: hidden !important;
-        }
-        #print-diploma-root {
-          display: block !important;
-          visibility: visible !important;
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100% !important;
-          height: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          box-shadow: none !important;
-          border: none !important;
-        }
-        #print-diploma-root * {
-          visibility: visible !important;
-        }
-        @page {
-          size: letter landscape;
-          margin: 0;
-        }
-      }
-    `
-    document.head.appendChild(styleEl)
-    
-    // Add print class to body
-    document.body.classList.add('printing-diploma')
-    
-    // Trigger print
-    window.print()
-    
-    // Cleanup
-    setTimeout(() => {
-      document.body.classList.remove('printing-diploma')
-      styleEl.remove()
-    }, 500)
   }
 
-  // PNG download function
+  // PNG download handler
   const handleDownloadPng = async () => {
     const node = document.getElementById('diploma-generator-render-node')
     if (!node) return
     setIsGenerating(true)
     try {
-      // Small timeout for browser to ensure image rendering
-      await new Promise(r => setTimeout(r, 200))
-      
-      // Wait for images to decode fully in memory to prevent blank canvas prints on Safari/iPad
-      await waitForImagesToDecode(node)
-      
-      // iOS Safari bug: call toBlob once to warm up WebKit cache and prevent blank images
-      try {
-        await toBlob(node, { cacheBust: true })
-      } catch (e) {
-        // ignore first attempt error
-      }
-      
-      const blob = await toBlob(node, {
-        pixelRatio: 2, // Safe 2x resolution (avoid Safari memory limits)
-        cacheBust: true,
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-          position: 'static',
-          visibility: 'visible',
-        }
-      })
-      
+      const blob = await toBlob(node, { pixelRatio: 2, cacheBust: true })
       if (!blob) throw new Error('Failed to generate PNG blob')
       
       const dataUrl = URL.createObjectURL(blob)
@@ -316,137 +256,141 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       link.href = dataUrl
       link.click()
       
-      // Cleanup URL object
       setTimeout(() => URL.revokeObjectURL(dataUrl), 1000)
     } catch (err) {
       console.error(err)
-      alert('Error al descargar el diploma en imagen. Intenta la opción de Imprimir.')
+      alert('Error al descargar el diploma en imagen PNG.')
     } finally {
       setIsGenerating(false)
     }
   }
 
+  const signaturesList = template.signatures || DEFAULT_SIGNATURES(taller.professor)
+  const isBonssTheme = template.theme === 'bonss-diagonal'
+
   const DiplomaLayout = ({ idAttr }: { idAttr?: string }) => (
     <div 
       id={idAttr}
-      className={`w-[1000px] h-[773px] relative flex flex-col justify-between p-12 select-none overflow-hidden transition-all ${styles.bg} ${styles.border} ${fontClass}`}
-      style={{
-        boxSizing: 'border-box',
-        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(254,254,250,1) 100%)'
-      }}
+      className={`w-[1000px] h-[773px] relative flex flex-col justify-between select-none overflow-hidden transition-all bg-white ${fontClass}`}
+      style={{ boxSizing: 'border-box' }}
     >
-      {/* Inner Border */}
-      <div className={`absolute inset-3 border-2 pointer-events-none opacity-80 z-10`} style={{ borderColor: styles.innerBorder.split(' ')[2] }} />
-
-      {/* Decorative corner brackets (except for minimalist) */}
-      {template.theme !== 'minimalist' && (
+      {/* Theme Accents */}
+      {isBonssTheme ? (
         <>
-          <div className={`absolute top-5 left-5 w-8 h-8 border-t-4 border-l-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
-          <div className={`absolute top-5 right-5 w-8 h-8 border-t-4 border-r-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
-          <div className={`absolute bottom-5 left-5 w-8 h-8 border-b-4 border-l-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
-          <div className={`absolute bottom-5 right-5 w-8 h-8 border-b-4 border-r-4 pointer-events-none z-15 ${styles.cornerColor}`} style={{ borderColor: styles.cornerColor.split('-')[1] }} />
+          <div 
+            className="absolute top-0 left-0 w-[420px] h-[260px] pointer-events-none z-0"
+            style={{
+              background: 'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%)',
+              clipPath: 'polygon(0 0, 100% 0, 0 100%)'
+            }}
+          />
+          <div 
+            className="absolute top-0 left-0 w-[430px] h-[268px] pointer-events-none z-0 opacity-40"
+            style={{
+              background: '#94a3b8',
+              clipPath: 'polygon(0 0, 100% 0, 0 100%)',
+              transform: 'scale(1.02)'
+            }}
+          />
+          <div 
+            className="absolute bottom-0 right-0 w-[360px] h-[260px] pointer-events-none z-0"
+            style={{
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
+            }}
+          />
         </>
+      ) : (
+        <div className="absolute inset-3 border-2 border-[#C5A059] pointer-events-none opacity-80 z-10" />
       )}
 
-      {/* Watermark in background */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] z-0">
-        <svg width="400" height="400" viewBox="0 0 24 24" fill="currentColor" className={styles.primaryText}>
-          <path d="M19 10.5h-5.5V5c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v5.5H5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5h5.5V19c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-5.5H19c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5z"/>
+      {/* Central Watermark */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08] z-0">
+        <svg width="460" height="650" viewBox="0 0 100 200" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-900">
+          <path d="M50 10 C45 20, 55 30, 50 40 C45 50, 55 60, 50 70 C45 80, 55 90, 50 100 C45 110, 55 120, 50 130 C45 140, 55 150, 50 160 C45 170, 55 180, 50 190" />
+          <circle cx="50" cy="20" r="8" opacity="0.6" />
+          <circle cx="50" cy="40" r="9" opacity="0.6" />
+          <circle cx="50" cy="60" r="10" opacity="0.6" />
+          <circle cx="50" cy="80" r="11" opacity="0.6" />
+          <circle cx="50" cy="100" r="12" opacity="0.6" />
+          <circle cx="50" cy="120" r="12" opacity="0.6" />
+          <circle cx="50" cy="140" r="13" opacity="0.6" />
+          <circle cx="50" cy="160" r="13" opacity="0.6" />
+          <circle cx="50" cy="180" r="14" opacity="0.6" />
         </svg>
       </div>
 
-      {/* Top Header Logos */}
-      <div className="flex justify-between items-center z-10 w-full px-6">
-        <div className="h-16 w-44 flex items-center justify-start">
-          {template.logo1 && <img src={template.logo1} alt="Logo 1" className="max-h-16 max-w-full object-contain" />}
+      {/* TOP HEADER LOGOS */}
+      <div className="flex justify-between items-start z-10 w-full p-8">
+        <div className="h-20 w-52 flex items-center justify-start">
+          {template.logo1 && <img src={template.logo1} alt="Logo 1" className="max-h-20 max-w-full object-contain filter drop-shadow-md" />}
         </div>
-
-        <div className={`w-14 h-14 rounded-full flex items-center justify-center border shadow-xs z-10 ${styles.crestBg}`} style={{ borderColor: 'currentColor' }}>
-          <Award size={28} />
-        </div>
-
-        <div className="h-16 w-44 flex items-center justify-end">
-          {template.logo2 && <img src={template.logo2} alt="Logo 2" className="max-h-16 max-w-full object-contain" />}
+        <div className="h-20 w-52 flex items-center justify-end">
+          {template.logo2 && <img src={template.logo2} alt="Logo 2" className="max-h-20 max-w-full object-contain" />}
         </div>
       </div>
 
-      {/* Title & Body */}
-      <div className="flex flex-col items-center text-center z-10 w-full px-8 mt-4 space-y-4">
-        <span className={`text-[11px] font-bold uppercase tracking-[0.3em] ${styles.accentText}`}>
-          Arthromed Academy
-        </span>
-
-        <h2 className={`text-4xl md:text-5xl font-black uppercase tracking-wide leading-tight ${styles.primaryText} ${template.fontFamily === 'serif' ? 'font-serif' : 'font-sans'}`}>
-          {template.title}
+      {/* MAIN BODY CONTENT */}
+      <div className="flex flex-col items-center text-center z-10 w-full px-12 space-y-3 -mt-4">
+        <h2 className="text-5xl font-serif font-black uppercase tracking-wider text-gray-900 leading-tight">
+          {template.title || 'CERTIFICADO'}
         </h2>
-
-        <div className={`w-32 h-[3px] my-1 ${styles.accentLine}`} />
-
-        <p className="text-xs italic text-gray-500 font-medium my-1">
-          {template.presentation}
-        </p>
-
-        <h3 className={`text-2xl md:text-3xl font-bold tracking-tight text-gray-900 border-b-2 border-gray-100 pb-2 px-12 ${fontClass}`}>
-          {editableName}
+        <h3 className="text-xl font-serif font-bold uppercase tracking-widest text-gray-800 -mt-1">
+          DE RECONOCIMIENTO
         </h3>
-
-        <div className="max-w-2xl space-y-2 mt-2">
-          <p className="text-sm leading-relaxed text-gray-650 font-medium">
-            {replacePlaceholders(template.bodyText, editableName)}
-          </p>
-          
-          <p className="text-[15.5px] font-bold text-gray-800 tracking-wide uppercase">
-            "{taller.name}"
-          </p>
-
-          <p className="text-xs leading-relaxed text-gray-500 font-medium max-w-xl mx-auto">
-            {replacePlaceholders(template.subText, editableName)}
+        <p className="text-sm italic text-gray-600 font-serif my-2">
+          {template.presentation || 'Bonss Medical otorga el reconocimiento a:'}
+        </p>
+        <div className="w-full flex flex-col items-center py-1">
+          <h3 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-gray-950 border-b-2 border-gray-900 pb-1.5 px-8 inline-block max-w-3xl">
+            {editableName}
+          </h3>
+        </div>
+        <div className="max-w-3xl space-y-1.5 mt-2">
+          <p className="text-sm leading-relaxed text-gray-800 font-serif font-normal">
+            {replacePlaceholders(template.bodyText, editableName)} <span className="font-bold text-gray-950">"{taller.name}"</span>.
           </p>
         </div>
       </div>
 
-      {/* Signatures */}
-      <div className="grid grid-cols-2 gap-20 items-end px-16 z-10 w-full mt-6">
-        <div className="flex flex-col items-center text-center min-w-0">
-          <div className="h-14 flex items-end justify-center mb-1">
-            {template.sig1_image && <img src={template.sig1_image} alt="Firma 1" className="max-h-14 max-w-[150px] object-contain" />}
-          </div>
-          <div className="w-full border-t border-gray-300 my-1" />
-          <p className="text-xs font-bold text-gray-850 truncate w-full">{template.sig1_name}</p>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider truncate w-full">{template.sig1_title}</p>
-        </div>
-
-        <div className="flex flex-col items-center text-center min-w-0">
-          <div className="h-14 flex items-end justify-center mb-1">
-            {template.sig2_image && <img src={template.sig2_image} alt="Firma 2" className="max-h-14 max-w-[150px] object-contain" />}
-          </div>
-          <div className="w-full border-t border-gray-300 my-1" />
-          <p className="text-xs font-bold text-gray-850 truncate w-full">{template.sig2_name}</p>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider truncate w-full">{template.sig2_title}</p>
+      {/* SIGNATURES SECTION */}
+      <div className="z-10 w-full px-16 my-2">
+        <div className={`grid gap-12 items-end justify-center ${signaturesList.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : signaturesList.length === 2 ? 'grid-cols-2 max-w-2xl mx-auto' : 'grid-cols-3 max-w-3xl mx-auto'}`}>
+          {signaturesList.map((sig) => (
+            <div key={sig.id} className="flex flex-col items-center text-center min-w-0">
+              <div className="h-16 flex items-end justify-center mb-1">
+                {sig.image && <img src={sig.image} alt={sig.name} className="max-h-16 max-w-[170px] object-contain" />}
+              </div>
+              <div className="w-full border-t border-gray-800 my-1" />
+              <p className="text-xs font-serif font-bold text-gray-900 truncate w-full">{sig.name}</p>
+              <p className="text-[10px] text-gray-600 font-sans uppercase tracking-wider truncate w-full">{sig.title}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="flex justify-between items-end text-[9px] text-gray-400 px-6 z-10 mt-4 border-t border-gray-100 pt-2 w-full font-sans">
-        <div className="flex flex-col gap-0.5 text-left">
-          <span>ID de Certificación: AR-{taller.id.slice(0, 8).toUpperCase()}-{editableName.slice(0, 3).toUpperCase()}</span>
-          <span>{template.location}, México</span>
-          <span>arthromed.com.mx</span>
-        </div>
-        
-        {/* Verification QR Code */}
-        <div className="flex items-center gap-2.5 bg-white p-1.5 border border-gray-200 rounded-lg shadow-xs">
+      {/* FOOTER SECTION */}
+      <div className="flex justify-between items-end px-10 pb-6 z-10 w-full font-sans">
+        <div className="flex items-center gap-3 bg-white/90 p-2 border border-gray-200 rounded-xl shadow-xs">
           <QRCodeSVG 
             value={getVerificationUrl(editableName)} 
             size={64}
             level="M"
             includeMargin={false}
           />
-          <div className="text-[7.5px] text-gray-400 font-mono leading-tight flex flex-col justify-center text-left max-w-[65px]">
-            <span className="font-bold text-gray-600">CONSTANCIA</span>
+          <div className="text-[8px] text-gray-500 font-mono leading-tight flex flex-col justify-center text-left">
+            <span className="font-bold text-gray-800">CONSTANCIA</span>
             <span className="font-bold text-emerald-600">VERIFICADA</span>
-            <span className="mt-1 text-[6px] text-gray-400 leading-none">ESCANEAR CÓDIGO</span>
+            <span className="mt-1 text-[7px] text-gray-400">ESCANEAR QR</span>
           </div>
+        </div>
+
+        <div className="text-xs text-gray-600 font-serif italic text-center pb-2">
+          {getFormattedDate()}, {template.location}
+        </div>
+
+        <div className="h-20 w-44 flex items-center justify-end">
+          {template.logo3 && <img src={template.logo3} alt="Logo 3" className="max-h-20 max-w-full object-contain filter drop-shadow-md" />}
         </div>
       </div>
     </div>
@@ -459,7 +403,7 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       <Modal open={isOpen} onClose={onClose} title="Generar Diploma">
         <div className="space-y-6">
           <p className="text-xs text-gray-500">
-            Revisa y edita el nombre tal como debe aparecer en el certificado físico. Puedes agregar prefijos como "Dr.", "Dra." o "Lic.".
+            Revisa y edita el nombre tal como debe aparecer en el certificado.
           </p>
 
           <div className="space-y-2">
@@ -473,10 +417,9 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
           </div>
 
           <div className="bg-gray-50 p-4 border border-gray-200 rounded-2xl flex items-center justify-center">
-            {/* Visual preview banner of style */}
             <div className="flex items-center gap-3 text-xs text-gray-600">
-              <Award size={20} className={styles.accentText} />
-              <span>Diseño seleccionado: <strong>{template.theme === 'navy-gold' ? 'Azul y Oro (Sóbrio)' : template.theme === 'emerald-gold' ? 'Verde Esmeralda' : template.theme === 'charcoal-silver' ? 'Gris Grafito' : 'Minimalista'}</strong></span>
+              <Award size={20} className="text-blue-600" />
+              <span>Plantilla seleccionada: <strong>{template.theme === 'bonss-diagonal' ? 'Médico Diagonal (Bonss)' : 'Estándar'}</strong></span>
             </div>
           </div>
 
@@ -485,17 +428,19 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
             <div className="grid grid-cols-2 gap-3">
               <button 
                 type="button"
-                onClick={handlePrint}
-                className="btn-secondary py-3 justify-center gap-2 border-gray-300 font-bold hover:bg-gray-100"
+                disabled={isGeneratingPdf}
+                onClick={handleDownloadPdf}
+                className="btn-primary py-3 justify-center gap-2 font-bold"
               >
-                <Printer size={16} /> Imprimir / PDF
+                {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                Descargar PDF
               </button>
 
               <button 
                 type="button"
                 disabled={isGenerating}
                 onClick={handleDownloadPng}
-                className="btn-primary py-3 justify-center gap-2 font-bold"
+                className="btn-secondary py-3 justify-center gap-2 font-bold border-gray-300 hover:bg-gray-100"
               >
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                 Descargar PNG
@@ -513,7 +458,7 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
         </div>
       </Modal>
 
-      {/* Hidden print render node */}
+      {/* Hidden print/render node */}
       <div
         style={{
           position: 'absolute',
@@ -523,18 +468,8 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
           zIndex: -1
         }}
       >
-        <div id="diploma-generator-render-node" style={{ width: '1000px', height: '773px', position: 'relative' }}>
-          <DiplomaLayout />
-        </div>
+        <DiplomaLayout idAttr="diploma-generator-render-node" />
       </div>
-
-      {/* Screen/Printer layout for printing (using Portal to place directly under body) */}
-      {typeof document !== 'undefined' && createPortal(
-        <div id="print-diploma-root" style={{ display: 'none' }}>
-          <DiplomaLayout />
-        </div>,
-        document.body
-      )}
     </>
   )
 }

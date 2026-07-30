@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import prisma from '@/lib/prisma'
 
+function formatExpenseDateIso(dateInput?: string | null): string {
+  if (!dateInput) return new Date().toISOString()
+  const str = String(dateInput).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return `${str}T12:00:00.000Z`
+  }
+  const parsed = new Date(str)
+  return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString()
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const startDate = searchParams.get('startDate')
@@ -101,7 +111,7 @@ export async function POST(request: NextRequest) {
         is_billed: item.is_billed || false,
         folio_fiscal: item.folio_fiscal || null,
         invoice_url: item.invoice_url || null,
-        expense_date: item.expense_date ? new Date(item.expense_date).toISOString() : new Date().toISOString()
+        expense_date: formatExpenseDateIso(item.expense_date)
       }))
 
       const { data, error } = await supabase
@@ -142,7 +152,7 @@ export async function POST(request: NextRequest) {
         is_billed: is_billed || false,
         folio_fiscal: folio_fiscal || null,
         invoice_url: invoice_url || null,
-        expense_date: expense_date ? new Date(expense_date).toISOString() : new Date().toISOString()
+        expense_date: formatExpenseDateIso(expense_date)
       })
       .select()
       .single()

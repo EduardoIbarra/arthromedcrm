@@ -361,16 +361,14 @@ export default function TalleresPage() {
                               <span>Control de Asistentes</span>
                             </button>
                             
-                            <button
-                              onClick={() => {
-                                setActiveMenuId(null)
-                                handleOpenDiplomaBuilder(w)
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 font-semibold transition-colors"
-                            >
-                              <Award size={14} className="text-gray-400" />
-                              <span>Diseñar Diploma</span>
-                            </button>
+                            <Link
+                               href={`/talleres/${w.id}/diploma`}
+                               onClick={() => setActiveMenuId(null)}
+                               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-700 font-semibold transition-colors"
+                             >
+                               <Award size={14} className="text-gray-400" />
+                               <span>Diseñar Diploma</span>
+                             </Link>
 
                             <button
                               onClick={() => {

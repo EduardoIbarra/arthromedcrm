@@ -84,7 +84,9 @@ export default function EditGastoPage() {
           is_billed: data.is_billed || false,
           folio_fiscal: data.folio_fiscal || '',
           invoice_url: data.invoice_url || '',
-          expense_date: data.expense_date ? new Date(data.expense_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          expense_date: data.expense_date 
+            ? (data.expense_date.match(/^(\d{4}-\d{2}-\d{2})/) ? data.expense_date.match(/^(\d{4}-\d{2}-\d{2})/)[1] : new Date(data.expense_date).toISOString().split('T')[0])
+            : (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
         })
 
         const isNoIva = (data.iva_percent || 0) === 0 || (data.iva || 0) === 0

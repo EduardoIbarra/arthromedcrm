@@ -73,6 +73,13 @@ export async function PATCH(
     const body = await request.json()
     const { attachments, ...gastoData } = body
 
+    if (gastoData.expense_date) {
+      const str = String(gastoData.expense_date).trim()
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        gastoData.expense_date = `${str}T12:00:00.000Z`
+      }
+    }
+
     // Update main gasto data
     const { data, error } = await supabase
       .from('gastos')

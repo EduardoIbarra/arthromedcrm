@@ -35,7 +35,10 @@ export default function NewGastoPage() {
     is_billed: false,
     folio_fiscal: '',
     invoice_url: '',
-    expense_date: new Date().toISOString().split('T')[0]
+    expense_date: (() => {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })()
   })
 
   const [especifiqueOtro, setEspecifiqueOtro] = useState('')
