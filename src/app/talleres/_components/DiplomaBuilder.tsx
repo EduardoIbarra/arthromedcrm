@@ -178,23 +178,44 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
     }
   }
 
-  // Generate PDF download
+  // Generate PDF download without CSS transform artifacts
   const handleDownloadPdf = async () => {
     setIsDownloadingPdf(true)
     try {
-      const targetEl = document.getElementById('diploma-preview-target')
-      if (!targetEl) throw new Error('No se encontró el lienzo de vista previa.')
+      // Find the source diploma node
+      const sourceNode = document.getElementById('diploma-preview-target')
+      if (!sourceNode) throw new Error('No se encontró el lienzo de vista previa.')
 
-      const pngDataUrl = await toPng(targetEl, { quality: 0.98, pixelRatio: 2 })
+      // Clone node and place in fixed off-screen container at true 1000x773 scale
+      const container = document.createElement('div')
+      container.style.position = 'fixed'
+      container.style.top = '-9999px'
+      container.style.left = '-9999px'
+      container.style.width = '1000px'
+      container.style.height = '773px'
+      container.style.zIndex = '-9999'
+
+      const cloneNode = sourceNode.cloneNode(true) as HTMLElement
+      cloneNode.style.transform = 'none'
+      container.appendChild(cloneNode)
+      document.body.appendChild(container)
+
+      // Allow images to finish rendering inside cloned node
+      await new Promise((r) => setTimeout(r, 150))
+
+      const pngDataUrl = await toPng(cloneNode, { quality: 0.98, pixelRatio: 2, width: 1000, height: 773 })
+      document.body.removeChild(container)
+
       const pdfDoc = await PDFDocument.create()
-      const page = pdfDoc.addPage([1000, 773])
+      // US Letter Landscape size in points (11 in x 8.5 in = 792 pt x 612 pt)
+      const page = pdfDoc.addPage([792, 612])
       const pngImage = await pdfDoc.embedPng(pngDataUrl)
       
       page.drawImage(pngImage, {
         x: 0,
         y: 0,
-        width: 1000,
-        height: 773,
+        width: 792,
+        height: 612,
       })
 
       const pdfBytes = await pdfDoc.save()
@@ -304,12 +325,12 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
   const fontClass = template.fontFamily === 'serif' ? 'font-serif' : 'font-sans'
 
   // Component rendering the actual diploma document canvas
-  const DiplomaPreviewRender = ({ studentName }: { studentName: string }) => {
+  const DiplomaPreviewRender = ({ studentName, targetId = 'diploma-preview-target' }: { studentName: string; targetId?: string }) => {
     const isBonssTheme = template.theme === 'bonss-diagonal'
 
     return (
       <div 
-        id="diploma-preview-target"
+        id={targetId}
         className={`w-[1000px] h-[773px] relative flex flex-col justify-between select-none overflow-hidden shadow-2xl transition-all bg-white ${fontClass}`}
         style={{ boxSizing: 'border-box' }}
       >
@@ -348,21 +369,13 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
           <div className={`absolute inset-3 border-2 ${template.theme === 'minimalist' ? 'border-gray-200' : 'border-[#C5A059]'} pointer-events-none opacity-80 z-10`} />
         )}
 
-        {/* Central Spine Watermark for Bonss theme */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08] z-0">
-          <svg width="460" height="650" viewBox="0 0 100 200" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-900">
-            {/* Spine column artwork illustration */}
-            <path d="M50 10 C45 20, 55 30, 50 40 C45 50, 55 60, 50 70 C45 80, 55 90, 50 100 C45 110, 55 120, 50 130 C45 140, 55 150, 50 160 C45 170, 55 180, 50 190" />
-            <circle cx="50" cy="20" r="8" opacity="0.6" />
-            <circle cx="50" cy="40" r="9" opacity="0.6" />
-            <circle cx="50" cy="60" r="10" opacity="0.6" />
-            <circle cx="50" cy="80" r="11" opacity="0.6" />
-            <circle cx="50" cy="100" r="12" opacity="0.6" />
-            <circle cx="50" cy="120" r="12" opacity="0.6" />
-            <circle cx="50" cy="140" r="13" opacity="0.6" />
-            <circle cx="50" cy="160" r="13" opacity="0.6" />
-            <circle cx="50" cy="180" r="14" opacity="0.6" />
-          </svg>
+        {/* Central Spine Illustration Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
+          <img 
+            src="/images/spine.jpeg" 
+            alt="Spine Illustration" 
+            className="max-h-[960px] max-w-[740px] w-full h-full object-contain opacity-50 mix-blend-multiply scale-125"
+          />
         </div>
 
         {/* TOP HEADER LOGOS */}
@@ -821,7 +834,7 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
                 }}
               >
                 <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                  <DiplomaPreviewRender studentName={sampleStudentName} />
+                  <DiplomaPreviewRender studentName={sampleStudentName} targetId="diploma-mobile-preview-target" />
                 </div>
               </div>
             </div>

@@ -207,20 +207,38 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
 
   // PDF download handler
   const handleDownloadPdf = async () => {
-    const node = document.getElementById('diploma-generator-render-node')
-    if (!node) return
+    const sourceNode = document.getElementById('diploma-generator-render-node')
+    if (!sourceNode) return
     setIsGeneratingPdf(true)
     try {
-      const pngDataUrl = await toPng(node, { quality: 0.98, pixelRatio: 2 })
+      const container = document.createElement('div')
+      container.style.position = 'fixed'
+      container.style.top = '-9999px'
+      container.style.left = '-9999px'
+      container.style.width = '1000px'
+      container.style.height = '773px'
+      container.style.zIndex = '-9999'
+
+      const cloneNode = sourceNode.cloneNode(true) as HTMLElement
+      cloneNode.style.transform = 'none'
+      container.appendChild(cloneNode)
+      document.body.appendChild(container)
+
+      await new Promise((r) => setTimeout(r, 150))
+
+      const pngDataUrl = await toPng(cloneNode, { quality: 0.98, pixelRatio: 2, width: 1000, height: 773 })
+      document.body.removeChild(container)
+
       const pdfDoc = await PDFDocument.create()
-      const page = pdfDoc.addPage([1000, 773])
+      // US Letter Landscape size in points (11 in x 8.5 in = 792 pt x 612 pt)
+      const page = pdfDoc.addPage([792, 612])
       const pngImage = await pdfDoc.embedPng(pngDataUrl)
 
       page.drawImage(pngImage, {
         x: 0,
         y: 0,
-        width: 1000,
-        height: 773,
+        width: 792,
+        height: 612,
       })
 
       const pdfBytes = await pdfDoc.save()
@@ -243,11 +261,28 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
 
   // PNG download handler
   const handleDownloadPng = async () => {
-    const node = document.getElementById('diploma-generator-render-node')
-    if (!node) return
+    const sourceNode = document.getElementById('diploma-generator-render-node')
+    if (!sourceNode) return
     setIsGenerating(true)
     try {
-      const blob = await toBlob(node, { pixelRatio: 2, cacheBust: true })
+      const container = document.createElement('div')
+      container.style.position = 'fixed'
+      container.style.top = '-9999px'
+      container.style.left = '-9999px'
+      container.style.width = '1000px'
+      container.style.height = '773px'
+      container.style.zIndex = '-9999'
+
+      const cloneNode = sourceNode.cloneNode(true) as HTMLElement
+      cloneNode.style.transform = 'none'
+      container.appendChild(cloneNode)
+      document.body.appendChild(container)
+
+      await new Promise((r) => setTimeout(r, 150))
+
+      const blob = await toBlob(cloneNode, { pixelRatio: 2, cacheBust: true, width: 1000, height: 773 })
+      document.body.removeChild(container)
+
       if (!blob) throw new Error('Failed to generate PNG blob')
       
       const dataUrl = URL.createObjectURL(blob)
@@ -304,20 +339,13 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
         <div className="absolute inset-3 border-2 border-[#C5A059] pointer-events-none opacity-80 z-10" />
       )}
 
-      {/* Central Watermark */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08] z-0">
-        <svg width="460" height="650" viewBox="0 0 100 200" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-900">
-          <path d="M50 10 C45 20, 55 30, 50 40 C45 50, 55 60, 50 70 C45 80, 55 90, 50 100 C45 110, 55 120, 50 130 C45 140, 55 150, 50 160 C45 170, 55 180, 50 190" />
-          <circle cx="50" cy="20" r="8" opacity="0.6" />
-          <circle cx="50" cy="40" r="9" opacity="0.6" />
-          <circle cx="50" cy="60" r="10" opacity="0.6" />
-          <circle cx="50" cy="80" r="11" opacity="0.6" />
-          <circle cx="50" cy="100" r="12" opacity="0.6" />
-          <circle cx="50" cy="120" r="12" opacity="0.6" />
-          <circle cx="50" cy="140" r="13" opacity="0.6" />
-          <circle cx="50" cy="160" r="13" opacity="0.6" />
-          <circle cx="50" cy="180" r="14" opacity="0.6" />
-        </svg>
+      {/* Central Spine Watermark */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
+        <img 
+          src="/images/spine.jpeg" 
+          alt="Spine Illustration" 
+          className="max-h-[960px] max-w-[740px] w-full h-full object-contain opacity-50 mix-blend-multiply scale-125"
+        />
       </div>
 
       {/* TOP HEADER LOGOS */}

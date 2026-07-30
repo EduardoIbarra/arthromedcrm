@@ -24,8 +24,9 @@ export default function DiplomaDesignerPage({ params }: { params: Promise<{ id: 
         if (!res.ok) {
           throw new Error('No se pudo cargar la información del taller.')
         }
-        const data = await res.json()
-        setTaller(data)
+        const json = await res.json()
+        const workshopData = json.data || json
+        setTaller(workshopData)
       } catch (err: any) {
         console.error('Error loading workshop for diploma designer:', err)
         setError(err.message || 'Error al cargar el taller.')
