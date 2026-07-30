@@ -62,18 +62,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Generate folio REQ-YYYYMMDD-XXX
-    const todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '')
-    const count = await prisma.requisiciones.count({
-      where: {
-        folio: { startsWith: `REQ-${todayStr}-` }
-      }
-    })
-    const nextNum = String(count + 1).padStart(3, '0')
-    const folio = `REQ-${todayStr}-${nextNum}`
-
     // Create inside a Prisma Transaction
     const result = await prisma.$transaction(async (tx: any) => {
+      // Generate folio REQ-YYYYMMDD-XXX
+      const todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '')
+      const existing = await tx.requisiciones.findMany({
+        where: {
+          folio: { startsWith: `REQ-${todayStr}-` }
+        },
+        includeDeleted: true,
+        select: { folio: true }
+      } as any)
+
+      let maxNum = 0
+      const folioRegex = new RegExp(`^REQ-${todayStr}-(\\d+)$`)
+      for (const r of existing) {
+        const match = r.folio.match(folioRegex)
+        if (match) {
+          const num = parseInt(match[1], 10)
+          if (num > maxNum) maxNum = num
+        }
+      }
+
+      let nextNum = maxNum + 1
+      let folio = `REQ-${todayStr}-${String(nextNum).padStart(3, '0')}`
+
+      while (await tx.requisiciones.findFirst({ where: { folio }, includeDeleted: true } as any)) {
+        nextNum++
+        folio = `REQ-${todayStr}-${String(nextNum).padStart(3, '0')}`
+      }
+
       const req = await tx.requisiciones.create({
         data: {
           folio,
