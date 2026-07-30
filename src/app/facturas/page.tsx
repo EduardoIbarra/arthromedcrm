@@ -1220,32 +1220,31 @@ export default function FacturasPage() {
                         {columns.filter(c => c.visible).map((col) => {
                           switch (col.id) {
                             case 'numero_factura':
-                              const numStr = String(invoice.numero_factura)
-                              const is458 = numStr === '458'
-                              const is459 = numStr === '459'
-                              const hasAnticipoItem = (invoice.factura_productos || []).some(
-                                (p: any) =>
-                                  (p.producto_nombre || '').toLowerCase().includes('anticipo') ||
-                                  (p.producto_codigo || '').toLowerCase().includes('var001') ||
-                                  (p.producto_codigo || '').toLowerCase().includes('84111506')
-                              )
+                              const numStr = String(invoice.numero_factura || '').trim()
+                              const is458 = numStr === '458' || numStr === 'F-458'
+                              const is459 = numStr === '459' || numStr === 'F-459'
+                              const isAnticipoBadge =
+                                (invoice as any).is_anticipo ??
+                                (is458 ||
+                                  (invoice.factura_productos || []).some(
+                                    (p: any) =>
+                                      (p.producto_nombre || '').toLowerCase().includes('anticipo') ||
+                                      (p.producto_codigo || '').toLowerCase().includes('var001') ||
+                                      (p.producto_codigo || '').toLowerCase().includes('84111506')
+                                  ))
+                              const isRelacionadaBadge = (invoice as any).is_relacionada ?? is459
                               return (
                                 <td key={col.id} className="p-4 font-semibold text-[#0763a9]">
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="group-hover:underline">{invoice.numero_factura}</span>
-                                    {is458 && (
+                                    {isAnticipoBadge && !is459 && (
                                       <span className="px-2 py-0.5 text-[10px] font-extrabold bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200 shadow-2xs" title="Factura de Anticipo">
                                         ⚡ Anticipo
                                       </span>
                                     )}
-                                    {is459 && (
+                                    {isRelacionadaBadge && (
                                       <span className="px-2 py-0.5 text-[10px] font-extrabold bg-purple-100 text-purple-800 rounded-full border border-purple-200 shadow-2xs" title="Factura Final con Anticipo Aplicado (#458)">
                                         🔗 Relacionada (#458)
-                                      </span>
-                                    )}
-                                    {!is458 && !is459 && hasAnticipoItem && (
-                                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200 shadow-2xs" title="Factura de Anticipo">
-                                        ⚡ Anticipo
                                       </span>
                                     )}
                                   </div>

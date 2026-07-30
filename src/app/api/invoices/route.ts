@@ -113,7 +113,23 @@ export async function GET(request: NextRequest) {
     }
 
     const invoices = await prisma.facturas_cliente.findMany(queryOptions)
-    const data = invoices.map((inv: any) => attachDeliveryLimitFields(inv))
+    const data = invoices.map((inv: any) => {
+      const withDelivery = attachDeliveryLimitFields(inv)
+      const numStr = String(inv.numero_factura || '').trim()
+      const is458 = numStr === '458' || numStr === 'F-458'
+      const is459 = numStr === '459' || numStr === 'F-459'
+      const hasAnticipoItem = (inv.factura_productos || []).some(
+        (p: any) =>
+          (p.producto_nombre || '').toLowerCase().includes('anticipo') ||
+          (p.producto_codigo || '').toLowerCase().includes('var001') ||
+          (p.producto_codigo || '').toLowerCase().includes('84111506')
+      )
+      return {
+        ...withDelivery,
+        is_anticipo: is458 || (hasAnticipoItem && !is459),
+        is_relacionada: is459,
+      }
+    })
 
     return NextResponse.json({
       data,
