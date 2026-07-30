@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { fetchAlegraInvoice, fetchAlegraPaymentsForInvoice } from '@/lib/alegra'
+import { fetchAlegraInvoice, fetchAlegraPaymentsForInvoice, getAlegraAuthHeader } from '@/lib/alegra'
 import {
   attachDeliveryLimitFields,
   firstPaymentFieldsFromAlegraInvoice,

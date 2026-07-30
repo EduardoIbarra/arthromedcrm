@@ -111,7 +111,7 @@ export async function PUT(
       }
     })
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       // Clear existing items
       await tx.detalle_previo.deleteMany({
         where: { previo_id: id }

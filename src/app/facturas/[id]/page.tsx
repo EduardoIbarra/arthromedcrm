@@ -144,6 +144,9 @@ interface Factura {
   product_sync_error?: string | null
   factura_tracking?: FacturaTracking | null
   factura_tracking_updates?: FacturaTrackingUpdate[]
+  is_anticipo?: boolean
+  notas_credito?: any[]
+  related_invoices?: any[]
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {

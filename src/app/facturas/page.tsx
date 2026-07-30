@@ -60,6 +60,7 @@ interface Factura {
   first_payment_percent?: number | null
   planes_pago?: any[]
   complementos_pago?: any[]
+  primer_pago_fecha?: string | null
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
