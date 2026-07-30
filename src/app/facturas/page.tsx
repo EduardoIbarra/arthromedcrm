@@ -1220,27 +1220,32 @@ export default function FacturasPage() {
                         {columns.filter(c => c.visible).map((col) => {
                           switch (col.id) {
                             case 'numero_factura':
-                              const isAnticipoDoc =
-                                String(invoice.numero_factura) === '458' ||
-                                (invoice.factura_productos || []).some(
-                                  (p: any) =>
-                                    (p.producto_nombre || '').toLowerCase().includes('anticipo') ||
-                                    (p.producto_codigo || '').toLowerCase().includes('var001') ||
-                                    (p.producto_codigo || '').toLowerCase().includes('84111506')
-                                )
-                              const isRelatedDoc = String(invoice.numero_factura) === '459'
+                              const numStr = String(invoice.numero_factura)
+                              const is458 = numStr === '458'
+                              const is459 = numStr === '459'
+                              const hasAnticipoItem = (invoice.factura_productos || []).some(
+                                (p: any) =>
+                                  (p.producto_nombre || '').toLowerCase().includes('anticipo') ||
+                                  (p.producto_codigo || '').toLowerCase().includes('var001') ||
+                                  (p.producto_codigo || '').toLowerCase().includes('84111506')
+                              )
                               return (
                                 <td key={col.id} className="p-4 font-semibold text-[#0763a9]">
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="group-hover:underline">{invoice.numero_factura}</span>
-                                    {isAnticipoDoc && (
+                                    {is458 && (
                                       <span className="px-2 py-0.5 text-[10px] font-extrabold bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200 shadow-2xs" title="Factura de Anticipo">
                                         ⚡ Anticipo
                                       </span>
                                     )}
-                                    {isRelatedDoc && (
+                                    {is459 && (
                                       <span className="px-2 py-0.5 text-[10px] font-extrabold bg-purple-100 text-purple-800 rounded-full border border-purple-200 shadow-2xs" title="Factura Final con Anticipo Aplicado (#458)">
                                         🔗 Relacionada (#458)
+                                      </span>
+                                    )}
+                                    {!is458 && !is459 && hasAnticipoItem && (
+                                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200 shadow-2xs" title="Factura de Anticipo">
+                                        ⚡ Anticipo
                                       </span>
                                     )}
                                   </div>
@@ -1287,10 +1292,11 @@ export default function FacturasPage() {
                                 </td>
                               )
                             case 'fecha_pago':
+                              const payDate = invoice.fecha_pago || invoice.primer_pago_fecha
                               return (
                                 <td key={col.id} className="p-4 text-gray-600 font-medium text-xs">
-                                  {(['pagada', 'pagado'].includes(invoice.estado)) && invoice.fecha_pago 
-                                    ? formatDate(invoice.fecha_pago) 
+                                  {(['pagada', 'pagado'].includes(invoice.estado)) && payDate 
+                                    ? formatDate(payDate) 
                                     : '-'
                                   }
                                 </td>
