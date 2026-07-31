@@ -334,20 +334,37 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
         className={`w-[1000px] h-[773px] relative flex flex-col justify-between select-none overflow-hidden shadow-2xl transition-all bg-white ${fontClass}`}
         style={{ boxSizing: 'border-box' }}
       >
+        {/* Central Spine Illustration Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
+          <img 
+            src="/images/spine.jpeg" 
+            alt="Spine Illustration" 
+            className="max-h-[960px] max-w-[740px] w-full h-full object-contain opacity-25 mix-blend-multiply scale-125"
+          />
+        </div>
+
         {/* Theme Accents */}
         {isBonssTheme ? (
           <>
-            {/* Top-Left Blue Diagonal Accent */}
+            {/* Top-Left Outer Larger Dark Blue Diagonal Accent */}
             <div 
-              className="absolute top-0 left-0 w-[420px] h-[260px] pointer-events-none z-0"
+              className="absolute top-0 left-0 w-[480px] h-[300px] pointer-events-none z-0"
               style={{
                 background: 'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%)',
                 clipPath: 'polygon(0 0, 100% 0, 0 100%)'
               }}
             />
-            {/* Thin silver/grey separator line along diagonal */}
+            {/* Top-Left Inner Light Blue Diagonal Accent (Over Dark Blue) */}
             <div 
-              className="absolute top-0 left-0 w-[430px] h-[268px] pointer-events-none z-0 opacity-40"
+              className="absolute top-0 left-0 w-[390px] h-[240px] pointer-events-none z-0"
+              style={{
+                background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+                clipPath: 'polygon(0 0, 100% 0, 0 100%)'
+              }}
+            />
+            {/* Thin silver separator line along inner diagonal */}
+            <div 
+              className="absolute top-0 left-0 w-[398px] h-[246px] pointer-events-none z-0 opacity-40"
               style={{
                 background: '#94a3b8',
                 clipPath: 'polygon(0 0, 100% 0, 0 100%)',
@@ -355,11 +372,19 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
               }}
             />
 
-            {/* Bottom-Right Dark Navy Diagonal Accent */}
+            {/* Bottom-Right Outer Larger Dark Navy Diagonal Accent */}
             <div 
-              className="absolute bottom-0 right-0 w-[360px] h-[260px] pointer-events-none z-0"
+              className="absolute bottom-0 right-0 w-[420px] h-[300px] pointer-events-none z-0"
               style={{
                 background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
+              }}
+            />
+            {/* Bottom-Right Inner Light Slate Diagonal Accent (Over Dark Navy) */}
+            <div 
+              className="absolute bottom-0 right-0 w-[340px] h-[240px] pointer-events-none z-0"
+              style={{
+                background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)',
                 clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
               }}
             />
@@ -369,23 +394,14 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
           <div className={`absolute inset-3 border-2 ${template.theme === 'minimalist' ? 'border-gray-200' : 'border-[#C5A059]'} pointer-events-none opacity-80 z-10`} />
         )}
 
-        {/* Central Spine Illustration Watermark */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
-          <img 
-            src="/images/spine.jpeg" 
-            alt="Spine Illustration" 
-            className="max-h-[960px] max-w-[740px] w-full h-full object-contain opacity-50 mix-blend-multiply scale-125"
-          />
-        </div>
-
         {/* TOP HEADER LOGOS */}
         <div className="flex justify-between items-start z-10 w-full p-8">
           {/* Upper Left Corner Logo (Logo 1) */}
           <div className="h-20 w-52 flex items-center justify-start">
             {template.logo1 ? (
-              <img src={template.logo1} alt="Logo 1 (Superior Izquierdo)" className="max-h-20 max-w-full object-contain filter drop-shadow-md" />
+              <img src={template.logo1} alt="Logo 1 (Superior Izquierdo)" className="max-h-20 max-w-full object-contain filter drop-shadow-xs" />
             ) : (
-              <div className={`text-xs p-2 rounded border border-dashed ${isBonssTheme ? 'text-white border-white/50 bg-white/10' : 'text-gray-400 border-gray-300'}`}>
+              <div className={`text-xs p-2 rounded border border-dashed ${isBonssTheme ? 'text-gray-500 border-gray-400 bg-white/40' : 'text-gray-400 border-gray-300'}`}>
                 + Logo Superior Izquierdo
               </div>
             )}
@@ -434,20 +450,20 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
         </div>
 
         {/* SIGNATURES SECTION */}
-        <div className="z-10 w-full px-16 my-2">
-          <div className={`grid gap-12 items-end justify-center ${template.signatures.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : template.signatures.length === 2 ? 'grid-cols-2 max-w-2xl mx-auto' : 'grid-cols-3 max-w-3xl mx-auto'}`}>
+        <div className="z-10 w-full px-16 my-0.5">
+          <div className={`grid gap-6 items-end justify-center ${template.signatures.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : template.signatures.length === 2 ? 'grid-cols-2 max-w-xl mx-auto' : 'grid-cols-3 max-w-2xl mx-auto'}`}>
             {template.signatures.map((sig) => (
               <div key={sig.id} className="flex flex-col items-center text-center min-w-0">
-                <div className="h-16 flex items-end justify-center mb-1">
+                <div className="h-11 flex items-end justify-center mb-0.5">
                   {sig.image ? (
-                    <img src={sig.image} alt={sig.name} className="max-h-16 max-w-[170px] object-contain" />
+                    <img src={sig.image} alt={sig.name} className="max-h-11 max-w-[140px] object-contain" />
                   ) : (
-                    <div className="h-12" />
+                    <div className="h-8" />
                   )}
                 </div>
-                <div className="w-full border-t border-gray-800 my-1" />
+                <div className="w-full border-t border-gray-800 my-0.5" />
                 <p className="text-xs font-serif font-bold text-gray-900 truncate w-full">{sig.name}</p>
-                <p className="text-[10px] text-gray-600 font-sans uppercase tracking-wider truncate w-full">{sig.title}</p>
+                <p className="text-[9px] text-gray-600 font-sans uppercase tracking-wider truncate w-full">{sig.title}</p>
               </div>
             ))}
           </div>
@@ -478,9 +494,9 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
           {/* Lower Right Corner: Logo 3 */}
           <div className="h-20 w-44 flex items-center justify-end">
             {template.logo3 ? (
-              <img src={template.logo3} alt="Logo 3 (Inferior Derecho)" className="max-h-20 max-w-full object-contain filter drop-shadow-md" />
+              <img src={template.logo3} alt="Logo 3 (Inferior Derecho)" className="max-h-20 max-w-full object-contain filter drop-shadow-xs" />
             ) : (
-              <div className="text-[10px] text-white/70 italic border border-dashed border-white/40 p-1.5 rounded">
+              <div className="text-[10px] text-gray-500 italic border border-dashed border-gray-400 p-1.5 rounded">
                 + Logo Inferior Derecho
               </div>
             )}
