@@ -450,20 +450,20 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
         </div>
 
         {/* SIGNATURES SECTION */}
-        <div className="z-10 w-full px-16 my-0.5">
-          <div className={`grid gap-6 items-end justify-center ${template.signatures.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : template.signatures.length === 2 ? 'grid-cols-2 max-w-xl mx-auto' : 'grid-cols-3 max-w-2xl mx-auto'}`}>
+        <div className="z-10 w-full px-16 my-1">
+          <div className={`grid gap-8 items-start justify-center ${template.signatures.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : template.signatures.length === 2 ? 'grid-cols-2 max-w-xl mx-auto' : 'grid-cols-3 max-w-2xl mx-auto'}`}>
             {template.signatures.map((sig) => (
               <div key={sig.id} className="flex flex-col items-center text-center min-w-0">
-                <div className="h-11 flex items-end justify-center mb-0.5">
+                <div className="h-15 flex items-end justify-center mb-1">
                   {sig.image ? (
-                    <img src={sig.image} alt={sig.name} className="max-h-11 max-w-[140px] object-contain" />
+                    <img src={sig.image} alt={sig.name} className="max-h-15 max-w-[180px] object-contain" />
                   ) : (
-                    <div className="h-8" />
+                    <div className="h-15" />
                   )}
                 </div>
                 <div className="w-full border-t border-gray-800 my-0.5" />
-                <p className="text-xs font-serif font-bold text-gray-900 truncate w-full">{sig.name}</p>
-                <p className="text-[9px] text-gray-600 font-sans uppercase tracking-wider truncate w-full">{sig.title}</p>
+                <p className="text-xs font-serif font-bold text-gray-900 whitespace-pre-line break-words leading-tight w-full">{sig.name}</p>
+                <p className="text-[9px] text-gray-600 font-sans uppercase tracking-wider whitespace-pre-line break-words leading-tight w-full mt-0.5">{sig.title}</p>
               </div>
             ))}
           </div>
@@ -492,9 +492,9 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
           </div>
 
           {/* Lower Right Corner: Logo 3 */}
-          <div className="h-20 w-44 flex items-center justify-end">
+          <div className="h-24 w-56 flex items-center justify-end">
             {template.logo3 ? (
-              <img src={template.logo3} alt="Logo 3 (Inferior Derecho)" className="max-h-20 max-w-full object-contain filter drop-shadow-xs" />
+              <img src={template.logo3} alt="Logo 3 (Inferior Derecho)" className="max-h-24 max-w-full object-contain filter drop-shadow-xs" />
             ) : (
               <div className="text-[10px] text-gray-500 italic border border-dashed border-gray-400 p-1.5 rounded">
                 + Logo Inferior Derecho
@@ -803,20 +803,26 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <input 
-                        type="text" 
-                        className="erp-input text-xs bg-white py-1.5" 
-                        value={sig.name} 
-                        onChange={e => handleUpdateSignature(sig.id, 'name', e.target.value)}
-                        placeholder="Nombre completo"
-                      />
-                      <input 
-                        type="text" 
-                        className="erp-input text-xs bg-white py-1.5" 
-                        value={sig.title} 
-                        onChange={e => handleUpdateSignature(sig.id, 'title', e.target.value)}
-                        placeholder="Cargo / Título"
-                      />
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-0.5">Nombre</label>
+                        <textarea 
+                          rows={2}
+                          className="erp-input text-xs bg-white py-1.5 resize-none w-full" 
+                          value={sig.name} 
+                          onChange={e => handleUpdateSignature(sig.id, 'name', e.target.value)}
+                          placeholder="Nombre completo (soporta varias líneas)"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-0.5">Cargo / Título</label>
+                        <textarea 
+                          rows={2}
+                          className="erp-input text-xs bg-white py-1.5 resize-none w-full" 
+                          value={sig.title} 
+                          onChange={e => handleUpdateSignature(sig.id, 'title', e.target.value)}
+                          placeholder="Cargo / Título (soporta varias líneas)"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between bg-white p-2 border border-gray-200 rounded-xl">

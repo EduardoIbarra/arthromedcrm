@@ -402,16 +402,20 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       </div>
 
       {/* SIGNATURES SECTION */}
-      <div className="z-10 w-full px-16 my-0.5">
-        <div className={`grid gap-6 items-end justify-center ${signaturesList.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : signaturesList.length === 2 ? 'grid-cols-2 max-w-xl mx-auto' : 'grid-cols-3 max-w-2xl mx-auto'}`}>
+      <div className="z-10 w-full px-16 my-1">
+        <div className={`grid gap-8 items-start justify-center ${signaturesList.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : signaturesList.length === 2 ? 'grid-cols-2 max-w-xl mx-auto' : 'grid-cols-3 max-w-2xl mx-auto'}`}>
           {signaturesList.map((sig) => (
             <div key={sig.id} className="flex flex-col items-center text-center min-w-0">
-              <div className="h-11 flex items-end justify-center mb-0.5">
-                {sig.image && <img src={sig.image} alt={sig.name} className="max-h-11 max-w-[140px] object-contain" />}
+              <div className="h-15 flex items-end justify-center mb-1">
+                {sig.image ? (
+                  <img src={sig.image} alt={sig.name} className="max-h-15 max-w-[180px] object-contain" />
+                ) : (
+                  <div className="h-15" />
+                )}
               </div>
               <div className="w-full border-t border-gray-800 my-0.5" />
-              <p className="text-xs font-serif font-bold text-gray-900 truncate w-full">{sig.name}</p>
-              <p className="text-[9px] text-gray-600 font-sans uppercase tracking-wider truncate w-full">{sig.title}</p>
+              <p className="text-xs font-serif font-bold text-gray-900 whitespace-pre-line break-words leading-tight w-full">{sig.name}</p>
+              <p className="text-[9px] text-gray-600 font-sans uppercase tracking-wider whitespace-pre-line break-words leading-tight w-full mt-0.5">{sig.title}</p>
             </div>
           ))}
         </div>
@@ -437,8 +441,8 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
           {getFormattedDate()}, {template.location}
         </div>
 
-        <div className="h-20 w-44 flex items-center justify-end">
-          {template.logo3 && <img src={template.logo3} alt="Logo 3" className="max-h-20 max-w-full object-contain filter drop-shadow-xs" />}
+        <div className="h-24 w-56 flex items-center justify-end">
+          {template.logo3 && <img src={template.logo3} alt="Logo 3" className="max-h-24 max-w-full object-contain filter drop-shadow-xs" />}
         </div>
       </div>
     </div>
