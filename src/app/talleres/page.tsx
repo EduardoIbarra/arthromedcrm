@@ -11,6 +11,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import DiplomaBuilder from './_components/DiplomaBuilder'
 import DiplomaGeneratorModal from './_components/DiplomaGeneratorModal'
 import BadgeGeneratorModal from './_components/BadgeGeneratorModal'
+import MassDiplomaGeneratorModal from './_components/MassDiplomaGeneratorModal'
 
 interface Workshop {
   id: string
@@ -44,6 +45,7 @@ export default function TalleresPage() {
   // Diploma States
   const [isDiplomaBuilderOpen, setIsDiplomaBuilderOpen] = useState(false)
   const [isDiplomaGeneratorOpen, setIsDiplomaGeneratorOpen] = useState(false)
+  const [isMassDiplomaModalOpen, setIsMassDiplomaModalOpen] = useState(false)
   const [selectedStudentName, setSelectedStudentName] = useState('')
   const [diplomaRole, setDiplomaRole] = useState<'student' | 'instructor'>('student')
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
@@ -384,6 +386,19 @@ export default function TalleresPage() {
                                <span>Diploma de Instructor</span>
                              </button>
 
+                             <button
+                               onClick={() => {
+                                 setActiveMenuId(null)
+                                 setSelectedWorkshop(w)
+                                 handleOpenAttendance(w)
+                                 setIsMassDiplomaModalOpen(true)
+                               }}
+                               className="w-full text-left px-4 py-2 hover:bg-blue-50 flex items-center gap-2 text-blue-700 font-semibold transition-colors"
+                             >
+                               <Award size={14} className="text-blue-600" />
+                               <span>Diplomas Masivos (PDF)</span>
+                             </button>
+
                             <button
                               onClick={() => {
                                 setActiveMenuId(null)
@@ -492,10 +507,20 @@ export default function TalleresPage() {
           <div className="space-y-6">
             {/* Limit Banner */}
             <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-200">
-              <span className="text-sm text-gray-600">Cupo Registrado:</span>
-              <span className="text-base font-bold text-gray-900">
-                {enrolledUsers.length} / {selectedWorkshop?.max_people}
-              </span>
+              <div>
+                <span className="text-xs text-gray-500 block">Cupo Registrado:</span>
+                <span className="text-sm font-bold text-gray-900">
+                  {enrolledUsers.length} / {selectedWorkshop?.max_people}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMassDiplomaModalOpen(true)}
+                className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5 font-bold"
+              >
+                <Award size={15} />
+                <span>Diplomas Masivos (PDF)</span>
+              </button>
             </div>
 
             {/* Quick Actions (Enroll / Create Client) */}
@@ -729,6 +754,16 @@ export default function TalleresPage() {
             client={selectedClientForBadge}
             taller={selectedWorkshop}
             onClientUpdate={handleClientUpdate}
+          />
+        )}
+
+        {/* Mass Diploma Generator Modal */}
+        {selectedWorkshop && isMassDiplomaModalOpen && (
+          <MassDiplomaGeneratorModal
+            isOpen={isMassDiplomaModalOpen}
+            onClose={() => setIsMassDiplomaModalOpen(false)}
+            taller={selectedWorkshop}
+            enrolledClients={enrolledUsers.filter(e => e.clients).map(e => ({ id: e.clients.id, name: e.clients.name }))}
           />
         )}
 
