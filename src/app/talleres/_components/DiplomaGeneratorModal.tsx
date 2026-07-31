@@ -28,6 +28,9 @@ interface DiplomaTemplate {
   logo2: string
   logo3: string
   signatures?: SignatureItem[]
+  instructorTitle?: string
+  instructorPresentation?: string
+  instructorBodyText?: string
   sig1_name?: string
   sig1_title?: string
   sig1_image?: string
@@ -40,12 +43,15 @@ interface DiplomaGeneratorModalProps {
   isOpen: boolean
   onClose: () => void
   studentName: string
+  initialRole?: 'student' | 'instructor'
+  initialInstructorName?: string
   taller: {
     id: string
     name: string
     date_time: string
     professor: string
     diploma_template?: any
+    congress_workshop_doctors?: Array<{ doctores?: { name?: string } | null }>
   }
 }
 
@@ -64,6 +70,21 @@ const DEFAULT_SIGNATURES = (professor: string): SignatureItem[] => [
   }
 ]
 
+export const DEFAULT_INSTRUCTOR_SIGNATURES = (): SignatureItem[] => [
+  {
+    id: 'sig-inst-1',
+    name: 'Dr. Ricardo Reyes Reyes',
+    title: 'Director General de Arthromed',
+    image: '/images/firmaRicardoReyes.png'
+  },
+  {
+    id: 'sig-inst-2',
+    name: 'Eric Ai',
+    title: 'Gerente de Bonss Medical LATAM',
+    image: '/images/firmaEric.jpg'
+  }
+]
+
 const DEFAULT_TEMPLATE = (workshopName: string, professor: string): DiplomaTemplate => ({
   title: 'CERTIFICADO',
   presentation: 'Bonss Medical otorga el reconocimiento a:',
@@ -76,14 +97,29 @@ const DEFAULT_TEMPLATE = (workshopName: string, professor: string): DiplomaTempl
   logo1: '',
   logo2: '',
   logo3: '',
-  signatures: DEFAULT_SIGNATURES(professor)
+  signatures: DEFAULT_SIGNATURES(professor),
+  instructorTitle: 'RECONOCIMIENTO',
+  instructorPresentation: 'Bonss Medical y Arthromed Academy otorgan la presente CONSTANCIA a:',
+  instructorBodyText: 'Por su invaluable contribución y destacada participación como PROFESOR / INSTRUCTOR en el',
+  instructorSignatures: DEFAULT_INSTRUCTOR_SIGNATURES()
 })
 
-export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, taller }: DiplomaGeneratorModalProps) {
-  const [editableName, setEditableName] = useState(studentName)
+export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, initialRole = 'student', initialInstructorName, taller }: DiplomaGeneratorModalProps) {
+  const [recipientRole, setRecipientRole] = useState<'student' | 'instructor'>(initialRole)
+  const defaultInstructor = initialInstructorName || taller.professor || 'Dr. Instructor Principal'
+  const [editableName, setEditableName] = useState(initialRole === 'instructor' ? defaultInstructor : studentName)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [resolvedTemplate, setResolvedTemplate] = useState<DiplomaTemplate | null>(null)
+  
+  useEffect(() => {
+    setRecipientRole(initialRole)
+    if (initialRole === 'instructor') {
+      setEditableName(initialInstructorName || taller.professor || 'Dr. Instructor Principal')
+    } else {
+      setEditableName(studentName)
+    }
+  }, [initialRole, studentName, initialInstructorName, taller.professor])
   
   const baseTemplate: DiplomaTemplate = (() => {
     if (taller.diploma_template && typeof taller.diploma_template === 'object') {
@@ -165,6 +201,14 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
             }))
           )
         }
+        if (Array.isArray(resolved.instructorSignatures)) {
+          resolved.instructorSignatures = await Promise.all(
+            resolved.instructorSignatures.map(async (s) => ({
+              ...s,
+              image: s.image && !s.image.startsWith('data:') ? await convertUrlToBase64(s.image) : s.image
+            }))
+          )
+        }
       } catch (e) {
         console.error('Error pre-resolving template images:', e)
       }
@@ -230,10 +274,9 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       document.body.removeChild(container)
 
       const pdfDoc = await PDFDocument.create()
-      // US Letter Landscape size in points (11 in x 8.5 in = 792 pt x 612 pt)
       const page = pdfDoc.addPage([792, 612])
       const pngImage = await pdfDoc.embedPng(pngDataUrl)
-
+      
       page.drawImage(pngImage, {
         x: 0,
         y: 0,
@@ -243,17 +286,16 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
 
       const pdfBytes = await pdfDoc.save()
       const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
-      const dataUrl = URL.createObjectURL(blob)
-
+      const downloadUrl = URL.createObjectURL(blob)
+      
       const link = document.createElement('a')
-      link.download = `Diploma_${editableName.trim().replace(/\s+/g, '_')}.pdf`
-      link.href = dataUrl
+      link.href = downloadUrl
+      link.download = `Diploma_${recipientRole === 'instructor' ? 'Instructor' : 'Alumno'}_${editableName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
       link.click()
-
-      setTimeout(() => URL.revokeObjectURL(dataUrl), 1000)
+      URL.revokeObjectURL(downloadUrl)
     } catch (err) {
-      console.error('Error generating PDF diploma:', err)
-      alert('Error al generar el PDF del diploma.')
+      console.error('Error generating PDF:', err)
+      alert('Ocurrió un error al generar el PDF del diploma.')
     } finally {
       setIsGeneratingPdf(false)
     }
@@ -280,17 +322,13 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
 
       await new Promise((r) => setTimeout(r, 150))
 
-      const blob = await toBlob(cloneNode, { pixelRatio: 2, cacheBust: true, width: 1000, height: 773 })
+      const dataUrl = await toPng(cloneNode, { quality: 0.98, pixelRatio: 2, width: 1000, height: 773 })
       document.body.removeChild(container)
 
-      if (!blob) throw new Error('Failed to generate PNG blob')
-      
-      const dataUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.download = `Diploma_${editableName.trim().replace(/\s+/g, '_')}.png`
+      link.download = `Diploma_${recipientRole === 'instructor' ? 'Instructor' : 'Alumno'}_${editableName.replace(/[^a-zA-Z0-9]/g, '_')}.png`
       link.href = dataUrl
       link.click()
-      
       setTimeout(() => URL.revokeObjectURL(dataUrl), 1000)
     } catch (err) {
       console.error(err)
@@ -300,7 +338,9 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
     }
   }
 
-  const signaturesList = template.signatures || DEFAULT_SIGNATURES(taller.professor)
+  const signaturesList = recipientRole === 'instructor'
+    ? (template.instructorSignatures && template.instructorSignatures.length > 0 ? template.instructorSignatures : DEFAULT_INSTRUCTOR_SIGNATURES())
+    : (template.signatures || DEFAULT_SIGNATURES(taller.professor))
   const isBonssTheme = template.theme === 'bonss-diagonal'
 
   const DiplomaLayout = ({ idAttr }: { idAttr?: string }) => (
@@ -381,13 +421,13 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
       {/* MAIN BODY CONTENT */}
       <div className="flex flex-col items-center text-center z-10 w-full px-12 space-y-3 -mt-4">
         <h2 className="text-5xl font-serif font-black uppercase tracking-wider text-gray-900 leading-tight">
-          {template.title || 'CERTIFICADO'}
+          {recipientRole === 'instructor' ? (template.instructorTitle || 'RECONOCIMIENTO') : (template.title || 'CERTIFICADO')}
         </h2>
         <h3 className="text-xl font-serif font-bold uppercase tracking-widest text-gray-800 -mt-1">
           DE RECONOCIMIENTO
         </h3>
         <p className="text-sm italic text-gray-600 font-serif my-2">
-          {template.presentation || 'Bonss Medical otorga el reconocimiento a:'}
+          {recipientRole === 'instructor' ? (template.instructorPresentation || 'Bonss Medical y Arthromed Academy otorgan la presente CONSTANCIA a:') : (template.presentation || 'Bonss Medical otorga el reconocimiento a:')}
         </p>
         <div className="w-full flex flex-col items-center py-1">
           <h3 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-gray-950 border-b-2 border-gray-900 pb-1.5 px-8 inline-block max-w-3xl">
@@ -396,7 +436,10 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
         </div>
         <div className="max-w-3xl space-y-1.5 mt-2">
           <p className="text-sm leading-relaxed text-gray-800 font-serif font-normal">
-            {replacePlaceholders(template.bodyText, editableName)} <span className="font-bold text-gray-950">"{taller.name}"</span>.
+            {replacePlaceholders(
+              recipientRole === 'instructor' ? (template.instructorBodyText || 'Por su invaluable contribución y destacada participación como PROFESOR / INSTRUCTOR en el') : template.bodyText,
+              editableName
+            )} <span className="font-bold text-gray-950">"{taller.name}"</span>.
           </p>
         </div>
       </div>
@@ -450,22 +493,82 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, ta
 
   if (!isOpen) return null
 
+  // Extract quick instructor options
+  const instructorOptions: string[] = []
+  if (taller.professor) {
+    taller.professor.split(/,|\se\s|\sy\s/).forEach(p => {
+      const clean = p.trim()
+      if (clean && !instructorOptions.includes(clean)) instructorOptions.push(clean)
+    })
+  }
+  if (taller.congress_workshop_doctors && Array.isArray(taller.congress_workshop_doctors)) {
+    taller.congress_workshop_doctors.forEach(d => {
+      if (d.doctores?.name && !instructorOptions.includes(d.doctores.name)) {
+        instructorOptions.push(d.doctores.name)
+      }
+    })
+  }
+
   return (
     <>
       <Modal open={isOpen} onClose={onClose} title="Generar Diploma">
-        <div className="space-y-6">
+        <div className="space-y-5">
+          {/* Role Toggle Selector */}
+          <div className="flex bg-gray-150 p-1 rounded-xl text-xs font-semibold border border-gray-200">
+            <button
+              type="button"
+              onClick={() => {
+                setRecipientRole('student')
+                setEditableName(studentName)
+              }}
+              className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${recipientRole === 'student' ? 'bg-white shadow-xs text-blue-700 font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              🎓 Alumno / Asistente
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRecipientRole('instructor')
+                setEditableName(taller.professor || 'Dr. Instructor Principal')
+              }}
+              className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${recipientRole === 'instructor' ? 'bg-white shadow-xs text-amber-700 font-bold' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              👨‍⚕️ Instructor / Profesor
+            </button>
+          </div>
+
           <p className="text-xs text-gray-500">
-            Revisa y edita el nombre tal como debe aparecer en el certificado.
+            Revisa y edita el nombre tal como debe aparecer en el certificado ({recipientRole === 'instructor' ? 'Instructor / Ponente' : 'Alumno'}).
           </p>
 
           <div className="space-y-2">
-            <label className="block text-xs font-bold text-gray-700">Nombre del Alumno / Doctor</label>
+            <label className="block text-xs font-bold text-gray-700">
+              {recipientRole === 'instructor' ? 'Nombre del Instructor / Docente' : 'Nombre del Alumno / Doctor'}
+            </label>
             <input 
               type="text" 
               className="erp-input w-full font-semibold" 
               value={editableName} 
               onChange={e => setEditableName(e.target.value)}
             />
+
+            {recipientRole === 'instructor' && instructorOptions.length > 0 && (
+              <div className="pt-1 space-y-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Seleccionar Instructor del Taller:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {instructorOptions.map((name, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setEditableName(name)}
+                      className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-all ${editableName === name ? 'bg-amber-100 border-amber-400 text-amber-900 font-bold' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-gray-50 p-4 border border-gray-200 rounded-2xl flex items-center justify-center">

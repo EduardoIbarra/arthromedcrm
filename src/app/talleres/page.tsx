@@ -45,6 +45,7 @@ export default function TalleresPage() {
   const [isDiplomaBuilderOpen, setIsDiplomaBuilderOpen] = useState(false)
   const [isDiplomaGeneratorOpen, setIsDiplomaGeneratorOpen] = useState(false)
   const [selectedStudentName, setSelectedStudentName] = useState('')
+  const [diplomaRole, setDiplomaRole] = useState<'student' | 'instructor'>('student')
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
 
   const handleOpenDiplomaBuilder = (workshop: Workshop) => {
@@ -52,8 +53,9 @@ export default function TalleresPage() {
     setIsDiplomaBuilderOpen(true)
   }
 
-  const handleGenerateDiploma = (studentName: string) => {
+  const handleGenerateDiploma = (studentName: string, role: 'student' | 'instructor' = 'student') => {
     setSelectedStudentName(studentName)
+    setDiplomaRole(role)
     setIsDiplomaGeneratorOpen(true)
   }
 
@@ -369,6 +371,18 @@ export default function TalleresPage() {
                                <Award size={14} className="text-gray-400" />
                                <span>Diseñar Diploma</span>
                              </Link>
+
+                             <button
+                               onClick={() => {
+                                 setActiveMenuId(null)
+                                 setSelectedWorkshop(w)
+                                 handleGenerateDiploma(w.professor || 'Dr. Instructor', 'instructor')
+                               }}
+                               className="w-full text-left px-4 py-2 hover:bg-amber-50 flex items-center gap-2 text-amber-800 font-semibold transition-colors"
+                             >
+                               <Award size={14} className="text-amber-600" />
+                               <span>Diploma de Instructor</span>
+                             </button>
 
                             <button
                               onClick={() => {
@@ -701,6 +715,8 @@ export default function TalleresPage() {
             isOpen={isDiplomaGeneratorOpen}
             onClose={() => setIsDiplomaGeneratorOpen(false)}
             studentName={selectedStudentName}
+            initialRole={diplomaRole}
+            initialInstructorName={selectedWorkshop.professor}
             taller={selectedWorkshop}
           />
         )}
