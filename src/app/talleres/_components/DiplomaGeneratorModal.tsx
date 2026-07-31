@@ -31,6 +31,7 @@ interface DiplomaTemplate {
   instructorTitle?: string
   instructorPresentation?: string
   instructorBodyText?: string
+  instructorSignatures?: SignatureItem[]
   sig1_name?: string
   sig1_title?: string
   sig1_image?: string
@@ -51,7 +52,7 @@ interface DiplomaGeneratorModalProps {
     date_time: string
     professor: string
     diploma_template?: any
-    congress_workshop_doctors?: Array<{ doctores?: { name?: string } | null }>
+    congress_workshop_doctors?: any[]
   }
 }
 
@@ -502,9 +503,10 @@ export default function DiplomaGeneratorModal({ isOpen, onClose, studentName, in
     })
   }
   if (taller.congress_workshop_doctors && Array.isArray(taller.congress_workshop_doctors)) {
-    taller.congress_workshop_doctors.forEach(d => {
-      if (d.doctores?.name && !instructorOptions.includes(d.doctores.name)) {
-        instructorOptions.push(d.doctores.name)
+    taller.congress_workshop_doctors.forEach((d: any) => {
+      const docName = d.doctors?.name || d.doctores?.name
+      if (docName && !instructorOptions.includes(docName)) {
+        instructorOptions.push(docName)
       }
     })
   }

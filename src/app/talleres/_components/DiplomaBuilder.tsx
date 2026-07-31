@@ -278,7 +278,12 @@ export default function DiplomaBuilder({ isOpen, onClose, isFullPage = false, ta
       const file = e.target.files[0]
       const reader = new FileReader()
       reader.onload = () => {
-le)
+        setTemplate(prev => ({
+          ...prev,
+          [field]: reader.result as string
+        }))
+      }
+      reader.readAsDataURL(file)
     }
   }
 
@@ -356,8 +361,25 @@ le)
   }
 
   const handleUpdateSignature = (sigId: string, field: 'name' | 'title', value: string) => {
+    setTemplate(prev => {
+      if (sigRoleTab === 'instructor') {
+        return {
+          ...prev,
+          instructorSignatures: (prev.instructorSignatures || []).map(s => s.id === sigId ? { ...s, [field]: value } : s)
+        }
+      } else {
+        return {
+          ...prev,
+          signatures: prev.signatures.map(s => s.id === sigId ? { ...s, [field]: value } : s)
+        }
+      }
+    })
+  }
+
+  const handleResetInstructorSignatures = () => {
+    setTemplate(prev => ({
       ...prev,
-      signatures: prev.signatures.map(s => s.id === sigId ? { ...s, [field]: value } : s)
+      instructorSignatures: DEFAULT_INSTRUCTOR_SIGNATURES()
     }))
   }
 
