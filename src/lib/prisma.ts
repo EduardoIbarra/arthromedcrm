@@ -31,7 +31,13 @@ const prismaClientSingleton = () => {
     console.warn('Warning: Failed to parse connectionString as URL, using raw string.', e)
   }
 
-  const pool = new Pool({ connectionString: cleanUrl, ssl: { rejectUnauthorized: false } })
+  const pool = new Pool({
+    connectionString: cleanUrl,
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 10000
+  })
   const adapter = new PrismaPg(pool)
   
   return new PrismaClient({
@@ -58,7 +64,13 @@ const prismaClientSingletonSegunda = () => {
     console.warn('Warning: Failed to parse connectionString as URL, using raw string.', e)
   }
 
-  const pool = new Pool({ connectionString: cleanUrl, ssl: { rejectUnauthorized: false } })
+  const pool = new Pool({
+    connectionString: cleanUrl,
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 10000
+  })
   const adapter = new PrismaPg(pool)
   
   return new PrismaClient({
@@ -72,9 +84,7 @@ declare global {
 }
 
 const prismaSegunda = globalThis.prismaSegunda || prismaClientSingletonSegunda()
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.prismaSegunda = prismaSegunda
-}
+globalThis.prismaSegunda = prismaSegunda
 
 // ── Query Routing Helper ────────────────────────────────────
 // NOTE: `factura_productos` MUST live on the MAIN database with `facturas_cliente`.
