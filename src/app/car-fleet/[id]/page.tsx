@@ -22,7 +22,9 @@ import {
   GraduationCap,
   Building2,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Edit2,
+  Trash2
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import Modal from '@/components/Modal'
@@ -52,6 +54,8 @@ interface CarDetail {
   incident_logs: CarFleetIncident[]
   usage_logs: Array<{
     id: string
+    manual_id?: string
+    user_id?: string
     type: 'cirugia' | 'taller' | 'congreso' | 'manual'
     title: string
     subtitle?: string
@@ -77,6 +81,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false)
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false)
   const [isUsageModalOpen, setIsUsageModalOpen] = useState(false)
+  const [editingUsageId, setEditingUsageId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   // Form States
@@ -216,18 +221,50 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     }
   }
 
+  const handleOpenNewUsage = () => {
+    setEditingUsageId(null)
+    setUsageForm({
+      title: '',
+      user_id: '',
+      date_time: new Date().toISOString().slice(0, 16),
+      location: '',
+      notes: ''
+    })
+    setIsUsageModalOpen(true)
+  }
+
+  const handleOpenEditUsage = (log: any) => {
+    if (!log.manual_id) return
+    setEditingUsageId(log.manual_id)
+    setUsageForm({
+      title: log.title || '',
+      user_id: log.user_id || '',
+      date_time: log.date ? new Date(log.date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+      location: log.location || '',
+      notes: log.notes || ''
+    })
+    setIsUsageModalOpen(true)
+  }
+
   const handleSaveUsage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!usageForm.title || !usageForm.date_time) return
     setIsSaving(true)
     try {
-      const res = await fetch(`/api/car-fleet/${id}/usage`, {
-        method: 'POST',
+      const url = `/api/car-fleet/${id}/usage`
+      const method = editingUsageId ? 'PATCH' : 'POST'
+      const payload = editingUsageId
+        ? { ...usageForm, usage_id: editingUsageId }
+        : usageForm
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(usageForm)
+        body: JSON.stringify(payload)
       })
       if (res.ok) {
         setIsUsageModalOpen(false)
+        setEditingUsageId(null)
         setUsageForm({
           title: '',
           user_id: '',
@@ -245,6 +282,24 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
       alert('Error guardando registro de uso')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleDeleteUsage = async (usage_id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este registro de uso manual?')) return
+    try {
+      const res = await fetch(`/api/car-fleet/${id}/usage?usage_id=${usage_id}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        fetchCarDetail()
+      } else {
+        const err = await res.json()
+        alert('Error eliminando registro: ' + err.error)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Error eliminando registro de uso')
     }
   }
 
@@ -502,7 +557,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
               </button>
             )}
             {activeTab === 'usage' && (
-              <button onClick={() => setIsUsageModalOpen(true)} className="btn-primary text-xs flex items-center gap-2">
+              <button onClick={handleOpenNewUsage} className="btn-primary text-xs flex items-center gap-2">
                 <Plus size={16} /> Registrar Uso Manual
               </button>
             )}
@@ -751,7 +806,24 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                               {log.driverName || <span className="text-gray-400 italic">Sin conductor</span>}
                             </td>
                             <td className="p-4 text-right">
-                              {log.linkUrl ? (
+                              {log.type === 'manual' && log.manual_id ? (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenEditUsage(log)}
+                                    className="p-1 text-gray-500 hover:text-[#0763a9] rounded hover:bg-blue-50 transition-colors"
+                                    title="Editar registro"
+                                  >
+                                    <Edit2 size={15} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUsage(log.manual_id!)}
+                                    className="p-1 text-gray-500 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                                    title="Eliminar registro"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              ) : log.linkUrl ? (
                                 <Link
                                   href={log.linkUrl}
                                   className="inline-flex items-center gap-1 text-xs font-bold text-[#0763a9] hover:underline"
@@ -774,7 +846,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 <History size={36} className="mx-auto text-gray-300 mb-2" />
                 <p className="font-semibold">Sin registros de uso en el sistema</p>
                 <p className="text-xs text-gray-400 mt-1">Este vehículo aún no ha sido asignado en Cirugías, Talleres o Congresos.</p>
-                <button onClick={() => setIsUsageModalOpen(true)} className="btn-primary text-xs mt-4 inline-flex items-center gap-2">
+                <button onClick={handleOpenNewUsage} className="btn-primary text-xs mt-4 inline-flex items-center gap-2">
                   <Plus size={16} /> Registrar Primer Uso
                 </button>
               </div>
@@ -929,8 +1001,8 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
           </form>
         </Modal>
 
-        {/* Modal: Add Manual Usage */}
-        <Modal open={isUsageModalOpen} onClose={() => setIsUsageModalOpen(false)} title="Registrar Uso Manual de Vehículo">
+        {/* Modal: Add/Edit Manual Usage */}
+        <Modal open={isUsageModalOpen} onClose={() => setIsUsageModalOpen(false)} title={editingUsageId ? 'Editar Uso Manual de Vehículo' : 'Registrar Uso Manual de Vehículo'}>
           <form onSubmit={handleSaveUsage} className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Título / Motivo del Uso *</label>
@@ -969,7 +1041,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
               <button type="button" onClick={() => setIsUsageModalOpen(false)} className="btn-secondary px-4">Cancelar</button>
               <button type="submit" disabled={isSaving} className="btn-primary">
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Guardar Registro de Uso'}
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : (editingUsageId ? 'Guardar Cambios' : 'Guardar Registro de Uso')}
               </button>
             </div>
           </form>

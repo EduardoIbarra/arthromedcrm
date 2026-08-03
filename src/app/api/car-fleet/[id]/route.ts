@@ -151,6 +151,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Build synthesized usage history
     const usageLogs: Array<{
       id: string
+      manual_id?: string
+      user_id?: string
       type: 'cirugia' | 'taller' | 'congreso' | 'manual'
       title: string
       subtitle?: string
@@ -170,6 +172,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       usageLogs.push({
         id: `manual-${ur.id}`,
+        manual_id: ur.id,
+        user_id: ur.user_id || undefined,
         type: 'manual',
         title: ur.title,
         date: ur.date_time ? new Date(ur.date_time).toISOString() : (ur.created_at ? new Date(ur.created_at).toISOString() : ''),

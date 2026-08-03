@@ -65,3 +65,52 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const body = await request.json()
+    const { usage_id, title, user_id, date_time, location, notes } = body
+
+    if (!usage_id) {
+      return NextResponse.json({ error: 'usage_id is required' }, { status: 400 })
+    }
+
+    const updateData: any = {}
+    if (title !== undefined) updateData.title = title
+    if (user_id !== undefined) updateData.user_id = user_id || null
+    if (date_time !== undefined) updateData.date_time = new Date(date_time)
+    if (location !== undefined) updateData.location = location || null
+    if (notes !== undefined) updateData.notes = notes || null
+    updateData.updated_at = new Date()
+
+    const updated = await prisma.car_fleet_usage.update({
+      where: { id: usage_id },
+      data: updateData
+    })
+
+    return NextResponse.json({ data: updated })
+  } catch (error: any) {
+    console.error('Error updating car usage log:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const usage_id = searchParams.get('usage_id')
+
+    if (!usage_id) {
+      return NextResponse.json({ error: 'usage_id parameter is required' }, { status: 400 })
+    }
+
+    await prisma.car_fleet_usage.delete({
+      where: { id: usage_id }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error deleting car usage log:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
