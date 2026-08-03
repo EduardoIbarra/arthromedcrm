@@ -181,6 +181,18 @@ export async function GET(
               }
             }
           }
+        },
+        usage_records: {
+          include: {
+            user_profiles: {
+              select: {
+                first_name: true,
+                last_name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: { date_time: 'desc' }
         }
       }
     })
@@ -197,6 +209,19 @@ export async function GET(
       location: string
       driverName: string
     }> = []
+
+    car.usage_records?.forEach((ur: any) => {
+      const driver = ur.user_profiles
+        ? `${ur.user_profiles.first_name || ''} ${ur.user_profiles.last_name || ''}`.trim() || ur.user_profiles.email
+        : '—'
+      usageLogs.push({
+        type: 'Registro Manual',
+        title: ur.title,
+        date: formatDate(ur.date_time || ur.created_at),
+        location: ur.location || '—',
+        driverName: driver
+      })
+    })
 
     car.cirugia_equipo.forEach((eq: any) => {
       if (eq.cirugias) {

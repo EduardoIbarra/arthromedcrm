@@ -294,6 +294,20 @@ export interface CarFleet {
   assigned_to?: UserProfile | null
   maintenance_logs?: CarFleetMaintenance[]
   incident_logs?: CarFleetIncident[]
+  usage_records?: CarFleetUsage[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CarFleetUsage {
+  id: string
+  car_id: string
+  user_id: string | null
+  title: string
+  date_time: string
+  location: string | null
+  notes: string | null
+  user_profiles?: UserProfile | null
   created_at: string
   updated_at: string
 }

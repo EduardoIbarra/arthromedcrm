@@ -667,6 +667,24 @@ model cirugia_equipo {
   @@schema("public")
 }
 
+model car_fleet_usage {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  car_id        String         @db.Uuid
+  user_id       String?        @db.Uuid
+  title         String
+  date_time     DateTime       @db.Timestamptz(6)
+  location      String?
+  notes         String?
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @db.Timestamptz(6)
+  car_fleet     car_fleet      @relation(fields: [car_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_profiles user_profiles? @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([car_id])
+  @@index([user_id])
+  @@schema("public")
+}
+
 model cirugia_itinerarios {
   deleted_at DateTime? @db.Timestamptz(6)
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -2214,6 +2232,7 @@ model user_profiles {
   congreso_pendientes                                                         congreso_pendientes[]
   caja_chica_transactions                                                     caja_chica_transactions[]
   caja_chica_conteos                                                          caja_chica_conteos[]
+  car_fleet_usage                                                             car_fleet_usage[]
 
   @@schema("public")
 }
@@ -2310,6 +2329,7 @@ model car_fleet {
   cirugia_equipo            cirugia_equipo[]
   maintenance_logs          car_fleet_maintenance[]
   incident_logs             car_fleet_incidents[]
+  usage_records             car_fleet_usage[]
 
   @@schema("public")
 }

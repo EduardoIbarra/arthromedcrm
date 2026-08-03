@@ -52,14 +52,15 @@ interface CarDetail {
   incident_logs: CarFleetIncident[]
   usage_logs: Array<{
     id: string
-    type: 'cirugia' | 'taller' | 'congreso'
+    type: 'cirugia' | 'taller' | 'congreso' | 'manual'
     title: string
     subtitle?: string
     date: string
     location?: string
     driverName?: string
     status?: string
-    linkUrl: string
+    linkUrl?: string
+    notes?: string
   }>
 }
 
@@ -75,6 +76,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
   // Modals state
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false)
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false)
+  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // Form States
@@ -98,6 +100,14 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     cost: '',
     status: 'open',
     reported_by_id: '',
+    notes: ''
+  })
+
+  const [usageForm, setUsageForm] = useState({
+    title: '',
+    user_id: '',
+    date_time: new Date().toISOString().slice(0, 16),
+    location: '',
     notes: ''
   })
 
@@ -201,6 +211,38 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     } catch (err) {
       console.error(err)
       alert('Error guardando incidencia')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSaveUsage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!usageForm.title || !usageForm.date_time) return
+    setIsSaving(true)
+    try {
+      const res = await fetch(`/api/car-fleet/${id}/usage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(usageForm)
+      })
+      if (res.ok) {
+        setIsUsageModalOpen(false)
+        setUsageForm({
+          title: '',
+          user_id: '',
+          date_time: new Date().toISOString().slice(0, 16),
+          location: '',
+          notes: ''
+        })
+        fetchCarDetail()
+      } else {
+        const err = await res.json()
+        alert('Error: ' + err.error)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Error guardando registro de uso')
     } finally {
       setIsSaving(false)
     }
@@ -459,6 +501,11 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 <Plus size={16} /> Registrar Incidencia
               </button>
             )}
+            {activeTab === 'usage' && (
+              <button onClick={() => setIsUsageModalOpen(true)} className="btn-primary text-xs flex items-center gap-2">
+                <Plus size={16} /> Registrar Uso Manual
+              </button>
+            )}
           </div>
         </div>
 
@@ -658,10 +705,20 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                                     <Building2 size={18} />
                                   </div>
                                 )}
+                                {log.type === 'manual' && (
+                                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                                    <Car size={18} />
+                                  </div>
+                                )}
 
                                 <div>
                                   <div className="font-bold text-gray-900 text-sm flex items-center gap-2">
                                     {log.title}
+                                    {log.type === 'manual' && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                                        Manual
+                                      </span>
+                                    )}
                                     {log.status && (
                                       <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-normal">
                                         {log.status}
@@ -671,11 +728,14 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                                   {log.subtitle && (
                                     <div className="text-xs text-gray-500">{log.subtitle}</div>
                                   )}
+                                  {log.notes && (
+                                    <div className="text-xs text-gray-500 italic mt-0.5">{log.notes}</div>
+                                  )}
                                 </div>
                               </div>
                             </td>
                             <td className="p-4 text-xs font-medium text-gray-700 whitespace-nowrap">
-                              {log.date ? new Date(log.date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}
+                              {log.date ? new Date(log.date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                             </td>
                             <td className="p-4 text-xs text-gray-600">
                               {log.location ? (
@@ -691,12 +751,16 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                               {log.driverName || <span className="text-gray-400 italic">Sin conductor</span>}
                             </td>
                             <td className="p-4 text-right">
-                              <Link
-                                href={log.linkUrl}
-                                className="inline-flex items-center gap-1 text-xs font-bold text-[#0763a9] hover:underline"
-                              >
-                                Ir al Registro <ChevronRight size={14} />
-                              </Link>
+                              {log.linkUrl ? (
+                                <Link
+                                  href={log.linkUrl}
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-[#0763a9] hover:underline"
+                                >
+                                  Ir al Registro <ChevronRight size={14} />
+                                </Link>
+                              ) : (
+                                <span className="text-xs text-gray-400 font-medium">—</span>
+                              )}
                             </td>
                           </tr>
                         )
@@ -710,6 +774,9 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 <History size={36} className="mx-auto text-gray-300 mb-2" />
                 <p className="font-semibold">Sin registros de uso en el sistema</p>
                 <p className="text-xs text-gray-400 mt-1">Este vehículo aún no ha sido asignado en Cirugías, Talleres o Congresos.</p>
+                <button onClick={() => setIsUsageModalOpen(true)} className="btn-primary text-xs mt-4 inline-flex items-center gap-2">
+                  <Plus size={16} /> Registrar Primer Uso
+                </button>
               </div>
             )}
           </div>
@@ -857,6 +924,52 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
               <button type="button" onClick={() => setIsIncidentModalOpen(false)} className="btn-secondary px-4">Cancelar</button>
               <button type="submit" disabled={isSaving} className="btn-primary bg-rose-600 hover:bg-rose-700 border-rose-600">
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Reportar Incidencia'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Modal: Add Manual Usage */}
+        <Modal open={isUsageModalOpen} onClose={() => setIsUsageModalOpen(false)} title="Registrar Uso Manual de Vehículo">
+          <form onSubmit={handleSaveUsage} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Título / Motivo del Uso *</label>
+              <input required type="text" className="erp-input w-full" value={usageForm.title} onChange={e => setUsageForm({ ...usageForm, title: e.target.value })} placeholder="Ej. Traslado de muestras, Entrega de equipo, Traslado de personal" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Conductor / Usuario</label>
+              <select className="erp-input w-full" value={usageForm.user_id} onChange={e => setUsageForm({ ...usageForm, user_id: e.target.value })}>
+                <option value="">-- Seleccionar Conductor --</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.first_name || u.last_name ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : u.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Fecha y Hora *</label>
+                <input required type="datetime-local" className="erp-input w-full" value={usageForm.date_time} onChange={e => setUsageForm({ ...usageForm, date_time: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Ubicación / Destino</label>
+                <input type="text" className="erp-input w-full" value={usageForm.location} onChange={e => setUsageForm({ ...usageForm, location: e.target.value })} placeholder="Ej. Hospital Muguerza, Aeropuerto, Clínica 25" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Notas / Observaciones</label>
+              <textarea rows={3} className="erp-input w-full" value={usageForm.notes} onChange={e => setUsageForm({ ...usageForm, notes: e.target.value })} placeholder="Detalles de la ruta, odómetro o motivos específicos..." />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <button type="button" onClick={() => setIsUsageModalOpen(false)} className="btn-secondary px-4">Cancelar</button>
+              <button type="submit" disabled={isSaving} className="btn-primary">
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Guardar Registro de Uso'}
               </button>
             </div>
           </form>

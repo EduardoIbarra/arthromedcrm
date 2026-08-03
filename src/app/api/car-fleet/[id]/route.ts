@@ -127,6 +127,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
               }
             }
           }
+        },
+        usage_records: {
+          include: {
+            user_profiles: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: { date_time: 'desc' }
         }
       }
     })
@@ -138,15 +151,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Build synthesized usage history
     const usageLogs: Array<{
       id: string
-      type: 'cirugia' | 'taller' | 'congreso'
+      type: 'cirugia' | 'taller' | 'congreso' | 'manual'
       title: string
       subtitle?: string
       date: string
       location?: string
       driverName?: string
       status?: string
-      linkUrl: string
+      linkUrl?: string
+      notes?: string
     }> = []
+
+    // 0. Manual Usage Records
+    car.usage_records?.forEach((ur: any) => {
+      const driverName = ur.user_profiles
+        ? `${ur.user_profiles.first_name || ''} ${ur.user_profiles.last_name || ''}`.trim() || ur.user_profiles.email
+        : undefined
+
+      usageLogs.push({
+        id: `manual-${ur.id}`,
+        type: 'manual',
+        title: ur.title,
+        date: ur.date_time ? new Date(ur.date_time).toISOString() : (ur.created_at ? new Date(ur.created_at).toISOString() : ''),
+        location: ur.location || undefined,
+        driverName,
+        notes: ur.notes || undefined
+      })
+    })
 
     // 1. Cirugías
     car.cirugia_equipo.forEach((eq: any) => {
