@@ -307,6 +307,10 @@ export interface CarFleetUsage {
   date_time: string
   location: string | null
   notes: string | null
+  start_km?: number | null
+  end_km?: number | null
+  start_fuel?: string | null
+  end_fuel?: string | null
   user_profiles?: UserProfile | null
   created_at: string
   updated_at: string

@@ -65,6 +65,10 @@ interface CarDetail {
     status?: string
     linkUrl?: string
     notes?: string
+    start_km?: number
+    end_km?: number
+    start_fuel?: string
+    end_fuel?: string
   }>
 }
 
@@ -113,7 +117,11 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     user_id: '',
     date_time: new Date().toISOString().slice(0, 16),
     location: '',
-    notes: ''
+    notes: '',
+    start_km: '',
+    end_km: '',
+    start_fuel: '',
+    end_fuel: ''
   })
 
   const fetchCarDetail = async () => {
@@ -228,7 +236,11 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
       user_id: '',
       date_time: new Date().toISOString().slice(0, 16),
       location: '',
-      notes: ''
+      notes: '',
+      start_km: '',
+      end_km: '',
+      start_fuel: '',
+      end_fuel: ''
     })
     setIsUsageModalOpen(true)
   }
@@ -241,7 +253,11 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
       user_id: log.user_id || '',
       date_time: log.date ? new Date(log.date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
       location: log.location || '',
-      notes: log.notes || ''
+      notes: log.notes || '',
+      start_km: log.start_km !== undefined && log.start_km !== null ? String(log.start_km) : '',
+      end_km: log.end_km !== undefined && log.end_km !== null ? String(log.end_km) : '',
+      start_fuel: log.start_fuel || '',
+      end_fuel: log.end_fuel || ''
     })
     setIsUsageModalOpen(true)
   }
@@ -270,7 +286,11 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
           user_id: '',
           date_time: new Date().toISOString().slice(0, 16),
           location: '',
-          notes: ''
+          notes: '',
+          start_km: '',
+          end_km: '',
+          start_fuel: '',
+          end_fuel: ''
         })
         fetchCarDetail()
       } else {
@@ -783,6 +803,20 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                                   {log.subtitle && (
                                     <div className="text-xs text-gray-500">{log.subtitle}</div>
                                   )}
+                                  {(log.start_km !== undefined || log.end_km !== undefined || log.start_fuel || log.end_fuel) && (
+                                    <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
+                                      {(log.start_km !== undefined || log.end_km !== undefined) && (
+                                        <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-mono">
+                                          Km: {log.start_km ?? '—'} ➔ {log.end_km ?? '—'}
+                                        </span>
+                                      )}
+                                      {(log.start_fuel || log.end_fuel) && (
+                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">
+                                          Gasolina: {log.start_fuel || '—'} ➔ {log.end_fuel || '—'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                   {log.notes && (
                                     <div className="text-xs text-gray-500 italic mt-0.5">{log.notes}</div>
                                   )}
@@ -1033,9 +1067,47 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Kilometraje de Salida (opcional)</label>
+                <input type="number" min="0" className="erp-input w-full" value={usageForm.start_km} onChange={e => setUsageForm({ ...usageForm, start_km: e.target.value })} placeholder="Ej. 45200" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Kilometraje de Entrada (opcional)</label>
+                <input type="number" min="0" className="erp-input w-full" value={usageForm.end_km} onChange={e => setUsageForm({ ...usageForm, end_km: e.target.value })} placeholder="Ej. 45350" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Nivel Combustible Salida (opcional)</label>
+                <select className="erp-input w-full" value={usageForm.start_fuel} onChange={e => setUsageForm({ ...usageForm, start_fuel: e.target.value })}>
+                  <option value="">-- No especificado --</option>
+                  <option value="Reserva">Reserva</option>
+                  <option value="1/4">1/4</option>
+                  <option value="1/2">1/2</option>
+                  <option value="3/4">3/4</option>
+                  <option value="Lleno">Lleno</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Nivel Combustible Entrada (opcional)</label>
+                <select className="erp-input w-full" value={usageForm.end_fuel} onChange={e => setUsageForm({ ...usageForm, end_fuel: e.target.value })}>
+                  <option value="">-- No especificado --</option>
+                  <option value="Reserva">Reserva</option>
+                  <option value="1/4">1/4</option>
+                  <option value="1/2">1/2</option>
+                  <option value="3/4">3/4</option>
+                  <option value="Lleno">Lleno</option>
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Notas / Observaciones</label>
-              <textarea rows={3} className="erp-input w-full" value={usageForm.notes} onChange={e => setUsageForm({ ...usageForm, notes: e.target.value })} placeholder="Detalles de la ruta, odómetro o motivos específicos..." />
+              <textarea rows={3} className="erp-input w-full" value={usageForm.notes} onChange={e => setUsageForm({ ...usageForm, notes: e.target.value })} placeholder="Detalles de la ruta, motivo o estado del vehículo..." />
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">

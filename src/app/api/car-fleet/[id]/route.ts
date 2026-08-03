@@ -162,6 +162,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       status?: string
       linkUrl?: string
       notes?: string
+      start_km?: number
+      end_km?: number
+      start_fuel?: string
+      end_fuel?: string
     }> = []
 
     // 0. Manual Usage Records
@@ -179,7 +183,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         date: ur.date_time ? new Date(ur.date_time).toISOString() : (ur.created_at ? new Date(ur.created_at).toISOString() : ''),
         location: ur.location || undefined,
         driverName,
-        notes: ur.notes || undefined
+        notes: ur.notes || undefined,
+        start_km: ur.start_km ?? undefined,
+        end_km: ur.end_km ?? undefined,
+        start_fuel: ur.start_fuel || undefined,
+        end_fuel: ur.end_fuel || undefined
       })
     })
 

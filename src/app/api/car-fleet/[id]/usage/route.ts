@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
   try {
     const body = await request.json()
-    const { title, user_id, date_time, location, notes } = body
+    const { title, user_id, date_time, location, notes, start_km, end_km, start_fuel, end_fuel } = body
 
     if (!title || !date_time) {
       return NextResponse.json({ error: 'Título y fecha/hora son obligatorios' }, { status: 400 })
@@ -45,6 +45,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         date_time: new Date(date_time),
         location: location || null,
         notes: notes || null,
+        start_km: start_km !== '' && start_km !== undefined && start_km !== null ? parseInt(start_km) : null,
+        end_km: end_km !== '' && end_km !== undefined && end_km !== null ? parseInt(end_km) : null,
+        start_fuel: start_fuel || null,
+        end_fuel: end_fuel || null,
       },
       include: {
         user_profiles: {
@@ -69,7 +73,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json()
-    const { usage_id, title, user_id, date_time, location, notes } = body
+    const { usage_id, title, user_id, date_time, location, notes, start_km, end_km, start_fuel, end_fuel } = body
 
     if (!usage_id) {
       return NextResponse.json({ error: 'usage_id is required' }, { status: 400 })
@@ -81,6 +85,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (date_time !== undefined) updateData.date_time = new Date(date_time)
     if (location !== undefined) updateData.location = location || null
     if (notes !== undefined) updateData.notes = notes || null
+    if (start_km !== undefined) updateData.start_km = start_km !== '' && start_km !== null ? parseInt(start_km) : null
+    if (end_km !== undefined) updateData.end_km = end_km !== '' && end_km !== null ? parseInt(end_km) : null
+    if (start_fuel !== undefined) updateData.start_fuel = start_fuel || null
+    if (end_fuel !== undefined) updateData.end_fuel = end_fuel || null
     updateData.updated_at = new Date()
 
     const updated = await prisma.car_fleet_usage.update({
