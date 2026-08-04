@@ -611,35 +611,101 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
                   </div>
 
                   {/* Items List */}
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl max-h-60">
+                  <div className="overflow-x-auto border border-slate-100 rounded-xl max-h-80">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase">
-                          <th className="px-4 py-2.5">Descripción</th>
-                          <th className="px-4 py-2.5 text-center">Cantidad</th>
-                          <th className="px-4 py-2.5">Unidad</th>
-                          <th className="px-4 py-2.5 text-right">Costo Unit.</th>
-                          <th className="px-4 py-2.5 text-right">Precio Total</th>
-                          <th className="px-4 py-2.5 text-center"></th>
+                          <th className="px-3 py-2.5">Descripción</th>
+                          <th className="px-3 py-2.5 text-center w-24">Cantidad</th>
+                          <th className="px-3 py-2.5 w-28">Unidad</th>
+                          <th className="px-3 py-2.5 text-right w-32">Costo Unit.</th>
+                          <th className="px-3 py-2.5 text-right w-32">Precio Total</th>
+                          <th className="px-3 py-2.5 text-center w-12"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {form.items.map((it, idx) => (
-                          <tr key={idx} className="hover:bg-slate-5/30 transition-colors">
-                            <td className="px-4 py-2.5 font-medium text-slate-800">{it.descripcion}</td>
-                            <td className="px-4 py-2.5 text-center text-slate-600 font-semibold">{it.cantidad}</td>
-                            <td className="px-4 py-2.5 text-slate-500">{it.unidad}</td>
-                            <td className="px-4 py-2.5 text-right text-slate-600">
-                              {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(it.costo_estimado)}
+                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-3 py-2">
+                              <input
+                                type="text"
+                                value={it.descripcion}
+                                onChange={e => {
+                                  const val = e.target.value
+                                  setForm(prev => {
+                                    const next = [...prev.items]
+                                    next[idx] = { ...next[idx], descripcion: val }
+                                    return { ...prev, items: next }
+                                  })
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500 bg-white"
+                                required
+                              />
                             </td>
-                            <td className="px-4 py-2.5 text-right font-bold text-slate-800">
-                              {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(it.cantidad * it.costo_estimado)}
+                            <td className="px-3 py-2 text-center">
+                              <input
+                                type="number"
+                                min={1}
+                                value={it.cantidad}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value) || 1
+                                  setForm(prev => {
+                                    const next = [...prev.items]
+                                    next[idx] = { ...next[idx], cantidad: val }
+                                    return { ...prev, items: next }
+                                  })
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded text-center focus:outline-none focus:border-blue-500 bg-white"
+                                required
+                              />
                             </td>
-                            <td className="px-4 py-2.5 text-center">
+                            <td className="px-3 py-2">
+                              <select
+                                value={it.unidad}
+                                onChange={e => {
+                                  const val = e.target.value
+                                  setForm(prev => {
+                                    const next = [...prev.items]
+                                    next[idx] = { ...next[idx], unidad: val }
+                                    return { ...prev, items: next }
+                                  })
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500 bg-white"
+                              >
+                                <option value="Pieza">Pieza</option>
+                                <option value="Servicio">Servicio</option>
+                                <option value="Caja">Caja</option>
+                                <option value="Paquete">Paquete</option>
+                                <option value="Hora">Hora</option>
+                              </select>
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                value={it.costo_estimado}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0
+                                  setForm(prev => {
+                                    const next = [...prev.items]
+                                    next[idx] = { ...next[idx], costo_estimado: val }
+                                    return { ...prev, items: next }
+                                  })
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-blue-500 bg-white"
+                                required
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right font-bold text-slate-800 self-center align-middle">
+                              {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format((it.cantidad || 0) * (it.costo_estimado || 0))}
+                            </td>
+                            <td className="px-3 py-2 text-center align-middle">
                               <button
                                 type="button"
                                 onClick={() => removeItem(idx)}
                                 className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 transition-colors"
+                                title="Eliminar ítem"
                               >
                                 <Trash2 size={14} />
                               </button>
