@@ -69,7 +69,6 @@ export async function GET(
     }
 
     const primaryCarta = client.cartas_distribucion.length > 0 ? client.cartas_distribucion[0] : null
-    const otherCartas = client.cartas_distribucion.slice(1)
 
     return NextResponse.json({
       data: {
@@ -81,8 +80,7 @@ export async function GET(
           status: client.status,
           distributor_id: client.distributor_id
         },
-        carta: primaryCarta,
-        otherCartas
+        carta: primaryCarta
       }
     })
   } catch (error: any) {

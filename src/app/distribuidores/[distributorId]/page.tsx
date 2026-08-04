@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import {
   ShieldCheck, Building2, MapPin, FileText,
-  CheckCircle2, XCircle, Loader2, Calendar, ExternalLink, AlertTriangle, ChevronDown, ChevronUp
+  CheckCircle2, XCircle, Loader2, Calendar, ExternalLink, AlertTriangle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -57,10 +57,8 @@ export default function DistributorDetailPage() {
 
   const [client, setClient] = useState<DistributorBasic | null>(null)
   const [carta, setCarta] = useState<CartaDistribucion | null>(null)
-  const [otherCartas, setOtherCartas] = useState<CartaDistribucion[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [showOthers, setShowOthers] = useState(false)
 
   useEffect(() => {
     if (!distributorId) return
@@ -71,7 +69,6 @@ export default function DistributorDetailPage() {
         if (json.data) {
           setClient(json.data.client || null)
           setCarta(json.data.carta || null)
-          setOtherCartas(json.data.otherCartas || [])
         } else {
           setNotFound(true)
         }
@@ -286,71 +283,6 @@ export default function DistributorDetailPage() {
                 <FileText size={32} className="mx-auto mb-2 opacity-30" />
                 <p>Este distribuidor no cuenta con cartas de distribución registradas.</p>
               </div>
-            )}
-
-            {/* Other Cartas Accordion (if any) */}
-            {otherCartas.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
-              >
-                <button
-                  onClick={() => setShowOthers(!showOthers)}
-                  className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
-                >
-                  <span className="text-sm font-semibold text-[#64748b] flex items-center gap-2">
-                    <FileText size={16} className="text-[#0763a9]" />
-                    Otras cartas emitidas a este distribuidor ({otherCartas.length})
-                  </span>
-                  {showOthers ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
-                </button>
-
-                {showOthers && (
-                  <div className="px-6 pb-6 pt-2 border-t border-slate-100 space-y-3">
-                    {otherCartas.map(oc => {
-                      const ocVigente = isVigente(oc.vigencia)
-                      return (
-                        <div
-                          key={oc.id}
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                        >
-                          <div className="space-y-1">
-                            <h4 className="font-bold text-[#1e293b] text-sm">
-                              {oc.destinatario || 'Destinatario General'}
-                            </h4>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-[#64748b]">
-                              <span>Vigencia: {formatDate(oc.vigencia)}</span>
-                              {oc.estado_region && <span>• {oc.estado_region}</span>}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                              ocVigente
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>
-                              {ocVigente ? 'Vigente' : 'Vencida'}
-                            </span>
-                            {oc.letter_url && (
-                              <a
-                                href={oc.letter_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1.5 rounded-lg text-[#0763a9] hover:bg-blue-50 transition-colors"
-                                title="Ver carta PDF"
-                              >
-                                <ExternalLink size={15} />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </motion.div>
             )}
           </AnimatePresence>
         )}
