@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
 import {
-  ClipboardList, ArrowLeft, Save, Plus, Trash2, Loader2, Download, FileSpreadsheet, Eye, MessageSquare, User, Upload, X, Paperclip, ExternalLink
+  ClipboardList, ArrowLeft, Save, Plus, Trash2, Loader2, Download, FileSpreadsheet, Eye, MessageSquare, User, Upload, X, Paperclip, ExternalLink, Edit
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import PermissionGuard from '@/components/PermissionGuard'
@@ -79,6 +79,10 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
   const [uploading, setUploading] = useState(false)
   const [requisicion, setRequisicion] = useState<Requisicion | null>(null)
   const [systemUsers, setSystemUsers] = useState<any[]>([])
+
+  // Modal Editing Item State
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
+  const [editingItem, setEditingItem] = useState<RequisicionItem | null>(null)
 
   // Form State
   const [form, setForm] = useState({
@@ -615,100 +619,48 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase">
-                          <th className="px-3 py-2.5">Descripción</th>
-                          <th className="px-3 py-2.5 text-center w-24">Cantidad</th>
-                          <th className="px-3 py-2.5 w-28">Unidad</th>
-                          <th className="px-3 py-2.5 text-right w-32">Costo Unit.</th>
-                          <th className="px-3 py-2.5 text-right w-32">Precio Total</th>
-                          <th className="px-3 py-2.5 text-center w-12"></th>
+                          <th className="px-4 py-2.5">Descripción</th>
+                          <th className="px-4 py-2.5 text-center">Cantidad</th>
+                          <th className="px-4 py-2.5">Unidad</th>
+                          <th className="px-4 py-2.5 text-right">Costo Unit.</th>
+                          <th className="px-4 py-2.5 text-right">Precio Total</th>
+                          <th className="px-4 py-2.5 text-center">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {form.items.map((it, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-3 py-2">
-                              <input
-                                type="text"
-                                value={it.descripcion}
-                                onChange={e => {
-                                  const val = e.target.value
-                                  setForm(prev => {
-                                    const next = [...prev.items]
-                                    next[idx] = { ...next[idx], descripcion: val }
-                                    return { ...prev, items: next }
-                                  })
-                                }}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500 bg-white"
-                                required
-                              />
+                            <td className="px-4 py-2.5 font-medium text-slate-800">{it.descripcion}</td>
+                            <td className="px-4 py-2.5 text-center text-slate-600 font-semibold">{it.cantidad}</td>
+                            <td className="px-4 py-2.5 text-slate-500">{it.unidad}</td>
+                            <td className="px-4 py-2.5 text-right text-slate-600">
+                              {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(it.costo_estimado)}
                             </td>
-                            <td className="px-3 py-2 text-center">
-                              <input
-                                type="number"
-                                min={1}
-                                value={it.cantidad}
-                                onChange={e => {
-                                  const val = parseInt(e.target.value) || 1
-                                  setForm(prev => {
-                                    const next = [...prev.items]
-                                    next[idx] = { ...next[idx], cantidad: val }
-                                    return { ...prev, items: next }
-                                  })
-                                }}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded text-center focus:outline-none focus:border-blue-500 bg-white"
-                                required
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <select
-                                value={it.unidad}
-                                onChange={e => {
-                                  const val = e.target.value
-                                  setForm(prev => {
-                                    const next = [...prev.items]
-                                    next[idx] = { ...next[idx], unidad: val }
-                                    return { ...prev, items: next }
-                                  })
-                                }}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500 bg-white"
-                              >
-                                <option value="Pieza">Pieza</option>
-                                <option value="Servicio">Servicio</option>
-                                <option value="Caja">Caja</option>
-                                <option value="Paquete">Paquete</option>
-                                <option value="Hora">Hora</option>
-                              </select>
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                value={it.costo_estimado}
-                                onChange={e => {
-                                  const val = parseFloat(e.target.value) || 0
-                                  setForm(prev => {
-                                    const next = [...prev.items]
-                                    next[idx] = { ...next[idx], costo_estimado: val }
-                                    return { ...prev, items: next }
-                                  })
-                                }}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-blue-500 bg-white"
-                                required
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-right font-bold text-slate-800 self-center align-middle">
+                            <td className="px-4 py-2.5 text-right font-bold text-slate-800">
                               {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format((it.cantidad || 0) * (it.costo_estimado || 0))}
                             </td>
-                            <td className="px-3 py-2 text-center align-middle">
-                              <button
-                                type="button"
-                                onClick={() => removeItem(idx)}
-                                className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 transition-colors"
-                                title="Eliminar ítem"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                            <td className="px-4 py-2.5 text-center align-middle">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingItemIndex(idx)
+                                    setEditingItem({ ...it })
+                                  }}
+                                  className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                                  title="Editar producto"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeItem(idx)}
+                                  className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                                  title="Eliminar producto"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -867,6 +819,120 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
               </div>
             </div>
           </div>
+
+          {/* Modal for editing a single line item */}
+          {editingItem !== null && editingItemIndex !== null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+              <div className="bg-white rounded-2xl p-6 shadow-xl border border-slate-100 max-w-md w-full space-y-4 animate-in fade-in zoom-in duration-150">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <Edit className="text-[#0763a9]" size={18} />
+                    Editar Producto / Servicio
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItemIndex(null)
+                      setEditingItem(null)
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase mb-1">Descripción</label>
+                    <input
+                      type="text"
+                      value={editingItem.descripcion}
+                      onChange={e => setEditingItem({ ...editingItem, descripcion: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-500 uppercase mb-1">Cantidad</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={editingItem.cantidad}
+                        onChange={e => setEditingItem({ ...editingItem, cantidad: parseInt(e.target.value) || 1 })}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-500 uppercase mb-1">Unidad</label>
+                      <select
+                        value={editingItem.unidad}
+                        onChange={e => setEditingItem({ ...editingItem, unidad: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white"
+                      >
+                        <option value="Pieza">Pieza</option>
+                        <option value="Servicio">Servicio</option>
+                        <option value="Caja">Caja</option>
+                        <option value="Paquete">Paquete</option>
+                        <option value="Hora">Hora</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase mb-1">Costo Unit. Estimado</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={editingItem.costo_estimado}
+                      onChange={e => setEditingItem({ ...editingItem, costo_estimado: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="bg-slate-50 p-3 rounded-lg flex justify-between items-center text-slate-700 font-medium">
+                    <span>Precio Total:</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format((editingItem.cantidad || 0) * (editingItem.costo_estimado || 0))}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItemIndex(null)
+                      setEditingItem(null)
+                    }}
+                    className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!editingItem.descripcion || editingItem.costo_estimado < 0) {
+                        alert('Por favor ingrese una descripción y costo válido.')
+                        return
+                      }
+                      setForm(prev => {
+                        const updated = [...prev.items]
+                        updated[editingItemIndex] = { ...editingItem }
+                        return { ...prev, items: updated }
+                      })
+                      setEditingItemIndex(null)
+                      setEditingItem(null)
+                    }}
+                    className="px-4 py-2 bg-[#0763a9] hover:bg-[#054e85] text-white rounded-xl text-xs font-semibold transition-colors"
+                  >
+                    Guardar Cambios
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </PermissionGuard>
     </AppShell>
