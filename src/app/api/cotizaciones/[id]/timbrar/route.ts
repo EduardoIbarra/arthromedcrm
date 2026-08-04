@@ -105,9 +105,13 @@ function mapEstimateItemsToInvoice(items: any[]): any[] {
       mapped.discount = Number(item.discount)
     }
     if (Array.isArray(item.tax) && item.tax.length > 0) {
-      mapped.tax = item.tax
-        .map((t: any) => (t?.id != null ? { id: t.id } : null))
+      const parsedTaxes = item.tax
+        .map((t: any) => (t?.id != null ? { id: t.id } : (typeof t === 'number' || typeof t === 'string' ? { id: t } : null)))
         .filter(Boolean)
+      mapped.tax = parsedTaxes.length > 0 ? parsedTaxes : [{ id: 1 }]
+    } else {
+      // Default to IVA 16% (Alegra tax ID 1) if no tax was explicitly set on item
+      mapped.tax = [{ id: 1 }]
     }
     return mapped
   })
