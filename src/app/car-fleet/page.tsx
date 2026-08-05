@@ -239,7 +239,7 @@ export default function CarFleetPage() {
                         {getStatusLabel(car.status)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1">
                       <a href={`/car-fleet/${car.id}`} className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors" title="Ver Detalle"><Eye size={16} /></a>
                       <button onClick={() => openEdit(car)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Edit size={16} /></button>
                       <button onClick={() => handleDelete(car.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar"><Trash2 size={16} /></button>
@@ -342,12 +342,13 @@ export default function CarFleetPage() {
                         )}
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-1">
                           <a href={`/car-fleet/${car.id}`} className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors" title="Ver Detalle"><Eye size={16} /></a>
                           <button onClick={() => openEdit(car)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Edit size={16} /></button>
                           <button onClick={() => handleDelete(car.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar"><Trash2 size={16} /></button>
                         </div>
                       </td>
+
                     </tr>
                   ))}
                   {filteredCars.length === 0 && (
