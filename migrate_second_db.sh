@@ -4,7 +4,7 @@
 # This script copies the public schema and data from the secondary database to the main database.
 
 SOURCE_DB="postgresql://postgres.ibcevxzxfzszrmejekqd:Rapido221196.@aws-0-us-west-2.pooler.supabase.com:6543/postgres"
-DEST_DB="postgresql://postgres:B9124853d8.90@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres"
+DEST_DB="postgresql://postgres:ErutxxPgMCpkQZ47@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres"
 
 echo "Starting migration from secondary database to the main database..."
 echo "This will merge the unique schemas."

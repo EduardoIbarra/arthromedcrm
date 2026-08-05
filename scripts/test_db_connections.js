@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 
 const devDbUrl = "postgresql://postgres:Rapido221196.@db.ibcevxzxfzszrmejekqd.supabase.co:5432/postgres";
-const prodDbUrl = "postgresql://postgres:B9124853d8.90@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres";
+const prodDbUrl = "postgresql://postgres:ErutxxPgMCpkQZ47@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres";
 
 async function checkDb(name, url) {
   const client = new Client({ connectionString: url });

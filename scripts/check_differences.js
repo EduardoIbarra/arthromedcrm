@@ -2,7 +2,7 @@ const XLSX = require('xlsx');
 const { Client } = require('pg');
 
 const devDbUrl = "postgresql://postgres:Rapido221196.@db.ibcevxzxfzszrmejekqd.supabase.co:5432/postgres";
-const prodDbUrl = "postgresql://postgres:B9124853d8.90@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres";
+const prodDbUrl = "postgresql://postgres:ErutxxPgMCpkQZ47@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres";
 
 // Load excel
 const workbook = XLSX.readFile('/Users/macbook/Downloads/punto cero.xlsx');

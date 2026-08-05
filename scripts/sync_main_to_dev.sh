@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-MAIN_DB="postgresql://postgres:B9124853d8.90@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres"
+MAIN_DB="postgresql://postgres:ErutxxPgMCpkQZ47@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres"
 DEV_DB_1="postgresql://postgres:B9124853d8.90@db.zdvkatyzqgbeewtbuyfu.supabase.co:5432/postgres"
 DEV_DB_2="postgresql://postgres:Rapido221196.@db.ibcevxzxfzszrmejekqd.supabase.co:5432/postgres"
 

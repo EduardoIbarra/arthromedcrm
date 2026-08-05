@@ -16,7 +16,7 @@ const XLSX = require('xlsx');
 const { Client } = require('pg');
 
 const DEV_DB_URL  = "postgresql://postgres:Rapido221196.@db.ibcevxzxfzszrmejekqd.supabase.co:5432/postgres";
-const PROD_DB_URL = "postgresql://postgres:B9124853d8.90@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres";
+const PROD_DB_URL = "postgresql://postgres:ErutxxPgMCpkQZ47@db.lmiymbdnqkvppaalgayr.supabase.co:5432/postgres";
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
