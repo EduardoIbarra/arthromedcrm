@@ -6,7 +6,7 @@ import { useI18n } from '@/contexts/I18nContext'
 import { useUser } from '@/contexts/UserContext'
 import {
   ClipboardList, Plus, Search, Loader2, Download, Trash2,
-  Calendar, RefreshCw, Eye, FileSpreadsheet
+  Calendar, RefreshCw, Eye, FileSpreadsheet, Copy, Check, Link as LinkIcon
 } from 'lucide-react'
 import AppShell from '@/components/AppShell'
 import PermissionGuard from '@/components/PermissionGuard'
@@ -50,6 +50,14 @@ export default function RequisicionesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [requisiciones, setRequisiciones] = useState<Requisicion[]>([])
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  const handleCopyLink = (id: string) => {
+    const url = `${window.location.origin}/requisiciones/verificar/${id}`
+    navigator.clipboard.writeText(url)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 2500)
+  }
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
@@ -223,6 +231,23 @@ export default function RequisicionesPage() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleCopyLink(req.id)}
+                                className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs ${
+                                  copiedId === req.id
+                                    ? 'bg-emerald-100 text-emerald-700 font-medium'
+                                    : 'hover:bg-indigo-50 text-slate-400 hover:text-indigo-600'
+                                }`}
+                                title="Copiar enlace de autorización / verificación"
+                              >
+                                {copiedId === req.id ? (
+                                  <>
+                                    <Check size={18} className="text-emerald-600" />
+                                  </>
+                                ) : (
+                                  <LinkIcon size={18} />
+                                )}
+                              </button>
                               <button
                                 onClick={() => router.push(`/requisiciones/editar/${req.id}`)}
                                 className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-[#0763a9] rounded-lg transition-colors"
