@@ -17,19 +17,10 @@ const prismaClientSingleton = () => {
     }) as any
   }
 
-  // Strip conflicting SSL query params from connection string so options.ssl is respected by node-postgres Pool
-  let cleanUrl = connectionString
-  try {
-    const parsedUrl = new URL(connectionString)
-    parsedUrl.searchParams.delete('sslmode')
-    parsedUrl.searchParams.delete('sslaccept')
-    parsedUrl.searchParams.delete('sslcert')
-    parsedUrl.searchParams.delete('sslkey')
-    parsedUrl.searchParams.delete('sslrootcert')
-    cleanUrl = parsedUrl.toString()
-  } catch (e) {
-    console.warn('Warning: Failed to parse connectionString as URL, using raw string.', e)
-  }
+  // Strip conflicting SSL query params from connection string without mutating URL/password encoding
+  const cleanUrl = connectionString
+    .replace(/([?&])(sslmode|sslaccept|sslcert|sslkey|sslrootcert)=[^&]*&?/gi, '$1')
+    .replace(/[?&]$/, '')
 
   const pool = new Pool({
     connectionString: cleanUrl,
