@@ -203,8 +203,9 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
     e.preventDefault()
     if (!requisicion) return
 
+    const currentUser = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email : 'Usuario ERP'
     const solicitanteFinal = form.solicitante_nombre === 'Otro' ? form.solicitante_otro : form.solicitante_nombre
-    const aprobadorFinal = form.status === 'APROBADA' || form.status === 'COMPRADA'
+    let aprobadorFinal = form.status === 'APROBADA' || form.status === 'COMPRADA'
       ? (form.aprobacion_nombre === 'Otro' ? form.aprobador_otro : form.aprobacion_nombre)
       : ''
     const autorizadorFinal = form.autorizacion_nombre === 'Otro' ? form.autorizador_otro : form.autorizacion_nombre
@@ -215,13 +216,13 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
     }
 
     if ((form.status === 'APROBADA' || form.status === 'COMPRADA') && !aprobadorFinal) {
-      alert('Debe especificar un aprobador si la requisición está aprobada o comprada.')
-      return
+      aprobadorFinal = currentUser
     }
+
+    const statusChanged = form.status !== requisicion.status
 
     setIsSaving(true)
     try {
-      const currentUser = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email : 'Usuario ERP'
       const res = await fetch(`/api/requisiciones/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -238,7 +239,7 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
 
           items: form.items,
           log_usuario: currentUser,
-          log_accion: `Actualizó campos generales o productos`
+          log_accion: statusChanged ? `Cambió el estado a ${form.status}` : `Actualizó campos generales o productos`
         })
       })
 
@@ -250,6 +251,7 @@ export default function EditarRequisicionPage({ params }: { params: Promise<{ id
       setIsSaving(false)
     }
   }
+
 
   // Handle uploading files for logs
   const handleLogFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

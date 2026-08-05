@@ -83,7 +83,9 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
 
   // Modals state
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false)
+  const [editingMaintenanceId, setEditingMaintenanceId] = useState<string | null>(null)
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false)
+  const [editingIncidentId, setEditingIncidentId] = useState<string | null>(null)
   const [isUsageModalOpen, setIsUsageModalOpen] = useState(false)
   const [editingUsageId, setEditingUsageId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -158,18 +160,57 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     fetchUsers()
   }, [id])
 
+  const handleOpenNewMaintenance = () => {
+    setEditingMaintenanceId(null)
+    setMaintenanceForm({
+      title: '',
+      type: 'preventive',
+      description: '',
+      cost: '',
+      status: 'scheduled',
+      date: new Date().toISOString().split('T')[0],
+      next_due_date: '',
+      performed_by: '',
+      notes: ''
+    })
+    setIsMaintenanceModalOpen(true)
+  }
+
+  const handleOpenEditMaintenance = (log: CarFleetMaintenance) => {
+    setEditingMaintenanceId(log.id)
+    setMaintenanceForm({
+      title: log.title || '',
+      type: log.type || 'preventive',
+      description: log.description || '',
+      cost: log.cost !== null && log.cost !== undefined ? String(log.cost) : '',
+      status: log.status || 'scheduled',
+      date: log.date ? new Date(log.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      next_due_date: log.next_due_date ? new Date(log.next_due_date).toISOString().split('T')[0] : '',
+      performed_by: log.performed_by || '',
+      notes: log.notes || ''
+    })
+    setIsMaintenanceModalOpen(true)
+  }
+
   const handleSaveMaintenance = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!maintenanceForm.title || !maintenanceForm.date) return
     setIsSaving(true)
     try {
-      const res = await fetch(`/api/car-fleet/${id}/maintenance`, {
-        method: 'POST',
+      const url = `/api/car-fleet/${id}/maintenance`
+      const method = editingMaintenanceId ? 'PATCH' : 'POST'
+      const payload = editingMaintenanceId
+        ? { ...maintenanceForm, maintenance_id: editingMaintenanceId }
+        : maintenanceForm
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(maintenanceForm)
+        body: JSON.stringify(payload)
       })
       if (res.ok) {
         setIsMaintenanceModalOpen(false)
+        setEditingMaintenanceId(null)
         setMaintenanceForm({
           title: '',
           type: 'preventive',
@@ -194,18 +235,73 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     }
   }
 
+  const handleDeleteMaintenance = async (maintenance_id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este registro de mantenimiento?')) return
+    try {
+      const res = await fetch(`/api/car-fleet/${id}/maintenance?maintenance_id=${maintenance_id}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        fetchCarDetail()
+      } else {
+        const err = await res.json()
+        alert('Error eliminando mantenimiento: ' + err.error)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Error eliminando mantenimiento')
+    }
+  }
+
+  const handleOpenNewIncident = () => {
+    setEditingIncidentId(null)
+    setIncidentForm({
+      title: '',
+      severity: 'minor',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      cost: '',
+      status: 'open',
+      reported_by_id: '',
+      notes: ''
+    })
+    setIsIncidentModalOpen(true)
+  }
+
+  const handleOpenEditIncident = (inc: CarFleetIncident) => {
+    setEditingIncidentId(inc.id)
+    setIncidentForm({
+      title: inc.title || '',
+      severity: inc.severity || 'minor',
+      description: inc.description || '',
+      date: inc.date ? new Date(inc.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      cost: inc.cost !== null && inc.cost !== undefined ? String(inc.cost) : '',
+      status: inc.status || 'open',
+      reported_by_id: inc.reported_by_id || '',
+      notes: inc.notes || ''
+    })
+    setIsIncidentModalOpen(true)
+  }
+
   const handleSaveIncident = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!incidentForm.title || !incidentForm.description || !incidentForm.date) return
     setIsSaving(true)
     try {
-      const res = await fetch(`/api/car-fleet/${id}/incidents`, {
-        method: 'POST',
+      const url = `/api/car-fleet/${id}/incidents`
+      const method = editingIncidentId ? 'PATCH' : 'POST'
+      const payload = editingIncidentId
+        ? { ...incidentForm, incident_id: editingIncidentId }
+        : incidentForm
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(incidentForm)
+        body: JSON.stringify(payload)
       })
       if (res.ok) {
         setIsIncidentModalOpen(false)
+        setEditingIncidentId(null)
         setIncidentForm({
           title: '',
           severity: 'minor',
@@ -228,6 +324,25 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
       setIsSaving(false)
     }
   }
+
+  const handleDeleteIncident = async (incident_id: string) => {
+    if (!confirm('¿Estás seguro de eliminar esta incidencia?')) return
+    try {
+      const res = await fetch(`/api/car-fleet/${id}/incidents?incident_id=${incident_id}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        fetchCarDetail()
+      } else {
+        const err = await res.json()
+        alert('Error eliminando incidencia: ' + err.error)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Error eliminando incidencia')
+    }
+  }
+
 
   const handleOpenNewUsage = () => {
     setEditingUsageId(null)
@@ -567,12 +682,12 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
 
           <div>
             {activeTab === 'maintenance' && (
-              <button onClick={() => setIsMaintenanceModalOpen(true)} className="btn-primary text-xs flex items-center gap-2">
+              <button onClick={handleOpenNewMaintenance} className="btn-primary text-xs flex items-center gap-2">
                 <Plus size={16} /> Registrar Mantenimiento
               </button>
             )}
             {activeTab === 'incidents' && (
-              <button onClick={() => setIsIncidentModalOpen(true)} className="btn-primary text-xs flex items-center gap-2 bg-rose-600 hover:bg-rose-700 border-rose-600">
+              <button onClick={handleOpenNewIncident} className="btn-primary text-xs flex items-center gap-2 bg-rose-600 hover:bg-rose-700 border-rose-600">
                 <Plus size={16} /> Registrar Incidencia
               </button>
             )}
@@ -592,9 +707,9 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 {car.maintenance_logs.map(log => {
                   const badge = getMaintenanceTypeBadge(log.type)
                   return (
-                    <div key={log.id} className="card p-5 hover:border-blue-200 transition-colors">
+                    <div key={log.id} className="card p-5 hover:border-blue-200 transition-colors relative">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 flex-1 pr-16">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${badge.class}`}>
                               {badge.label}
@@ -618,6 +733,23 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                         </div>
 
                         <div className="flex flex-wrap md:flex-col md:items-end justify-between text-xs text-gray-500 gap-2 border-t md:border-t-0 pt-2 md:pt-0 border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleOpenEditMaintenance(log)}
+                              className="p-1 text-gray-500 hover:text-[#0763a9] rounded hover:bg-blue-50 transition-colors"
+                              title="Editar mantenimiento"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMaintenance(log.id)}
+                              className="p-1 text-gray-500 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                              title="Eliminar mantenimiento"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+
                           <div className="flex items-center gap-1 font-semibold text-gray-700">
                             <Calendar size={14} className="text-gray-400" />
                             Fecha: {new Date(log.date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -632,7 +764,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
 
                           {log.cost !== null && log.cost !== undefined && (
                             <div className="font-mono font-bold text-sm text-gray-900">
-                              Cost: ${Number(log.cost).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                              Costo: ${Number(log.cost).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                             </div>
                           )}
 
@@ -658,11 +790,12 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 <Wrench size={36} className="mx-auto text-gray-300 mb-2" />
                 <p className="font-semibold">Sin mantenimientos registrados</p>
                 <p className="text-xs text-gray-400 mt-1">Registra revisiones preventivas, servicios o reparaciones para dar seguimiento vehicular.</p>
-                <button onClick={() => setIsMaintenanceModalOpen(true)} className="btn-primary text-xs mt-4 inline-flex items-center gap-2">
+                <button onClick={handleOpenNewMaintenance} className="btn-primary text-xs mt-4 inline-flex items-center gap-2">
                   <Plus size={16} /> Registrar Primer Mantenimiento
                 </button>
               </div>
             )}
+
           </div>
         )}
 
@@ -674,9 +807,9 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 {car.incident_logs.map(inc => {
                   const severityBadge = getSeverityBadge(inc.severity)
                   return (
-                    <div key={inc.id} className="card p-5 border-l-4 border-l-rose-500 hover:border-rose-300 transition-colors">
+                    <div key={inc.id} className="card p-5 border-l-4 border-l-rose-500 hover:border-rose-300 transition-colors relative">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 flex-1 pr-16">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${severityBadge.class}`}>
                               Gravedad: {severityBadge.label}
@@ -698,6 +831,23 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                         </div>
 
                         <div className="flex flex-wrap md:flex-col md:items-end justify-between text-xs text-gray-500 gap-2 border-t md:border-t-0 pt-2 md:pt-0 border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleOpenEditIncident(inc)}
+                              className="p-1 text-gray-500 hover:text-[#0763a9] rounded hover:bg-blue-50 transition-colors"
+                              title="Editar incidencia"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteIncident(inc.id)}
+                              className="p-1 text-gray-500 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                              title="Eliminar incidencia"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+
                           <div className="flex items-center gap-1 font-semibold text-gray-700">
                             <Calendar size={14} className="text-gray-400" />
                             Fecha: {new Date(inc.date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -735,13 +885,14 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
                 <AlertTriangle size={36} className="mx-auto text-gray-300 mb-2" />
                 <p className="font-semibold">Sin incidencias ni percances reportados</p>
                 <p className="text-xs text-gray-400 mt-1">Este vehículo no presenta ningún reporte de choque, rayón, multa o falla técnica.</p>
-                <button onClick={() => setIsIncidentModalOpen(true)} className="btn-primary text-xs mt-4 inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 border-rose-600">
+                <button onClick={handleOpenNewIncident} className="btn-primary text-xs mt-4 inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 border-rose-600">
                   <Plus size={16} /> Reportar Incidencia
                 </button>
               </div>
             )}
           </div>
         )}
+
 
         {/* Tab 3: Usage History (Cirugias, Talleres, Congresos) */}
         {activeTab === 'usage' && (
@@ -888,8 +1039,8 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
           </div>
         )}
 
-        {/* Modal: Add Maintenance */}
-        <Modal open={isMaintenanceModalOpen} onClose={() => setIsMaintenanceModalOpen(false)} title="Registrar Mantenimiento / Servicio">
+        {/* Modal: Add/Edit Maintenance */}
+        <Modal open={isMaintenanceModalOpen} onClose={() => setIsMaintenanceModalOpen(false)} title={editingMaintenanceId ? 'Editar Mantenimiento / Servicio' : 'Registrar Mantenimiento / Servicio'}>
           <form onSubmit={handleSaveMaintenance} className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Título del Servicio *</label>
@@ -940,7 +1091,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Taller / Realizado por</label>
-                <input type="text" className="erp-input w-full" value={maintenanceForm.performed_by} onChange={e => setMaintenanceForm({ ...maintenanceForm, performed_by: e.target.value })} placeholder="Ej. Agenica Agencia Toyota / Taller Central" />
+                <input type="text" className="erp-input w-full" value={maintenanceForm.performed_by} onChange={e => setMaintenanceForm({ ...maintenanceForm, performed_by: e.target.value })} placeholder="Ej. Agencia Toyota / Taller Central" />
               </div>
             </div>
 
@@ -957,14 +1108,14 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
               <button type="button" onClick={() => setIsMaintenanceModalOpen(false)} className="btn-secondary px-4">Cancelar</button>
               <button type="submit" disabled={isSaving} className="btn-primary">
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Guardar Mantenimiento'}
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : (editingMaintenanceId ? 'Guardar Cambios' : 'Guardar Mantenimiento')}
               </button>
             </div>
           </form>
         </Modal>
 
-        {/* Modal: Add Incident */}
-        <Modal open={isIncidentModalOpen} onClose={() => setIsIncidentModalOpen(false)} title="Reportar Incidencia / Percance">
+        {/* Modal: Add/Edit Incident */}
+        <Modal open={isIncidentModalOpen} onClose={() => setIsIncidentModalOpen(false)} title={editingIncidentId ? 'Editar Incidencia / Percance' : 'Reportar Incidencia / Percance'}>
           <form onSubmit={handleSaveIncident} className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Título de la Incidencia *</label>
@@ -1029,11 +1180,12 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
               <button type="button" onClick={() => setIsIncidentModalOpen(false)} className="btn-secondary px-4">Cancelar</button>
               <button type="submit" disabled={isSaving} className="btn-primary bg-rose-600 hover:bg-rose-700 border-rose-600">
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : 'Reportar Incidencia'}
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : (editingIncidentId ? 'Guardar Cambios' : 'Reportar Incidencia')}
               </button>
             </div>
           </form>
         </Modal>
+
 
         {/* Modal: Add/Edit Manual Usage */}
         <Modal open={isUsageModalOpen} onClose={() => setIsUsageModalOpen(false)} title={editingUsageId ? 'Editar Uso Manual de Vehículo' : 'Registrar Uso Manual de Vehículo'}>
